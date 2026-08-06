@@ -1,0 +1,42 @@
+# Poetry pyproject.toml for Celery worker
+
+[build-system]
+requires = ["poetry_core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "lupita-worker"
+version = "0.1.0"
+description = "Celery worker for Lupita ingestion and assessment pipelines"
+readme = "README.md"
+authors = [
+  "BBVA: <rafaelfernando.polo@bbva.com>"
+]
+license = ""
+packages = [
+    { include = "src" }
+]
+
+[tool.poetry.dependencies]
+python = ">=3.11.0,<3.12"
+setuptools = "78.1.1"
+
+celery = "5.6.2"
+redis = "7.2.1"
+boto3 = "1.40.38"
+botocore = "1.40.38"
+pydantic = "2.11.9"
+pydantic-settings = "2.11.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "8.2.0"
+pytest-asyncio = "0.23.6"
+pytest-cov = "4.1.0"
+pytest-env = "1.0.1"
+black = "24.4.2"
+isort = "5.13.2"
+flake8 = "7.0.0"
+flake8-pyproject = "1.2.3"
+pyproject-autoflake = "1.0.2"
+ruff = "0.8.4"
+

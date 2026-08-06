@@ -1,0 +1,10 @@
+.cache
+.pytest_cache
+__pycache__
+*.py[cod]
+.venv
+build
+dist
+htmlcov
+xunit-result.xml
+coverage.xml

@@ -1,0 +1,1 @@
+"""OpenSearch search-engine adapter."""

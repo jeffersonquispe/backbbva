@@ -1,0 +1,80 @@
+# Poetry pyproject.toml: https://python-poetry.org/docs/pyproject/
+
+[build-system]
+requires = ["poetry_core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "lupita-api"
+version = "0.1.0"
+description = "Chatbot de gobierno de datos BBVA CO"
+readme = "README.md"
+authors = [
+  "BBVA: <rafaelfernando.polo@bbva.com>"]
+license = ""
+packages = [
+    { include = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11.0,<3.12"
+setuptools = "78.1.1"
+
+fastapi = "0.117.1"
+uvicorn = "0.37.0"
+pydantic = "2.11.9"
+pydantic-settings = "2.11.0"
+boto3 = "1.40.38"
+botocore = "1.40.38"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "8.2.0"
+pytest-asyncio = "0.23.6"
+pytest-cov = "4.1.0"
+pytest-env = "1.0.1"
+black = "24.4.2"
+isort = "5.13.2"
+flake8 = "7.0.0"
+flake8-pyproject = "1.2.3"
+pyproject-autoflake = "1.0.2"
+ruff = "0.8.4"
+
+[tool.black]
+target-version = ["py311"]
+line-length = 79
+
+[tool.isort]
+profile = "black"
+line_length = 79
+use_parentheses = true
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+command_line = "-m pytest"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-s -v --durations=0 --cov=src --cov-report=term --cov-report=xml --junitxml=xunit-result.xml"
+cache_dir = ".cache/pytest_cache"
+python_files = ["**/*.py"]
+env = ["GENAI_ENVIRONMENT=test"]
+
+[tool.flake8]
+max-line-length = 120
+exclude = [".git",".venv","__pycache__", "old", "build", "dist",
+    "./src/infrastructure/core/config.py",
+    "./config/**/*.py"]
+ignore = ["DAR101", "DAR103", "DAR402", "DAR401", "DAR201",
+    "DAR102", "DAR003", "DAR301", "E999", "W293", "W391","E203","E402", "E303"]
+
+[tool.autoflake]
+in-place = true
+recursive = true
+remove-all-unused-imports = true
+exclude = ["./config/**/*.py", "./src/infraestructure/core/*.*"]
