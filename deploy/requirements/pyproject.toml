@@ -5,12 +5,12 @@ requires = ["poetry_core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "lupita-api"
+name = "aria-api"
 version = "0.1.0"
-description = "Chatbot de gobierno de datos BBVA CO"
+description = "API for the novel massive fraud agent for BBVA company"
 readme = "README.md"
 authors = [
-  "BBVA: <rafaelfernando.polo@bbva.com>"]
+  "BBVA: <carlosdavid.rojas@bbva.com>"]
 license = ""
 packages = [
     { include = "src" }]
@@ -25,6 +25,8 @@ pydantic = "2.11.9"
 pydantic-settings = "2.11.0"
 boto3 = "1.40.38"
 botocore = "1.40.38"
+celery = "5.6.2"
+redis = "7.2.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.2.0"

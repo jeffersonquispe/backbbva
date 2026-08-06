@@ -68,6 +68,8 @@ class DynamoAsyncOperationRepository:
         result: dict[str, Any] | None = None,
         error: str | None = None,
         dispatched_at: datetime | None = None,
+        execution_backend: str | None = None,
+        external_id: str | None = None,
     ) -> AsyncOperationRecord | None:
         current = self.get(operation_id)
         if current is None:
@@ -84,6 +86,14 @@ class DynamoAsyncOperationRepository:
             updated_at=datetime.now(timezone.utc),
             created_by=current.created_by,
             dispatched_at=dispatched_at or current.dispatched_at,
+            execution_backend=(
+                execution_backend
+                if execution_backend is not None
+                else current.execution_backend
+            ),
+            external_id=(
+                external_id if external_id is not None else current.external_id
+            ),
         )
         self._table.put_item(Item=_to_item(updated))
         return updated
@@ -106,6 +116,8 @@ def _to_item(operation: AsyncOperationRecord) -> dict[str, Any]:
             if operation.dispatched_at
             else None
         ),
+        "execution_backend": operation.execution_backend,
+        "external_id": operation.external_id,
     }
 
 
@@ -124,4 +136,6 @@ def _from_item(item: dict[str, Any]) -> AsyncOperationRecord:
         dispatched_at=(
             datetime.fromisoformat(dispatched_at) if dispatched_at else None
         ),
+        execution_backend=item.get("execution_backend"),
+        external_id=item.get("external_id"),
     )

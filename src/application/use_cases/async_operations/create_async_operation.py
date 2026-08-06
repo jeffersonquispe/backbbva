@@ -7,8 +7,8 @@ from src.application.dtos.async_operation_dtos import (
     AsyncOperationOutput,
     CreateAsyncOperationInput,
 )
+from src.application.ports.async_executor_port import AsyncExecutor
 from src.application.ports.async_operation_port import (
-    AsyncOperationDispatcher,
     AsyncOperationRecord,
     AsyncOperationRepository,
     AsyncOperationStatus,
@@ -19,10 +19,10 @@ class CreateAsyncOperationUseCase:
     def __init__(
         self,
         repository: AsyncOperationRepository,
-        dispatcher: AsyncOperationDispatcher,
+        executor: AsyncExecutor,
     ) -> None:
         self._repository = repository
-        self._dispatcher = dispatcher
+        self._executor = executor
 
     def execute(
         self, input: CreateAsyncOperationInput
@@ -40,8 +40,24 @@ class CreateAsyncOperationUseCase:
             created_by=input.created_by,
         )
         saved = self._repository.create(operation)
-        self._dispatcher.dispatch(saved)
-        return _to_output(saved)
+        try:
+            execution_ref = self._executor.dispatch(saved)
+        except Exception as exc:
+            failed = self._repository.update(
+                saved.id,
+                status=AsyncOperationStatus.FAILED,
+                error=str(exc),
+            )
+            return _to_output(failed or saved)
+
+        dispatched = self._repository.update(
+            saved.id,
+            status=AsyncOperationStatus.DISPATCHED,
+            dispatched_at=datetime.now(timezone.utc),
+            execution_backend=execution_ref.backend,
+            external_id=execution_ref.external_id,
+        )
+        return _to_output(dispatched or saved)
 
 
 def _to_output(operation: AsyncOperationRecord) -> AsyncOperationOutput:
@@ -56,4 +72,6 @@ def _to_output(operation: AsyncOperationRecord) -> AsyncOperationOutput:
         updated_at=operation.updated_at,
         created_by=operation.created_by,
         dispatched_at=operation.dispatched_at,
+        execution_backend=operation.execution_backend,
+        external_id=operation.external_id,
     )

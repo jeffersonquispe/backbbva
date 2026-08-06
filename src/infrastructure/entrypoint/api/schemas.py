@@ -32,3 +32,5 @@ class AsyncOperationResponse(BaseModel):
     updated_at: datetime
     created_by: str | None
     dispatched_at: datetime | None
+    execution_backend: str | None
+    external_id: str | None

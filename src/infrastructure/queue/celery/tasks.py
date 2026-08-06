@@ -1,8 +1,3 @@
-from __future__ import annotations
+from src.infrastructure.queues.celery.tasks import healthcheck, run_async_operation
 
-from src.infrastructure.queue.celery.celery_app import app
-
-
-@app.task(name="queue.healthcheck")
-def healthcheck() -> dict[str, str]:
-    return {"status": "ok"}
+__all__ = ["healthcheck", "run_async_operation"]

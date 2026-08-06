@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from src.application.ports.async_operation_port import (
-    AsyncOperationDispatcher,
-    AsyncOperationRecord,
+from src.application.ports.async_executor_port import (
+    AsyncExecutionRef,
+    AsyncExecutor,
 )
+from src.application.ports.async_operation_port import AsyncOperationRecord
 from src.application.use_cases.async_operations.create_async_operation import (
     CreateAsyncOperationUseCase,
 )
@@ -18,16 +19,17 @@ from src.application.use_cases.async_operations.list_async_operations import (
 from src.application.use_cases.async_operations.update_async_operation import (
     UpdateAsyncOperationUseCase,
 )
+from src.infrastructure.core.config import genai_config
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
 
 
-class DeferredAsyncOperationDispatcher:
-    """Placeholder dispatcher until Celery or another async backend is wired."""
+class DeferredAsyncExecutor(AsyncExecutor):
+    """Local no-op executor for environments without an async backend."""
 
-    def dispatch(self, operation: AsyncOperationRecord) -> None:
-        return None
+    def dispatch(self, operation: AsyncOperationRecord) -> AsyncExecutionRef:
+        return AsyncExecutionRef(backend="deferred")
 
 
 @lru_cache
@@ -36,14 +38,24 @@ def get_async_operation_repository() -> DynamoAsyncOperationRepository:
 
 
 @lru_cache
-def get_async_operation_dispatcher() -> AsyncOperationDispatcher:
-    return DeferredAsyncOperationDispatcher()
+def get_async_executor() -> AsyncExecutor:
+    backend = genai_config.ASYNC_EXECUTOR_BACKEND.strip().lower()
+    if backend == "celery":
+        from src.infrastructure.queues.celery.dispatcher import (
+            CeleryAsyncExecutor,
+        )
+
+        return CeleryAsyncExecutor()
+    if backend == "deferred":
+        return DeferredAsyncExecutor()
+
+    raise ValueError(f"Unsupported async executor backend: {backend}")
 
 
 def get_create_async_operation_use_case() -> CreateAsyncOperationUseCase:
     return CreateAsyncOperationUseCase(
         repository=get_async_operation_repository(),
-        dispatcher=get_async_operation_dispatcher(),
+        executor=get_async_executor(),
     )
 
 

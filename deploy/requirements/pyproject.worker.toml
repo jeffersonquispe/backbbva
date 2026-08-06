@@ -5,12 +5,12 @@ requires = ["poetry_core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "lupita-worker"
+name = "aria-worker"
 version = "0.1.0"
-description = "Celery worker for Lupita ingestion and assessment pipelines"
+description = "Async worker for the novel massive fraud agent for BBVA company"
 readme = "README.md"
 authors = [
-  "BBVA: <rafaelfernando.polo@bbva.com>"
+  "BBVA: <carlosdavid.rojas@bbva.com>"
 ]
 license = ""
 packages = [
@@ -39,4 +39,3 @@ flake8 = "7.0.0"
 flake8-pyproject = "1.2.3"
 pyproject-autoflake = "1.0.2"
 ruff = "0.8.4"
-

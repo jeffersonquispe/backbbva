@@ -17,6 +17,20 @@ services:
       retries: 10
       start_period: 10s
 
+  redis:
+    image: redis:7.2-alpine
+    container_name: aria-redis
+    ports:
+      - "${LOCAL_REDIS_PORT:-6379}:6379"
+    networks:
+      - aria-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
   api:
     build:
       context: ../../..
@@ -46,8 +60,14 @@ services:
       DYNAMO_REGION_NAME: ${DYNAMO_REGION_NAME:-us-east-1}
       DYNAMO_ACCESS_KEY: ${DYNAMO_ACCESS_KEY:-dummy}
       DYNAMO_SECRET_KEY: ${DYNAMO_SECRET_KEY:-dummy}
+      ASYNC_EXECUTOR_BACKEND: ${ASYNC_EXECUTOR_BACKEND:-celery}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
     depends_on:
       dynamodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - aria-net
@@ -57,6 +77,45 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  worker:
+    build:
+      context: ../../..
+      dockerfile: deploy/local/docker/Dockerfile.worker
+      args:
+        GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+    image: aria-worker:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-worker
+    environment:
+      GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      API_V0_STR: ${API_V0_STR:-/api/v0}
+      COMPONENT_NAME: ${COMPONENT_NAME:-aria-worker}
+      COMPONENT_VERSION: ${COMPONENT_VERSION:-0.1.0}
+      COMPONENT_DESCRIPTION: ${COMPONENT_DESCRIPTION:-Async worker}
+      GENAI_PRODUCT: ${GENAI_PRODUCT:-aria}
+      GENAI_NAME: ${GENAI_NAME:-aria-worker}
+      GENAI_APPLICATION: ${GENAI_APPLICATION:-aria}
+      DEFAULT_LOGGING_LEVEL: ${DEFAULT_LOGGING_LEVEL:-INFO}
+      AWS_REGION_NAME: ${AWS_REGION_NAME:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      DYNAMO_ENDPOINT: http://dynamodb:8000
+      DYNAMO_REGION_NAME: ${DYNAMO_REGION_NAME:-us-east-1}
+      DYNAMO_ACCESS_KEY: ${DYNAMO_ACCESS_KEY:-dummy}
+      DYNAMO_SECRET_KEY: ${DYNAMO_SECRET_KEY:-dummy}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
+    depends_on:
+      dynamodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks:
+      - aria-net
 
 networks:
   aria-net:

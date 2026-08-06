@@ -16,9 +16,11 @@ class Config(BaseSettings):
 
     AWS_REGION_NAME: str = "eu-west-1"
 
-    COMPONENT_NAME: str = "lupita"
+    COMPONENT_NAME: str = "aria-api"
 
-    COMPONENT_DESCRIPTION: str = "Chatbot de gobierno de datos BBVA CO"
+    COMPONENT_DESCRIPTION: str = (
+        "API for the novel massive fraud agent for BBVA company"
+    )
 
     COMPONENT_VERSION: str = "0.1.0"
 
@@ -26,7 +28,7 @@ class Config(BaseSettings):
 
     ECS_CONTAINER_METADATA_URI_V4: str = "local"
 
-    GENAI_APPLICATION: str = "lupita"
+    GENAI_APPLICATION: str = "aria"
 
     GENAI_BASE_URL: str = "http://localhost:8000"
 
@@ -44,9 +46,9 @@ class Config(BaseSettings):
 
     GENAI_OTEL_EXPORTER_OTLP_STREAM_OBFUSCATE_FIELDS: str | None = None
 
-    GENAI_PRODUCT: str = "lupita"
+    GENAI_PRODUCT: str = "aria"
 
-    GENAI_NAME: str = "lupita-lupita"
+    GENAI_NAME: str = "aria-api"
 
     OTEL_ENDPOINT: str = "http://localhost:4317"
 
@@ -184,6 +186,7 @@ class Config(BaseSettings):
     DYNAMO_SECRET_KEY: str = "dummy"
 
     # QUEUE
+    ASYNC_EXECUTOR_BACKEND: str = "celery"
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"
     CELERY_DEFAULT_QUEUE: str = "default"

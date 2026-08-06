@@ -27,6 +27,8 @@ class AsyncOperationRecord:
     updated_at: datetime
     created_by: str | None = None
     dispatched_at: datetime | None = None
+    execution_backend: str | None = None
+    external_id: str | None = None
 
 
 class AsyncOperationRepository(Protocol):
@@ -53,10 +55,7 @@ class AsyncOperationRepository(Protocol):
         result: dict[str, Any] | None = None,
         error: str | None = None,
         dispatched_at: datetime | None = None,
+        execution_backend: str | None = None,
+        external_id: str | None = None,
     ) -> AsyncOperationRecord | None:
-        ...
-
-
-class AsyncOperationDispatcher(Protocol):
-    def dispatch(self, operation: AsyncOperationRecord) -> None:
         ...
