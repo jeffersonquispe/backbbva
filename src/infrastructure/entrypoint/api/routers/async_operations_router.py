@@ -29,12 +29,17 @@ from src.infrastructure.entrypoint.api.factories.async_operation_factory import 
     get_update_async_operation_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
+    AsyncOperationPollingResponse,
     AsyncOperationResponse,
     CreateAsyncOperationRequest,
     UpdateAsyncOperationRequest,
 )
 
 router = APIRouter(prefix="/async-operations", tags=["async-operations"])
+TERMINAL_STATUSES = {
+    AsyncOperationStatus.SUCCEEDED,
+    AsyncOperationStatus.FAILED,
+}
 
 
 @router.post(
@@ -71,6 +76,30 @@ def list_async_operations(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
     return use_case.execute(status=operation_status, limit=limit)
+
+
+@router.get("/{operation_id}/poll", response_model=AsyncOperationPollingResponse)
+def poll_async_operation(
+    operation_id: UUID,
+    use_case: Annotated[
+        GetAsyncOperationUseCase,
+        Depends(get_get_async_operation_use_case),
+    ],
+):
+    operation = use_case.execute(operation_id)
+    if operation is None:
+        raise HTTPException(status_code=404, detail="Async operation not found")
+
+    done = operation.status in TERMINAL_STATUSES
+    return AsyncOperationPollingResponse(
+        id=operation.id,
+        status=operation.status,
+        done=done,
+        retry_after_seconds=None if done else 2,
+        result=operation.result,
+        error=operation.error,
+        updated_at=operation.updated_at,
+    )
 
 
 @router.get("/{operation_id}", response_model=AsyncOperationResponse)

@@ -34,3 +34,13 @@ class AsyncOperationResponse(BaseModel):
     dispatched_at: datetime | None
     execution_backend: str | None
     external_id: str | None
+
+
+class AsyncOperationPollingResponse(BaseModel):
+    id: UUID
+    status: AsyncOperationStatus
+    done: bool
+    retry_after_seconds: int | None
+    result: dict[str, Any] | None
+    error: str | None
+    updated_at: datetime
