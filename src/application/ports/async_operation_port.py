@@ -47,6 +47,9 @@ class AsyncOperationRepository(Protocol):
     ) -> list[AsyncOperationRecord]:
         ...
 
+    def list_active(self, limit: int = 100) -> list[AsyncOperationRecord]:
+        ...
+
     def update(
         self,
         operation_id: UUID,

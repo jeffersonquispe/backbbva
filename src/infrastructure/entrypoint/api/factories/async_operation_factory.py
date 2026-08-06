@@ -6,6 +6,11 @@ from src.application.ports.async_executor_port import (
     AsyncExecutionRef,
     AsyncExecutor,
 )
+from src.application.ports.async_execution_inspector_port import (
+    AsyncExecutionInspector,
+    AsyncExecutionSnapshot,
+    AsyncExecutionState,
+)
 from src.application.ports.async_operation_port import AsyncOperationRecord
 from src.application.use_cases.async_operations.create_async_operation import (
     CreateAsyncOperationUseCase,
@@ -15,6 +20,9 @@ from src.application.use_cases.async_operations.get_async_operation import (
 )
 from src.application.use_cases.async_operations.list_async_operations import (
     ListAsyncOperationsUseCase,
+)
+from src.application.use_cases.async_operations.reconcile_async_operations import (
+    ReconcileAsyncOperationsUseCase,
 )
 from src.application.use_cases.async_operations.update_async_operation import (
     UpdateAsyncOperationUseCase,
@@ -30,6 +38,17 @@ class DeferredAsyncExecutor(AsyncExecutor):
 
     def dispatch(self, operation: AsyncOperationRecord) -> AsyncExecutionRef:
         return AsyncExecutionRef(backend="deferred")
+
+
+class DeferredAsyncExecutionInspector(AsyncExecutionInspector):
+    def inspect(
+        self,
+        operation: AsyncOperationRecord,
+    ) -> AsyncExecutionSnapshot:
+        return AsyncExecutionSnapshot(
+            state=AsyncExecutionState.UNKNOWN,
+            detail="Deferred executor has no backend state",
+        )
 
 
 @lru_cache
@@ -52,6 +71,21 @@ def get_async_executor() -> AsyncExecutor:
     raise ValueError(f"Unsupported async executor backend: {backend}")
 
 
+@lru_cache
+def get_async_execution_inspector() -> AsyncExecutionInspector:
+    backend = genai_config.ASYNC_EXECUTOR_BACKEND.strip().lower()
+    if backend == "celery":
+        from src.infrastructure.queues.celery.inspector import (
+            CeleryAsyncExecutionInspector,
+        )
+
+        return CeleryAsyncExecutionInspector()
+    if backend == "deferred":
+        return DeferredAsyncExecutionInspector()
+
+    raise ValueError(f"Unsupported async executor backend: {backend}")
+
+
 def get_create_async_operation_use_case() -> CreateAsyncOperationUseCase:
     return CreateAsyncOperationUseCase(
         repository=get_async_operation_repository(),
@@ -69,3 +103,10 @@ def get_list_async_operations_use_case() -> ListAsyncOperationsUseCase:
 
 def get_update_async_operation_use_case() -> UpdateAsyncOperationUseCase:
     return UpdateAsyncOperationUseCase(get_async_operation_repository())
+
+
+def get_reconcile_async_operations_use_case() -> ReconcileAsyncOperationsUseCase:
+    return ReconcileAsyncOperationsUseCase(
+        repository=get_async_operation_repository(),
+        inspector=get_async_execution_inspector(),
+    )

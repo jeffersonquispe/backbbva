@@ -60,6 +60,18 @@ class DynamoAsyncOperationRepository:
             )
         return [_from_item(item) for item in response.get("Items", [])]
 
+    def list_active(self, limit: int = 100) -> list[AsyncOperationRecord]:
+        active: list[AsyncOperationRecord] = []
+        for status in (
+            AsyncOperationStatus.PENDING,
+            AsyncOperationStatus.DISPATCHED,
+            AsyncOperationStatus.RUNNING,
+        ):
+            if len(active) >= limit:
+                break
+            active.extend(self.list(status=status, limit=limit - len(active)))
+        return active
+
     def update(
         self,
         operation_id: UUID,

@@ -7,9 +7,18 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.application.dtos.async_operation_dtos import AsyncOperationOutput
+from src.application.dtos.async_reconciliation_dtos import (
+    ReconcileAsyncOperationsInput,
+    ReconcileAsyncOperationsOutput,
+    ReconciledAsyncOperationOutput,
+)
+from src.application.ports.async_execution_inspector_port import (
+    AsyncExecutionState,
+)
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.infrastructure.entrypoint.api.factories.async_operation_factory import (
     get_get_async_operation_use_case,
+    get_reconcile_async_operations_use_case,
 )
 from src.infrastructure.entrypoint.api.routers.async_operations_router import (
     router,
@@ -24,11 +33,34 @@ class FakeGetAsyncOperationUseCase:
         return self._operation
 
 
+class FakeReconcileAsyncOperationsUseCase:
+    def execute(
+        self,
+        input: ReconcileAsyncOperationsInput,
+    ) -> ReconcileAsyncOperationsOutput:
+        return ReconcileAsyncOperationsOutput(
+            inspected=input.limit,
+            updated=1,
+            operations=[
+                ReconciledAsyncOperationOutput(
+                    id=uuid4(),
+                    previous_status=AsyncOperationStatus.RUNNING,
+                    current_status=AsyncOperationStatus.SUCCEEDED,
+                    execution_state=AsyncExecutionState.SUCCEEDED,
+                    detail=None,
+                )
+            ],
+        )
+
+
 def _client(operation: AsyncOperationOutput | None) -> TestClient:
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_get_async_operation_use_case] = (
         lambda: FakeGetAsyncOperationUseCase(operation)
+    )
+    app.dependency_overrides[get_reconcile_async_operations_use_case] = (
+        lambda: FakeReconcileAsyncOperationsUseCase()
     )
     return TestClient(app)
 
@@ -83,3 +115,18 @@ def test_poll_async_operation_returns_404_when_missing() -> None:
     response = _client(None).get(f"/async-operations/{uuid4()}/poll")
 
     assert response.status_code == 404
+
+
+def test_reconcile_async_operations_returns_summary() -> None:
+    response = _client(None).post(
+        "/async-operations/reconcile",
+        json={"limit": 5},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["inspected"] == 5
+    assert body["updated"] == 1
+    assert body["operations"][0]["previous_status"] == "RUNNING"
+    assert body["operations"][0]["current_status"] == "SUCCEEDED"
+    assert body["operations"][0]["execution_state"] == "SUCCEEDED"

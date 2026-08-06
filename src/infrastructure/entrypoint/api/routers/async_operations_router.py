@@ -9,6 +9,9 @@ from src.application.dtos.async_operation_dtos import (
     CreateAsyncOperationInput,
     UpdateAsyncOperationInput,
 )
+from src.application.dtos.async_reconciliation_dtos import (
+    ReconcileAsyncOperationsInput,
+)
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.use_cases.async_operations.create_async_operation import (
     CreateAsyncOperationUseCase,
@@ -19,6 +22,9 @@ from src.application.use_cases.async_operations.get_async_operation import (
 from src.application.use_cases.async_operations.list_async_operations import (
     ListAsyncOperationsUseCase,
 )
+from src.application.use_cases.async_operations.reconcile_async_operations import (
+    ReconcileAsyncOperationsUseCase,
+)
 from src.application.use_cases.async_operations.update_async_operation import (
     UpdateAsyncOperationUseCase,
 )
@@ -26,12 +32,15 @@ from src.infrastructure.entrypoint.api.factories.async_operation_factory import 
     get_create_async_operation_use_case,
     get_get_async_operation_use_case,
     get_list_async_operations_use_case,
+    get_reconcile_async_operations_use_case,
     get_update_async_operation_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
     AsyncOperationPollingResponse,
     AsyncOperationResponse,
     CreateAsyncOperationRequest,
+    ReconcileAsyncOperationsRequest,
+    ReconcileAsyncOperationsResponse,
     UpdateAsyncOperationRequest,
 )
 
@@ -76,6 +85,17 @@ def list_async_operations(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
     return use_case.execute(status=operation_status, limit=limit)
+
+
+@router.post("/reconcile", response_model=ReconcileAsyncOperationsResponse)
+def reconcile_async_operations(
+    request: ReconcileAsyncOperationsRequest,
+    use_case: Annotated[
+        ReconcileAsyncOperationsUseCase,
+        Depends(get_reconcile_async_operations_use_case),
+    ],
+):
+    return use_case.execute(ReconcileAsyncOperationsInput(limit=request.limit))
 
 
 @router.get("/{operation_id}/poll", response_model=AsyncOperationPollingResponse)

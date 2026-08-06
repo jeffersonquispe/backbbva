@@ -45,6 +45,21 @@ The API flow is:
 4. Mark the operation as `DISPATCHED`.
 5. Worker updates status to `RUNNING`, then `SUCCEEDED` or `FAILED`.
 
+## Reconciliation
+
+If API state and backend execution state diverge, run reconciliation:
+
+```bash
+curl -X POST http://localhost:8000/api/v0/async-operations/reconcile \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 100}'
+```
+
+The reconciler checks active operations in `async_operations`, asks the
+selected backend inspector for execution state, and updates DB status when the
+backend can prove `RUNNING`, `SUCCEEDED`, or `FAILED`. Unknown backend state is
+reported as `UNKNOWN` and left unchanged.
+
 ## Verification
 
 Run unit tests:
