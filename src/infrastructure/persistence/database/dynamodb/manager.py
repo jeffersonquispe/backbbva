@@ -2,8 +2,11 @@ from botocore.exceptions import ClientError
 
 from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
 from src.infrastructure.persistence.database.dynamodb.schemas import (
+    ALERTS_TABLE,
     ASYNC_OPERATIONS_TABLE,
     AUDIT_LOG_TABLE,
+    WORKFLOW_EXECUTIONS_TABLE,
+    WORKFLOW_STEP_EXECUTIONS_TABLE,
 )
 
 
@@ -27,6 +30,9 @@ def ensure_all_tables() -> None:
     """Ensure all DynamoDB tables used by the application exist."""
     create_table(AUDIT_LOG_TABLE)
     create_table(ASYNC_OPERATIONS_TABLE)
+    create_table(ALERTS_TABLE)
+    create_table(WORKFLOW_EXECUTIONS_TABLE)
+    create_table(WORKFLOW_STEP_EXECUTIONS_TABLE)
 
 
 def drop_table(table_name: str) -> None:

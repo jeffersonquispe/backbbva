@@ -46,3 +46,70 @@ ASYNC_OPERATIONS_TABLE = {
         },
     ],
 }
+
+
+ALERTS_TABLE = {
+    "TableName": "alerts",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "partition", "KeyType": "HASH"},
+        {"AttributeName": "alert_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "partition", "AttributeType": "S"},
+        {"AttributeName": "alert_id", "AttributeType": "S"},
+        {"AttributeName": "event_id", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "EventIdIdx",
+            "KeySchema": [
+                {"AttributeName": "event_id", "KeyType": "HASH"},
+                {"AttributeName": "alert_id", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+    ],
+}
+
+
+WORKFLOW_EXECUTIONS_TABLE = {
+    "TableName": "workflow_executions",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "partition", "KeyType": "HASH"},
+        {"AttributeName": "workflow_execution_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "partition", "AttributeType": "S"},
+        {"AttributeName": "workflow_execution_id", "AttributeType": "S"},
+        {"AttributeName": "status", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "StatusIdx",
+            "KeySchema": [
+                {"AttributeName": "status", "KeyType": "HASH"},
+                {
+                    "AttributeName": "workflow_execution_id",
+                    "KeyType": "RANGE",
+                },
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+    ],
+}
+
+
+WORKFLOW_STEP_EXECUTIONS_TABLE = {
+    "TableName": "workflow_step_executions",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "workflow_execution_id", "KeyType": "HASH"},
+        {"AttributeName": "step_execution_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "workflow_execution_id", "AttributeType": "S"},
+        {"AttributeName": "step_execution_id", "AttributeType": "S"},
+    ],
+}

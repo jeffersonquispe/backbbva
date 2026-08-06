@@ -16,6 +16,9 @@ from src.infrastructure.queues.celery.celery_app import app
 from src.infrastructure.queues.celery.inspector import (
     CeleryAsyncExecutionInspector,
 )
+from src.infrastructure.workflows.celery.alert_review_workflow import (
+    AlertReviewWorkflowRunner,
+)
 
 
 @app.task(name="queue.healthcheck")
@@ -67,3 +70,14 @@ def reconcile_async_operations(limit: int = 100) -> dict:
             for operation in output.operations
         ],
     }
+
+
+@app.task(
+    bind=True,
+    name="workflows.alert_review.run",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def run_alert_review_workflow(self, workflow_execution_id: str) -> dict:
+    return AlertReviewWorkflowRunner().run(UUID(workflow_execution_id))

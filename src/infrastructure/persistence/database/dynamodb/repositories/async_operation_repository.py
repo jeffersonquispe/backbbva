@@ -13,6 +13,10 @@ from src.application.ports.async_operation_port import (
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
+from src.infrastructure.persistence.database.dynamodb.serialization import (
+    from_dynamodb,
+    to_dynamodb,
+)
 
 TABLE_NAME = "async_operations"
 PARTITION = "operation"
@@ -117,8 +121,8 @@ def _to_item(operation: AsyncOperationRecord) -> dict[str, Any]:
         "operation_id": str(operation.id),
         "operation_type": operation.operation_type,
         "status": operation.status.value,
-        "payload": operation.payload,
-        "result": operation.result,
+        "payload": to_dynamodb(operation.payload),
+        "result": to_dynamodb(operation.result),
         "error": operation.error,
         "created_at": operation.created_at.isoformat(),
         "updated_at": operation.updated_at.isoformat(),
@@ -139,8 +143,8 @@ def _from_item(item: dict[str, Any]) -> AsyncOperationRecord:
         id=UUID(item["operation_id"]),
         operation_type=item["operation_type"],
         status=AsyncOperationStatus(item["status"]),
-        payload=item.get("payload") or {},
-        result=item.get("result"),
+        payload=from_dynamodb(item.get("payload") or {}),
+        result=from_dynamodb(item.get("result")),
         error=item.get("error"),
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
