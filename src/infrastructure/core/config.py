@@ -50,6 +50,8 @@ class Config(BaseSettings):
 
     OPENAI_VERSION: str = "2024-08-01-preview"
 
+    CLASSIFICATION_LLM_MODEL: str = ""
+
     # DYNAMODB
     DYNAMO_REGION_NAME: str = "us-east-1"
     DYNAMO_ENDPOINT: str = "http://dynamodb-lupita:8000"

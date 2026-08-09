@@ -6,6 +6,10 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
+from src.application.dtos.classify_alert_dtos import (
+    ClassifyAlertInput,
+    ClassifyAlertOutput,
+)
 from src.application.dtos.pre_process_dtos import (
     PreProcessAlertInput,
     PreProcessAlertOutput,
@@ -22,13 +26,26 @@ from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
 )
+from src.application.use_cases.alerts.classify_alert import ClassifyAlertUseCase
 from src.application.use_cases.alerts.pre_process_alert import (
     PreProcessAlertUseCase,
 )
+from src.infrastructure.core.config import genai_config
+from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
+from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.workflows.queued.queued_status_reporter import (
     QueuedWorkflowStatusReporter,
 )
 from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
+from src.infrastructure.fraud_intelligence.mock.fraud_taxonomy_adapter import (
+    MockFraudTaxonomyAdapter,
+)
+from src.infrastructure.fraud_intelligence.mock.modus_operandi_adapter import (
+    MockModusOperandiAdapter,
+)
+from src.infrastructure.fraud_intelligence.mock.similar_fraud_case_adapter import (
+    MockSimilarFraudCaseAdapter,
+)
 from src.infrastructure.host_services.mock.customer_profile_adapter import (
     MockHostServiceCustomerProfileAdapter,
 )
@@ -260,6 +277,33 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
     )
 
 
+def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
+    status_reporter = context.get("status_reporter")
+    step_id = context.get("current_step_id")
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        monitoring=get_monitoring(),
+        model=genai_config.CLASSIFICATION_LLM_MODEL,
+        similar_fraud_case_port=MockSimilarFraudCaseAdapter(),
+        fraud_taxonomy_port=MockFraudTaxonomyAdapter(),
+        modus_operandi_port=MockModusOperandiAdapter(),
+        status_reporter=status_reporter,
+        workflow_execution_id=(
+            UUID(context["workflow_execution_id"])
+            if status_reporter is not None
+            else None
+        ),
+        step_id=UUID(step_id) if status_reporter is not None and step_id else None,
+    )
+    return use_case.execute(
+        ClassifyAlertInput(
+            alert_id=UUID(context["alert_id"]),
+            pre_process=context["pre_process"],
+            profile=context["profiling"],
+        )
+    )
+
+
 def _execute_placeholder_step(
     step_name: str,
     context: dict[str, Any],
@@ -272,11 +316,7 @@ def _execute_placeholder_step(
             "user_profile": "pending_implementation",
         }
     if step_name == "classification":
-        return {
-            "classification": "review",
-            "red_flags": [],
-            "attempt": context.get("classification_attempt", 1),
-        }
+        return _run_classification(context)
     if step_name == "adversarial":
         return {
             "requires_classification_feedback": (
