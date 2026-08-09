@@ -94,6 +94,16 @@ test:  ## Run tests and generate coverage report.
 	@echo "--- Running tests... ---"
 	poetry run pytest
 
+TEST_IMAGE_TAG ?= test
+
+.PHONY: docker-test-build
+docker-test-build:  ## Build the Docker test image (dev deps + tests/, no live services required).
+	@$(DOCKER) build -f deploy/local/docker/Dockerfile.test -t aria-api-test:$(TEST_IMAGE_TAG) .
+
+.PHONY: docker-test
+docker-test: docker-test-build  ## Run the test suite inside Docker. Vars: PYTEST_ARGS(extra pytest flags)
+	@$(DOCKER) run --rm aria-api-test:$(TEST_IMAGE_TAG) pytest $(PYTEST_ARGS)
+
 # source $(poetry env info --path)/Scripts/activate
 
 .PHONY: clean
