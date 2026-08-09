@@ -6,9 +6,17 @@ from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.dtos.async_reconciliation_dtos import (
     ReconcileAsyncOperationsInput,
 )
+from src.application.dtos.escalate_alert_dtos import (
+    EscalateAlertToAnalystInput,
+)
+from src.application.use_cases.alerts.escalate_alert_to_analyst import (
+    EscalateAlertToAnalystUseCase,
+)
 from src.application.use_cases.async_operations.reconcile_async_operations import (
     ReconcileAsyncOperationsUseCase,
 )
+from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
+from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
@@ -72,12 +80,51 @@ def reconcile_async_operations(limit: int = 100) -> dict:
     }
 
 
+_ALERT_REVIEW_MAX_RETRIES = 3
+
+
 @app.task(
     bind=True,
     name="workflows.alert_review.run",
     autoretry_for=(Exception,),
     retry_backoff=True,
-    retry_kwargs={"max_retries": 3},
+    retry_kwargs={"max_retries": _ALERT_REVIEW_MAX_RETRIES},
 )
 def run_alert_review_workflow(self, workflow_execution_id: str) -> dict:
-    return AlertReviewWorkflowRunner().run(UUID(workflow_execution_id))
+    # autoretry re-runs this whole task from scratch on every attempt, so
+    # escalate-to-analyst (fired from a pre_process failure) must only be
+    # dispatched on the last one - otherwise a permanently missing field
+    # dispatches one escalation per retry instead of one per alert.
+    is_final_attempt = self.request.retries >= _ALERT_REVIEW_MAX_RETRIES
+    return AlertReviewWorkflowRunner().run(
+        UUID(workflow_execution_id), is_final_attempt=is_final_attempt
+    )
+
+
+@app.task(
+    bind=True,
+    name="workflows.alert_review.escalate_to_analyst",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def escalate_alert_to_analyst(
+    self,
+    alert_id: str,
+    event_id: str,
+    session_id: str | None,
+    reason: str,
+) -> dict:
+    use_case = EscalateAlertToAnalystUseCase(
+        aric_alert_port=MockAricAlertAdapter(),
+        monitoring=get_monitoring(),
+    )
+    use_case.execute(
+        EscalateAlertToAnalystInput(
+            alert_id=UUID(alert_id),
+            event_id=event_id,
+            session_id=session_id,
+            reason=reason,
+        )
+    )
+    return {"status": "ok", "alert_id": alert_id}

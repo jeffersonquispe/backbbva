@@ -6,13 +6,13 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from src.application.dtos.classify_alert_dtos import (
-    ClassifyAlertInput,
-    ClassifyAlertOutput,
-)
 from src.application.dtos.pre_process_dtos import (
     PreProcessAlertInput,
     PreProcessAlertOutput,
+)
+from src.application.dtos.classify_alert_dtos import (
+    ClassifyAlertInput,
+    ClassifyAlertOutput,
 )
 from src.application.dtos.profile_alert_dtos import (
     ProfileAlertInput,
@@ -30,14 +30,17 @@ from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
 )
-from src.application.use_cases.alerts.classify_alert import ClassifyAlertUseCase
 from src.application.use_cases.alerts.pre_process_alert import (
     PreProcessAlertUseCase,
 )
+from src.application.use_cases.alerts.classify_alert import ClassifyAlertUseCase
 from src.application.use_cases.alerts.profile_alert import ProfileAlertUseCase
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
+from src.infrastructure.queues.celery.analyst_escalation_dispatcher import (
+    CeleryAnalystEscalationDispatcher,
+)
 from src.infrastructure.workflows.queued.queued_status_reporter import (
     QueuedWorkflowStatusReporter,
 )
@@ -88,9 +91,14 @@ class AlertReviewWorkflowRunner:
         self._operations = DynamoAsyncOperationRepository()
         self._workflows = DynamoWorkflowExecutionRepository()
         self._steps = DynamoWorkflowStepExecutionRepository()
+        self._escalation = CeleryAnalystEscalationDispatcher()
         self._status: WorkflowStatusReporter | None = None
 
-    def run(self, workflow_execution_id: UUID) -> dict[str, Any]:
+    def run(
+        self,
+        workflow_execution_id: UUID,
+        is_final_attempt: bool = True,
+    ) -> dict[str, Any]:
         workflow = self._workflows.get(workflow_execution_id)
         if workflow is None:
             return {
@@ -189,9 +197,33 @@ class AlertReviewWorkflowRunner:
                 error=error,
             )
             self._alerts.update(workflow.alert_id, status=AlertStatus.FAILED)
+            # pre_process is always the first step; if it never wrote its
+            # output to context, that's where the failure happened (either
+            # mandatory data missing from the payload, or enrichment fetch
+            # exhausted its retries) - escalate that case to an analyst.
+            # Only on the final Celery attempt: autoretry re-runs this
+            # whole method from scratch, so escalating on every attempt
+            # would fire one escalation per retry instead of one per alert.
+            if is_final_attempt and "pre_process" not in context:
+                self._escalate_to_analyst(workflow, error)
             raise
         finally:
             self._status.stop()
+
+    def _escalate_to_analyst(
+        self,
+        workflow: WorkflowExecutionRecord,
+        reason: str,
+    ) -> None:
+        alert = self._alerts.get(workflow.alert_id)
+        event_id = alert.event_id if alert is not None else str(workflow.alert_id)
+        self._escalation.dispatch(
+            alert_id=workflow.alert_id,
+            workflow_execution_id=workflow.id,
+            event_id=event_id,
+            session_id=None,
+            reason=reason,
+        )
 
     def _run_step(
         self,
