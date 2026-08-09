@@ -254,6 +254,31 @@ local-docker-stop:  ## Stop local Docker API stack.
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
 		down
 
+# ─── Local observability stack (OTel Collector, Tempo, Loki, Prometheus, Grafana, MinIO) ──
+OBSERVABILITY_COMPOSE_FILE ?= deploy/local/docker/observability/docker-compose.observability.yml
+OBSERVABILITY_PROJECT ?= aria-observability
+
+.PHONY: observability-up
+observability-up:  ## Start the local observability stack (Grafana at :3000).
+	@$(DOCKER) compose \
+		-p $(OBSERVABILITY_PROJECT) \
+		-f $(OBSERVABILITY_COMPOSE_FILE) \
+		up -d
+
+.PHONY: observability-down
+observability-down:  ## Stop the local observability stack.
+	@$(DOCKER) compose \
+		-p $(OBSERVABILITY_PROJECT) \
+		-f $(OBSERVABILITY_COMPOSE_FILE) \
+		down -v
+
+.PHONY: observability-logs
+observability-logs:  ## Tail logs for the local observability stack.
+	@$(DOCKER) compose \
+		-p $(OBSERVABILITY_PROJECT) \
+		-f $(OBSERVABILITY_COMPOSE_FILE) \
+		logs -f
+
 # ─── Backup / restore flags ───────────────────────────────────────────────────
 # SKIP_OBJECT_STORAGE=1  — omit object storage from backup/restore/prune/drop
 # BACKUP_DIR             — target / source directory for backup and restore

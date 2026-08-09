@@ -1,0 +1,102 @@
+{
+  "title": "LLM Overview",
+  "uid": "aria-llm-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "LLM calls / sec by model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(gen_ai_client_operation_duration_count[5m])) by (gen_ai_request_model)",
+          "legendFormat": "{{gen_ai_request_model}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "LLM error rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(gen_ai_client_operation_duration_count{error_type!=\"\"}[5m])) / sum(rate(gen_ai_client_operation_duration_count[5m]))",
+          "legendFormat": "error ratio"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "LLM latency p50 / p95 / p99",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(gen_ai_client_operation_duration_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(gen_ai_client_operation_duration_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(gen_ai_client_operation_duration_bucket[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Input / output tokens per sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(gen_ai_client_token_usage_sum{gen_ai_token_type=\"input\"}[5m]))",
+          "legendFormat": "input tokens"
+        },
+        {
+          "expr": "sum(rate(gen_ai_client_token_usage_sum{gen_ai_token_type=\"output\"}[5m]))",
+          "legendFormat": "output tokens"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Requests by provider",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(gen_ai_client_operation_duration_count[5m])) by (gen_ai_provider_name)",
+          "legendFormat": "{{gen_ai_provider_name}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Tokens per request (avg)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(gen_ai_client_token_usage_sum[5m])) / sum(rate(gen_ai_client_operation_duration_count[5m]))",
+          "legendFormat": "tokens/req"
+        }
+      ]
+    }
+  ]
+}

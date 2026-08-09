@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from src.application.ports.llm_unit_of_work_port import (
+    LLMMessage,
+    LLMMessageRole,
+)
+from src.application.ports.monitoring_port import (
+    MonitoringPort,
+    MonitoringSpan,
+)
+from src.infrastructure.core.config import genai_config
+from src.infrastructure.llm.langchain.azure_llm_unit_of_work import (
+    LangchainAzureLLMUnitOfWorkFactory,
+    LangchainLLMUnitOfWork,
+)
+
+
+class RecordingSpan(MonitoringSpan):
+    def __init__(self) -> None:
+        self.inputs: list[dict[str, Any]] = []
+        self.results: list[dict[str, Any]] = []
+        self.metas: dict[str, Any] = {}
+        self.error: str | None = None
+
+    def write_input(self, data: dict[str, Any]) -> None:
+        self.inputs.append(data)
+
+    def write_result(self, data: dict[str, Any]) -> None:
+        self.results.append(data)
+
+    def write_inner_logs(self, entries) -> None:
+        pass
+
+    def write_operation_metas(self, metadata: dict[str, Any]) -> None:
+        self.metas.update(metadata)
+
+    def record_dependency(self, name, kind, metadata=None) -> None:
+        pass
+
+    def finish(self, error: str | None = None) -> None:
+        self.error = error
+
+
+class RecordingMonitoring(MonitoringPort):
+    def __init__(self) -> None:
+        self.spans: list[RecordingSpan] = []
+        self.started: list[tuple[str, str, dict | None]] = []
+
+    def start(self, operation_name, operation_type, metadata=None):
+        self.started.append((operation_name, operation_type, metadata))
+        span = RecordingSpan()
+        self.spans.append(span)
+        return span
+
+
+@dataclass
+class _FakeResponse:
+    content: str
+    response_metadata: dict[str, Any] = field(default_factory=dict)
+    usage_metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class _FakeAzureChatOpenAI:
+    def __init__(self, response: _FakeResponse) -> None:
+        self._response = response
+        self.received_messages = None
+
+    def invoke(self, messages):
+        self.received_messages = messages
+        return self._response
+
+
+def test_invoke_returns_result_and_instruments_monitoring():
+    monitoring = RecordingMonitoring()
+    fake_client = _FakeAzureChatOpenAI(
+        _FakeResponse(
+            content="Hello back",
+            response_metadata={"finish_reason": "stop"},
+            usage_metadata={"input_tokens": 10, "output_tokens": 4},
+        )
+    )
+    uow = LangchainLLMUnitOfWork(
+        client=fake_client,
+        monitoring=monitoring,
+        operation_name="write_email",
+        model="gpt-4o-mini",
+    )
+
+    result = uow.invoke(
+        [
+            LLMMessage(role=LLMMessageRole.SYSTEM, content="be terse"),
+            LLMMessage(role=LLMMessageRole.USER, content="hi"),
+        ]
+    )
+
+    assert result.content == "Hello back"
+    assert result.model == "gpt-4o-mini"
+    assert result.finish_reason == "stop"
+    assert result.input_tokens == 10
+    assert result.output_tokens == 4
+    assert len(fake_client.received_messages) == 2
+
+    operation_name, operation_type, metadata = monitoring.started[0]
+    assert operation_name == "write_email"
+    assert operation_type == "llm"
+    assert metadata["provider"] == "azure_openai"
+    assert metadata["model"] == "gpt-4o-mini"
+
+    span = monitoring.spans[0]
+    assert span.inputs[0]["messages"][1] == {
+        "role": "user",
+        "content": "hi",
+    }
+    assert span.results[0]["content"] == "Hello back"
+    assert span.metas["input_tokens"] == 10
+    assert span.error is None
+
+
+def test_factory_wires_azure_deployment_as_model(monkeypatch):
+    monkeypatch.setattr(genai_config, "OPENAI_ENDPOINT", "https://example.openai.azure.com")
+    monkeypatch.setattr(genai_config, "OPENAI_KEY", "dummy")
+    monkeypatch.setattr(genai_config, "OPENAI_VERSION", "2024-08-01-preview")
+
+    factory = LangchainAzureLLMUnitOfWorkFactory()
+    uow = factory.create(
+        model="agentepqrs-llm-live-agent-gpt52",
+        monitoring=RecordingMonitoring(),
+        operation_name="review_email",
+    )
+
+    assert isinstance(uow, LangchainLLMUnitOfWork)
+    assert uow._model == "agentepqrs-llm-live-agent-gpt52"
+    assert uow._client.deployment_name == "agentepqrs-llm-live-agent-gpt52"

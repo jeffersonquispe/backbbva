@@ -52,6 +52,10 @@ class Config(BaseSettings):
 
     OTEL_ENDPOINT: str = "http://localhost:4317"
 
+    # Prompts/completions are opt-in: default off so raw LLM content never
+    # leaves the process unless explicitly enabled for an environment.
+    OTEL_CAPTURE_LLM_CONTENT: bool = False
+
     PHOENIX_ENABLED: bool = False
 
     PHOENIX_ENDPOINT: str | None = None

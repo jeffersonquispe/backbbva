@@ -101,6 +101,63 @@ selected backend inspector for execution state, and updates DB status when the
 backend can prove `RUNNING`, `SUCCEEDED`, or `FAILED`. Unknown backend state is
 reported as `UNKNOWN` and left unchanged.
 
+## LLM Unit of Work & Monitoring
+
+Two application-layer abstractions back every step that talks to an LLM:
+
+- `LLMUnitOfWorkFactory` / `LLMUnitOfWork`
+  (`src/application/ports/llm_unit_of_work_port.py`) — instantiated once per
+  logical LLM call (e.g. "write_email" vs "review_email"), takes a
+  `MonitoringPort` instance, and is the only thing a step use case uses to
+  talk to an LLM. Concrete adapter: LangChain + Azure AI Foundry
+  (`src/infrastructure/llm/langchain`), model passed in per call by the
+  caller.
+- `MonitoringPort` / `MonitoringSpan`
+  (`src/application/ports/monitoring_port.py`) — technology-agnostic audit
+  abstraction. Tracks start time, execution time, dependencies, and exposes
+  `write_input` / `write_result` / `write_inner_logs` (CoT) /
+  `write_operation_metas`. Concrete adapter: OpenTelemetry
+  (`src/infrastructure/monitoring/opentelemetry`), exporting spans over OTLP
+  to `OTEL_ENDPOINT`.
+
+Application code never depends on the observability backend directly —
+OpenTelemetry/OTLP is the only contract it knows. Raw prompts/completions are
+opt-in: set `OTEL_CAPTURE_LLM_CONTENT=true` to attach them to spans;
+otherwise only size/shape metadata is recorded.
+
+## Local Observability Stack
+
+An OTel Collector + Tempo + Loki + Prometheus + Grafana + MinIO stack for
+local tracing/metrics/logs, all fed through a single OTLP endpoint:
+
+```bash
+make observability-up
+```
+
+Stop it:
+
+```bash
+make observability-down
+```
+
+| Service | URL |
+|---|---|
+| Grafana | http://localhost:3000 |
+| Prometheus | http://localhost:9090 |
+| MinIO console | http://localhost:9001 |
+| OTLP gRPC | http://localhost:4317 |
+| OTLP HTTP | http://localhost:4318 |
+
+Grafana comes with Tempo/Loki/Prometheus datasources and two dashboards
+(Service Overview, LLM Overview) pre-provisioned — no manual UI setup. Tempo
+and Loki store data in MinIO (S3-compatible), the same contract used for S3
+in AWS.
+
+The application must only ever be configured with `OTEL_ENDPOINT` — never
+with Tempo/Loki/Prometheus/Grafana/MinIO endpoints directly. The Collector is
+the sole boundary between the app and these backends, so any of them can be
+swapped later without touching application code.
+
 ## Verification
 
 Run unit tests:
