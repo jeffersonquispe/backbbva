@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
+from src.application.dtos.pre_process_dtos import (
+    PreProcessAlertInput,
+    PreProcessAlertOutput,
+)
 from src.application.ports.alert_port import AlertStatus
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.ports.workflow_port import (
@@ -12,6 +17,26 @@ from src.application.ports.workflow_port import (
     WorkflowStatus,
     WorkflowStepExecutionRecord,
     WorkflowStepStatus,
+)
+from src.application.ports.workflow_status_port import (
+    WorkflowStatusReporter,
+    WorkflowStatusUpdate,
+)
+from src.application.use_cases.alerts.pre_process_alert import (
+    PreProcessAlertUseCase,
+)
+from src.infrastructure.workflows.queued.queued_status_reporter import (
+    QueuedWorkflowStatusReporter,
+)
+from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
+from src.infrastructure.host_services.mock.customer_profile_adapter import (
+    MockHostServiceCustomerProfileAdapter,
+)
+from src.infrastructure.host_services.mock.personal_data_changes_adapter import (
+    MockHostServicePersonalDataChangesAdapter,
+)
+from src.infrastructure.host_services.mock.transaction_history_adapter import (
+    MockHostServiceTransactionHistoryAdapter,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
     DynamoAlertRepository,
@@ -41,6 +66,7 @@ class AlertReviewWorkflowRunner:
         self._operations = DynamoAsyncOperationRepository()
         self._workflows = DynamoWorkflowExecutionRepository()
         self._steps = DynamoWorkflowStepExecutionRepository()
+        self._status: WorkflowStatusReporter | None = None
 
     def run(self, workflow_execution_id: UUID) -> dict[str, Any]:
         workflow = self._workflows.get(workflow_execution_id)
@@ -49,6 +75,13 @@ class AlertReviewWorkflowRunner:
                 "status": "not_found",
                 "workflow_execution_id": str(workflow_execution_id),
             }
+
+        # One reporter per run: a daemon writer thread coalesces the
+        # per-step status/progress updates below into DynamoDB writes off
+        # the pipeline's hot path. Terminal states (below, in except/else)
+        # bypass it and write synchronously so they're durable before the
+        # Celery task returns.
+        self._status = QueuedWorkflowStatusReporter(self._workflows, self._steps)
 
         self._operations.update(
             workflow.async_operation_id,
@@ -65,6 +98,7 @@ class AlertReviewWorkflowRunner:
             "async_operation_id": str(workflow.async_operation_id),
             "input": workflow.input,
             "classification_attempt": 1,
+            "status_reporter": self._status,
         }
 
         try:
@@ -102,6 +136,7 @@ class AlertReviewWorkflowRunner:
                 "final_step": "post_process",
             }
             finished_at = datetime.now(timezone.utc)
+            self._status.flush()
             self._workflows.update(
                 workflow.id,
                 status=WorkflowStatus.SUCCEEDED,
@@ -119,6 +154,7 @@ class AlertReviewWorkflowRunner:
         except Exception as exc:
             error = str(exc)
             finished_at = datetime.now(timezone.utc)
+            self._status.flush()
             self._workflows.update(
                 workflow.id,
                 status=WorkflowStatus.FAILED,
@@ -132,6 +168,8 @@ class AlertReviewWorkflowRunner:
             )
             self._alerts.update(workflow.alert_id, status=AlertStatus.FAILED)
             raise
+        finally:
+            self._status.stop()
 
     def _run_step(
         self,
@@ -157,21 +195,31 @@ class AlertReviewWorkflowRunner:
                 updated_at=now,
             )
         )
-        self._workflows.update(
-            workflow.id,
-            status=WorkflowStatus.RUNNING,
-            current_step=step_name,
+        self._status.report(
+            WorkflowStatusUpdate(
+                workflow_execution_id=workflow.id,
+                status=WorkflowStatus.RUNNING,
+                detail={"current_step": step_name},
+            )
         )
+        context["current_step_id"] = str(step.id)
 
         try:
             output = _execute_placeholder_step(step_name, context)
+            db_output = (
+                dataclasses.asdict(output)
+                if dataclasses.is_dataclass(output)
+                else output
+            )
             finished_at = datetime.now(timezone.utc)
-            self._steps.update(
-                workflow.id,
-                step.id,
-                status=WorkflowStepStatus.SUCCEEDED,
-                output=output,
-                finished_at=finished_at,
+            self._status.report(
+                WorkflowStatusUpdate(
+                    workflow_execution_id=workflow.id,
+                    step_name=step_name,
+                    step_id=step.id,
+                    status=WorkflowStepStatus.SUCCEEDED,
+                    detail={"output": db_output, "finished_at": finished_at},
+                )
             )
             context[step_name] = output
             return context
@@ -187,12 +235,37 @@ class AlertReviewWorkflowRunner:
             raise
 
 
+def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
+    payload = (context.get("input") or {}).get("alert_payload") or {}
+    status_reporter = context.get("status_reporter")
+    step_id = context.get("current_step_id")
+    use_case = PreProcessAlertUseCase(
+        aric_alert_port=MockAricAlertAdapter(),
+        host_customer_profile_port=MockHostServiceCustomerProfileAdapter(),
+        host_transaction_history_port=MockHostServiceTransactionHistoryAdapter(),
+        host_personal_data_changes_port=MockHostServicePersonalDataChangesAdapter(),
+        status_reporter=status_reporter,
+        workflow_execution_id=(
+            UUID(context["workflow_execution_id"])
+            if status_reporter is not None
+            else None
+        ),
+        step_id=UUID(step_id) if status_reporter is not None and step_id else None,
+    )
+    return use_case.execute(
+        PreProcessAlertInput(
+            alert_id=UUID(context["alert_id"]),
+            payload=payload,
+        )
+    )
+
+
 def _execute_placeholder_step(
     step_name: str,
     context: dict[str, Any],
-) -> dict[str, Any]:
+) -> Any:
     if step_name == "pre_process":
-        return {"status": "passed_through"}
+        return _run_pre_process(context)
     if step_name == "profiling":
         return {
             "transaction_profile": "pending_implementation",
