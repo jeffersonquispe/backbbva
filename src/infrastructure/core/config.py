@@ -50,6 +50,8 @@ class Config(BaseSettings):
 
     OPENAI_VERSION: str = "2024-08-01-preview"
 
+    PROFILING_LLM_MODEL: str = ""
+
     CLASSIFICATION_LLM_MODEL: str = ""
 
     # DYNAMODB

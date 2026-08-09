@@ -14,6 +14,10 @@ from src.application.dtos.pre_process_dtos import (
     PreProcessAlertInput,
     PreProcessAlertOutput,
 )
+from src.application.dtos.profile_alert_dtos import (
+    ProfileAlertInput,
+    ProfileAlertOutput,
+)
 from src.application.ports.alert_port import AlertStatus
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.ports.workflow_port import (
@@ -30,6 +34,7 @@ from src.application.use_cases.alerts.classify_alert import ClassifyAlertUseCase
 from src.application.use_cases.alerts.pre_process_alert import (
     PreProcessAlertUseCase,
 )
+from src.application.use_cases.alerts.profile_alert import ProfileAlertUseCase
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
@@ -277,6 +282,29 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
     )
 
 
+def _run_profiling(context: dict[str, Any]) -> ProfileAlertOutput:
+    status_reporter = context.get("status_reporter")
+    step_id = context.get("current_step_id")
+    use_case = ProfileAlertUseCase(
+        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        monitoring=get_monitoring(),
+        model=genai_config.PROFILING_LLM_MODEL,
+        status_reporter=status_reporter,
+        workflow_execution_id=(
+            UUID(context["workflow_execution_id"])
+            if status_reporter is not None
+            else None
+        ),
+        step_id=UUID(step_id) if status_reporter is not None and step_id else None,
+    )
+    return use_case.execute(
+        ProfileAlertInput(
+            alert_id=UUID(context["alert_id"]),
+            pre_process=context["pre_process"],
+        )
+    )
+
+
 def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
     status_reporter = context.get("status_reporter")
     step_id = context.get("current_step_id")
@@ -311,10 +339,7 @@ def _execute_placeholder_step(
     if step_name == "pre_process":
         return _run_pre_process(context)
     if step_name == "profiling":
-        return {
-            "transaction_profile": "pending_implementation",
-            "user_profile": "pending_implementation",
-        }
+        return _run_profiling(context)
     if step_name == "classification":
         return _run_classification(context)
     if step_name == "adversarial":
