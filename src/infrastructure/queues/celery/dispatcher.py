@@ -5,7 +5,7 @@ from src.application.ports.async_executor_port import (
     AsyncExecutor,
 )
 from src.application.ports.async_operation_port import AsyncOperationRecord
-from src.infrastructure.queues.celery.tasks import run_async_operation
+from src.infrastructure.entrypoint.worker.celery.tasks import run_async_operation
 
 
 class CeleryAsyncExecutor(AsyncExecutor):

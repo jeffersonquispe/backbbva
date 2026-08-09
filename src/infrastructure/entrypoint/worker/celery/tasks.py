@@ -12,7 +12,7 @@ from src.application.use_cases.async_operations.reconcile_async_operations impor
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
-from src.infrastructure.queues.celery.celery_app import app
+from src.infrastructure.entrypoint.worker.celery.celery_app import app
 from src.infrastructure.queues.celery.inspector import (
     CeleryAsyncExecutionInspector,
 )

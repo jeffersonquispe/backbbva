@@ -9,7 +9,7 @@ from src.application.ports.async_execution_inspector_port import (
     AsyncExecutionState,
 )
 from src.application.ports.async_operation_port import AsyncOperationRecord
-from src.infrastructure.queues.celery.celery_app import app
+from src.infrastructure.entrypoint.worker.celery.celery_app import app
 
 
 class CeleryAsyncExecutionInspector(AsyncExecutionInspector):

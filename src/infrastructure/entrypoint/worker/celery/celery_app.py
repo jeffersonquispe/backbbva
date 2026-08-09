@@ -19,7 +19,7 @@ def create_celery_app(name: str = "aria-worker") -> Celery:
         timezone="UTC",
         enable_utc=True,
     )
-    app.autodiscover_tasks(["src.infrastructure.queues.celery"])
+    app.autodiscover_tasks(["src.infrastructure.entrypoint.worker.celery"])
     return app
 
 

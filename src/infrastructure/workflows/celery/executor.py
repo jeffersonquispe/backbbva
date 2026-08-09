@@ -5,7 +5,7 @@ from src.application.ports.workflow_executor_port import (
     WorkflowExecutor,
 )
 from src.application.ports.workflow_port import WorkflowExecutionRecord
-from src.infrastructure.queues.celery.tasks import run_alert_review_workflow
+from src.infrastructure.entrypoint.worker.celery.tasks import run_alert_review_workflow
 
 
 class CeleryWorkflowExecutor(WorkflowExecutor):
