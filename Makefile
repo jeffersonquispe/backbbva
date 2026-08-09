@@ -53,9 +53,9 @@ else
 endif
 
 # ─── Compose file ──────────────────────────────────────────────────────────────
-# Standalone is the only supported stack: builds from public registries only
-# (see deploy/Dockerfile.standalone) — no Artifactory login needed.
-_COMPOSE_FILE := deploy/local/docker/docker-compose.standalone.yml
+# Builds from public registries only (see deploy/local/docker/Dockerfile.api)
+# — no Artifactory login needed.
+_COMPOSE_FILE := deploy/local/docker/docker-compose.yml
 _HAS_COMPOSE  := $(shell docker compose version >/dev/null 2>&1 && echo yes)
 # Use compose only when: local env + compose file present + docker compose available
 USE_COMPOSE   := $(if $(and $(wildcard $(_COMPOSE_FILE)),$(_HAS_COMPOSE),$(filter local,$(GENAI_ENVIRONMENT))),yes,)
@@ -218,7 +218,7 @@ docker-down:  ## Stop and remove the standalone stack containers.
 		echo "Compose file $(_COMPOSE_FILE) not found, nothing to do."; \
 	fi
 
-LOCAL_DOCKER_COMPOSE_FILE ?= deploy/local/docker/docker-compose.standalone.yml
+LOCAL_DOCKER_COMPOSE_FILE ?= deploy/local/docker/docker-compose.yml
 LOCAL_DOCKER_PROJECT ?= aria-local
 LOCAL_DOCKER_ENV ?= local
 LOCAL_API_PORT ?= 8000

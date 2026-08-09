@@ -28,8 +28,8 @@ Guía completa para levantar Lupita en cualquier ambiente sin acceso a los regis
 ```
 lupita/
 ├── deploy/
-│   ├── Dockerfile.standalone         ← imagen sin dependencias BBVA
-│   ├── docker-compose.standalone.yml ← stack completo
+│   ├── Dockerfile.api         ← imagen sin dependencias BBVA
+│   ├── docker-compose.yml ← stack completo
 │   ├── gunicorn.standalone.py        ← config de workers
 │   └── requirements.standalone.txt  ← dependencias PyPI
 ├── frontend/
@@ -82,21 +82,21 @@ ls lupita-documents/
 
 ```bash
 cd deploy
-docker compose -f docker-compose.standalone.yml up -d --build
+docker compose -f docker-compose.yml up -d --build
 ```
 
 La primera vez tarda **5-10 minutos** mientras descarga las imágenes base y construye la imagen de la API.
 
 > **WSL2:** Si el build da timeout al descargar paquetes de PyPI, cancela con `Ctrl+C` y usa:
 > ```bash
-> docker build --network=host -f Dockerfile.standalone -t lupita-api:local ..
-> docker compose -f docker-compose.standalone.yml up -d
+> docker build --network=host -f Dockerfile.api -t lupita-api:local ..
+> docker compose -f docker-compose.yml up -d
 > ```
 
 ### Paso 5 — Verificar que todo esté corriendo
 
 ```bash
-docker compose -f docker-compose.standalone.yml ps
+docker compose -f docker-compose.yml ps
 ```
 
 Todos los servicios deben estar en estado `running`. Luego comprueba el healthcheck:
@@ -182,7 +182,7 @@ curl -s -X POST http://localhost:8000/lupita/v0/governance/naming/suggest \
 
 ```bash
 cd deploy
-docker compose -f docker-compose.standalone.yml ps
+docker compose -f docker-compose.yml ps
 ```
 
 ### Ver logs en tiempo real
@@ -190,7 +190,7 @@ docker compose -f docker-compose.standalone.yml ps
 ```bash
 # Todos los servicios
 cd deploy
-docker compose -f docker-compose.standalone.yml logs -f
+docker compose -f docker-compose.yml logs -f
 
 # Solo la API
 docker logs lupita-api -f
@@ -207,22 +207,22 @@ docker restart lupita-api
 
 # Reconstruir la imagen de la API (si cambia requirements.standalone.txt o el Dockerfile)
 cd deploy
-docker compose -f docker-compose.standalone.yml build api
-docker compose -f docker-compose.standalone.yml up -d api
+docker compose -f docker-compose.yml build api
+docker compose -f docker-compose.yml up -d api
 ```
 
 ### Detener todos los servicios
 
 ```bash
 cd deploy
-docker compose -f docker-compose.standalone.yml down
+docker compose -f docker-compose.yml down
 ```
 
 ### Detener y eliminar volúmenes (limpieza total — borra datos DynamoDB y OpenSearch)
 
 ```bash
 cd deploy
-docker compose -f docker-compose.standalone.yml down -v
+docker compose -f docker-compose.yml down -v
 ```
 
 ---
@@ -242,7 +242,7 @@ docker restart lupita-api
 
 ## Configuración de variables de entorno
 
-El `docker-compose.standalone.yml` incluye todas las variables con valores predeterminados para local. Para personalizar, crea `deploy/.env` (no commitear):
+El `docker-compose.yml` incluye todas las variables con valores predeterminados para local. Para personalizar, crea `deploy/.env` (no commitear):
 
 ```ini
 # deploy/.env
@@ -277,8 +277,8 @@ Luego reconstruye la imagen:
 
 ```bash
 cd deploy
-docker compose -f docker-compose.standalone.yml build api
-docker compose -f docker-compose.standalone.yml up -d
+docker compose -f docker-compose.yml build api
+docker compose -f docker-compose.yml up -d
 ```
 
 ---
@@ -289,7 +289,7 @@ DynamoDB Admin, OpenSearch y Redis son opcionales para el chatbot de gobierno. S
 
 ```bash
 cd deploy
-docker compose -f docker-compose.standalone.yml up -d dynamodb api frontend
+docker compose -f docker-compose.yml up -d dynamodb api frontend
 ```
 
 ---
@@ -347,9 +347,9 @@ Busca líneas como:
 
 ```bash
 cd deploy
-docker compose -f docker-compose.standalone.yml down -v
+docker compose -f docker-compose.yml down -v
 docker rmi lupita-api:local 2>/dev/null || true
-docker compose -f docker-compose.standalone.yml up -d --build
+docker compose -f docker-compose.yml up -d --build
 ```
 
 ---
@@ -362,5 +362,5 @@ docker compose -f docker-compose.standalone.yml up -d --build
 | Dependencias | Instaladas desde Artifactory | Instaladas desde PyPI |
 | Imagen API | `quay.io/bbva-co/lupita-api-preproduccion:vXX` | Construida localmente |
 | Observabilidad | `genai.libs.observability` (BBVA) | `logging` estándar de Python |
-| Configuración | `config/local/config.cfg` | Variables en `docker-compose.standalone.yml` |
+| Configuración | `config/local/config.cfg` | Variables en `docker-compose.yml` |
 | Documentos Excel | En servidor compartido | Copiar manualmente a `lupita-documents/` |
