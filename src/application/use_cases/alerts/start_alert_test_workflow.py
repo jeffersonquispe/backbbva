@@ -87,7 +87,7 @@ class StartAlertTestWorkflowUseCase:
                 error=None,
                 current_step=None,
                 feedback_iterations=0,
-                max_feedback_iterations=1,
+                max_feedback_iterations=2,
                 created_at=now,
                 updated_at=now,
             )

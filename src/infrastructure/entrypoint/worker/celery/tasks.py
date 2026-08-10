@@ -1,25 +1,44 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.dtos.async_reconciliation_dtos import (
     ReconcileAsyncOperationsInput,
 )
+from src.application.dtos.document_analyst_decision_dtos import (
+    DocumentAnalystDecisionInput,
+)
 from src.application.dtos.escalate_alert_dtos import (
     EscalateAlertToAnalystInput,
+)
+from src.application.dtos.execute_alert_action_dtos import (
+    ExecuteAlertActionInput,
+)
+from src.application.use_cases.alerts.document_analyst_decision import (
+    DocumentAnalystDecisionUseCase,
 )
 from src.application.use_cases.alerts.escalate_alert_to_analyst import (
     EscalateAlertToAnalystUseCase,
 )
+from src.application.use_cases.alerts.execute_alert_action import (
+    ExecuteAlertActionUseCase,
+)
 from src.application.use_cases.async_operations.reconcile_async_operations import (
     ReconcileAsyncOperationsUseCase,
 )
+from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
+    MockAlertChannelActionAdapter,
+)
 from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
+from src.infrastructure.core.config import genai_config
+from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
+from src.infrastructure.persistence.object_storage.minio import get_object_storage
 from src.infrastructure.entrypoint.worker.celery.celery_app import app
 from src.infrastructure.queues.celery.inspector import (
     CeleryAsyncExecutionInspector,
@@ -128,3 +147,59 @@ def escalate_alert_to_analyst(
         )
     )
     return {"status": "ok", "alert_id": alert_id}
+
+
+@app.task(
+    bind=True,
+    name="workflows.alert_review.document_analyst_decision",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def document_analyst_decision(
+    self,
+    alert_id: str,
+    workflow_execution_id: str,
+    steps: dict[str, dict[str, Any]],
+) -> dict:
+    use_case = DocumentAnalystDecisionUseCase(
+        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        monitoring=get_monitoring(),
+        model=genai_config.REPORT_LLM_MODEL,
+        object_storage_port=get_object_storage(),
+    )
+    output = use_case.execute(
+        DocumentAnalystDecisionInput(
+            alert_id=UUID(alert_id),
+            workflow_execution_id=UUID(workflow_execution_id),
+            steps=steps,
+        )
+    )
+    return {
+        "status": "ok",
+        "alert_id": alert_id,
+        "object_storage_uri": output.object_storage_ref.uri,
+    }
+
+
+@app.task(
+    bind=True,
+    name="workflows.alert_review.execute_alert_action",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def execute_alert_action(self, action: str, alert_id: str) -> dict:
+    use_case = ExecuteAlertActionUseCase(
+        alert_action_port=MockAlertChannelActionAdapter(),
+        monitoring=get_monitoring(),
+    )
+    output = use_case.execute(
+        ExecuteAlertActionInput(action=action, alert_id=UUID(alert_id))
+    )
+    return {
+        "status": "ok",
+        "alert_id": alert_id,
+        "action": output.action,
+        "detail": output.detail,
+    }
