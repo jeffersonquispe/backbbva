@@ -54,11 +54,24 @@ class Config(BaseSettings):
 
     CLASSIFICATION_LLM_MODEL: str = ""
 
+    ADVERSARIAL_LLM_MODEL: str = ""
+
+    ANALYST_LLM_MODEL: str = ""
+
+    REPORT_LLM_MODEL: str = ""
+
     # DYNAMODB
     DYNAMO_REGION_NAME: str = "us-east-1"
     DYNAMO_ENDPOINT: str = "http://dynamodb-lupita:8000"
     DYNAMO_ACCESS_KEY: str = "dummy"
     DYNAMO_SECRET_KEY: str = "dummy"
+
+    # OBJECT STORAGE (MinIO, S3-compatible)
+    OBJECT_STORAGE_ENDPOINT: str = "http://minio:9000"
+    OBJECT_STORAGE_REGION: str = "us-east-1"
+    OBJECT_STORAGE_ACCESS_KEY: str = "dummy"
+    OBJECT_STORAGE_SECRET_KEY: str = "dummy"
+    OBJECT_STORAGE_BUCKET: str = "aria-reports"
 
     # QUEUE
     ASYNC_EXECUTOR_BACKEND: str = "celery"
