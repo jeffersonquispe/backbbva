@@ -14,6 +14,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
 )
 
 import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
+import src.infrastructure.workflows.celery.factories as factories_module
 from src.application.ports.alert_action_dispatcher_port import (
     AlertActionDispatchRef,
     AlertActionDispatcher,
@@ -385,39 +386,44 @@ def test_alert_review_workflow_runs_full_pipeline_on_synthetic_alert(monkeypatch
     # unlike the real Langchain adapter, so no spans land here to assert on.
     monitoring, _ = _build_in_memory_monitoring()
 
-    monkeypatch.setattr(workflow_module, "DynamoAlertRepository", lambda: alerts)
+    # AlertReviewWorkflowRunner and the per-step _run_* functions call these
+    # factory functions by the name each imported into its own module
+    # namespace, so patches must target the module that does the calling:
+    # workflow_module for repos/dispatchers it calls directly, factories_module
+    # for adapters only ever looked up from inside a get_*_use_case() factory.
+    monkeypatch.setattr(workflow_module, "get_alert_repository", lambda: alerts)
     monkeypatch.setattr(
-        workflow_module, "DynamoAsyncOperationRepository", lambda: operations
+        workflow_module, "get_async_operation_repository", lambda: operations
     )
     monkeypatch.setattr(
-        workflow_module, "DynamoWorkflowExecutionRepository", lambda: workflows
+        workflow_module, "get_workflow_execution_repository", lambda: workflows
     )
     monkeypatch.setattr(
-        workflow_module, "DynamoWorkflowStepExecutionRepository", lambda: steps
+        workflow_module, "get_workflow_step_execution_repository", lambda: steps
     )
     monkeypatch.setattr(
-        workflow_module, "DynamoFraudPlaybookRepository", lambda: playbooks
+        factories_module, "get_fraud_playbook_repository", lambda: playbooks
     )
     monkeypatch.setattr(
-        workflow_module, "DynamoOperationsCapacityRepository", lambda: capacity
+        factories_module, "get_operations_capacity_repository", lambda: capacity
     )
     monkeypatch.setattr(
-        workflow_module, "CeleryAlertActionDispatcher", lambda: action_dispatcher
+        workflow_module, "get_alert_action_dispatcher", lambda: action_dispatcher
     )
     monkeypatch.setattr(
         workflow_module,
-        "CeleryAnalystEscalationDispatcher",
+        "get_analyst_escalation_dispatcher",
         lambda: escalation_dispatcher,
     )
     monkeypatch.setattr(
         workflow_module,
-        "CeleryAnalystDecisionDocumenter",
+        "get_analyst_decision_documenter",
         lambda: documenter_dispatcher,
     )
     monkeypatch.setattr(
-        workflow_module, "get_llm_unit_of_work_factory", lambda: llm_factory
+        factories_module, "get_llm_unit_of_work_factory", lambda: llm_factory
     )
-    monkeypatch.setattr(workflow_module, "get_monitoring", lambda: monitoring)
+    monkeypatch.setattr(factories_module, "get_monitoring", lambda: monitoring)
 
     alert_id = uuid.uuid4()
     async_operation_id = uuid.uuid4()

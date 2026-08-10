@@ -67,12 +67,16 @@ for the template.
 - Use cases → fresh instance per call, concrete adapters injected as kwargs.
 - **API**: factories live in `infrastructure/entrypoint/api/factories/`,
   wired via FastAPI `Depends()` **at the router**, not in `fastapi_app.py`.
-- **Celery**: tasks construct dependencies **inline in the task body** —
-  there is no shared factory module reused between HTTP and Celery today.
-  This is why `monitoring/` and `llm/` factories live directly under
+- **Celery**: factories live in `infrastructure/workflows/celery/factories.py`
+  — worker-only, not shared with the API's `entrypoint/api/factories/` (the
+  two run as separate poetry projects, see below). Same rules as the API:
+  `@lru_cache` singleton functions for stateless adapters, plain functions
+  returning a fresh use case per call. `alert_review_workflow.py` (the
+  workflow runner) is the only consumer today; it must not construct
+  adapters or use cases inline.
+  This is also why `monitoring/` and `llm/` factories live directly under
   `infrastructure/`, not under `entrypoint/api/factories/`: both the API and
-  the worker (separate poetry projects, see below) need to import them
-  without pulling in FastAPI.
+  the worker need to import them without pulling in FastAPI.
 
 ## Two separate poetry projects — deps must go in both
 

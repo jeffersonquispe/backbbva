@@ -6,14 +6,6 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from src.application.dtos.pre_process_dtos import (
-    PreProcessAlertInput,
-    PreProcessAlertOutput,
-)
-from src.application.dtos.classify_alert_dtos import (
-    ClassifyAlertInput,
-    ClassifyAlertOutput,
-)
 from src.application.dtos.adversarial_review_alert_dtos import (
     AdversarialReviewAlertInput,
     AdversarialReviewAlertOutput,
@@ -22,9 +14,17 @@ from src.application.dtos.analyst_review_alert_dtos import (
     AnalystReviewAlertInput,
     AnalystReviewAlertOutput,
 )
+from src.application.dtos.classify_alert_dtos import (
+    ClassifyAlertInput,
+    ClassifyAlertOutput,
+)
 from src.application.dtos.post_process_alert_dtos import (
     PostProcessAlertInput,
     PostProcessAlertOutput,
+)
+from src.application.dtos.pre_process_dtos import (
+    PreProcessAlertInput,
+    PreProcessAlertOutput,
 )
 from src.application.dtos.profile_alert_dtos import (
     ProfileAlertInput,
@@ -42,69 +42,23 @@ from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
 )
-from src.application.use_cases.alerts.pre_process_alert import (
-    PreProcessAlertUseCase,
-)
-from src.application.use_cases.alerts.classify_alert import ClassifyAlertUseCase
-from src.application.use_cases.alerts.profile_alert import ProfileAlertUseCase
-from src.application.use_cases.alerts.adversarial_review_alert import (
-    AdversarialReviewAlertUseCase,
-)
-from src.application.use_cases.alerts.analyst_review_alert import (
-    AnalystReviewAlertUseCase,
-)
-from src.application.use_cases.alerts.post_process_alert import (
-    PostProcessAlertUseCase,
-)
-from src.infrastructure.core.config import genai_config
-from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
-from src.infrastructure.monitoring.opentelemetry import get_monitoring
-from src.infrastructure.queues.celery.alert_action_dispatcher import (
-    CeleryAlertActionDispatcher,
-)
-from src.infrastructure.queues.celery.analyst_decision_documenter_dispatcher import (
-    CeleryAnalystDecisionDocumenter,
-)
-from src.infrastructure.queues.celery.analyst_escalation_dispatcher import (
-    CeleryAnalystEscalationDispatcher,
+from src.infrastructure.workflows.celery.factories import (
+    get_alert_action_dispatcher,
+    get_alert_repository,
+    get_analyst_decision_documenter,
+    get_analyst_escalation_dispatcher,
+    get_async_operation_repository,
+    get_adversarial_review_alert_use_case,
+    get_analyst_review_alert_use_case,
+    get_classify_alert_use_case,
+    get_post_process_alert_use_case,
+    get_pre_process_alert_use_case,
+    get_profile_alert_use_case,
+    get_workflow_execution_repository,
+    get_workflow_step_execution_repository,
 )
 from src.infrastructure.workflows.queued.queued_status_reporter import (
     QueuedWorkflowStatusReporter,
-)
-from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
-from src.infrastructure.fraud_intelligence.mock.fraud_taxonomy_adapter import (
-    MockFraudTaxonomyAdapter,
-)
-from src.infrastructure.fraud_intelligence.mock.modus_operandi_adapter import (
-    MockModusOperandiAdapter,
-)
-from src.infrastructure.fraud_intelligence.mock.similar_fraud_case_adapter import (
-    MockSimilarFraudCaseAdapter,
-)
-from src.infrastructure.host_services.mock.customer_profile_adapter import (
-    MockHostServiceCustomerProfileAdapter,
-)
-from src.infrastructure.host_services.mock.personal_data_changes_adapter import (
-    MockHostServicePersonalDataChangesAdapter,
-)
-from src.infrastructure.host_services.mock.transaction_history_adapter import (
-    MockHostServiceTransactionHistoryAdapter,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
-    DynamoAlertRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
-    DynamoAsyncOperationRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.fraud_playbook_repository import (
-    DynamoFraudPlaybookRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.operations_capacity_repository import (
-    DynamoOperationsCapacityRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
-    DynamoWorkflowExecutionRepository,
-    DynamoWorkflowStepExecutionRepository,
 )
 
 LINEAR_STEPS = (
@@ -120,12 +74,12 @@ LINEAR_STEPS = (
 
 class AlertReviewWorkflowRunner:
     def __init__(self) -> None:
-        self._alerts = DynamoAlertRepository()
-        self._operations = DynamoAsyncOperationRepository()
-        self._workflows = DynamoWorkflowExecutionRepository()
-        self._steps = DynamoWorkflowStepExecutionRepository()
-        self._escalation = CeleryAnalystEscalationDispatcher()
-        self._documenter = CeleryAnalystDecisionDocumenter()
+        self._alerts = get_alert_repository()
+        self._operations = get_async_operation_repository()
+        self._workflows = get_workflow_execution_repository()
+        self._steps = get_workflow_step_execution_repository()
+        self._escalation = get_analyst_escalation_dispatcher()
+        self._documenter = get_analyst_decision_documenter()
         self._status: WorkflowStatusReporter | None = None
 
     def run(
@@ -364,22 +318,24 @@ class AdversarialFeedbackLimitExceededError(Exception):
     to a human analyst instead of looping forever."""
 
 
+def _step_reporting_ids(context: dict[str, Any]) -> tuple[UUID | None, UUID | None]:
+    status_reporter = context.get("status_reporter")
+    if status_reporter is None:
+        return None, None
+    step_id = context.get("current_step_id")
+    return (
+        UUID(context["workflow_execution_id"]),
+        UUID(step_id) if step_id else None,
+    )
+
+
 def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
     payload = (context.get("input") or {}).get("alert_payload") or {}
-    status_reporter = context.get("status_reporter")
-    step_id = context.get("current_step_id")
-    use_case = PreProcessAlertUseCase(
-        aric_alert_port=MockAricAlertAdapter(),
-        host_customer_profile_port=MockHostServiceCustomerProfileAdapter(),
-        host_transaction_history_port=MockHostServiceTransactionHistoryAdapter(),
-        host_personal_data_changes_port=MockHostServicePersonalDataChangesAdapter(),
-        status_reporter=status_reporter,
-        workflow_execution_id=(
-            UUID(context["workflow_execution_id"])
-            if status_reporter is not None
-            else None
-        ),
-        step_id=UUID(step_id) if status_reporter is not None and step_id else None,
+    workflow_execution_id, step_id = _step_reporting_ids(context)
+    use_case = get_pre_process_alert_use_case(
+        status_reporter=context.get("status_reporter"),
+        workflow_execution_id=workflow_execution_id,
+        step_id=step_id,
     )
     return use_case.execute(
         PreProcessAlertInput(
@@ -390,19 +346,11 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
 
 
 def _run_profiling(context: dict[str, Any]) -> ProfileAlertOutput:
-    status_reporter = context.get("status_reporter")
-    step_id = context.get("current_step_id")
-    use_case = ProfileAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
-        monitoring=get_monitoring(),
-        model=genai_config.PROFILING_LLM_MODEL,
-        status_reporter=status_reporter,
-        workflow_execution_id=(
-            UUID(context["workflow_execution_id"])
-            if status_reporter is not None
-            else None
-        ),
-        step_id=UUID(step_id) if status_reporter is not None and step_id else None,
+    workflow_execution_id, step_id = _step_reporting_ids(context)
+    use_case = get_profile_alert_use_case(
+        status_reporter=context.get("status_reporter"),
+        workflow_execution_id=workflow_execution_id,
+        step_id=step_id,
     )
     return use_case.execute(
         ProfileAlertInput(
@@ -413,22 +361,11 @@ def _run_profiling(context: dict[str, Any]) -> ProfileAlertOutput:
 
 
 def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
-    status_reporter = context.get("status_reporter")
-    step_id = context.get("current_step_id")
-    use_case = ClassifyAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
-        monitoring=get_monitoring(),
-        model=genai_config.CLASSIFICATION_LLM_MODEL,
-        similar_fraud_case_port=MockSimilarFraudCaseAdapter(),
-        fraud_taxonomy_port=MockFraudTaxonomyAdapter(),
-        modus_operandi_port=MockModusOperandiAdapter(),
-        status_reporter=status_reporter,
-        workflow_execution_id=(
-            UUID(context["workflow_execution_id"])
-            if status_reporter is not None
-            else None
-        ),
-        step_id=UUID(step_id) if status_reporter is not None and step_id else None,
+    workflow_execution_id, step_id = _step_reporting_ids(context)
+    use_case = get_classify_alert_use_case(
+        status_reporter=context.get("status_reporter"),
+        workflow_execution_id=workflow_execution_id,
+        step_id=step_id,
     )
     return use_case.execute(
         ClassifyAlertInput(
@@ -440,22 +377,11 @@ def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
 
 
 def _run_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
-    status_reporter = context.get("status_reporter")
-    step_id = context.get("current_step_id")
-    use_case = AdversarialReviewAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
-        monitoring=get_monitoring(),
-        model=genai_config.ADVERSARIAL_LLM_MODEL,
-        similar_fraud_case_port=MockSimilarFraudCaseAdapter(),
-        fraud_taxonomy_port=MockFraudTaxonomyAdapter(),
-        modus_operandi_port=MockModusOperandiAdapter(),
-        status_reporter=status_reporter,
-        workflow_execution_id=(
-            UUID(context["workflow_execution_id"])
-            if status_reporter is not None
-            else None
-        ),
-        step_id=UUID(step_id) if status_reporter is not None and step_id else None,
+    workflow_execution_id, step_id = _step_reporting_ids(context)
+    use_case = get_adversarial_review_alert_use_case(
+        status_reporter=context.get("status_reporter"),
+        workflow_execution_id=workflow_execution_id,
+        step_id=step_id,
     )
     return use_case.execute(
         AdversarialReviewAlertInput(
@@ -468,21 +394,11 @@ def _run_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
 
 
 def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
-    status_reporter = context.get("status_reporter")
-    step_id = context.get("current_step_id")
-    use_case = AnalystReviewAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
-        monitoring=get_monitoring(),
-        model=genai_config.ANALYST_LLM_MODEL,
-        fraud_playbook_port=DynamoFraudPlaybookRepository(),
-        operations_capacity_port=DynamoOperationsCapacityRepository(),
-        status_reporter=status_reporter,
-        workflow_execution_id=(
-            UUID(context["workflow_execution_id"])
-            if status_reporter is not None
-            else None
-        ),
-        step_id=UUID(step_id) if status_reporter is not None and step_id else None,
+    workflow_execution_id, step_id = _step_reporting_ids(context)
+    use_case = get_analyst_review_alert_use_case(
+        status_reporter=context.get("status_reporter"),
+        workflow_execution_id=workflow_execution_id,
+        step_id=step_id,
     )
     return use_case.execute(
         AnalystReviewAlertInput(
@@ -506,9 +422,9 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
         }
 
     if decision == "scale_to_analyst":
-        alert = DynamoAlertRepository().get(alert_id)
+        alert = get_alert_repository().get(alert_id)
         event_id = alert.event_id if alert is not None else str(alert_id)
-        ref = CeleryAnalystEscalationDispatcher().dispatch(
+        ref = get_analyst_escalation_dispatcher().dispatch(
             alert_id=alert_id,
             workflow_execution_id=UUID(context["workflow_execution_id"]),
             event_id=event_id,
@@ -522,7 +438,7 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
         }
 
     if decision in ("block", "bidi", "voicebot"):
-        ref = CeleryAlertActionDispatcher().dispatch(decision, alert_id)
+        ref = get_alert_action_dispatcher().dispatch(decision, alert_id)
         return {
             "executed_action": decision,
             "dispatch_backend": ref.backend,
@@ -534,7 +450,7 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
 
 def _run_post_process(context: dict[str, Any]) -> PostProcessAlertOutput:
     analyst: AnalystReviewAlertOutput = context["analyst"]
-    use_case = PostProcessAlertUseCase()
+    use_case = get_post_process_alert_use_case()
     return use_case.execute(
         PostProcessAlertInput(
             alert_id=UUID(context["alert_id"]),
