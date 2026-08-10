@@ -113,3 +113,27 @@ WORKFLOW_STEP_EXECUTIONS_TABLE = {
         {"AttributeName": "step_execution_id", "AttributeType": "S"},
     ],
 }
+
+
+FRAUD_PLAYBOOKS_TABLE = {
+    "TableName": "fraud_playbooks",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "classification", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "classification", "AttributeType": "S"},
+    ],
+}
+
+
+OPERATIONS_CAPACITY_TABLE = {
+    "TableName": "operations_capacity",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "record_id", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "record_id", "AttributeType": "S"},
+    ],
+}
