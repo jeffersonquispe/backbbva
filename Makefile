@@ -104,6 +104,14 @@ docker-test-build:  ## Build the Docker test image (dev deps + tests/, no live s
 docker-test: docker-test-build  ## Run the test suite inside Docker. Vars: PYTEST_ARGS(extra pytest flags)
 	@$(DOCKER) run --rm aria-api-test:$(TEST_IMAGE_TAG) pytest $(PYTEST_ARGS)
 
+.PHONY: docker-test-worker-build
+docker-test-worker-build:  ## Build the Docker test image with worker (Celery) deps instead of API deps.
+	@$(DOCKER) build -f deploy/local/docker/Dockerfile.test.worker -t aria-worker-test:$(TEST_IMAGE_TAG) .
+
+.PHONY: docker-test-worker
+docker-test-worker: docker-test-worker-build  ## Run the test suite inside Docker with worker deps (covers infrastructure/workflows, infrastructure/queues/celery). Vars: PYTEST_ARGS(extra pytest flags)
+	@$(DOCKER) run --rm aria-worker-test:$(TEST_IMAGE_TAG) pytest --ignore=tests/test_infrastructure/test_entrypoint $(PYTEST_ARGS)
+
 # source $(poetry env info --path)/Scripts/activate
 
 .PHONY: clean
