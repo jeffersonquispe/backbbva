@@ -1,0 +1,328 @@
+from __future__ import annotations
+
+import uuid
+
+import pytest
+
+from src.application.ports.embedding_port import (
+    EmbeddingResult,
+    EmbeddingUnitOfWork,
+    EmbeddingUnitOfWorkFactory,
+)
+from src.application.ports.fraud_knowledge_port import (
+    DocumentType,
+    FraudKnowledgeDocument,
+    ModusOperandiDocument,
+)
+from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.use_cases.fraud_knowledge.ingest_modus_operandi import (
+    IngestModusOperandiInput,
+    IngestModusOperandiUseCase,
+)
+from src.application.use_cases.fraud_knowledge.ingest_red_flag import (
+    IngestRedFlagInput,
+    IngestRedFlagUseCase,
+)
+from src.application.use_cases.fraud_knowledge.ingest_similar_case import (
+    IngestSimilarCaseInput,
+    IngestSimilarCaseUseCase,
+)
+from src.application.use_cases.fraud_knowledge.ingest_taxonomia import (
+    IngestTaxonomiaInput,
+    IngestTaxonomiaUseCase,
+)
+from src.application.use_cases.fraud_knowledge.ingest_yellow_flag import (
+    IngestYellowFlagInput,
+    IngestYellowFlagUseCase,
+)
+
+
+class InMemoryFraudKnowledgeRepository:
+    def __init__(self) -> None:
+        self._documents: dict[uuid.UUID, FraudKnowledgeDocument] = {}
+
+    def create(self, document: FraudKnowledgeDocument) -> FraudKnowledgeDocument:
+        self._documents[document.id] = document
+        return document
+
+    def get(self, document_id: uuid.UUID) -> FraudKnowledgeDocument | None:
+        return self._documents.get(document_id)
+
+    def update(self, document: FraudKnowledgeDocument) -> FraudKnowledgeDocument:
+        self._documents[document.id] = document
+        return document
+
+    def delete(self, document_id: uuid.UUID) -> None:
+        self._documents.pop(document_id, None)
+
+    def list(
+        self,
+        document_type: DocumentType | None = None,
+        *,
+        channel: str | None = None,
+    ) -> list[FraudKnowledgeDocument]:
+        results = list(self._documents.values())
+        if document_type is not None:
+            results = [d for d in results if d.type == document_type]
+        if channel is not None:
+            results = [d for d in results if d.segmento == channel]
+        return results
+
+
+class ScriptedEmbeddingUnitOfWork(EmbeddingUnitOfWork):
+    def __init__(self) -> None:
+        self.embedded_texts: list[list[str]] = []
+
+    def embed(self, texts: list[str]) -> EmbeddingResult:
+        self.embedded_texts.append(list(texts))
+        return EmbeddingResult(
+            vectors=[[0.1, 0.2, 0.3] for _ in texts],
+            model="fake-embedding-model",
+            dimensions=3,
+        )
+
+
+class ScriptedEmbeddingUnitOfWorkFactory(EmbeddingUnitOfWorkFactory):
+    def __init__(self) -> None:
+        self.operation_names: list[str] = []
+
+    def create(
+        self, *, model: str, monitoring: MonitoringPort, operation_name: str
+    ) -> EmbeddingUnitOfWork:
+        self.operation_names.append(operation_name)
+        return ScriptedEmbeddingUnitOfWork()
+
+
+class NullSpan(MonitoringSpan):
+    def write_input(self, data) -> None:
+        pass
+
+    def write_result(self, data) -> None:
+        pass
+
+    def write_inner_logs(self, entries) -> None:
+        pass
+
+    def write_operation_metas(self, metadata) -> None:
+        pass
+
+    def record_dependency(self, name, kind, metadata=None) -> None:
+        pass
+
+    def finish(self, error=None) -> None:
+        pass
+
+
+class NullMonitoringPort(MonitoringPort):
+    def start(self, operation_name, operation_type, metadata=None) -> MonitoringSpan:
+        return NullSpan()
+
+
+def _taxonomia_input() -> IngestTaxonomiaInput:
+    return IngestTaxonomiaInput(
+        text="fraude por suplantacion de identidad",
+        segmento="tarjetas",
+        configuration="default",
+        version=1,
+    )
+
+
+def test_ingest_taxonomia_embeds_and_creates() -> None:
+    repository = InMemoryFraudKnowledgeRepository()
+    embedding_factory = ScriptedEmbeddingUnitOfWorkFactory()
+    use_case = IngestTaxonomiaUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=embedding_factory,
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    )
+
+    created = use_case.execute(_taxonomia_input())
+
+    assert created.type == DocumentType.TAXONOMIA
+    assert created.text_embedded == [0.1, 0.2, 0.3]
+    assert repository.get(created.id) == created
+    assert embedding_factory.operation_names == ["ingest_taxonomia"]
+
+
+def test_ingest_modus_operandi_requires_existing_taxonomia() -> None:
+    repository = InMemoryFraudKnowledgeRepository()
+    use_case = IngestModusOperandiUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=ScriptedEmbeddingUnitOfWorkFactory(),
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    )
+
+    with pytest.raises(ValueError):
+        use_case.execute(
+            IngestModusOperandiInput(
+                text="patron de fraude",
+                segmento="tarjetas",
+                configuration="default",
+                version=1,
+                taxonomia_id=uuid.uuid4(),
+                taxonomia="Suplantacion de identidad",
+            )
+        )
+
+
+def test_ingest_modus_operandi_succeeds_with_existing_taxonomia() -> None:
+    repository = InMemoryFraudKnowledgeRepository()
+    taxonomia = IngestTaxonomiaUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=ScriptedEmbeddingUnitOfWorkFactory(),
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    ).execute(_taxonomia_input())
+
+    use_case = IngestModusOperandiUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=ScriptedEmbeddingUnitOfWorkFactory(),
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    )
+    created = use_case.execute(
+        IngestModusOperandiInput(
+            text="patron de fraude",
+            segmento="tarjetas",
+            configuration="default",
+            version=1,
+            taxonomia_id=taxonomia.id,
+            taxonomia="Suplantacion de identidad",
+        )
+    )
+
+    assert created.type == DocumentType.MODUS_OPERANDI
+    assert created.taxonomia_id == taxonomia.id
+    assert created.similar_cases == []
+    assert created.red_flags == []
+    assert created.yellow_flags == []
+
+
+def _seed_taxonomia_and_modus_operandi(
+    repository: InMemoryFraudKnowledgeRepository,
+) -> ModusOperandiDocument:
+    embedding_factory = ScriptedEmbeddingUnitOfWorkFactory()
+    taxonomia = IngestTaxonomiaUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=embedding_factory,
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    ).execute(_taxonomia_input())
+    return IngestModusOperandiUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=embedding_factory,
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    ).execute(
+        IngestModusOperandiInput(
+            text="patron de fraude",
+            segmento="tarjetas",
+            configuration="default",
+            version=1,
+            taxonomia_id=taxonomia.id,
+            taxonomia="Suplantacion de identidad",
+        )
+    )
+
+
+def test_ingest_similar_case_rejects_mismatched_taxonomia() -> None:
+    repository = InMemoryFraudKnowledgeRepository()
+    modus_operandi = _seed_taxonomia_and_modus_operandi(repository)
+    use_case = IngestSimilarCaseUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=ScriptedEmbeddingUnitOfWorkFactory(),
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    )
+
+    with pytest.raises(ValueError):
+        use_case.execute(
+            IngestSimilarCaseInput(
+                text="caso similar",
+                segmento="tarjetas",
+                configuration="default",
+                version=1,
+                modus_operandi_id=modus_operandi.id,
+                taxonomia_id=uuid.uuid4(),
+            )
+        )
+
+
+def test_ingest_similar_case_appends_id_to_parent() -> None:
+    repository = InMemoryFraudKnowledgeRepository()
+    modus_operandi = _seed_taxonomia_and_modus_operandi(repository)
+    use_case = IngestSimilarCaseUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=ScriptedEmbeddingUnitOfWorkFactory(),
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    )
+
+    created = use_case.execute(
+        IngestSimilarCaseInput(
+            text="caso similar",
+            segmento="tarjetas",
+            configuration="default",
+            version=1,
+            modus_operandi_id=modus_operandi.id,
+            taxonomia_id=modus_operandi.taxonomia_id,
+        )
+    )
+
+    updated_parent = repository.get(modus_operandi.id)
+    assert isinstance(updated_parent, ModusOperandiDocument)
+    assert updated_parent.similar_cases == [created.id]
+
+
+def test_ingest_red_flag_appends_id_to_parent() -> None:
+    repository = InMemoryFraudKnowledgeRepository()
+    modus_operandi = _seed_taxonomia_and_modus_operandi(repository)
+    use_case = IngestRedFlagUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=ScriptedEmbeddingUnitOfWorkFactory(),
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    )
+
+    created = use_case.execute(
+        IngestRedFlagInput(
+            text="senal de alerta roja",
+            segmento="tarjetas",
+            configuration="default",
+            version=1,
+            modus_operandi_id=modus_operandi.id,
+            taxonomia_id=modus_operandi.taxonomia_id,
+        )
+    )
+
+    updated_parent = repository.get(modus_operandi.id)
+    assert isinstance(updated_parent, ModusOperandiDocument)
+    assert updated_parent.red_flags == [created.id]
+
+
+def test_ingest_yellow_flag_appends_id_to_parent() -> None:
+    repository = InMemoryFraudKnowledgeRepository()
+    modus_operandi = _seed_taxonomia_and_modus_operandi(repository)
+    use_case = IngestYellowFlagUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=ScriptedEmbeddingUnitOfWorkFactory(),
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    )
+
+    created = use_case.execute(
+        IngestYellowFlagInput(
+            text="senal de alerta amarilla",
+            segmento="tarjetas",
+            configuration="default",
+            version=1,
+            modus_operandi_id=modus_operandi.id,
+            taxonomia_id=modus_operandi.taxonomia_id,
+        )
+    )
+
+    updated_parent = repository.get(modus_operandi.id)
+    assert isinstance(updated_parent, ModusOperandiDocument)
+    assert updated_parent.yellow_flags == [created.id]

@@ -52,6 +52,27 @@ services:
       retries: 10
       start_period: 10s
 
+  opensearch:
+    image: opensearchproject/opensearch:2.19.1
+    container_name: aria-opensearch
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "${LOCAL_OPENSEARCH_PORT:-9200}:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    networks:
+      - aria-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
   api:
     build:
       context: ../../..
@@ -90,12 +111,20 @@ services:
       OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
       OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-dummy123}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-aria-reports}
+      OPENSEARCH_ENDPOINT: http://opensearch:9200
+      OPENSEARCH_AUTH_MODE: ${OPENSEARCH_AUTH_MODE:-basic}
+      OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME:-admin}
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-dummy}
+      OPENSEARCH_INDEX: ${OPENSEARCH_INDEX:-fraud_knowledge}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
     depends_on:
       dynamodb:
         condition: service_healthy
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      opensearch:
         condition: service_healthy
     networks:
       - aria-net
@@ -159,3 +188,4 @@ networks:
 volumes:
   dynamodb-data:
   minio-data:
+  opensearch-data:

@@ -73,6 +73,18 @@ class Config(BaseSettings):
     OBJECT_STORAGE_SECRET_KEY: str = "dummy"
     OBJECT_STORAGE_BUCKET: str = "aria-reports"
 
+    # OPENSEARCH (fraud knowledge vector store)
+    OPENSEARCH_ENDPOINT: str = "http://opensearch:9200"
+    OPENSEARCH_REGION: str = "eu-west-1"
+    OPENSEARCH_AUTH_MODE: str = "basic"
+    OPENSEARCH_USERNAME: str = "admin"
+    OPENSEARCH_PASSWORD: str = "dummy"
+    OPENSEARCH_VERIFY_CERTS: bool = False
+    OPENSEARCH_INDEX: str = "fraud_knowledge"
+
+    EMBEDDING_MODEL: str = ""
+    EMBEDDING_DIMENSIONS: int = 1536
+
     # QUEUE
     ASYNC_EXECUTOR_BACKEND: str = "celery"
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
