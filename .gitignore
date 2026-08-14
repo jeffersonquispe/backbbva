@@ -42,3 +42,7 @@ resources/
 # Logs
 *.log
 logs/
+
+# Experiments
+experiments/docs/
+experiments/*.csv
