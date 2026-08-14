@@ -1,0 +1,213 @@
+# ==============================================================================
+# REGLAS DE NEGOCIO Y OPERATIVAS — SISTEMA MULTIAGENTE ARIA (BBVA FRAUDE)
+# ==============================================================================
+# ATENCIÓN: este archivo es DOCUMENTACIÓN, no configuración ejecutada. Ningún
+# .py lo lee en tiempo de ejecución — las reglas reales viven hardcodeadas en
+# cada agente (agents/*.py) y en los schemas Pydantic (schemas.py). Si cambias
+# la lógica de un agente (ej. el trigger de escalamiento en analista.py),
+# actualiza también la sección correspondiente aquí a mano, o este documento
+# quedará desincronizado con el comportamiento real del sistema.
+version: "1.0"
+system_name: "ARIA - Agente de Prevención de Fraude"
+target_environment: "AWS Lambda / Amazon Bedrock (Claude Sonnet 4.6)"
+
+pipeline_governance:
+  global_sla_max_seconds: 300
+  architecture: "Multiagent Sequential / AWS Step Functions"
+  supported_marcaciones:
+    - "RISK"
+    - "NO_RISK"
+    - "RISK_SUSPECTED"
+
+# ==============================================================================
+# REGLAS DURAS PREVIAS AL PIPELINE (implementación: agents/_modus_operandi.py,
+# evaluar_reglas_duras() -- invocada en lambda_function.py antes de correr
+# Clasificador/Analista/Ejecutor)
+# ==============================================================================
+# Filtros determinísticos que se evalúan ANTES de invocar cualquier LLM. Si uno
+# dispara, el caso es inequívoco: se construyen las salidas de Clasificador,
+# Analista y Ejecutor directo desde el veredicto (0 tokens, 0 costo, 0s), sin
+# arriesgarse a que el LLM reinterprete algo que ya no admite ambigüedad.
+# Perfilador y Documentador SÍ siguen corriendo (narrativa + reporte de cierre).
+reglas_duras_previas:
+  - id: "RULE-DURA-01"
+    name: "Cliente Wealth / Premium VIP"
+    description: "Si el segmento del cliente es Wealth o Premium VIP (ARIC o 3270 PE55), derivar al circuito exclusivo de banca privada sin aplicar bloqueos automáticos masivos no autorizados. Tiene prioridad sobre cualquier otra señal."
+    trigger_condition: "alert.segmento in ('WEALTH', 'PREMIUM_VIP')"
+    action: "marcacion_aric = 'RISK_SUSPECTED' (revisión manual banca privada), sin acciones de bloqueo, sin VoiceBot"
+    nota_dataset: "Campo 'segmento' no viene en el dataset sintético de 43 campos actual -- queda listo para cuando se integre 3270 PE55, hoy nunca dispara."
+
+  - id: "RULE-DURA-02"
+    name: "Disparador Directo de Hurto (indRobo1)"
+    description: "Si el datapoint Biocatch indRobo1 está activo, es indicador directo de hurto/sustancias -- no requiere triage LLM."
+    trigger_condition: "alert.biocatch_indrobo1 == 1"
+    modus_operandi: "Hurto de Celular / Paseo Millonario"
+    action: "marcacion_aric = 'RISK', acciones = [Baja Softoken, Bloqueo Soft GLOMO, Bloqueo Tarjeta Débito/Crédito], sin VoiceBot"
+    nota_dataset: "El nombre de regla ARIC 'dg_hurto' de la fuente original no existe como campo crudo en este dataset -- solo se evalúa indRobo1."
+
+  - id: "RULE-DURA-03"
+    name: "Disparador Directo de Malware / RAT / Bot"
+    description: "Si isRat, isMobileRat o isBot están activos, es indicador directo de malware -- no requiere triage LLM."
+    trigger_condition: "alert.biocatch_isRat == 1 or alert.biocatch_isMobileRat == 1 or alert.biocatch_isBot == 1"
+    modus_operandi: "Malware / RAT APK"
+    action: "marcacion_aric = 'RISK', acciones = [Baja Softoken, Bloqueo Hard de Canal], sin VoiceBot"
+    nota_dataset: "'isRecentRat' de la fuente original no existe distinto de isRat en este dataset."
+
+# ==============================================================================
+# CATÁLOGO DE MODUS OPERANDI (implementación: agents/_modus_operandi.py,
+# MODUS_OPERANDI_POR_TAXONOMIA -- inyectado como contexto de referencia en los
+# prompts de Clasificador, Analista y Ejecutor)
+# ==============================================================================
+# Señales típicas y acciones de contención por taxonomía FCP definitiva (la que
+# asigna el Analista). Es conocimiento de referencia para el LLM, no un segundo
+# catálogo paralelo al de RULE-CLA-01 -- cada entrada mapea 1 a 1 a una de las
+# 10 taxonomías FCP cerradas.
+catalogo_modus_operandi:
+  - taxonomia_fcp: "[FR___SUPLANTACIN]"
+    nombre: "Suplantación de Identidad (Onboarding / Cliente Existente)"
+    acciones: ["Bloqueo Cuenta", "Baja Softoken", "Bloqueo Hard GLOMO/NET", "Bloqueo Tarjeta", "BAEP Blacklist"]
+  - taxonomia_fcp: "[FR___SIM_SWAPPING]"
+    nombre: "Account Takeover (ATO) / SIM Swap"
+    acciones: ["Baja Softoken", "Bloqueo Soft GLOMO", "Bloqueo NET (si hubo cambio de clave)"]
+  - taxonomia_fcp: "[FR___VISHING]"
+    nombre: "Estafa / Ingeniería Social"
+    acciones: ["Bloqueo Soft GLOMO", "Baja Softoken", "Enviar a Voicebot/Asesor -- alertar sobre el destino, nunca preguntar si el cliente reconoce la operación"]
+  - taxonomia_fcp: "[FR___RAT]"
+    nombre: "Malware / RAT APK"
+    acciones: ["Baja Softoken", "Bloqueo Hard de Canal"]
+  - taxonomia_fcp: "[FR___MALWARE]"
+    nombre: "Malware / RAT APK"
+    acciones: ["Baja Softoken", "Bloqueo Hard de Canal"]
+  - taxonomia_fcp: "[FR___PHARMING]"
+    nombre: "Pharming / Redirección Maliciosa"
+    acciones: ["Bloqueo Hard de Canal", "Baja Softoken"]
+  - taxonomia_fcp: "[FR___NO_HABITO_TRXS]"
+    nombre: "Pérdida / Robo / Cambiazo de Tarjeta"
+    acciones: ["Bloqueo Tarjeta (apagado preventivo o bloqueo definitivo)"]
+  - taxonomia_fcp: "[NF___FALSO_POSITIVO]"
+    nombre: "Transacción Genuina"
+    acciones: []
+  - taxonomia_fcp: "[NF___ANLISIS]"
+    nombre: "Operación Normal Descartable"
+    acciones: []
+  - taxonomia_fcp: "[NF___DESCARTE]"
+    nombre: "Descarte por Regla Automática"
+    acciones: []
+
+agents:
+  clasificador:
+    agent_id: "AG-01-CLASIFICADOR"
+    role: "Triage inicial rápido: decide directamente una marcación de riesgo (RISK / NO_RISK / RISK_SUSPECTED)"
+    sla_max_seconds: 5
+    rules:
+      - id: "RULE-CLA-01"
+        name: "Decisión Directa de Marcación de Riesgo"
+        description: "El Clasificador decide 'marcacion_aric' directamente (Literal forzado por schema, no puede inventar un 4to valor). El catálogo de taxonomías FCP se usa solo como conocimiento de referencia dentro del prompt para razonar -- ya NO es un campo que el Clasificador tenga que reportar. La taxonomía FCP definitiva la asigna el Analista (RULE-ANA-01)."
+        enforcement: "STRICT"
+        allowed_outputs:
+          - "RISK": "Evidencia clara de fraude en el triage rápido"
+          - "NO_RISK": "Evidencia clara de operación legítima"
+          - "RISK_SUSPECTED": "Evidencia insuficiente o contradictoria -- pasa a verificación adversarial del Analista"
+        catalogo_de_referencia_fcp:
+          - "[FR___NO_HABITO_TRXS]"
+          - "[FR___SUPLANTACIN]"
+          - "[FR___RAT]"
+          - "[FR___VISHING]"
+          - "[FR___MALWARE]"
+          - "[FR___PHARMING]"
+          - "[FR___SIM_SWAPPING]"
+          - "[NF___FALSO_POSITIVO]"
+          - "[NF___ANLISIS]"
+          - "[NF___DESCARTE]"
+
+      - id: "RULE-CLA-02"
+        name: "Regla Cold Start (Sin Historial)"
+        description: "Si el cliente carece de historial transaccional o es recién registrado, evaluar contra promedios del canal sin fallar la ejecución."
+        trigger_condition: "len(recent_transactions) == 0 or fecha_alta is null"
+        action: "set regla_cold_start_aplicada = true"
+
+      - id: "RULE-CLA-03"
+        name: "Razón de Marcación como Contexto No Vinculante"
+        description: "El campo razon_marcacion (nota histórica de otro sistema/analista) SÍ se entrega al Clasificador como contexto adicional. No es obligatorio decidir en función de él ni que la marcación coincida con su contenido: la decisión sigue basándose en la evidencia primaria de la alerta (RULE-CLA-01) y las señales narrativas del perfilamiento."
+        enforcement: "INFORMATIVE_ONLY"
+
+      - id: "RULE-CLA-04"
+        name: "RISK_SUSPECTED por Evidencia Ambigua o Contradictoria"
+        description: "Marca RISK_SUSPECTED cuando las señales narrativas y los scores instrumentales apuntan en direcciones opuestas, o cuando hay Cold Start sin ninguna señal narrativa/técnica que incline la balanza. No es el análisis adversarial del Analista -- es reconocer que el triage rápido no alcanza para decidir con confianza."
+        trigger_condition: "señales narrativas y scores instrumentales en direcciones opuestas, o Cold Start sin ninguna señal que incline la balanza"
+        action: "set marcacion_aric = 'RISK_SUSPECTED'"
+
+  analista:
+    agent_id: "AG-02-ANALISTA"
+    role: "Verificación adversarial del triage del Clasificador + asignación de la taxonomía FCP definitiva"
+    sla_max_seconds: 10
+    rules:
+      - id: "RULE-ANA-01"
+        name: "Verificación Adversarial Obligatoria + Taxonomía FCP Definitiva"
+        description: "El analista NUNCA debe validar pasivamente el triage de riesgo del Clasificador. Debe generar una hipótesis refutadora contradictoria. Es además el único agente que asigna 'clasificacion_final' dentro del catálogo cerrado FCP (el Clasificador ya no propone taxonomía, solo un triage RISK/NO_RISK/RISK_SUSPECTED, ver RULE-CLA-01)."
+        enforcement: "MANDATORY"
+        action: "generate_counter_hypothesis"
+
+      - id: "RULE-ANA-02"
+        name: "Escalamiento Humano por Incertidumbre (HITL)"
+        description: "Si hay conflicto entre Biocatch y Featurespace o desvío crítico de techos de monto, fijar incertidumbre ALTO y escalar a analista humano."
+        trigger_condition: "nivel_incertidumbre == 'ALTO' or biocatch_score > 900"
+        action: "set requiere_escalamiento = true"
+
+      - id: "RULE-ANA-03"
+        name: "Fallback Seguro por Timeout / Error"
+        description: "Si el análisis excede el SLA o falla el LLM, no forzar marcaciones arriesgadas; fijar incertidumbre ALTO y escalar."
+        trigger_condition: "execution_error or timeout_exceeded"
+        action: "set requiere_escalamiento = true, nivel_incertidumbre = 'ALTO'"
+
+      - id: "RULE-ANA-04"
+        name: "Razón de Marcación como Contexto No Vinculante"
+        description: "El campo razon_marcacion SÍ se entrega al Analista como contexto adicional a contrastar adversarialmente (RULE-ANA-01), no como veredicto. No es obligatorio que clasificacion_final coincida con su contenido."
+        enforcement: "INFORMATIVE_ONLY"
+
+  ejecutor:
+    agent_id: "AG-03-EJECUTOR"
+    role: "Decisión operativa final, marcación ARIC y disparo de VoiceBot"
+    sla_max_seconds: 5
+    rules:
+      - id: "RULE-EJE-01"
+        name: "Marcación Categórica ARIC"
+        description: "Asignar la marcación oficial de ARIC según la evaluación de riesgo."
+        allowed_outputs:
+          - "RISK": "Fraude verificado -> Congelamiento/Bloqueo"
+          - "NO_RISK": "Operación legítima -> Liberar transacción"
+          - "RISK_SUSPECTED": "Duda no resuelta -> Pausar y validar"
+
+      - id: "RULE-EJE-02"
+        name: "Disparo Condicional de VoiceBot"
+        description: "La llamada telefónica automática del VoiceBot Indra se dispara ÚNICAMENTE en zona gris o necesidad de confirmación directa."
+        trigger_condition: "marcacion_aric == 'RISK_SUSPECTED' or requiere_escalamiento == true"
+        action: "set disparar_voicebot = true"
+
+      - id: "RULE-EJE-03"
+        name: "Trazabilidad Inmutable Auditable"
+        description: "Generar un ID de trazabilidad único que preserve la cadena de razonamiento CoT de los 4 agentes."
+        action: "generate_trazabilidad_id (prefix: aria-trace-)"
+
+      - id: "RULE-EJE-04"
+        name: "Acciones de Contención Concretas + Observación Estandarizada"
+        description: "'accion_operativa' debe nombrar bloqueos concretos del catalogo_modus_operandi (Baja Softoken, Bloqueo Soft/Hard GLOMO/NET, Bloqueo Tarjeta, Bloqueo Cuenta, BAEP Blacklist), no texto genérico. Además se genera 'observacion_aric', una línea estandarizada '[MO: <taxonomía>] [CANAL: <canal>] [HABITO: SI/NO/N-D] [DISP: HABITUAL/NUEVO/N-D] - <resumen>' lista para pegar en ARIC (ver agents/_modus_operandi.formatear_observacion_aric)."
+        enforcement: "STRICT"
+        nota_dataset: "[DISP: ...] casi siempre es N-D: el dataset sintético no trae UserAgent/IMEI, así que no hay forma honesta de afirmar dispositivo habitual/nuevo."
+
+  documentador:
+    agent_id: "AG-04-DOCUMENTADOR"
+    role: "Generación de bitácora en Markdown y detección de nuevas variantes"
+    mode: "BATCH"
+    rules:
+      - id: "RULE-DOC-01"
+        name: "Detección de Nueva Variante de Fraude"
+        description: "Si la combinación de vectores de ataque no corresponde a patrones estándar conocidos, marcar nueva variante."
+        trigger_condition: "unrecognized_attack_vector_pattern == true"
+        action: "set es_nueva_variante = true, set notificar_senior = true"
+
+      - id: "RULE-DOC-02"
+        name: "Resiliencia de Formato de Documentación"
+        description: "Un fallo en la generación de texto Markdown NUNCA debe alterar la marcación del Ejecutor ni bloquear el cierre."
+        trigger_condition: "generation_text_error == true"
+        action: "generate_draft_markdown_with_raw_payload"

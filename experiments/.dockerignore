@@ -1,0 +1,25 @@
+# Nunca debe entrar al contexto de build ni a la imagen.
+.env
+*.env
+.git
+.gitignore
+.claude/
+
+# No forman parte de la app desplegada (ver Dockerfile: solo copia lo listado ahí).
+scripts/
+tests/
+docs/
+output/
+HU/
+*.md
+*.zip
+*.xlsx
+*.docx
+
+# Cache / artefactos locales.
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+venv/
+.venv/

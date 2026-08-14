@@ -1,0 +1,42 @@
+{
+  "ServiceName": "aria-streamlit-app",
+  "SourceConfiguration": {
+    "AutoDeploymentsEnabled": true,
+    "AuthenticationConfiguration": {
+      "AccessRoleArn": "arn:aws:iam::ACCOUNT_ID:role/AppRunnerECRAccessRole"
+    },
+    "ImageRepository": {
+      "ImageIdentifier": "ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/aria-streamlit-app:latest",
+      "ImageRepositoryType": "ECR",
+      "ImageConfiguration": {
+        "Port": "8080",
+        "RuntimeEnvironmentVariables": {
+          "BEDROCK_MODEL_ID": "us.anthropic.claude-sonnet-4-6",
+          "AWS_DEFAULT_REGION": "us-east-1"
+        }
+      }
+    }
+  },
+  "InstanceConfiguration": {
+    "Cpu": "1 vCPU",
+    "Memory": "2 GB",
+    "InstanceRoleArn": "arn:aws:iam::ACCOUNT_ID:role/AriaAppRunnerInstanceRole"
+  },
+  "HealthCheckConfiguration": {
+    "Protocol": "HTTP",
+    "Path": "/_stcore/health",
+    "Interval": 10,
+    "Timeout": 5,
+    "HealthyThreshold": 1,
+    "UnhealthyThreshold": 5
+  },
+  "NetworkConfiguration": {
+    "EgressConfiguration": {
+      "EgressType": "DEFAULT"
+    }
+  },
+  "Tags": [
+    { "Key": "project", "Value": "aria" },
+    { "Key": "component", "Value": "streamlit-app" }
+  ]
+}

@@ -1,0 +1,12 @@
+# Dependencias de runtime para la imagen Docker de app/app.py (App Runner).
+# Subconjunto de requirements.txt: sin scikit-learn (solo scripts/eval_no_gt.py)
+# ni pytest (solo tests/). Si agregas una dependencia nueva usada por app/app.py
+# o por agents/*.py, agrégala aquí también.
+boto3>=1.40
+langchain-core>=1.5,<2
+langchain-aws>=1.6,<2
+pydantic>=2.0,<3
+streamlit>=1.60
+pandas>=2.0
+altair>=6.0
+PyYAML>=6.0
