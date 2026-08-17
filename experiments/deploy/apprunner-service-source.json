@@ -1,0 +1,41 @@
+{
+  "ServiceName": "aria-streamlit-app",
+  "SourceConfiguration": {
+    "AutoDeploymentsEnabled": true,
+    "AuthenticationConfiguration": {
+      "ConnectionArn": "arn:aws:apprunner:REGION:ACCOUNT_ID:connection/aria-github-connection/CONNECTION_ID"
+    },
+    "CodeRepository": {
+      "RepositoryUrl": "https://github.com/cdrojasm/iara",
+      "SourceCodeVersion": {
+        "Type": "BRANCH",
+        "Value": "pocv1"
+      },
+      "CodeConfiguration": {
+        "ConfigurationSource": "REPOSITORY"
+      }
+    }
+  },
+  "InstanceConfiguration": {
+    "Cpu": "1 vCPU",
+    "Memory": "2 GB",
+    "InstanceRoleArn": "arn:aws:iam::ACCOUNT_ID:role/AriaAppRunnerInstanceRole"
+  },
+  "HealthCheckConfiguration": {
+    "Protocol": "HTTP",
+    "Path": "/_stcore/health",
+    "Interval": 10,
+    "Timeout": 5,
+    "HealthyThreshold": 1,
+    "UnhealthyThreshold": 5
+  },
+  "NetworkConfiguration": {
+    "EgressConfiguration": {
+      "EgressType": "DEFAULT"
+    }
+  },
+  "Tags": [
+    { "Key": "project", "Value": "aria" },
+    { "Key": "component", "Value": "streamlit-app" }
+  ]
+}

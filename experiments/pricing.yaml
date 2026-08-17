@@ -1,0 +1,41 @@
+# ==============================================================================
+# TARIFARIO DE PRECIOS — MODELOS CLAUDE (AWS BEDROCK)
+# ==============================================================================
+# A diferencia de aria_rules.yaml (que es solo documentación), ESTE archivo SÍ
+# se lee en tiempo de ejecución -> pricing.py lo carga para calcular el costo
+# en USD de cada corrida a partir de los tokens consumidos. Para cambiar una
+# tarifa o agregar un modelo nuevo, edita este YAML — no hardcodees precios
+# en el código.
+#
+# Precios en USD por cada 1,000,000 de tokens, tal como se listan en la
+# consola de AWS Bedrock (On-Demand, us-east-1). Verificar/actualizar contra
+# https://aws.amazon.com/bedrock/pricing/ antes de usar estos números para
+# reportar costo real a negocio — los valores de "us.anthropic.claude-sonnet-4-6"
+# son un placeholder basado en la tarifa vigente de la familia Sonnet al
+# momento de escribir este archivo, porque ese model_id es específico de este
+# PoC y no tiene una página de precios propia todavía.
+version: "1.0"
+currency: "USD"
+unit: "per_1M_tokens"
+
+# Modelo que usan los agentes por defecto (agents/*.py), salvo que se
+# sobreescriba con la env var BEDROCK_MODEL_ID.
+default_model: "us.anthropic.claude-sonnet-4-6"
+
+models:
+  us.anthropic.claude-sonnet-4-6:
+    label: "Claude Sonnet 4.6 (Bedrock)"
+    input_price: 3.00
+    output_price: 15.00
+
+  # Modelos alternativos que el pipeline podría usar si se cambia
+  # BEDROCK_MODEL_ID (dejados listos para no tener que tocar código).
+  us.anthropic.claude-opus-4-6:
+    label: "Claude Opus 4.6 (Bedrock)"
+    input_price: 15.00
+    output_price: 75.00
+
+  us.anthropic.claude-haiku-4-5:
+    label: "Claude Haiku 4.5 (Bedrock)"
+    input_price: 1.00
+    output_price: 5.00
