@@ -244,6 +244,10 @@ LOCAL_DYNAMODB_PORT ?= 8002
 LOCAL_REDIS_PORT ?= 6379
 LOCAL_IMAGE_TAG ?= local
 
+# Sibling repo, not part of this git tree - guard every target below so a
+# checkout without it (e.g. CI, a fresh clone) doesn't fail the backend stack.
+FRONTEND_DIR ?= ../frontend_mockup
+
 LOCAL_DOCKER_ENV_FLAGS = \
 	GENAI_ENVIRONMENT=$(LOCAL_DOCKER_ENV) \
 	LOCAL_API_PORT=$(LOCAL_API_PORT) \
@@ -259,18 +263,36 @@ local-docker-build:  ## Build local Docker API stack. Vars: LOCAL_DOCKER_ENV, LO
 		build
 
 .PHONY: local-docker-run
-local-docker-run:  ## Run local Docker API stack. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
+local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, default ../frontend_mockup). LLM/other app config comes from config/$(LOCAL_DOCKER_ENV)/config.cfg, mounted read-only - edit it and re-run this to pick up changes. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
 		up -d
+	@# config.cfg is a mounted file, not a compose-level env var - `up -d`
+	@# alone won't notice its content changed, so always restart the two
+	@# services that read it. Cheap (no rebuild, no image pull) and a no-op
+	@# on freshly-created containers.
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		restart api worker
+	@if [ -d "$(FRONTEND_DIR)" ]; then \
+		$(MAKE) -C $(FRONTEND_DIR) run; \
+	else \
+		echo "FRONTEND_DIR=$(FRONTEND_DIR) not found, skipping frontend."; \
+	fi
 
 .PHONY: local-docker-stop
-local-docker-stop:  ## Stop local Docker API stack.
+local-docker-stop:  ## Stop local Docker API stack + frontend.
 	@$(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
 		down
+	@if [ -d "$(FRONTEND_DIR)" ]; then \
+		$(MAKE) -C $(FRONTEND_DIR) down; \
+	else \
+		echo "FRONTEND_DIR=$(FRONTEND_DIR) not found, skipping frontend."; \
+	fi
 
 # ─── Local observability stack (OTel Collector, Tempo, Loki, Prometheus, Grafana, MinIO) ──
 OBSERVABILITY_COMPOSE_FILE ?= deploy/local/docker/observability/docker-compose.observability.yml

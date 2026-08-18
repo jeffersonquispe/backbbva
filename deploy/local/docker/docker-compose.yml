@@ -83,8 +83,14 @@ services:
     container_name: aria-api
     ports:
       - "${LOCAL_API_PORT:-8000}:8000"
+    volumes:
+      - ../../../datasets:/app/datasets:ro
+      # LLM backend/credentials live here, not in environment: below - see
+      # config/local/config.cfg, read directly by Config._env_file.
+      - ../../../config:/code/config:ro
     environment:
       GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      DATASETS_DIR: /app/datasets
       API_V0_STR: ${API_V0_STR:-/api/v0}
       COMPONENT_NAME: ${COMPONENT_NAME:-aria-api}
       COMPONENT_VERSION: ${COMPONENT_VERSION:-0.1.0}
@@ -143,6 +149,10 @@ services:
         GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
     image: aria-worker:${LOCAL_IMAGE_TAG:-local}
     container_name: aria-worker
+    volumes:
+      # LLM backend/credentials live here, not in environment: below - see
+      # config/local/config.cfg, read directly by Config._env_file.
+      - ../../../config:/code/config:ro
     environment:
       GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
       API_V0_STR: ${API_V0_STR:-/api/v0}
@@ -183,6 +193,7 @@ services:
 
 networks:
   aria-net:
+    name: aria-net
     driver: bridge
 
 volumes:

@@ -45,30 +45,32 @@ _FALLBACK_PLAYBOOK = FraudPlaybookRecord(
 _SAFE_DEFAULT_DECISION = "scale_to_analyst"
 
 _SYSTEM_PROMPT = (
-    "You are a fraud operations decision agent. You are given the fraud "
-    "playbook for this alert's classification and the current operations "
-    "capacity (available analysts, voicebot slots, bidi slots, and each "
-    "channel's status). Decide the single next action for this alert.\n\n"
-    "Decision meanings:\n"
-    "- block: the playbook indicates clear, confirmed fraud - stop the "
-    "transaction/channel now.\n"
-    "- pass: no indication of fraud requiring further action - release "
-    "the alert.\n"
-    "- bidi: route to a bidirectional (chat/voice) verification channel "
-    "with the customer.\n"
-    "- voicebot: route to the automated voicebot verification channel.\n"
-    "- scale_to_analyst: escalate to a human analyst.\n\n"
-    "Only choose bidi, voicebot, or scale_to_analyst if that channel's "
-    "status is not \"unavailable\" and it has available capacity greater "
-    "than zero. If the channel you would otherwise choose has no "
-    "capacity, prefer the next best available option, favoring "
-    "scale_to_analyst as the safe fallback when unsure.\n\n"
-    "Respond with ONLY this JSON, nothing else:\n"
+    "Eres un agente de decisión de operaciones de fraude. Se te entrega el "
+    "playbook de fraude para la clasificación de esta alerta y la "
+    "capacidad operativa actual (analistas disponibles, cupos de "
+    "voicebot, cupos de bidi y el estado de cada canal). Decide la única "
+    "siguiente acción para esta alerta.\n\n"
+    "Significado de las decisiones:\n"
+    "- block: el playbook indica fraude claro y confirmado - detener la "
+    "transacción/canal ahora.\n"
+    "- pass: no hay indicios de fraude que requieran más acción - liberar "
+    "la alerta.\n"
+    "- bidi: enrutar a un canal de verificación bidireccional (chat/voz) "
+    "con el cliente.\n"
+    "- voicebot: enrutar al canal automatizado de verificación por "
+    "voicebot.\n"
+    "- scale_to_analyst: escalar a un analista humano.\n\n"
+    "Solo elige bidi, voicebot o scale_to_analyst si el estado de ese "
+    "canal no es \"unavailable\" y tiene capacidad disponible mayor a "
+    "cero. Si el canal que elegirías no tiene capacidad, prefiere la "
+    "siguiente mejor opción disponible, favoreciendo scale_to_analyst "
+    "como respaldo seguro ante la duda.\n\n"
+    "Responde con SOLO este JSON, nada más:\n"
     '{"decision": "block|pass|bidi|voicebot|scale_to_analyst", '
-    '"reasoning": "<brief justification>"}'
+    '"reasoning": "<justificación breve>"}'
 )
 
-_USER_PROMPT = "Playbook, operations capacity, and classification:\n{data}"
+_USER_PROMPT = "Playbook, capacidad operativa y clasificación:\n{data}"
 
 
 def _channel_data(capacity: OperationsCapacityRecord) -> dict[str, dict[str, object]]:
@@ -113,6 +115,7 @@ class AnalystReviewAlertUseCase:
         model: str,
         fraud_playbook_port: FraudPlaybookRepository,
         operations_capacity_port: OperationsCapacityPort,
+        system_prompt: str | None = None,
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
@@ -120,6 +123,7 @@ class AnalystReviewAlertUseCase:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
         self._model = model
+        self._system_prompt = system_prompt or _SYSTEM_PROMPT
         self._fraud_playbook_port = fraud_playbook_port
         self._operations_capacity_port = operations_capacity_port
         self._status_reporter = status_reporter
@@ -172,7 +176,7 @@ class AnalystReviewAlertUseCase:
         }
         result = uow.invoke(
             [
-                LLMMessage(role=LLMMessageRole.SYSTEM, content=_SYSTEM_PROMPT),
+                LLMMessage(role=LLMMessageRole.SYSTEM, content=self._system_prompt),
                 LLMMessage(
                     role=LLMMessageRole.USER,
                     content=_USER_PROMPT.format(
@@ -188,4 +192,6 @@ class AnalystReviewAlertUseCase:
             playbook_title=playbook.title,
             playbook_steps=playbook.steps,
             operations_capacity=_channel_data(capacity),
+            input_tokens=result.input_tokens or 0,
+            output_tokens=result.output_tokens or 0,
         )

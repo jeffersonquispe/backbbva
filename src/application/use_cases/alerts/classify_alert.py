@@ -34,33 +34,37 @@ MAX_REACT_ITERATIONS = 6
 _VALID_DETERMINATIONS = {"fraud", "not_fraud", UNKNOWN}
 
 _SYSTEM_PROMPT = (
-    "You are a fraud classification analyst. Decide (1) whether the alert "
-    "is fraud, and (2) its fraud classification (typology/taxonomy label). "
-    "You may investigate using the tools below, in any order, as many or "
-    "as few times as you need - you decide.\n\n"
-    "Tools:\n"
-    "- get_similar_frauds: given a short text query, returns similar past "
-    "fraud cases (case_id, summary, outcome, similarity_score).\n"
-    "- get_similar_taxonomy: given a short text query, returns similar "
-    "fraud taxonomy entries (code, name, description, similarity_score).\n"
-    "- get_similar_modus_operandi: given a short text query, returns "
-    "similar modus operandi patterns (pattern_id, description, "
-    "similarity_score).\n\n"
-    "Respond using ONLY one of these two formats, nothing else:\n\n"
-    "Thought: <your reasoning>\n"
-    "Action: <one of get_similar_frauds, get_similar_taxonomy, "
+    "Eres un analista de clasificación de fraude. Decide (1) si la alerta "
+    "es fraude, y (2) su clasificación de fraude (etiqueta de "
+    "tipología/taxonomía). Puedes investigar usando las siguientes "
+    "herramientas, en cualquier orden, tantas o tan pocas veces como "
+    "necesites - tú decides.\n\n"
+    "Herramientas:\n"
+    "- get_similar_frauds: dada una consulta corta de texto, devuelve "
+    "casos de fraude pasados similares (case_id, summary, outcome, "
+    "similarity_score).\n"
+    "- get_similar_taxonomy: dada una consulta corta de texto, devuelve "
+    "entradas de taxonomía de fraude similares (code, name, description, "
+    "similarity_score).\n"
+    "- get_similar_modus_operandi: dada una consulta corta de texto, "
+    "devuelve patrones de modus operandi similares (pattern_id, "
+    "description, similarity_score).\n\n"
+    "Responde usando SOLO uno de estos dos formatos, nada más:\n\n"
+    "Thought: <tu razonamiento>\n"
+    "Action: <una de get_similar_frauds, get_similar_taxonomy, "
     "get_similar_modus_operandi>\n"
-    "Action Input: <a short text query for that tool>\n\n"
-    "or, when you are ready to conclude:\n\n"
-    "Thought: <your reasoning>\n"
+    "Action Input: <una consulta corta de texto para esa herramienta>\n\n"
+    "o, cuando estés listo para concluir:\n\n"
+    "Thought: <tu razonamiento>\n"
     'Final Answer: {"is_fraud": "fraud|not_fraud|unknown", '
-    '"fraud_classification": "<taxonomy label or unknown>", '
-    '"reasoning": "<brief justification>"}\n\n'
-    "If the evidence is insufficient or inconclusive, set both is_fraud "
-    'and fraud_classification to "unknown" rather than guessing.'
+    '"fraud_classification": "<etiqueta de taxonomía o unknown>", '
+    '"reasoning": "<justificación breve>"}\n\n'
+    "Si la evidencia es insuficiente o no concluyente, define tanto "
+    'is_fraud como fraud_classification como "unknown" en lugar de '
+    "adivinar."
 )
 
-_INITIAL_PROMPT = "Alert data and profiling results:\n{data}"
+_INITIAL_PROMPT = "Datos de la alerta y resultados del perfilamiento:\n{data}"
 
 
 def _serializable(value: Any) -> Any:
@@ -139,6 +143,7 @@ class ClassifyAlertUseCase:
         similar_fraud_case_port: SimilarFraudCasePort,
         fraud_taxonomy_port: FraudTaxonomyPort,
         modus_operandi_port: ModusOperandiPort,
+        system_prompt: str | None = None,
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
@@ -146,6 +151,7 @@ class ClassifyAlertUseCase:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
         self._model = model
+        self._system_prompt = system_prompt or _SYSTEM_PROMPT
         self._status_reporter = status_reporter
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
@@ -178,7 +184,7 @@ class ClassifyAlertUseCase:
     def execute(self, input: ClassifyAlertInput) -> ClassifyAlertOutput:
         self._report_progress("react_reasoning_start")
         messages = [
-            LLMMessage(role=LLMMessageRole.SYSTEM, content=_SYSTEM_PROMPT),
+            LLMMessage(role=LLMMessageRole.SYSTEM, content=self._system_prompt),
             LLMMessage(
                 role=LLMMessageRole.USER,
                 content=_INITIAL_PROMPT.format(
@@ -192,8 +198,12 @@ class ClassifyAlertUseCase:
             operation_name="classification",
         )
 
+        input_tokens = 0
+        output_tokens = 0
         for _ in range(MAX_REACT_ITERATIONS):
             result = uow.invoke(messages)
+            input_tokens += result.input_tokens or 0
+            output_tokens += result.output_tokens or 0
             messages.append(
                 LLMMessage(role=LLMMessageRole.ASSISTANT, content=result.content)
             )
@@ -201,6 +211,8 @@ class ClassifyAlertUseCase:
             if final_answer is not None:
                 output = _parse_final_answer(final_answer)
                 output.cot = _transcript(messages)
+                output.input_tokens = input_tokens
+                output.output_tokens = output_tokens
                 return output
             if action is None or action_input is None:
                 break
@@ -221,4 +233,6 @@ class ClassifyAlertUseCase:
                 "reasoning steps."
             ),
             cot=_transcript(messages),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         )

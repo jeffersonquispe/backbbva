@@ -22,23 +22,26 @@ from src.application.ports.workflow_status_port import (
 )
 
 _SYSTEM_PROMPT = (
-    "You are a fraud analyst assistant. Write a concise, factual profile "
-    "description grounded only in the data given, no speculation."
+    "Eres un asistente de analista de fraude. Escribe una descripción de "
+    "perfil concisa y objetiva, basada únicamente en los datos dados, sin "
+    "especular."
 )
 
 _PROFILE_PROMPTS: dict[str, str] = {
     "user_profile": (
-        "Describe the profile of the user (customer): who they are and any "
-        "notable identity/behavioral signals, based on this data:\n{data}"
+        "Describe el perfil del usuario (cliente): quién es y cualquier "
+        "señal de identidad o comportamiento relevante, con base en estos "
+        "datos:\n{data}"
     ),
     "transaction_profile": (
-        "Describe the profile of the transaction under review: its key "
-        "characteristics and any anomalies, based on this data:\n{data}"
+        "Describe el perfil de la transacción en revisión: sus "
+        "características clave y cualquier anomalía, con base en estos "
+        "datos:\n{data}"
     ),
     "transactional_profile": (
-        "Describe the transactional profile of the user: their typical "
-        "transaction behavior/history and how the current transaction "
-        "compares to it, based on this data:\n{data}"
+        "Describe el perfil transaccional del usuario: su comportamiento "
+        "o historial habitual de transacciones y cómo se compara la "
+        "transacción actual, con base en estos datos:\n{data}"
     ),
 }
 
@@ -53,6 +56,7 @@ class ProfileAlertUseCase:
         llm_unit_of_work_factory: LLMUnitOfWorkFactory,
         monitoring: MonitoringPort,
         model: str,
+        system_prompt: str | None = None,
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
@@ -60,6 +64,7 @@ class ProfileAlertUseCase:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
         self._model = model
+        self._system_prompt = system_prompt or _SYSTEM_PROMPT
         self._status_reporter = status_reporter
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
@@ -86,7 +91,7 @@ class ProfileAlertUseCase:
         )
         result = uow.invoke(
             [
-                LLMMessage(role=LLMMessageRole.SYSTEM, content=_SYSTEM_PROMPT),
+                LLMMessage(role=LLMMessageRole.SYSTEM, content=self._system_prompt),
                 LLMMessage(
                     role=LLMMessageRole.USER,
                     content=_PROFILE_PROMPTS[operation_name].format(
@@ -95,9 +100,13 @@ class ProfileAlertUseCase:
                 ),
             ]
         )
+        self._input_tokens += result.input_tokens or 0
+        self._output_tokens += result.output_tokens or 0
         return result.content
 
     def execute(self, input: ProfileAlertInput) -> ProfileAlertOutput:
+        self._input_tokens = 0
+        self._output_tokens = 0
         pre_process = input.pre_process
         enrichment = {
             key: _serializable(value)
@@ -129,4 +138,6 @@ class ProfileAlertUseCase:
             transactional_profile=self._infer(
                 "transactional_profile", transactional_data
             ),
+            input_tokens=self._input_tokens,
+            output_tokens=self._output_tokens,
         )

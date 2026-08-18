@@ -20,6 +20,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     AUDIT_LOG_TABLE,
     FRAUD_PLAYBOOKS_TABLE,
     OPERATIONS_CAPACITY_TABLE,
+    TEST_RUNS_TABLE,
     WORKFLOW_EXECUTIONS_TABLE,
     WORKFLOW_STEP_EXECUTIONS_TABLE,
 )
@@ -39,6 +40,11 @@ _DEFAULT_PLAYBOOKS = [
             "If confirmed fraud, block the transaction and freeze the "
             "affected channel.",
         ],
+        # Placeholder timestamps - this list is a template read by
+        # seed_defaults() below, which stamps the real created_at/updated_at
+        # at seed time. Required here only to satisfy the dataclass.
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     ),
     FraudPlaybookRecord(
         classification="unknown",
@@ -49,6 +55,8 @@ _DEFAULT_PLAYBOOKS = [
             "Review available evidence and prefer routing to a human "
             "analyst over an automated decision.",
         ],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     ),
 ]
 
@@ -85,6 +93,7 @@ def ensure_all_tables() -> None:
     create_table(WORKFLOW_STEP_EXECUTIONS_TABLE)
     create_table(FRAUD_PLAYBOOKS_TABLE)
     create_table(OPERATIONS_CAPACITY_TABLE)
+    create_table(TEST_RUNS_TABLE)
 
 
 def seed_defaults() -> None:

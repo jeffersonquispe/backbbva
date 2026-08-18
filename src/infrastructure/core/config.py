@@ -43,6 +43,21 @@ class Config(BaseSettings):
 
     PARAMETER_STORE_CONFIG: str = ""
 
+    # LLM backend selection - which adapter get_llm_unit_of_work_factory()
+    # builds. Add a new value here + a branch in
+    # infrastructure/llm/langchain/__init__.py when adding another
+    # provider; step use cases and ports never see this switch, they only
+    # ever depend on LLMUnitOfWorkFactory.
+    LLM_BACKEND: str = "azure"
+
+    # "llm" (ProfileAlertUseCase) or "deterministic"
+    # (DeterministicProfileAlertUseCase) - see
+    # infrastructure/workflows/celery/factories.py's
+    # get_profile_alert_use_case(). None of profiling's 3 output fields
+    # involve judgment, only description of already-fetched data, so the
+    # deterministic path is a straight swap, not a quality tradeoff.
+    PROFILING_BACKEND: str = "llm"
+
     # integrations configurations
     OPENAI_ENDPOINT: str = ""
 
@@ -90,6 +105,9 @@ class Config(BaseSettings):
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"
     CELERY_DEFAULT_QUEUE: str = "default"
+
+    # TEST RUNS - CSV datasets dropped on disk, listed via plain fs scan
+    DATASETS_DIR: str = "./datasets"
 
     model_config = ConfigDict(extra="ignore")
 

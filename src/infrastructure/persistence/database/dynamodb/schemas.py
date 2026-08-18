@@ -84,12 +84,24 @@ WORKFLOW_EXECUTIONS_TABLE = {
         {"AttributeName": "partition", "AttributeType": "S"},
         {"AttributeName": "workflow_execution_id", "AttributeType": "S"},
         {"AttributeName": "status", "AttributeType": "S"},
+        {"AttributeName": "test_run_id", "AttributeType": "S"},
     ],
     "GlobalSecondaryIndexes": [
         {
             "IndexName": "StatusIdx",
             "KeySchema": [
                 {"AttributeName": "status", "KeyType": "HASH"},
+                {
+                    "AttributeName": "workflow_execution_id",
+                    "KeyType": "RANGE",
+                },
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+        {
+            "IndexName": "TestRunIdx",
+            "KeySchema": [
+                {"AttributeName": "test_run_id", "KeyType": "HASH"},
                 {
                     "AttributeName": "workflow_execution_id",
                     "KeyType": "RANGE",
@@ -123,6 +135,18 @@ FRAUD_PLAYBOOKS_TABLE = {
     ],
     "AttributeDefinitions": [
         {"AttributeName": "classification", "AttributeType": "S"},
+    ],
+}
+
+
+TEST_RUNS_TABLE = {
+    "TableName": "test_runs",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "test_run_id", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "test_run_id", "AttributeType": "S"},
     ],
 }
 

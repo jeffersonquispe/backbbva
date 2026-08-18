@@ -90,9 +90,20 @@ class DynamoWorkflowExecutionRepository(WorkflowExecutionRepository):
             finished_at=finished_at or current.finished_at,
             execution_backend=execution_backend or current.execution_backend,
             external_id=external_id or current.external_id,
+            test_run_id=current.test_run_id,
         )
         self._table.put_item(Item=_workflow_to_item(updated))
         return updated
+
+    def list_by_test_run(
+        self,
+        test_run_id: UUID,
+    ) -> list[WorkflowExecutionRecord]:
+        response = self._table.query(
+            IndexName="TestRunIdx",
+            KeyConditionExpression=Key("test_run_id").eq(str(test_run_id)),
+        )
+        return [_workflow_from_item(item) for item in response.get("Items", [])]
 
 
 class DynamoWorkflowStepExecutionRepository(WorkflowStepExecutionRepository):
@@ -167,7 +178,7 @@ class DynamoWorkflowStepExecutionRepository(WorkflowStepExecutionRepository):
 
 
 def _workflow_to_item(workflow: WorkflowExecutionRecord) -> dict[str, Any]:
-    return {
+    item = {
         "partition": WORKFLOW_PARTITION,
         "workflow_execution_id": str(workflow.id),
         "alert_id": str(workflow.alert_id),
@@ -188,6 +199,11 @@ def _workflow_to_item(workflow: WorkflowExecutionRecord) -> dict[str, Any]:
         "execution_backend": workflow.execution_backend,
         "external_id": workflow.external_id,
     }
+    # Omitted (not written as NULL) when unset, so the TestRunIdx GSI stays
+    # sparse - only test-run-linked workflows should appear in it.
+    if workflow.test_run_id is not None:
+        item["test_run_id"] = str(workflow.test_run_id)
+    return item
 
 
 def _workflow_from_item(item: dict[str, Any]) -> WorkflowExecutionRecord:
@@ -209,6 +225,9 @@ def _workflow_from_item(item: dict[str, Any]) -> WorkflowExecutionRecord:
         finished_at=datetime.fromisoformat(finished_at) if finished_at else None,
         execution_backend=item.get("execution_backend"),
         external_id=item.get("external_id"),
+        test_run_id=(
+            UUID(item["test_run_id"]) if item.get("test_run_id") else None
+        ),
     )
 
 

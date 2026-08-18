@@ -21,6 +21,9 @@ from src.infrastructure.entrypoint.api.routers.alerts_router import (
 from src.infrastructure.entrypoint.api.routers.health_router import (
     router as health_router,
 )
+from src.infrastructure.entrypoint.api.routers.test_runs_router import (
+    router as test_runs_router,
+)
 
 
 @asynccontextmanager
@@ -44,6 +47,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         alerts_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        test_runs_router,
         prefix=genai_config.API_V0_STR,
     )
     return app

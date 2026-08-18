@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import time
 from typing import Any, Callable, TypeVar
 from uuid import UUID
@@ -17,6 +19,7 @@ from src.application.ports.host_service_personal_data_changes_port import (
 )
 from src.application.ports.host_service_transaction_history_port import (
     HostServiceTransactionHistoryPort,
+    TransactionHistoryEntry,
 )
 from src.application.ports.workflow_port import WorkflowStepStatus
 from src.application.ports.workflow_status_port import (
@@ -32,35 +35,33 @@ MAX_FETCH_ATTEMPTS = 3
 # good enough for the single-alert-object case this covers today; alerts
 # carrying multiple entities/models per event need real per-item merging,
 # deferred until that shape shows up.
+#
+# Two schemas are live candidates per field: the original raw ARIC
+# event shape (dotted/camelCase, e.g. "amount.baseValue") and
+# Muestra_total_ARIA.csv's flat analytics-export shape (snake_case, e.g.
+# "amount_value") - the latter is the reference/standard dataset now, so
+# every field it actually carries has priority-ordered aliases here
+# rather than a separate translation layer. Fields that schema simply
+# doesn't have (no session id, no merchant info, no entry mode, ...) were
+# demoted to _OPTIONAL_FIELD_PATHS below - captured when present, never
+# block pre_process when absent.
 _MANDATORY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
-    "rules": ("object.triggeredRules",),
-    "tags": ("object.tags",),
-    "triggered_models": ("object.triggeredModels",),
-    "biocatch_score": ("biocatch.score",),
-    "event_time": ("eventTime",),
-    "event_type": ("eventType",),
-    "customer_id": ("customerId",),
-    "account_id": ("accountId",),
+    "rules": ("object.triggeredRules", "triggered_rules"),
+    "biocatch_score": ("biocatch.score", "biocatch_score"),
+    "event_time": ("eventTime", "fecha_transaccion"),
+    "event_type": ("eventType", "eventtype"),
+    "customer_id": ("customerId", "customerid"),
     "channel": ("channel",),
-    "entry_mode": (
-        "entryMode.terminalDataInputModeCapability",
-        "entryMode.dataInputMode",
+    "integration_point": ("integrationPoint", "integrationpoint"),
+    "counterparty": (
+        "counterpartyName.fullName",
+        "counterpartyId",
+        "counterpartyentityid_encrypted",
     ),
-    "merchant_id": ("merchantId",),
-    "merchant_name": ("merchantName",),
-    "session_id": ("session.sessionId", "biocatch.customerSessionID"),
-    "integration_point": ("integrationPoint",),
-    "description": ("serviceDescription",),
-    "counterparty": ("counterpartyName.fullName", "counterpartyId"),
-    "amount": ("amount.baseValue",),
-    "response": ("msgStatus",),
-    "direction": ("direction",),
-    "ip_channel": ("device.ipAddress",),
-    "ip_biocatch": ("biocatch.ip",),
-    "device_id": ("_metadata.searchable.deviceId",),
-    "client_code": ("customerClientCode", "personalId"),
-    "user_agent": ("device.userAgentString",),
-    "event_id": ("eventId",),
+    "amount": ("amount.baseValue", "amount_value"),
+    "ip_channel": ("device.ipAddress", "device_ipaddress_encrypted"),
+    "client_code": ("customerClientCode", "personalId", "numero_documento"),
+    "event_id": ("eventId", "eventid"),
 }
 
 # Card-only data points: mandatory, but only for card transactions.
@@ -69,11 +70,34 @@ _CARD_ONLY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
     "authorization_phase": ("authorizationPhase",),
 }
 
-# Present in the spec but flagged "no se usa" - captured when available,
-# never blocks pre_process.
+# Present in the spec but flagged "no se usa", plus the raw-ARIC-only
+# fields the reference dataset doesn't carry at all (tags, triggered
+# models, account/merchant/session id, entry mode, description,
+# response, direction, biocatch IP, user agent) - captured when
+# available, never blocks pre_process. device_id also lives here despite
+# being a real field in the reference schema: 44% of its rows have no
+# deviceid at all (checked directly against Muestra_total_ARIA.csv) - a
+# structural absence for non-digital channels, not sporadic missing
+# data, so it doesn't belong with fields whose absence should escalate.
 _OPTIONAL_FIELD_PATHS: dict[str, tuple[str, ...]] = {
     "reason_code": ("msgReason",),
     "biocatch_muid": ("biocatch.muid",),
+    "tags": ("object.tags",),
+    "triggered_models": ("object.triggeredModels",),
+    "account_id": ("accountId",),
+    "device_id": ("_metadata.searchable.deviceId", "deviceid"),
+    "entry_mode": (
+        "entryMode.terminalDataInputModeCapability",
+        "entryMode.dataInputMode",
+    ),
+    "merchant_id": ("merchantId",),
+    "merchant_name": ("merchantName",),
+    "session_id": ("session.sessionId", "biocatch.customerSessionID"),
+    "description": ("serviceDescription",),
+    "response": ("msgStatus",),
+    "direction": ("direction",),
+    "ip_biocatch": ("biocatch.ip",),
+    "user_agent": ("device.userAgentString",),
 }
 
 T = TypeVar("T")
@@ -129,6 +153,48 @@ def _extract_optional_fields(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _transaction_history_from_payload(
+    payload: dict[str, Any],
+) -> list[TransactionHistoryEntry] | None:
+    """Dataset-provided history (test-run CSVs carrying a raw
+    "transacciones_json" column) takes priority over the host-service
+    call - returns None (not an empty list) when absent so the caller
+    knows to fall back, same signal a real production alert gives since
+    it never carries this column at all."""
+    raw = payload.get("transacciones_json")
+    if not raw:
+        return None
+    try:
+        entries = json.loads(raw) if isinstance(raw, str) else raw
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    history: list[TransactionHistoryEntry] = []
+    for i, entry in enumerate(entries):
+        if isinstance(entry, str):
+            try:
+                entry = json.loads(entry)
+            except json.JSONDecodeError:
+                continue
+        if not isinstance(entry, dict):
+            continue
+        amount = entry.get("amount_value")
+        event_time = str(entry.get("eventtime") or "")
+        history.append(
+            TransactionHistoryEntry(
+                # Source rows carry no id of their own - derived so it's
+                # stable across re-runs of the same dataset row.
+                event_id=hashlib.sha1(
+                    f"{event_time}-{i}".encode()
+                ).hexdigest()[:16],
+                event_type=str(entry.get("tipo_transaccion") or "unknown"),
+                event_time=event_time,
+                amount=float(amount) if amount is not None else None,
+            )
+        )
+    return history
+
+
 def _with_retry(fn: Callable[[], T], attempts: int = MAX_FETCH_ATTEMPTS) -> T:
     last_error: Exception | None = None
     for attempt in range(1, attempts + 1):
@@ -181,8 +247,8 @@ class PreProcessAlertUseCase:
         optional_fields = _extract_optional_fields(input.payload)
 
         customer_id = str(mandatory_fields["customer_id"])
-        account_id = mandatory_fields.get("account_id")
-        session_id = mandatory_fields.get("session_id")
+        account_id = optional_fields.get("account_id")
+        session_id = optional_fields.get("session_id")
         event_id = str(mandatory_fields["event_id"])
 
         self._report_progress("fetching_aric_signals")
@@ -194,11 +260,13 @@ class PreProcessAlertUseCase:
             lambda: self._host_customer.fetch_customer_profile(customer_id)
         )
         self._report_progress("fetching_transaction_history")
-        transaction_history = _with_retry(
-            lambda: self._host_tx_history.fetch_transaction_history(
-                customer_id, account_id
+        transaction_history = _transaction_history_from_payload(input.payload)
+        if transaction_history is None:
+            transaction_history = _with_retry(
+                lambda: self._host_tx_history.fetch_transaction_history(
+                    customer_id, account_id
+                )
             )
-        )
         self._report_progress("fetching_personal_data_changes")
         personal_data_changes = _with_retry(
             lambda: self._host_data_changes.fetch_personal_data_changes(

@@ -17,3 +17,5 @@ class ProfileAlertOutput:
     user_profile: str
     transaction_profile: str
     transactional_profile: str
+    input_tokens: int = 0
+    output_tokens: int = 0

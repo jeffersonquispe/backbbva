@@ -263,13 +263,25 @@ class AlertReviewWorkflowRunner:
             return context
         except Exception as exc:
             finished_at = datetime.now(timezone.utc)
-            self._steps.update(
-                workflow.id,
-                step.id,
-                status=WorkflowStepStatus.FAILED,
-                error=str(exc),
-                finished_at=finished_at,
+            # Must go through the queue, not a direct self._steps.update():
+            # a progress report from mid-step (e.g. profile_alert's
+            # _report_progress) may still be pending/in-flight for this same
+            # (workflow, step) key. update() is read-modify-write, not
+            # atomic - a direct write here can lose the race to that stale
+            # write landing afterward and revert status back to RUNNING
+            # while leaving this error text in place (it only overwrites
+            # the fields it sets). Routing through report() lets the
+            # single-writer queue coalesce/order them correctly instead.
+            self._status.report(
+                WorkflowStatusUpdate(
+                    workflow_execution_id=workflow.id,
+                    step_name=step_name,
+                    step_id=step.id,
+                    status=WorkflowStepStatus.FAILED,
+                    detail={"error": str(exc), "finished_at": finished_at},
+                )
             )
+            self._status.flush()
             raise
 
     def _run_adversarial_review(
@@ -345,12 +357,28 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
     )
 
 
+def _step_overrides(
+    context: dict[str, Any], step_name: str
+) -> dict[str, str | None]:
+    # A test run stashes its TestRunConfig (asdict'd) under
+    # input["config_overrides"] - {} for a normal (non-test) alert, so
+    # these always resolve to "use the config-driven default".
+    config_overrides = (context.get("input") or {}).get("config_overrides") or {}
+    return {
+        "system_prompt": (config_overrides.get("prompt_overrides") or {}).get(
+            step_name
+        ),
+        "model": (config_overrides.get("model_overrides") or {}).get(step_name),
+    }
+
+
 def _run_profiling(context: dict[str, Any]) -> ProfileAlertOutput:
     workflow_execution_id, step_id = _step_reporting_ids(context)
     use_case = get_profile_alert_use_case(
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
+        **_step_overrides(context, "profiling"),
     )
     return use_case.execute(
         ProfileAlertInput(
@@ -366,6 +394,7 @@ def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
+        **_step_overrides(context, "classification"),
     )
     return use_case.execute(
         ClassifyAlertInput(
@@ -382,6 +411,7 @@ def _run_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
+        **_step_overrides(context, "adversarial"),
     )
     return use_case.execute(
         AdversarialReviewAlertInput(
@@ -399,6 +429,7 @@ def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
+        **_step_overrides(context, "analyst"),
     )
     return use_case.execute(
         AnalystReviewAlertInput(

@@ -82,7 +82,10 @@ class StartAlertTestWorkflowUseCase:
                 async_operation_id=operation.id,
                 workflow_name=WORKFLOW_NAME,
                 status=WorkflowStatus.PENDING,
-                input={"alert_payload": input.payload},
+                input={
+                    "alert_payload": input.payload,
+                    "config_overrides": input.config_overrides,
+                },
                 output=None,
                 error=None,
                 current_step=None,
@@ -90,6 +93,7 @@ class StartAlertTestWorkflowUseCase:
                 max_feedback_iterations=2,
                 created_at=now,
                 updated_at=now,
+                test_run_id=input.test_run_id,
             )
         )
         execution_ref = self._workflow_executor.start(workflow)

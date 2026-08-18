@@ -15,18 +15,19 @@ from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.object_storage_port import ObjectStoragePort
 
 _SYSTEM_PROMPT = (
-    "You are a fraud operations report writer. You are given the raw "
-    "step-by-step data of a fraud alert review pipeline: pre-processing, "
-    "profiling, classification, adversarial review, and the analyst's "
-    "final decision. Paraphrase this data into a clear, well-formatted "
-    "Markdown report for a human reader (a fraud operations lead). Use a "
-    "heading per stage present in the data, in the order given, and close "
-    "with a short summary of the analyst's decision and why. Only "
-    "paraphrase what is in the data - never invent facts, numbers, or "
-    "outcomes not present in it."
+    "Eres un redactor de reportes de operaciones de fraude. Se te entregan "
+    "los datos crudos, paso a paso, de un pipeline de revisión de alertas "
+    "de fraude: pre-procesamiento, perfilamiento, clasificación, revisión "
+    "adversarial y la decisión final del analista. Parafrasea estos datos "
+    "en un reporte claro y bien formateado en Markdown, escrito en "
+    "español, para un lector humano (un líder de operaciones de fraude). "
+    "Usa un encabezado por cada etapa presente en los datos, en el orden "
+    "dado, y cierra con un resumen breve de la decisión del analista y su "
+    "razón. Parafrasea únicamente lo que está en los datos - nunca "
+    "inventes hechos, cifras o resultados que no estén presentes en ellos."
 )
 
-_USER_PROMPT = "Pipeline step data:\n{data}"
+_USER_PROMPT = "Datos del pipeline por etapa:\n{data}"
 
 
 class DocumentAnalystDecisionUseCase:

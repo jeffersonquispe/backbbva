@@ -29,41 +29,44 @@ from src.application.ports.workflow_status_port import (
 MAX_REACT_ITERATIONS = 6
 
 _SYSTEM_PROMPT = (
-    "You are a fraud classification auditor performing adversarial review. "
-    "You are given an alert, its profiling data, and a fraud analyst's "
-    "classification decision together with the analyst's full reasoning "
-    "trace. Your job is to find errors in that decision: unsupported "
-    "conclusions, misapplied taxonomy, ignored evidence, or logical gaps. "
-    "You have access to the same investigation tools the analyst used, in "
-    "any order, as many or as few times as you need, to independently "
-    "verify their claims.\n\n"
-    "Tools:\n"
-    "- get_similar_frauds: given a short text query, returns similar past "
-    "fraud cases (case_id, summary, outcome, similarity_score).\n"
-    "- get_similar_taxonomy: given a short text query, returns similar "
-    "fraud taxonomy entries (code, name, description, similarity_score).\n"
-    "- get_similar_modus_operandi: given a short text query, returns "
-    "similar modus operandi patterns (pattern_id, description, "
-    "similarity_score).\n\n"
-    "Respond using ONLY one of these two formats, nothing else:\n\n"
-    "Thought: <your reasoning>\n"
-    "Action: <one of get_similar_frauds, get_similar_taxonomy, "
+    "Eres un auditor de clasificación de fraude que realiza una revisión "
+    "adversarial. Se te entrega una alerta, sus datos de perfilamiento y "
+    "la decisión de clasificación de un analista de fraude junto con su "
+    "razonamiento completo. Tu trabajo es encontrar errores en esa "
+    "decisión: conclusiones sin sustento, taxonomía mal aplicada, "
+    "evidencia ignorada o vacíos lógicos. Tienes acceso a las mismas "
+    "herramientas de investigación que usó el analista, en cualquier "
+    "orden, tantas o tan pocas veces como necesites, para verificar sus "
+    "afirmaciones de forma independiente.\n\n"
+    "Herramientas:\n"
+    "- get_similar_frauds: dada una consulta corta de texto, devuelve "
+    "casos de fraude pasados similares (case_id, summary, outcome, "
+    "similarity_score).\n"
+    "- get_similar_taxonomy: dada una consulta corta de texto, devuelve "
+    "entradas de taxonomía de fraude similares (code, name, description, "
+    "similarity_score).\n"
+    "- get_similar_modus_operandi: dada una consulta corta de texto, "
+    "devuelve patrones de modus operandi similares (pattern_id, "
+    "description, similarity_score).\n\n"
+    "Responde usando SOLO uno de estos dos formatos, nada más:\n\n"
+    "Thought: <tu razonamiento>\n"
+    "Action: <una de get_similar_frauds, get_similar_taxonomy, "
     "get_similar_modus_operandi>\n"
-    "Action Input: <a short text query for that tool>\n\n"
-    "or, when you are ready to conclude:\n\n"
-    "Thought: <your reasoning>\n"
+    "Action Input: <una consulta corta de texto para esa herramienta>\n\n"
+    "o, cuando estés listo para concluir:\n\n"
+    "Thought: <tu razonamiento>\n"
     'Final Answer: {"has_issues": true|false, '
-    '"feedback": "<specific correction for the analyst to act on, empty '
-    'if no issues>", "weak_points": ["<short issue>", ...], '
-    '"reasoning": "<brief justification>"}\n\n'
-    "Only set has_issues to true when you find a concrete, actionable "
-    "problem - do not flag the decision just because it is close to the "
-    "line."
+    '"feedback": "<corrección específica para que el analista actúe, '
+    'vacío si no hay problemas>", "weak_points": ["<problema breve>", '
+    '...], "reasoning": "<justificación breve>"}\n\n'
+    "Solo define has_issues como true cuando encuentres un problema "
+    "concreto y accionable - no señales la decisión solo porque esté "
+    "cerca del límite."
 )
 
 _INITIAL_PROMPT = (
-    "Alert data, profiling results, and the classification under "
-    "review:\n{data}"
+    "Datos de la alerta, resultados del perfilamiento y la clasificación "
+    "en revisión:\n{data}"
 )
 
 
@@ -153,6 +156,7 @@ class AdversarialReviewAlertUseCase:
         similar_fraud_case_port: SimilarFraudCasePort,
         fraud_taxonomy_port: FraudTaxonomyPort,
         modus_operandi_port: ModusOperandiPort,
+        system_prompt: str | None = None,
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
@@ -160,6 +164,7 @@ class AdversarialReviewAlertUseCase:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
         self._model = model
+        self._system_prompt = system_prompt or _SYSTEM_PROMPT
         self._status_reporter = status_reporter
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
@@ -194,7 +199,7 @@ class AdversarialReviewAlertUseCase:
     ) -> AdversarialReviewAlertOutput:
         self._report_progress("react_reasoning_start")
         messages = [
-            LLMMessage(role=LLMMessageRole.SYSTEM, content=_SYSTEM_PROMPT),
+            LLMMessage(role=LLMMessageRole.SYSTEM, content=self._system_prompt),
             LLMMessage(
                 role=LLMMessageRole.USER,
                 content=_INITIAL_PROMPT.format(
@@ -208,8 +213,12 @@ class AdversarialReviewAlertUseCase:
             operation_name="adversarial",
         )
 
+        input_tokens = 0
+        output_tokens = 0
         for _ in range(MAX_REACT_ITERATIONS):
             result = uow.invoke(messages)
+            input_tokens += result.input_tokens or 0
+            output_tokens += result.output_tokens or 0
             messages.append(
                 LLMMessage(role=LLMMessageRole.ASSISTANT, content=result.content)
             )
@@ -217,6 +226,8 @@ class AdversarialReviewAlertUseCase:
             if final_answer is not None:
                 output = _parse_final_answer(final_answer)
                 output.cot = _transcript(messages)
+                output.input_tokens = input_tokens
+                output.output_tokens = output_tokens
                 return output
             if action is None or action_input is None:
                 break
@@ -239,4 +250,6 @@ class AdversarialReviewAlertUseCase:
             ),
             reasoning="Could not reach a conclusion within the allotted reasoning steps.",
             cot=_transcript(messages),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         )

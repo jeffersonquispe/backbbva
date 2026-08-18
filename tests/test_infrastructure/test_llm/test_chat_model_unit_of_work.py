@@ -11,10 +11,8 @@ from src.application.ports.monitoring_port import (
     MonitoringPort,
     MonitoringSpan,
 )
-from src.infrastructure.core.config import genai_config
-from src.infrastructure.llm.langchain.azure_llm_unit_of_work import (
-    LangchainAzureLLMUnitOfWorkFactory,
-    LangchainLLMUnitOfWork,
+from src.infrastructure.llm.langchain._chat_model_unit_of_work import (
+    LangchainChatModelUnitOfWork,
 )
 
 
@@ -63,7 +61,7 @@ class _FakeResponse:
     usage_metadata: dict[str, Any] = field(default_factory=dict)
 
 
-class _FakeAzureChatOpenAI:
+class _FakeChatModel:
     def __init__(self, response: _FakeResponse) -> None:
         self._response = response
         self.received_messages = None
@@ -75,18 +73,19 @@ class _FakeAzureChatOpenAI:
 
 def test_invoke_returns_result_and_instruments_monitoring():
     monitoring = RecordingMonitoring()
-    fake_client = _FakeAzureChatOpenAI(
+    fake_client = _FakeChatModel(
         _FakeResponse(
             content="Hello back",
             response_metadata={"finish_reason": "stop"},
             usage_metadata={"input_tokens": 10, "output_tokens": 4},
         )
     )
-    uow = LangchainLLMUnitOfWork(
+    uow = LangchainChatModelUnitOfWork(
         client=fake_client,
         monitoring=monitoring,
         operation_name="write_email",
         model="gpt-4o-mini",
+        provider="azure_openai",
     )
 
     result = uow.invoke(
@@ -119,18 +118,25 @@ def test_invoke_returns_result_and_instruments_monitoring():
     assert span.error is None
 
 
-def test_factory_wires_azure_deployment_as_model(monkeypatch):
-    monkeypatch.setattr(genai_config, "OPENAI_ENDPOINT", "https://example.openai.azure.com")
-    monkeypatch.setattr(genai_config, "OPENAI_KEY", "dummy")
-    monkeypatch.setattr(genai_config, "OPENAI_VERSION", "2024-08-01-preview")
-
-    factory = LangchainAzureLLMUnitOfWorkFactory()
-    uow = factory.create(
-        model="agentepqrs-llm-live-agent-gpt52",
-        monitoring=RecordingMonitoring(),
-        operation_name="review_email",
+def test_finish_reason_falls_back_to_stop_reason_key():
+    # Bedrock's response_metadata uses "stop_reason", not OpenAI's
+    # "finish_reason" - both providers share this same invoke() path.
+    monitoring = RecordingMonitoring()
+    fake_client = _FakeChatModel(
+        _FakeResponse(
+            content="hi",
+            response_metadata={"stop_reason": "end_turn"},
+            usage_metadata={"input_tokens": 1, "output_tokens": 1},
+        )
+    )
+    uow = LangchainChatModelUnitOfWork(
+        client=fake_client,
+        monitoring=monitoring,
+        operation_name="classify",
+        model="us.anthropic.claude-sonnet-4-6",
+        provider="aws_bedrock",
     )
 
-    assert isinstance(uow, LangchainLLMUnitOfWork)
-    assert uow._model == "agentepqrs-llm-live-agent-gpt52"
-    assert uow._client.deployment_name == "agentepqrs-llm-live-agent-gpt52"
+    result = uow.invoke([LLMMessage(role=LLMMessageRole.USER, content="hi")])
+
+    assert result.finish_reason == "end_turn"

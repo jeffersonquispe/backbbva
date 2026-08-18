@@ -18,6 +18,9 @@ from src.application.use_cases.alerts.pre_process_alert import (
     PreProcessAlertUseCase,
 )
 from src.application.use_cases.alerts.profile_alert import ProfileAlertUseCase
+from src.application.use_cases.alerts.profile_alert_deterministic import (
+    DeterministicProfileAlertUseCase,
+)
 from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.fraud_intelligence.mock.fraud_taxonomy_adapter import (
@@ -51,6 +54,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.fraud_playboo
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.operations_capacity_repository import (
     DynamoOperationsCapacityRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.test_run_repository import (
+    DynamoTestRunRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
     DynamoWorkflowExecutionRepository,
@@ -97,6 +103,11 @@ def get_fraud_playbook_repository() -> DynamoFraudPlaybookRepository:
 @lru_cache
 def get_operations_capacity_repository() -> DynamoOperationsCapacityRepository:
     return DynamoOperationsCapacityRepository()
+
+
+@lru_cache
+def get_test_run_repository() -> DynamoTestRunRepository:
+    return DynamoTestRunRepository()
 
 
 @lru_cache
@@ -174,15 +185,27 @@ def get_profile_alert_use_case(
     status_reporter: WorkflowStatusReporter | None,
     workflow_execution_id: UUID | None,
     step_id: UUID | None,
-) -> ProfileAlertUseCase:
-    return ProfileAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
-        monitoring=get_monitoring(),
-        model=genai_config.PROFILING_LLM_MODEL,
-        status_reporter=status_reporter,
-        workflow_execution_id=workflow_execution_id,
-        step_id=step_id,
-    )
+    system_prompt: str | None = None,
+    model: str | None = None,
+) -> ProfileAlertUseCase | DeterministicProfileAlertUseCase:
+    backend = genai_config.PROFILING_BACKEND.strip().lower()
+    if backend == "deterministic":
+        return DeterministicProfileAlertUseCase(
+            status_reporter=status_reporter,
+            workflow_execution_id=workflow_execution_id,
+            step_id=step_id,
+        )
+    if backend == "llm":
+        return ProfileAlertUseCase(
+            llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+            monitoring=get_monitoring(),
+            model=model or genai_config.PROFILING_LLM_MODEL,
+            system_prompt=system_prompt,
+            status_reporter=status_reporter,
+            workflow_execution_id=workflow_execution_id,
+            step_id=step_id,
+        )
+    raise ValueError(f"Unsupported profiling backend: {backend}")
 
 
 def get_classify_alert_use_case(
@@ -190,14 +213,17 @@ def get_classify_alert_use_case(
     status_reporter: WorkflowStatusReporter | None,
     workflow_execution_id: UUID | None,
     step_id: UUID | None,
+    system_prompt: str | None = None,
+    model: str | None = None,
 ) -> ClassifyAlertUseCase:
     return ClassifyAlertUseCase(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
         monitoring=get_monitoring(),
-        model=genai_config.CLASSIFICATION_LLM_MODEL,
+        model=model or genai_config.CLASSIFICATION_LLM_MODEL,
         similar_fraud_case_port=get_similar_fraud_case_port(),
         fraud_taxonomy_port=get_fraud_taxonomy_port(),
         modus_operandi_port=get_modus_operandi_port(),
+        system_prompt=system_prompt,
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
@@ -209,14 +235,17 @@ def get_adversarial_review_alert_use_case(
     status_reporter: WorkflowStatusReporter | None,
     workflow_execution_id: UUID | None,
     step_id: UUID | None,
+    system_prompt: str | None = None,
+    model: str | None = None,
 ) -> AdversarialReviewAlertUseCase:
     return AdversarialReviewAlertUseCase(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
         monitoring=get_monitoring(),
-        model=genai_config.ADVERSARIAL_LLM_MODEL,
+        model=model or genai_config.ADVERSARIAL_LLM_MODEL,
         similar_fraud_case_port=get_similar_fraud_case_port(),
         fraud_taxonomy_port=get_fraud_taxonomy_port(),
         modus_operandi_port=get_modus_operandi_port(),
+        system_prompt=system_prompt,
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
@@ -228,13 +257,16 @@ def get_analyst_review_alert_use_case(
     status_reporter: WorkflowStatusReporter | None,
     workflow_execution_id: UUID | None,
     step_id: UUID | None,
+    system_prompt: str | None = None,
+    model: str | None = None,
 ) -> AnalystReviewAlertUseCase:
     return AnalystReviewAlertUseCase(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
         monitoring=get_monitoring(),
-        model=genai_config.ANALYST_LLM_MODEL,
+        model=model or genai_config.ANALYST_LLM_MODEL,
         fraud_playbook_port=get_fraud_playbook_repository(),
         operations_capacity_port=get_operations_capacity_repository(),
+        system_prompt=system_prompt,
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,

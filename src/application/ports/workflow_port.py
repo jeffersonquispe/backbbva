@@ -40,6 +40,7 @@ class WorkflowExecutionRecord:
     finished_at: datetime | None = None
     execution_backend: str | None = None
     external_id: str | None = None
+    test_run_id: UUID | None = None
 
 
 @dataclass
@@ -81,6 +82,12 @@ class WorkflowExecutionRepository(Protocol):
         execution_backend: str | None = None,
         external_id: str | None = None,
     ) -> WorkflowExecutionRecord | None:
+        ...
+
+    def list_by_test_run(
+        self,
+        test_run_id: UUID,
+    ) -> list[WorkflowExecutionRecord]:
         ...
 
 

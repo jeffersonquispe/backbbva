@@ -46,3 +46,7 @@ logs/
 # Experiments
 experiments/docs/
 experiments/*.csv
+
+# Test-run datasets - can carry real customer data (names, documents,
+# addresses, transaction history); never belongs in git history.
+datasets/*.csv

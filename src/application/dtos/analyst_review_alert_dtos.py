@@ -38,3 +38,5 @@ class AnalystReviewAlertOutput:
     operations_capacity: dict[str, dict[str, object]] = field(
         default_factory=dict
     )
+    input_tokens: int = 0
+    output_tokens: int = 0

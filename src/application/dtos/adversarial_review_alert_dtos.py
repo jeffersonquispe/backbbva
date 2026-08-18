@@ -25,3 +25,5 @@ class AdversarialReviewAlertOutput:
     # Full Thought/Action/Observation transcript of the adversarial's own
     # ReAct loop, kept for the same reason classification.cot is kept.
     cot: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0

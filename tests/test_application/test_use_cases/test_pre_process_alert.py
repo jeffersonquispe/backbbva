@@ -128,6 +128,54 @@ def test_pre_process_alert_extracts_fields_and_enriches() -> None:
     assert "pre_process" in output.pre_process_note.lower()
 
 
+# Real column names from Muestra_total_ARIA.csv - the reference dataset.
+# Not the CSV's raw string values (those come through as strings via
+# csv.DictReader in production), typed here since this test targets the
+# use case directly.
+MUESTRA_TOTAL_ARIA_PAYLOAD = {
+    "eventid": "evt-flat-1",
+    "eventtype": "paymentRT",
+    "channel": "APP",
+    "integrationpoint": "SMGG20211063 - patchPaymentRequest",
+    "biocatch_score": 891,
+    "amount_value": 2800000.0,
+    "fecha_transaccion": "2026-05-02 23:10:13.000",
+    "triggered_rules": "[CUSTOMER - Score1000Net]",
+    "customerid": "8867889",
+    "deviceid": "dev-flat-1",
+    "device_ipaddress_encrypted": "TSICWU0L7y8F2LIpumCIrg==",
+    "counterpartyentityid_encrypted": "4ZXou5GG_r9p57SQJREAdg==",
+    "numero_documento": "1000003114",
+    # Ground truth - never read as mandatory input, must not block or
+    # leak into pre_process's extraction.
+    "marcacion_final": "no-risk",
+    "razon_marcacion": "[NF___ANLISIS]",
+    "tipo": "NoFraude",
+}
+
+
+def test_pre_process_alert_accepts_muestra_total_aria_flat_schema() -> None:
+    use_case = _use_case()
+
+    output = use_case.execute(
+        PreProcessAlertInput(
+            alert_id=uuid.uuid4(), payload=MUESTRA_TOTAL_ARIA_PAYLOAD
+        )
+    )
+
+    assert output.mandatory_fields["customer_id"] == "8867889"
+    assert output.mandatory_fields["amount"] == 2800000.0
+    assert output.mandatory_fields["event_id"] == "evt-flat-1"
+    assert output.mandatory_fields["event_type"] == "paymentRT"
+    assert output.mandatory_fields["biocatch_score"] == 891
+    assert output.mandatory_fields["rules"] == "[CUSTOMER - Score1000Net]"
+    assert output.mandatory_fields["client_code"] == "1000003114"
+    # Fields this schema simply doesn't carry (merchant, session, entry
+    # mode, ...) must not block pre_process.
+    assert "merchant_id" not in output.mandatory_fields
+    assert "account_id" not in output.mandatory_fields
+
+
 def test_pre_process_alert_raises_on_missing_mandatory_field() -> None:
     payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "customerId"}
     use_case = _use_case()
@@ -150,6 +198,52 @@ def test_pre_process_alert_retries_transient_fetch_failures() -> None:
 
     assert flaky.calls == 3
     assert output.enrichment["personal_data_changes"] == []
+
+
+def test_pre_process_alert_prefers_payload_transaction_history_over_port() -> None:
+    tx_port = RecordingHostServiceTransactionHistoryPort()
+    use_case = PreProcessAlertUseCase(
+        aric_alert_port=RecordingAricAlertPort(),
+        host_customer_profile_port=RecordingHostServiceCustomerProfilePort(),
+        host_transaction_history_port=tx_port,
+        host_personal_data_changes_port=FlakyHostServicePersonalDataChangesPort(0),
+    )
+    payload = {
+        **VALID_PAYLOAD,
+        "transacciones_json": (
+            '["{\\"tipo_transaccion\\":\\"cardNRT\\",'
+            '\\"amount_value\\":63800.00,'
+            '\\"integrationpoint\\":\\"00 - Compra\\",'
+            '\\"eventtime\\":\\"2026-05-04 16:00:44\\"}"]'
+        ),
+    }
+
+    output = use_case.execute(
+        PreProcessAlertInput(alert_id=uuid.uuid4(), payload=payload)
+    )
+
+    assert tx_port.calls == 0
+    history = output.enrichment["transaction_history"]
+    assert len(history) == 1
+    assert history[0].event_type == "cardNRT"
+    assert history[0].amount == 63800.0
+    assert history[0].event_time == "2026-05-04 16:00:44"
+
+
+def test_pre_process_alert_falls_back_to_port_when_no_transactions_in_payload() -> None:
+    tx_port = RecordingHostServiceTransactionHistoryPort()
+    use_case = PreProcessAlertUseCase(
+        aric_alert_port=RecordingAricAlertPort(),
+        host_customer_profile_port=RecordingHostServiceCustomerProfilePort(),
+        host_transaction_history_port=tx_port,
+        host_personal_data_changes_port=FlakyHostServicePersonalDataChangesPort(0),
+    )
+
+    use_case.execute(
+        PreProcessAlertInput(alert_id=uuid.uuid4(), payload=VALID_PAYLOAD)
+    )
+
+    assert tx_port.calls == 1
 
 
 def test_pre_process_alert_gives_up_after_max_attempts() -> None:
