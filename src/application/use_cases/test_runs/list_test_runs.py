@@ -24,8 +24,15 @@ class ListTestRunsUseCase:
         self._test_runs = test_run_repository
         self._workflows = workflow_repository
 
-    def execute(self) -> list[TestRunRecord]:
-        return [self._with_derived_status(run) for run in self._test_runs.list()]
+    def execute(self, order: str = "desc") -> list[TestRunRecord]:
+        # DynamoDB scan (test_run_repository.list()) has no defined order -
+        # always sort here rather than trusting the storage layer.
+        runs = sorted(
+            self._test_runs.list(),
+            key=lambda run: run.created_at,
+            reverse=(order == "desc"),
+        )
+        return [self._with_derived_status(run) for run in runs]
 
     def _with_derived_status(self, run: TestRunRecord) -> TestRunRecord:
         workflows = self._workflows.list_by_test_run(run.id)

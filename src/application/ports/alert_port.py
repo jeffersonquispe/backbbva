@@ -44,3 +44,6 @@ class AlertRepository(Protocol):
         workflow_execution_id: UUID | None = None,
     ) -> AlertRecord | None:
         ...
+
+    def delete(self, alert_id: UUID) -> None:
+        ...

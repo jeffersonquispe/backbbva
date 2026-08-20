@@ -73,6 +73,7 @@ class StartTestRunUseCase:
                     payload=row,
                     test_run_id=test_run.id,
                     config_overrides=config_overrides,
+                    max_feedback_iterations=input.config.max_feedback_iterations,
                 )
             )
         self._test_runs.update(test_run.id, status=TestRunStatus.RUNNING)

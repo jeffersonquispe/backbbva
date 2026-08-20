@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
@@ -233,6 +233,161 @@ def test_get_test_run_derives_status_from_cases_not_stored_field() -> None:
     assert failed_detail.status == TestRunStatus.FAILED
     assert succeeded_detail is not None
     assert succeeded_detail.status == TestRunStatus.SUCCEEDED
+
+
+def test_get_test_run_computes_duration_stats_per_step_and_overall() -> None:
+    now = datetime.now(timezone.utc)
+    test_run_id = uuid.uuid4()
+    test_run = TestRunRecord(
+        id=test_run_id,
+        name="run",
+        dataset_name="sample",
+        config=TestRunConfig(),
+        status=TestRunStatus.RUNNING,
+        total=2,
+        created_at=now,
+        updated_at=now,
+    )
+    case_a = _workflow(WorkflowStatus.SUCCEEDED, test_run_id)
+    case_a.finished_at = case_a.created_at + timedelta(seconds=10.0)
+    case_b = _workflow(WorkflowStatus.SUCCEEDED, test_run_id)
+    case_b.finished_at = case_b.created_at + timedelta(seconds=20.0)
+
+    def _timed_step(workflow_execution_id: UUID, seconds: float) -> WorkflowStepExecutionRecord:
+        step = _step(workflow_execution_id, 0, 0)
+        step.started_at = now
+        step.finished_at = now + timedelta(seconds=seconds)
+        return step
+
+    steps = [_timed_step(case_a.id, 2.0), _timed_step(case_b.id, 4.0)]
+    use_case = GetTestRunUseCase(
+        test_run_repository=InMemoryTestRunRepository([test_run]),
+        workflow_repository=InMemoryWorkflowExecutionRepository([case_a, case_b]),
+        step_repository=InMemoryWorkflowStepExecutionRepository(steps),
+    )
+
+    detail = use_case.execute(test_run_id)
+
+    assert detail is not None
+    assert detail.step_duration_stats["classification"].avg_seconds == 3.0
+    assert detail.total_duration_stats is not None
+    assert detail.total_duration_stats.avg_seconds == 15.0
+    assert {c.duration_seconds for c in detail.cases} == {10.0, 20.0}
+
+
+def _classification_step(
+    workflow_execution_id: UUID,
+    *,
+    attempt: int = 1,
+    is_fraud: str,
+    expected_classification: str | None,
+    ground_truth_tipo: str | None,
+) -> WorkflowStepExecutionRecord:
+    step = _step(workflow_execution_id, 0, 0)
+    step.attempt = attempt
+    step.output = {
+        "is_fraud": is_fraud,
+        "expected_classification": expected_classification,
+        "ground_truth_tipo": ground_truth_tipo,
+    }
+    return step
+
+
+def test_get_test_run_computes_classification_metrics_for_both_comparisons() -> None:
+    now = datetime.now(timezone.utc)
+    test_run_id = uuid.uuid4()
+    test_run = TestRunRecord(
+        id=test_run_id,
+        name="run",
+        dataset_name="sample",
+        config=TestRunConfig(),
+        status=TestRunStatus.RUNNING,
+        total=2,
+        created_at=now,
+        updated_at=now,
+    )
+    case_a = _workflow(WorkflowStatus.SUCCEEDED, test_run_id)
+    case_b = _workflow(WorkflowStatus.SUCCEEDED, test_run_id)
+    steps = [
+        _classification_step(
+            case_a.id,
+            is_fraud="fraud",
+            expected_classification="risk",
+            ground_truth_tipo="Fraude",
+        ),
+        _classification_step(
+            case_b.id,
+            is_fraud="not_fraud",
+            expected_classification="no-risk",
+            ground_truth_tipo="Fraude",
+        ),
+    ]
+    use_case = GetTestRunUseCase(
+        test_run_repository=InMemoryTestRunRepository([test_run]),
+        workflow_repository=InMemoryWorkflowExecutionRepository([case_a, case_b]),
+        step_repository=InMemoryWorkflowStepExecutionRepository(steps),
+    )
+
+    detail = use_case.execute(test_run_id)
+
+    assert detail is not None
+    assert detail.analyst_agreement_metrics is not None
+    assert detail.analyst_agreement_metrics.confusion_matrix["risk"]["risk"] == 1
+    assert detail.analyst_agreement_metrics.confusion_matrix["no-risk"]["no-risk"] == 1
+    assert detail.analyst_agreement_metrics.per_class["risk"].recall == 1.0
+
+    assert detail.ground_truth_metrics is not None
+    # case_b's real outcome was Fraude but the model called not_fraud - a
+    # miss that must show up as a false negative, not get hidden.
+    assert detail.ground_truth_metrics.confusion_matrix["Fraude"] == {
+        "Fraude": 1,
+        "NoFraude": 1,
+    }
+    assert detail.ground_truth_metrics.per_class["Fraude"].recall == 0.5
+
+
+def test_get_test_run_classification_metrics_use_final_attempt_only() -> None:
+    now = datetime.now(timezone.utc)
+    test_run_id = uuid.uuid4()
+    test_run = TestRunRecord(
+        id=test_run_id,
+        name="run",
+        dataset_name="sample",
+        config=TestRunConfig(),
+        status=TestRunStatus.RUNNING,
+        total=1,
+        created_at=now,
+        updated_at=now,
+    )
+    case = _workflow(WorkflowStatus.SUCCEEDED, test_run_id)
+    steps = [
+        # First attempt said not_fraud but got kicked back by adversarial
+        # review; the second attempt is what actually went downstream.
+        _classification_step(
+            case.id,
+            attempt=1,
+            is_fraud="not_fraud",
+            expected_classification="risk",
+            ground_truth_tipo="Fraude",
+        ),
+        _classification_step(
+            case.id,
+            attempt=2,
+            is_fraud="fraud",
+            expected_classification="risk",
+            ground_truth_tipo="Fraude",
+        ),
+    ]
+    use_case = GetTestRunUseCase(
+        test_run_repository=InMemoryTestRunRepository([test_run]),
+        workflow_repository=InMemoryWorkflowExecutionRepository([case]),
+        step_repository=InMemoryWorkflowStepExecutionRepository(steps),
+    )
+
+    detail = use_case.execute(test_run_id)
+
+    assert detail is not None
+    assert detail.analyst_agreement_metrics.confusion_matrix["risk"] == {"risk": 1}
 
 
 def test_get_test_run_returns_none_when_missing() -> None:

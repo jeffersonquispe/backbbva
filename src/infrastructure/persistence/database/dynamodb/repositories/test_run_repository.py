@@ -60,6 +60,9 @@ class DynamoTestRunRepository(TestRunRepository):
         response = self._table.scan()
         return [_from_item(item) for item in response.get("Items", [])]
 
+    def delete(self, run_id: UUID) -> None:
+        self._table.delete_item(Key={"test_run_id": str(run_id)})
+
 
 def _to_item(run: TestRunRecord) -> dict[str, Any]:
     return {
@@ -68,6 +71,7 @@ def _to_item(run: TestRunRecord) -> dict[str, Any]:
         "dataset_name": run.dataset_name,
         "prompt_overrides": run.config.prompt_overrides,
         "model_overrides": run.config.model_overrides,
+        "max_feedback_iterations": run.config.max_feedback_iterations,
         "status": run.status.value,
         "total": run.total,
         "created_at": run.created_at.isoformat(),
@@ -85,6 +89,12 @@ def _from_item(item: dict[str, Any]) -> TestRunRecord:
         config=TestRunConfig(
             prompt_overrides=dict(item.get("prompt_overrides") or {}),
             model_overrides=dict(item.get("model_overrides") or {}),
+            # Older items predate this field entirely - fall back to the
+            # dataclass's own default rather than duplicating that magic
+            # number here.
+            max_feedback_iterations=int(
+                item.get("max_feedback_iterations", TestRunConfig().max_feedback_iterations)
+            ),
         ),
         status=TestRunStatus(item["status"]),
         total=int(item.get("total") or 0),

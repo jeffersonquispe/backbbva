@@ -21,6 +21,15 @@ class TestRunConfig:
     # described in CLAUDE.md, not a versioned/persisted config entity.
     prompt_overrides: dict[str, str] = field(default_factory=dict)
     model_overrides: dict[str, str] = field(default_factory=dict)
+    # How many times classification+adversarial can loop back before
+    # escalating to an analyst - see WorkflowExecutionRecord.
+    # max_feedback_iterations (workflow_port.py) and
+    # AlertReviewWorkflowRunner._run_adversarial_review. Kept low by
+    # default - each loop-back re-runs classification+adversarial (real
+    # LLM calls), and Celery's autoretry on the outer task compounds this
+    # further on final escalation, so raising it has real token/cost
+    # impact.
+    max_feedback_iterations: int = 1
 
 
 @dataclass
@@ -53,4 +62,7 @@ class TestRunRepository(Protocol):
         ...
 
     def list(self) -> list[TestRunRecord]:
+        ...
+
+    def delete(self, run_id: UUID) -> None:
         ...

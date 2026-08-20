@@ -121,7 +121,10 @@ class RecordingModusOperandiPort(ModusOperandiPort):
         ]
 
 
-def _input() -> ClassifyAlertInput:
+def _input(
+    expected_classification: str | None = None,
+    ground_truth_tipo: str | None = None,
+) -> ClassifyAlertInput:
     return ClassifyAlertInput(
         alert_id=uuid.uuid4(),
         pre_process=PreProcessAlertOutput(
@@ -135,6 +138,8 @@ def _input() -> ClassifyAlertInput:
             transaction_profile="transaction profile",
             transactional_profile="transactional profile",
         ),
+        expected_classification=expected_classification,
+        ground_truth_tipo=ground_truth_tipo,
     )
 
 
@@ -189,6 +194,33 @@ def test_classify_alert_marks_unknown_when_no_final_answer_reached() -> None:
     assert output.fraud_classification == "unknown"
 
 
+def test_classify_alert_echoes_expected_classification_without_leaking_it_to_llm() -> None:
+    # marcacion_final ground truth (see dataset_sampling.py) - carried
+    # through to the output for the test-run UI to diff against, but must
+    # never reach the LLM's messages, or the "test" stops testing anything.
+    responses = [
+        'Thought: done\nFinal Answer: {"is_fraud": "fraud", '
+        '"fraud_classification": "ACCOUNT_TAKEOVER", "reasoning": "r"}'
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+    )
+
+    output = use_case.execute(_input(expected_classification="risk"))
+
+    assert output.expected_classification == "risk"
+    sent_content = " ".join(
+        m.content for m in llm_factory.created[0].received_messages[0]
+    )
+    assert "risk" not in sent_content
+
+
 def test_classify_alert_marks_unknown_on_malformed_final_answer() -> None:
     responses = ["Thought: done\nFinal Answer: not-json"]
     llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
@@ -205,3 +237,48 @@ def test_classify_alert_marks_unknown_on_malformed_final_answer() -> None:
 
     assert output.is_fraud == "unknown"
     assert output.fraud_classification == "unknown"
+
+
+def test_classify_alert_echoes_ground_truth_tipo_without_leaking_it_to_llm() -> None:
+    # tipo ground truth (see dataset_sampling.py) - the real matured
+    # outcome, separate from expected_classification (the analyst's call).
+    # Carried through for classification_metrics.py, never sent to the LLM.
+    responses = [
+        'Thought: done\nFinal Answer: {"is_fraud": "fraud", '
+        '"fraud_classification": "ACCOUNT_TAKEOVER", "reasoning": "r"}'
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+    )
+
+    output = use_case.execute(_input(ground_truth_tipo="Fraude"))
+
+    assert output.ground_truth_tipo == "Fraude"
+    sent_content = " ".join(
+        m.content for m in llm_factory.created[0].received_messages[0]
+    )
+    assert "Fraude" not in sent_content
+
+
+def test_classify_alert_echoes_ground_truth_tipo_when_reasoning_never_concludes() -> None:
+    responses = ["Thought: I am confused, no clear action"] * 6
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+    )
+
+    output = use_case.execute(_input(ground_truth_tipo="NoFraude"))
+
+    assert output.is_fraud == "unknown"
+    assert output.ground_truth_tipo == "NoFraude"

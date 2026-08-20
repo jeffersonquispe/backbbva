@@ -15,6 +15,7 @@ class StartAlertWorkflowInput:
     # through to alert_review_workflow.py's per-step config_overrides read.
     test_run_id: UUID | None = None
     config_overrides: dict[str, Any] = field(default_factory=dict)
+    max_feedback_iterations: int = 1
 
 
 @dataclass

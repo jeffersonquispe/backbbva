@@ -276,6 +276,30 @@ def _labeled_rows(counts: dict[str, int]) -> list[dict[str, Any]]:
     return rows
 
 
+def test_start_test_run_threads_max_feedback_iterations_to_each_workflow() -> None:
+    datasets = InMemoryDatasetRepository({"sample": [{"eventId": "e-1"}]})
+    workflows = InMemoryWorkflowExecutionRepository()
+    use_case = StartTestRunUseCase(
+        dataset_repository=datasets,
+        test_run_repository=InMemoryTestRunRepository(),
+        alert_repository=InMemoryAlertRepository(),
+        async_operation_repository=InMemoryAsyncOperationRepository(),
+        workflow_repository=workflows,
+        workflow_executor=RecordingWorkflowExecutor(),
+    )
+
+    output = use_case.execute(
+        StartTestRunInput(
+            name="run",
+            dataset_name="sample",
+            config=TestRunConfig(max_feedback_iterations=5),
+        )
+    )
+
+    dispatched = workflows.list_by_test_run(output.test_run_id)
+    assert [w.max_feedback_iterations for w in dispatched] == [5]
+
+
 def test_start_test_run_without_sample_size_dispatches_every_row() -> None:
     rows = _labeled_rows({"no-risk": 5, "risk": 2, "risk-suspected": 1})
     use_case, test_runs, _ = _use_case({"sample": rows})

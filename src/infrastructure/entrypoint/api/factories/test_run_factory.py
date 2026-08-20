@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
 from src.application.use_cases.test_runs.get_test_case_detail import (
     GetTestCaseDetailUseCase,
 )
@@ -66,4 +67,14 @@ def get_get_test_case_detail_use_case() -> GetTestCaseDetailUseCase:
     return GetTestCaseDetailUseCase(
         workflow_repository=get_workflow_execution_repository(),
         step_repository=get_workflow_step_execution_repository(),
+    )
+
+
+def get_delete_test_runs_use_case() -> DeleteTestRunsUseCase:
+    return DeleteTestRunsUseCase(
+        test_run_repository=get_test_run_repository(),
+        workflow_repository=get_workflow_execution_repository(),
+        step_repository=get_workflow_step_execution_repository(),
+        alert_repository=get_alert_repository(),
+        async_operation_repository=get_async_operation_repository(),
     )

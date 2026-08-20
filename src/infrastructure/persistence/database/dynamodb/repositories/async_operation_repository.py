@@ -114,6 +114,11 @@ class DynamoAsyncOperationRepository:
         self._table.put_item(Item=_to_item(updated))
         return updated
 
+    def delete(self, operation_id: UUID) -> None:
+        self._table.delete_item(
+            Key={"partition": PARTITION, "operation_id": str(operation_id)}
+        )
+
 
 def _to_item(operation: AsyncOperationRecord) -> dict[str, Any]:
     return {

@@ -90,6 +90,9 @@ class WorkflowExecutionRepository(Protocol):
     ) -> list[WorkflowExecutionRecord]:
         ...
 
+    def delete(self, workflow_id: UUID) -> None:
+        ...
+
 
 class WorkflowStepExecutionRepository(Protocol):
     def create(
@@ -115,4 +118,7 @@ class WorkflowStepExecutionRepository(Protocol):
         started_at: datetime | None = None,
         finished_at: datetime | None = None,
     ) -> WorkflowStepExecutionRecord | None:
+        ...
+
+    def delete(self, workflow_execution_id: UUID, step_id: UUID) -> None:
         ...

@@ -9,6 +9,14 @@ from typing import Any
 MARCACION_FIELD = "marcacion_final"
 MARCACION_CLASSES = ("no-risk", "risk-suspected", "risk")
 
+# The dataset's other ground-truth column: the real, matured outcome of the
+# case (known only after the fact), as opposed to marcacion_final which is
+# the analyst's contemporaneous call. Not used for sampling/stratification
+# (that stays keyed on marcacion_final) - only referenced by
+# classification_metrics.py to score the model against reality, not just
+# against the analyst.
+TIPO_FIELD = "tipo"
+
 
 class InsufficientSampleDataError(Exception):
     """A requested class target exceeds how many rows of that class exist

@@ -78,6 +78,10 @@ class ReconcileAsyncOperationsResponse(BaseModel):
 class TestRunConfigRequest(BaseModel):
     prompt_overrides: dict[str, str] = Field(default_factory=dict)
     model_overrides: dict[str, str] = Field(default_factory=dict)
+    # How many classification<->adversarial feedback loops a case gets
+    # before escalating to an analyst - see WorkflowExecutionRecord.
+    # max_feedback_iterations.
+    max_feedback_iterations: int = Field(default=1, ge=0)
 
 
 class StartTestRunRequest(BaseModel):
@@ -114,6 +118,31 @@ class TestCaseSummaryResponse(BaseModel):
     alert_id: UUID
     status: WorkflowStatus
     current_step: str | None
+    duration_seconds: float | None
+
+
+class DurationStatsResponse(BaseModel):
+    count: int
+    min_seconds: float
+    max_seconds: float
+    avg_seconds: float
+    p95_seconds: float
+
+
+class ClassMetricsResponse(BaseModel):
+    precision: float
+    recall: float
+    f1: float
+    support: int
+
+
+class ClassificationMetricsResponse(BaseModel):
+    per_class: dict[str, ClassMetricsResponse]
+    macro_precision: float
+    macro_recall: float
+    macro_f1: float
+    confusion_matrix: dict[str, dict[str, int]]
+    total: int
 
 
 class TestRunDetailResponse(BaseModel):
@@ -130,6 +159,10 @@ class TestRunDetailResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     cases: list[TestCaseSummaryResponse]
+    step_duration_stats: dict[str, DurationStatsResponse]
+    total_duration_stats: DurationStatsResponse | None
+    analyst_agreement_metrics: ClassificationMetricsResponse | None
+    ground_truth_metrics: ClassificationMetricsResponse | None
 
 
 class WorkflowStepResponse(BaseModel):
@@ -151,6 +184,15 @@ class TestCaseDetailResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     steps: list[WorkflowStepResponse]
+
+
+class DeleteTestRunsRequest(BaseModel):
+    test_run_ids: list[UUID] = Field(..., min_length=1)
+
+
+class DeleteTestRunsResponse(BaseModel):
+    deleted_test_runs: int
+    deleted_cases: int
 
 
 class DatasetResponse(BaseModel):

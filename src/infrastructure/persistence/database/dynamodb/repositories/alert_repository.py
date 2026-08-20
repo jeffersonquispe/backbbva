@@ -66,6 +66,9 @@ class DynamoAlertRepository:
         self._table.put_item(Item=_to_item(updated))
         return updated
 
+    def delete(self, alert_id: UUID) -> None:
+        self._table.delete_item(Key={"partition": PARTITION, "alert_id": str(alert_id)})
+
 
 def _to_item(alert: AlertRecord) -> dict[str, Any]:
     return {

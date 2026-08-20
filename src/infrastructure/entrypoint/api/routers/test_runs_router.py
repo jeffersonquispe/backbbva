@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.application.dtos.test_run_dtos import StartTestRunInput
+from src.application.dtos.test_run_dtos import DeleteTestRunsInput, StartTestRunInput
 from src.application.ports.test_run_port import TestRunConfig
 from src.application.use_cases.test_runs.dataset_sampling import (
     InsufficientSampleDataError,
 )
+from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
 from src.application.use_cases.test_runs.get_test_case_detail import (
     GetTestCaseDetailUseCase,
@@ -17,13 +18,17 @@ from src.application.use_cases.test_runs.get_test_case_detail import (
 from src.application.use_cases.test_runs.get_test_run import GetTestRunUseCase
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
 from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
+from src.domain.alerts.exceptions import AlertPayloadTooLargeError
 from src.infrastructure.entrypoint.api.factories.test_run_factory import (
+    get_delete_test_runs_use_case,
     get_get_test_case_detail_use_case,
     get_get_test_run_use_case,
     get_list_test_runs_use_case,
     get_start_test_run_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
+    DeleteTestRunsRequest,
+    DeleteTestRunsResponse,
     StartTestRunRequest,
     StartTestRunResponse,
     TestCaseDetailResponse,
@@ -54,20 +59,34 @@ def start_test_run(
                 config=TestRunConfig(
                     prompt_overrides=request.config.prompt_overrides,
                     model_overrides=request.config.model_overrides,
+                    max_feedback_iterations=request.config.max_feedback_iterations,
                 ),
                 sample_size=request.sample_size,
                 sample_distribution=request.sample_distribution,
             )
         )
-    except (ValueError, InsufficientSampleDataError) as exc:
+    except (ValueError, InsufficientSampleDataError, AlertPayloadTooLargeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/test-runs", response_model=list[TestRunResponse])
 def list_test_runs(
     use_case: Annotated[ListTestRunsUseCase, Depends(get_list_test_runs_use_case)],
+    order: Literal["asc", "desc"] = Query(default="desc"),
 ):
-    return use_case.execute()
+    return use_case.execute(order=order)
+
+
+@router.delete("/test-runs", response_model=DeleteTestRunsResponse)
+def delete_test_runs(
+    request: DeleteTestRunsRequest,
+    use_case: Annotated[DeleteTestRunsUseCase, Depends(get_delete_test_runs_use_case)],
+):
+    result = use_case.execute(DeleteTestRunsInput(test_run_ids=request.test_run_ids))
+    return DeleteTestRunsResponse(
+        deleted_test_runs=result.deleted_test_runs,
+        deleted_cases=result.deleted_cases,
+    )
 
 
 @router.get("/test-runs/{test_run_id}", response_model=TestRunDetailResponse)

@@ -62,3 +62,6 @@ class AsyncOperationRepository(Protocol):
         external_id: str | None = None,
     ) -> AsyncOperationRecord | None:
         ...
+
+    def delete(self, operation_id: UUID) -> None:
+        ...

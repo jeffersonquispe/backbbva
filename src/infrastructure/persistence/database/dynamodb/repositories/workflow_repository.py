@@ -105,6 +105,14 @@ class DynamoWorkflowExecutionRepository(WorkflowExecutionRepository):
         )
         return [_workflow_from_item(item) for item in response.get("Items", [])]
 
+    def delete(self, workflow_id: UUID) -> None:
+        self._table.delete_item(
+            Key={
+                "partition": WORKFLOW_PARTITION,
+                "workflow_execution_id": str(workflow_id),
+            }
+        )
+
 
 class DynamoWorkflowStepExecutionRepository(WorkflowStepExecutionRepository):
     def __init__(self) -> None:
@@ -175,6 +183,14 @@ class DynamoWorkflowStepExecutionRepository(WorkflowStepExecutionRepository):
         )
         self._table.put_item(Item=_step_to_item(updated))
         return updated
+
+    def delete(self, workflow_execution_id: UUID, step_id: UUID) -> None:
+        self._table.delete_item(
+            Key={
+                "workflow_execution_id": str(workflow_execution_id),
+                "step_execution_id": str(step_id),
+            }
+        )
 
 
 def _workflow_to_item(workflow: WorkflowExecutionRecord) -> dict[str, Any]:

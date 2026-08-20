@@ -213,6 +213,8 @@ class ClassifyAlertUseCase:
                 output.cot = _transcript(messages)
                 output.input_tokens = input_tokens
                 output.output_tokens = output_tokens
+                output.expected_classification = input.expected_classification
+                output.ground_truth_tipo = input.ground_truth_tipo
                 return output
             if action is None or action_input is None:
                 break
@@ -235,4 +237,6 @@ class ClassifyAlertUseCase:
             cot=_transcript(messages),
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            expected_classification=input.expected_classification,
+            ground_truth_tipo=input.ground_truth_tipo,
         )

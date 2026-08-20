@@ -7,7 +7,17 @@ from src.application.ports.test_run_port import TestRunRepository, TestRunStatus
 from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
     WorkflowStatus,
+    WorkflowStepExecutionRecord,
     WorkflowStepExecutionRepository,
+)
+from src.application.use_cases.test_runs.classification_metrics import (
+    compute_analyst_agreement_metrics,
+    compute_ground_truth_metrics,
+)
+from src.application.use_cases.test_runs.duration_stats import (
+    compute_stats,
+    step_duration_stats_by_name,
+    workflow_duration,
 )
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
 
@@ -65,12 +75,25 @@ class GetTestRunUseCase:
 
         input_tokens = 0
         output_tokens = 0
+        all_steps: list[WorkflowStepExecutionRecord] = []
+        analyst_cases: list[tuple[str | None, str | None]] = []
+        ground_truth_cases: list[tuple[str | None, str | None]] = []
         for w in workflows:
-            step_input, step_output = sum_step_tokens(
-                self._steps.list_by_workflow(w.id)
-            )
+            steps = self._steps.list_by_workflow(w.id)
+            all_steps.extend(steps)
+            step_input, step_output = sum_step_tokens(steps)
             input_tokens += step_input
             output_tokens += step_output
+
+            output = _final_classification_output(steps)
+            if output is not None:
+                is_fraud = output.get("is_fraud")
+                analyst_cases.append((output.get("expected_classification"), is_fraud))
+                ground_truth_cases.append((output.get("ground_truth_tipo"), is_fraud))
+
+        total_durations = [
+            d for w in workflows if (d := workflow_duration(w)) is not None
+        ]
 
         return TestRunDetail(
             id=test_run.id,
@@ -91,7 +114,28 @@ class GetTestRunUseCase:
                     alert_id=w.alert_id,
                     status=w.status,
                     current_step=w.current_step,
+                    duration_seconds=workflow_duration(w),
                 )
                 for w in workflows
             ],
+            step_duration_stats=step_duration_stats_by_name(all_steps),
+            total_duration_stats=compute_stats(total_durations),
+            analyst_agreement_metrics=compute_analyst_agreement_metrics(analyst_cases),
+            ground_truth_metrics=compute_ground_truth_metrics(ground_truth_cases),
         )
+
+
+def _final_classification_output(
+    steps: list[WorkflowStepExecutionRecord],
+) -> dict | None:
+    # A case may retry "classification" several times (adversarial
+    # feedback loop, see AlertReviewWorkflowRunner._run_adversarial_review)
+    # - each attempt is its own step record with the same step_name. Only
+    # the highest-attempt one is the result that actually flowed downstream
+    # (to adversarial/analyst/executor), so that's the one to score.
+    classification_steps = [
+        s for s in steps if s.step_name == "classification" and s.output
+    ]
+    if not classification_steps:
+        return None
+    return max(classification_steps, key=lambda s: s.attempt).output

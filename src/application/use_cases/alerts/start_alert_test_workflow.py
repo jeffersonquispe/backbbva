@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -23,8 +24,18 @@ from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
     WorkflowStatus,
 )
+from src.domain.alerts.exceptions import AlertPayloadTooLargeError
 
 WORKFLOW_NAME = "massive_fraud_alert_review"
+
+# DynamoDB hard-caps a single item at 400KB (409,600 bytes), covering
+# attribute names + values together. Checked against a rough
+# json.dumps(payload) byte count - not exact DynamoDB encoding, but close
+# enough to fail fast with a clear error instead of a raw ValidationException
+# out of put_item. The margin below 409,600 covers AlertRecord's other
+# fields (id, event_id, event_type, status, timestamps, ...), which are
+# small and roughly constant per alert.
+MAX_ALERT_PAYLOAD_BYTES = 380_000
 
 
 class StartAlertTestWorkflowUseCase:
@@ -44,6 +55,9 @@ class StartAlertTestWorkflowUseCase:
         self,
         input: StartAlertWorkflowInput,
     ) -> StartAlertWorkflowOutput:
+        payload_size = len(json.dumps(input.payload, default=str).encode("utf-8"))
+        if payload_size > MAX_ALERT_PAYLOAD_BYTES:
+            raise AlertPayloadTooLargeError(payload_size, MAX_ALERT_PAYLOAD_BYTES)
         now = datetime.now(timezone.utc)
         alert = self._alert_repository.create(
             AlertRecord(
@@ -90,7 +104,7 @@ class StartAlertTestWorkflowUseCase:
                 error=None,
                 current_step=None,
                 feedback_iterations=0,
-                max_feedback_iterations=2,
+                max_feedback_iterations=input.max_feedback_iterations,
                 created_at=now,
                 updated_at=now,
                 test_run_id=input.test_run_id,

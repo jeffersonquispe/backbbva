@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+import pytest
+
 from src.application.dtos.alert_dtos import StartAlertWorkflowInput
 from src.application.ports.alert_port import (
     AlertRecord,
@@ -21,8 +23,10 @@ from src.application.ports.workflow_port import (
     WorkflowStatus,
 )
 from src.application.use_cases.alerts.start_alert_test_workflow import (
+    MAX_ALERT_PAYLOAD_BYTES,
     StartAlertTestWorkflowUseCase,
 )
+from src.domain.alerts.exceptions import AlertPayloadTooLargeError
 
 
 class InMemoryAlertRepository:
@@ -212,3 +216,52 @@ def test_start_alert_test_workflow_creates_tracking_records() -> None:
     assert workflow.status == WorkflowStatus.DISPATCHED
     assert workflow.execution_backend == "celery"
     assert executor.started.id == workflow.id
+    assert workflow.max_feedback_iterations == 1
+
+
+def test_start_alert_test_workflow_honors_custom_max_feedback_iterations() -> None:
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    executor = RecordingWorkflowExecutor()
+    use_case = StartAlertTestWorkflowUseCase(
+        alert_repository=alerts,
+        async_operation_repository=operations,
+        workflow_repository=workflows,
+        workflow_executor=executor,
+    )
+
+    output = use_case.execute(
+        StartAlertWorkflowInput(
+            payload={"eventId": "event-1"},
+            max_feedback_iterations=5,
+        )
+    )
+
+    assert workflows.get(output.workflow_execution_id).max_feedback_iterations == 5
+
+
+def test_start_alert_test_workflow_rejects_oversized_payload_before_persisting() -> None:
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    executor = RecordingWorkflowExecutor()
+    use_case = StartAlertTestWorkflowUseCase(
+        alert_repository=alerts,
+        async_operation_repository=operations,
+        workflow_repository=workflows,
+        workflow_executor=executor,
+    )
+    # A single oversized field (e.g. a customer's full transaction history
+    # embedded as JSON in one dataset column) is enough to blow the budget.
+    huge_payload = {"eventId": "event-1", "transacciones_json": "x" * (MAX_ALERT_PAYLOAD_BYTES + 1)}
+
+    with pytest.raises(AlertPayloadTooLargeError):
+        use_case.execute(StartAlertWorkflowInput(payload=huge_payload))
+
+    # Nothing should have been persisted - this must fail before any writes,
+    # not leave a half-created alert/operation/workflow behind.
+    assert alerts.alerts == {}
+    assert operations.operations == {}
+    assert workflows.workflows == {}
+    assert executor.started is None

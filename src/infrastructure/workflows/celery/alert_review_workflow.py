@@ -57,6 +57,10 @@ from src.infrastructure.workflows.celery.factories import (
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
 )
+from src.application.use_cases.test_runs.dataset_sampling import (
+    MARCACION_FIELD,
+    TIPO_FIELD,
+)
 from src.infrastructure.workflows.queued.queued_status_reporter import (
     QueuedWorkflowStatusReporter,
 )
@@ -396,11 +400,14 @@ def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
         step_id=step_id,
         **_step_overrides(context, "classification"),
     )
+    alert_payload = (context.get("input") or {}).get("alert_payload") or {}
     return use_case.execute(
         ClassifyAlertInput(
             alert_id=UUID(context["alert_id"]),
             pre_process=context["pre_process"],
             profile=context["profiling"],
+            expected_classification=alert_payload.get(MARCACION_FIELD),
+            ground_truth_tipo=alert_payload.get(TIPO_FIELD),
         )
     )
 

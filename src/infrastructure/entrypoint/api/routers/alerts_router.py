@@ -3,13 +3,14 @@ from __future__ import annotations
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from src.application.dtos.alert_dtos import StartAlertWorkflowInput
 from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
 )
+from src.domain.alerts.exceptions import AlertPayloadTooLargeError
 from src.infrastructure.entrypoint.api.factories.alert_factory import (
     get_start_alert_test_workflow_use_case,
 )
@@ -41,9 +42,12 @@ def start_alert_test_workflow(
         Depends(get_start_alert_test_workflow_use_case),
     ],
 ):
-    return use_case.execute(
-        StartAlertWorkflowInput(
-            payload=request.event,
-            created_by=request.created_by,
+    try:
+        return use_case.execute(
+            StartAlertWorkflowInput(
+                payload=request.event,
+                created_by=request.created_by,
+            )
         )
-    )
+    except AlertPayloadTooLargeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
