@@ -11,8 +11,8 @@ from src.infrastructure.core.config import genai_config
 
 
 class MinioObjectStorageAdapter(ObjectStoragePort):
-    def __init__(self) -> None:
-        self._bucket = genai_config.OBJECT_STORAGE_BUCKET
+    def __init__(self, bucket: str | None = None) -> None:
+        self._bucket = bucket or genai_config.OBJECT_STORAGE_BUCKET
         self._client = boto3.client(
             "s3",
             endpoint_url=genai_config.OBJECT_STORAGE_ENDPOINT,
@@ -34,10 +34,18 @@ class MinioObjectStorageAdapter(ObjectStoragePort):
         content: str,
         content_type: str = "text/plain",
     ) -> ObjectStorageRef:
+        return self.put_bytes(key, content.encode("utf-8"), content_type)
+
+    def put_bytes(
+        self,
+        key: str,
+        content: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> ObjectStorageRef:
         self._client.put_object(
             Bucket=self._bucket,
             Key=key,
-            Body=content.encode("utf-8"),
+            Body=content,
             ContentType=content_type,
         )
         return ObjectStorageRef(
@@ -45,3 +53,19 @@ class MinioObjectStorageAdapter(ObjectStoragePort):
             key=key,
             uri=f"s3://{self._bucket}/{key}",
         )
+
+    def get_bytes(self, key: str) -> bytes:
+        response = self._client.get_object(Bucket=self._bucket, Key=key)
+        return response["Body"].read()
+
+    def list_keys(self, suffix: str = "") -> list[str]:
+        keys: list[str] = []
+        paginator = self._client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self._bucket):
+            for obj in page.get("Contents", []):
+                if obj["Key"].endswith(suffix):
+                    keys.append(obj["Key"])
+        return keys
+
+    def delete(self, key: str) -> None:
+        self._client.delete_object(Bucket=self._bucket, Key=key)

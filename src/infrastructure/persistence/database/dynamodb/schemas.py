@@ -151,6 +151,32 @@ TEST_RUNS_TABLE = {
 }
 
 
+DATASET_SAMPLES_TABLE = {
+    "TableName": "dataset_samples",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "dataset_name", "KeyType": "HASH"},
+        {"AttributeName": "sample_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "dataset_name", "AttributeType": "S"},
+        {"AttributeName": "sample_id", "AttributeType": "S"},
+    ],
+}
+
+
+DATASET_SUMMARIES_TABLE = {
+    "TableName": "dataset_summaries",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "dataset_name", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "dataset_name", "AttributeType": "S"},
+    ],
+}
+
+
 OPERATIONS_CAPACITY_TABLE = {
     "TableName": "operations_capacity",
     "BillingMode": "PAY_PER_REQUEST",

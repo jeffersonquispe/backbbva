@@ -16,3 +16,6 @@ class DatasetRepository(Protocol):
 
     def get_rows(self, name: str) -> list[dict[str, Any]]:
         ...
+
+    def delete(self, name: str) -> None:
+        ...

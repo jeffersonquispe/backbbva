@@ -21,6 +21,9 @@ from src.infrastructure.entrypoint.api.routers.alerts_router import (
 from src.infrastructure.entrypoint.api.routers.configurations_router import (
     router as configurations_router,
 )
+from src.infrastructure.entrypoint.api.routers.datasets_router import (
+    router as datasets_router,
+)
 from src.infrastructure.entrypoint.api.routers.health_router import (
     router as health_router,
 )
@@ -58,6 +61,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         configurations_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        datasets_router,
         prefix=genai_config.API_V0_STR,
     )
     return app

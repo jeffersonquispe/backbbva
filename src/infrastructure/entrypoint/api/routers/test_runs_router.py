@@ -15,18 +15,15 @@ from src.application.use_cases.test_runs.get_test_case_detail import (
     GetTestCaseDetailUseCase,
 )
 from src.application.use_cases.test_runs.get_test_run import GetTestRunUseCase
-from src.application.use_cases.test_runs.list_datasets import ListDatasetsUseCase
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
 from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
 from src.infrastructure.entrypoint.api.factories.test_run_factory import (
     get_get_test_case_detail_use_case,
     get_get_test_run_use_case,
-    get_list_datasets_use_case,
     get_list_test_runs_use_case,
     get_start_test_run_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
-    DatasetResponse,
     StartTestRunRequest,
     StartTestRunResponse,
     TestCaseDetailResponse,
@@ -123,10 +120,3 @@ def get_test_case_detail(
             for step in steps
         ],
     )
-
-
-@router.get("/datasets", response_model=list[DatasetResponse])
-def list_datasets(
-    use_case: Annotated[ListDatasetsUseCase, Depends(get_list_datasets_use_case)],
-):
-    return use_case.execute()

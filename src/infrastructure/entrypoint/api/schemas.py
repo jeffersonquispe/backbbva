@@ -15,6 +15,7 @@ from src.application.ports.configuration_port import (
     ShortageAction,
     TestCleanupPolicy,
 )
+from src.application.ports.dataset_analysis_port import DatasetAnalysisStatus
 from src.application.ports.test_run_port import TestRunStatus
 from src.application.ports.workflow_port import WorkflowStatus, WorkflowStepStatus
 
@@ -155,6 +156,32 @@ class TestCaseDetailResponse(BaseModel):
 class DatasetResponse(BaseModel):
     name: str
     row_count: int
+
+
+class UploadDatasetResponse(BaseModel):
+    name: str
+    status: DatasetAnalysisStatus
+
+
+class DeleteDatasetResponse(BaseModel):
+    name: str
+    deleted: bool
+
+
+class FieldDistributionResponse(BaseModel):
+    value: str
+    count: int
+    percentage: float
+
+
+class DatasetSummaryResponse(BaseModel):
+    dataset_name: str
+    status: DatasetAnalysisStatus
+    total_rows: int
+    field_distributions: dict[str, list[FieldDistributionResponse]]
+    uploaded_at: datetime | None
+    updated_at: datetime | None
+    error: str | None
 
 
 # --- Configuration -----------------------------------------------------

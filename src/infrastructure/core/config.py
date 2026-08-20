@@ -109,6 +109,12 @@ class Config(BaseSettings):
     # TEST RUNS - CSV datasets dropped on disk, listed via plain fs scan
     DATASETS_DIR: str = "./datasets"
 
+    # "filesystem" (default, reads DATASETS_DIR above) or "minio" (reads/writes
+    # the DATASET_STORAGE_BUCKET below - what the testing page's dataset
+    # upload button targets). See dataset_factory.py's get_dataset_repository().
+    DATASET_STORAGE_BACKEND: str = "filesystem"
+    DATASET_STORAGE_BUCKET: str = "datasets"
+
     model_config = ConfigDict(extra="ignore")
 
     def model_post_init(self, __context):

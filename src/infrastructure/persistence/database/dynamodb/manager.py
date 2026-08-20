@@ -31,6 +31,8 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     ASYNC_OPERATIONS_TABLE,
     AUDIT_LOG_TABLE,
     CONFIGURATIONS_TABLE,
+    DATASET_SAMPLES_TABLE,
+    DATASET_SUMMARIES_TABLE,
     FRAUD_PLAYBOOKS_TABLE,
     OPERATIONS_CAPACITY_TABLE,
     TEST_RUNS_TABLE,
@@ -115,6 +117,8 @@ def ensure_all_tables() -> None:
     create_table(OPERATIONS_CAPACITY_TABLE)
     create_table(TEST_RUNS_TABLE)
     create_table(CONFIGURATIONS_TABLE)
+    create_table(DATASET_SAMPLES_TABLE)
+    create_table(DATASET_SUMMARIES_TABLE)
 
 
 def seed_defaults() -> None:

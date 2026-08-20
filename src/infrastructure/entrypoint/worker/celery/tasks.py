@@ -28,6 +28,7 @@ from src.application.use_cases.alerts.execute_alert_action import (
 from src.application.use_cases.async_operations.reconcile_async_operations import (
     ReconcileAsyncOperationsUseCase,
 )
+from src.application.use_cases.datasets.analyze_dataset import AnalyzeDatasetUseCase
 from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
     MockAlertChannelActionAdapter,
 )
@@ -38,7 +39,19 @@ from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
-from src.infrastructure.persistence.object_storage.minio import get_object_storage
+from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sample_repository import (
+    DynamoDatasetSampleRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.dataset_summary_repository import (
+    DynamoDatasetSummaryRepository,
+)
+from src.infrastructure.persistence.dataset.minio.csv_dataset_repository import (
+    MinioCsvDatasetRepository,
+)
+from src.infrastructure.persistence.object_storage.minio import (
+    get_dataset_object_storage,
+    get_object_storage,
+)
 from src.infrastructure.entrypoint.worker.celery.celery_app import app
 from src.infrastructure.queues.celery.inspector import (
     CeleryAsyncExecutionInspector,
@@ -203,3 +216,20 @@ def execute_alert_action(self, action: str, alert_id: str) -> dict:
         "action": output.action,
         "detail": output.detail,
     }
+
+
+@app.task(
+    bind=True,
+    name="datasets.analyze",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def analyze_dataset_task(self, dataset_name: str) -> dict:
+    use_case = AnalyzeDatasetUseCase(
+        dataset_repository=MinioCsvDatasetRepository(get_dataset_object_storage()),
+        sample_repository=DynamoDatasetSampleRepository(),
+        summary_repository=DynamoDatasetSummaryRepository(),
+    )
+    use_case.execute(dataset_name)
+    return {"status": "ok", "dataset_name": dataset_name}
