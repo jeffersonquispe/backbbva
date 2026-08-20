@@ -134,12 +134,18 @@ class OpenSearchFraudKnowledgeRepository:
         document_type: DocumentType | None = None,
         *,
         channel: str | None = None,
+        configuration: str | None = None,
+        version: int | None = None,
     ) -> list[FraudKnowledgeDocument]:
         filters: list[dict[str, Any]] = []
         if document_type is not None:
             filters.append({"term": {"type": document_type.value}})
         if channel is not None:
             filters.append({"term": {"segmento": channel}})
+        if configuration is not None:
+            filters.append({"term": {"configuration": configuration}})
+        if version is not None:
+            filters.append({"term": {"version": version}})
         query = {"bool": {"filter": filters}} if filters else {"match_all": {}}
 
         response = self._client.search(

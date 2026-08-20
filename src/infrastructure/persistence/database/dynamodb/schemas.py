@@ -161,3 +161,17 @@ OPERATIONS_CAPACITY_TABLE = {
         {"AttributeName": "record_id", "AttributeType": "S"},
     ],
 }
+
+
+CONFIGURATIONS_TABLE = {
+    "TableName": "configurations",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "configuration_id", "KeyType": "HASH"},
+        {"AttributeName": "version", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "configuration_id", "AttributeType": "S"},
+        {"AttributeName": "version", "AttributeType": "N"},
+    ],
+}

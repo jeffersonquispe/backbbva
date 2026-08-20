@@ -2,12 +2,24 @@ from datetime import datetime, timezone
 
 from botocore.exceptions import ClientError
 
+from src.application.ports.configuration_port import (
+    AgentSettings,
+    ConfigurationRecord,
+    GeneralSettings,
+    InfraSettings,
+    MonitoringSettings,
+    OpsSettings,
+    TestSettings,
+)
 from src.application.ports.fraud_playbook_port import FraudPlaybookRecord
 from src.application.ports.operations_capacity_port import (
     ChannelCapacity,
     OperationsCapacityRecord,
 )
 from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
+    DynamoConfigurationRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.fraud_playbook_repository import (
     DynamoFraudPlaybookRepository,
 )
@@ -18,6 +30,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     ALERTS_TABLE,
     ASYNC_OPERATIONS_TABLE,
     AUDIT_LOG_TABLE,
+    CONFIGURATIONS_TABLE,
     FRAUD_PLAYBOOKS_TABLE,
     OPERATIONS_CAPACITY_TABLE,
     TEST_RUNS_TABLE,
@@ -67,6 +80,13 @@ _DEFAULT_CAPACITY = OperationsCapacityRecord(
     updated_at=datetime.now(timezone.utc),
 )
 
+# Seeded once (see seed_defaults) so a fresh environment always has exactly
+# one active configuration, rather than every consumer needing a None-active
+# fallback. All sub-settings use their dataclass defaults - see
+# application/ports/configuration_port.py. Fixed id (not uuid4()) so the
+# "already seeded?" check below is stable across process restarts.
+_DEFAULT_CONFIGURATION_ID = "default"
+
 
 def create_table(schema: dict) -> None:
     """Create a DynamoDB table from a boto3-style schema. Idempotent if table already exists."""
@@ -94,6 +114,7 @@ def ensure_all_tables() -> None:
     create_table(FRAUD_PLAYBOOKS_TABLE)
     create_table(OPERATIONS_CAPACITY_TABLE)
     create_table(TEST_RUNS_TABLE)
+    create_table(CONFIGURATIONS_TABLE)
 
 
 def seed_defaults() -> None:
@@ -119,6 +140,31 @@ def seed_defaults() -> None:
     if existing is None:
         DynamoOperationsCapacityRepository().put_capacity(_DEFAULT_CAPACITY)
         print("Operations capacity sembrada")
+
+    configurations = DynamoConfigurationRepository()
+    if configurations.get(_DEFAULT_CONFIGURATION_ID, 1) is None:
+        now = datetime.now(timezone.utc)
+        default_config = configurations.create(
+            ConfigurationRecord(
+                configuration_id=_DEFAULT_CONFIGURATION_ID,
+                version=1,
+                name="Producción",
+                description="Configuración por defecto, sembrada al iniciar.",
+                active=False,
+                general=GeneralSettings(),
+                infra=InfraSettings(),
+                ops=OpsSettings(),
+                monitoring=MonitoringSettings(),
+                agent=AgentSettings(),
+                test=TestSettings(),
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        configurations.activate(
+            default_config.configuration_id, default_config.version
+        )
+        print("Configuración por defecto sembrada y activada")
 
 
 def drop_table(table_name: str) -> None:

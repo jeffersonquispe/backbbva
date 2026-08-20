@@ -27,4 +27,6 @@ class FraudKnowledgeRepository(Protocol):
         document_type: DocumentType | None = None,
         *,
         channel: str | None = None,
+        configuration: str | None = None,
+        version: int | None = None,
     ) -> list[FraudKnowledgeDocument]: ...
