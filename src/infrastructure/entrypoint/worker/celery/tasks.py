@@ -57,6 +57,7 @@ from src.infrastructure.queues.celery.inspector import (
     CeleryAsyncExecutionInspector,
 )
 from src.infrastructure.workflows.celery.alert_review_workflow import (
+    AdversarialFeedbackLimitExceededError,
     AlertReviewWorkflowRunner,
 )
 
@@ -119,6 +120,7 @@ _ALERT_REVIEW_MAX_RETRIES = 3
     bind=True,
     name="workflows.alert_review.run",
     autoretry_for=(Exception,),
+    dont_autoretry_for=(AdversarialFeedbackLimitExceededError,),
     retry_backoff=True,
     retry_kwargs={"max_retries": _ALERT_REVIEW_MAX_RETRIES},
 )
@@ -127,6 +129,10 @@ def run_alert_review_workflow(self, workflow_execution_id: str) -> dict:
     # escalate-to-analyst (fired from a pre_process failure) must only be
     # dispatched on the last one - otherwise a permanently missing field
     # dispatches one escalation per retry instead of one per alert.
+    # AdversarialFeedbackLimitExceededError is excluded from autoretry: it
+    # already means "classification looped to its cap, escalate" - retrying
+    # would just re-run pre_process/classification/adversarial from scratch
+    # and burn tokens for a result the internal loop already decided.
     is_final_attempt = self.request.retries >= _ALERT_REVIEW_MAX_RETRIES
     return AlertReviewWorkflowRunner().run(
         UUID(workflow_execution_id), is_final_attempt=is_final_attempt

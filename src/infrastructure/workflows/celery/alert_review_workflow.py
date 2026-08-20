@@ -181,19 +181,20 @@ class AlertReviewWorkflowRunner:
                 error=error,
             )
             self._alerts.update(workflow.alert_id, status=AlertStatus.FAILED)
+            # AdversarialFeedbackLimitExceededError is excluded from Celery
+            # autoretry (see tasks.py), so it's terminal on this one raise
+            # regardless of is_final_attempt - escalate every time.
+            if isinstance(exc, AdversarialFeedbackLimitExceededError):
+                self._escalate_to_analyst(workflow, error)
             # Only on the final Celery attempt: autoretry re-runs this
             # whole method from scratch, so escalating on every attempt
             # would fire one escalation per retry instead of one per alert.
-            if is_final_attempt:
-                if isinstance(exc, AdversarialFeedbackLimitExceededError):
-                    self._escalate_to_analyst(workflow, error)
-                # pre_process is always the first step; if it never wrote
-                # its output to context, that's where the failure happened
-                # (either mandatory data missing from the payload, or
-                # enrichment fetch exhausted its retries) - escalate that
-                # case to an analyst too.
-                elif "pre_process" not in context:
-                    self._escalate_to_analyst(workflow, error)
+            # pre_process is always the first step; if it never wrote its
+            # output to context, that's where the failure happened (either
+            # mandatory data missing from the payload, or enrichment fetch
+            # exhausted its retries) - escalate that case to an analyst too.
+            elif is_final_attempt and "pre_process" not in context:
+                self._escalate_to_analyst(workflow, error)
             raise
         finally:
             self._status.stop()
