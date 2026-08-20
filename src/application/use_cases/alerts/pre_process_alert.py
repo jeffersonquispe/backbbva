@@ -47,18 +47,11 @@ MAX_FETCH_ATTEMPTS = 3
 # block pre_process when absent.
 _MANDATORY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
     "rules": ("object.triggeredRules", "triggered_rules"),
-    "biocatch_score": ("biocatch.score", "biocatch_score"),
     "event_time": ("eventTime", "fecha_transaccion"),
     "event_type": ("eventType", "eventtype"),
     "customer_id": ("customerId", "customerid"),
     "channel": ("channel",),
     "integration_point": ("integrationPoint", "integrationpoint"),
-    "counterparty": (
-        "counterpartyName.fullName",
-        "counterpartyId",
-        "counterpartyentityid_encrypted",
-    ),
-    "amount": ("amount.baseValue", "amount_value"),
     "ip_channel": ("device.ipAddress", "device_ipaddress_encrypted"),
     "client_code": ("customerClientCode", "personalId", "numero_documento"),
     "event_id": ("eventId", "eventid"),
@@ -81,6 +74,13 @@ _CARD_ONLY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
 # data, so it doesn't belong with fields whose absence should escalate.
 _OPTIONAL_FIELD_PATHS: dict[str, tuple[str, ...]] = {
     "reason_code": ("msgReason",),
+    "biocatch_score": ("biocatch.score", "biocatch_score"),
+    "counterparty": (
+        "counterpartyName.fullName",
+        "counterpartyId",
+        "counterpartyentityid_encrypted",
+    ),
+    "amount": ("amount.baseValue", "amount_value"),
     "biocatch_muid": ("biocatch.muid",),
     "tags": ("object.tags",),
     "triggered_models": ("object.triggeredModels",),

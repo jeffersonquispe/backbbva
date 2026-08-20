@@ -121,7 +121,7 @@ def test_pre_process_alert_extracts_fields_and_enriches() -> None:
     )
 
     assert output.mandatory_fields["customer_id"] == "10264559"
-    assert output.mandatory_fields["amount"] == 100.0
+    assert output.optional_fields["amount"] == 100.0
     assert "card_bin" not in output.mandatory_fields
     assert output.optional_fields["reason_code"] == "none"
     assert output.enrichment["customer_profile"].customer_name == "Jane"
@@ -164,10 +164,10 @@ def test_pre_process_alert_accepts_muestra_total_aria_flat_schema() -> None:
     )
 
     assert output.mandatory_fields["customer_id"] == "8867889"
-    assert output.mandatory_fields["amount"] == 2800000.0
+    assert output.optional_fields["amount"] == 2800000.0
     assert output.mandatory_fields["event_id"] == "evt-flat-1"
     assert output.mandatory_fields["event_type"] == "paymentRT"
-    assert output.mandatory_fields["biocatch_score"] == 891
+    assert output.optional_fields["biocatch_score"] == 891
     assert output.mandatory_fields["rules"] == "[CUSTOMER - Score1000Net]"
     assert output.mandatory_fields["client_code"] == "1000003114"
     # Fields this schema simply doesn't carry (merchant, session, entry
@@ -186,6 +186,29 @@ def test_pre_process_alert_raises_on_missing_mandatory_field() -> None:
         )
 
     assert "customer_id" in exc_info.value.missing_fields
+
+
+def test_pre_process_alert_does_not_block_on_missing_biocatch_counterparty_amount() -> None:
+    # biocatch_score, counterparty and amount are real-world-optional (not
+    # every event carries them) - regression test for them being wrongly
+    # treated as mandatory and raising MandatoryAlertDataMissingError.
+    payload = {
+        k: v
+        for k, v in VALID_PAYLOAD.items()
+        if k not in ("biocatch", "counterpartyName", "amount")
+    }
+    use_case = _use_case()
+
+    output = use_case.execute(
+        PreProcessAlertInput(alert_id=uuid.uuid4(), payload=payload)
+    )
+
+    assert "biocatch_score" not in output.mandatory_fields
+    assert "counterparty" not in output.mandatory_fields
+    assert "amount" not in output.mandatory_fields
+    assert "biocatch_score" not in output.optional_fields
+    assert "counterparty" not in output.optional_fields
+    assert "amount" not in output.optional_fields
 
 
 def test_pre_process_alert_retries_transient_fetch_failures() -> None:
