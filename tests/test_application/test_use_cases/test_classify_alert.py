@@ -24,7 +24,10 @@ from src.application.ports.modus_operandi_port import (
     SimilarModusOperandi,
 )
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
-from src.application.use_cases.alerts.classify_alert import ClassifyAlertUseCase
+from src.application.use_cases.alerts.classify_alert import (
+    _SYSTEM_PROMPT,
+    ClassifyAlertUseCase,
+)
 
 
 class ScriptedLLMUnitOfWork(LLMUnitOfWork):
@@ -282,3 +285,100 @@ def test_classify_alert_echoes_ground_truth_tipo_when_reasoning_never_concludes(
 
     assert output.is_fraud == "unknown"
     assert output.ground_truth_tipo == "NoFraude"
+
+
+def test_classify_alert_sends_base_system_prompt_verbatim_by_default() -> None:
+    responses = [
+        'Thought: done\nFinal Answer: {"is_fraud": "fraud", '
+        '"fraud_classification": "ACCOUNT_TAKEOVER", "reasoning": "r"}'
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+    )
+
+    use_case.execute(_input())
+
+    system_message = llm_factory.created[0].received_messages[0][0]
+    assert system_message.content == _SYSTEM_PROMPT
+
+
+def test_classify_alert_appends_segment_extra_instructions() -> None:
+    responses = [
+        'Thought: done\nFinal Answer: {"is_fraud": "fraud", '
+        '"fraud_classification": "ACCOUNT_TAKEOVER", "reasoning": "r"}'
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+        extra_instructions="Presta especial atención a compras internacionales.",
+    )
+
+    use_case.execute(_input())
+
+    system_message = llm_factory.created[0].received_messages[0][0]
+    assert system_message.content.startswith(_SYSTEM_PROMPT)
+    assert "Presta especial atención a compras internacionales." in system_message.content
+
+
+def test_classify_alert_system_prompt_override_wins_over_extra_instructions() -> None:
+    responses = [
+        'Thought: done\nFinal Answer: {"is_fraud": "fraud", '
+        '"fraud_classification": "ACCOUNT_TAKEOVER", "reasoning": "r"}'
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    override_prompt = "Full test-run override prompt including its own protocol."
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+        system_prompt=override_prompt,
+        extra_instructions="This must not appear in the sent prompt.",
+    )
+
+    use_case.execute(_input())
+
+    system_message = llm_factory.created[0].received_messages[0][0]
+    assert system_message.content == override_prompt
+
+
+def test_classify_alert_enabled_tools_restricts_tool_dict() -> None:
+    fraud_port = RecordingSimilarFraudCasePort()
+    responses = [
+        "Thought: try similar cases\n"
+        "Action: get_similar_frauds\n"
+        "Action Input: some query",
+        "Thought: done\nFinal Answer: {\"is_fraud\": \"unknown\", "
+        '"fraud_classification": "unknown", "reasoning": "no tool available"}',
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=fraud_port,
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+        enabled_tools={"get_similar_taxonomy"},
+    )
+
+    use_case.execute(_input())
+
+    assert fraud_port.queries == []
+    # Second invoke() call is recorded with the Observation from the first
+    # (filtered-out) tool call as its last message.
+    observation = llm_factory.created[0].received_messages[1][-1].content
+    assert "Unknown tool" in observation

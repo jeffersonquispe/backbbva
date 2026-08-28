@@ -28,6 +28,7 @@ from src.application.ports.modus_operandi_port import (
 )
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
 from src.application.use_cases.alerts.adversarial_review_alert import (
+    _SYSTEM_PROMPT,
     AdversarialReviewAlertUseCase,
 )
 
@@ -152,6 +153,7 @@ def _input() -> AdversarialReviewAlertInput:
 def _use_case(
     responses: list[str],
     fraud_port: SimilarFraudCasePort | None = None,
+    **kwargs,
 ) -> tuple[AdversarialReviewAlertUseCase, ScriptedLLMUnitOfWorkFactory]:
     llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
     use_case = AdversarialReviewAlertUseCase(
@@ -161,6 +163,7 @@ def _use_case(
         similar_fraud_case_port=fraud_port or RecordingSimilarFraudCasePort(),
         fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
         modus_operandi_port=RecordingModusOperandiPort(),
+        **kwargs,
     )
     return use_case, llm_factory
 
@@ -222,3 +225,73 @@ def test_adversarial_review_routes_back_on_malformed_final_answer() -> None:
     output = use_case.execute(_input())
 
     assert output.requires_classification_feedback is True
+
+
+def test_adversarial_review_sends_base_system_prompt_verbatim_by_default() -> None:
+    responses = [
+        'Thought: done\nFinal Answer: {"has_issues": false, "feedback": "", '
+        '"weak_points": [], "reasoning": "r"}'
+    ]
+    use_case, llm_factory = _use_case(responses)
+
+    use_case.execute(_input())
+
+    system_message = llm_factory.created[0].received_messages[0][0]
+    assert system_message.content == _SYSTEM_PROMPT
+
+
+def test_adversarial_review_appends_segment_extra_instructions() -> None:
+    responses = [
+        'Thought: done\nFinal Answer: {"has_issues": false, "feedback": "", '
+        '"weak_points": [], "reasoning": "r"}'
+    ]
+    use_case, llm_factory = _use_case(
+        responses,
+        extra_instructions="Presta especial atención a compras internacionales.",
+    )
+
+    use_case.execute(_input())
+
+    system_message = llm_factory.created[0].received_messages[0][0]
+    assert system_message.content.startswith(_SYSTEM_PROMPT)
+    assert "Presta especial atención a compras internacionales." in system_message.content
+
+
+def test_adversarial_review_system_prompt_override_wins_over_extra_instructions() -> None:
+    responses = [
+        'Thought: done\nFinal Answer: {"has_issues": false, "feedback": "", '
+        '"weak_points": [], "reasoning": "r"}'
+    ]
+    override_prompt = "Full test-run override prompt including its own protocol."
+    use_case, llm_factory = _use_case(
+        responses,
+        system_prompt=override_prompt,
+        extra_instructions="This must not appear in the sent prompt.",
+    )
+
+    use_case.execute(_input())
+
+    system_message = llm_factory.created[0].received_messages[0][0]
+    assert system_message.content == override_prompt
+
+
+def test_adversarial_review_enabled_tools_restricts_tool_dict() -> None:
+    fraud_port = RecordingSimilarFraudCasePort()
+    responses = [
+        "Thought: try similar cases\n"
+        "Action: get_similar_frauds\n"
+        "Action Input: some query",
+        'Thought: done\nFinal Answer: {"has_issues": false, "feedback": "", '
+        '"weak_points": [], "reasoning": "no tool available"}',
+    ]
+    use_case, llm_factory = _use_case(
+        responses,
+        fraud_port=fraud_port,
+        enabled_tools={"get_similar_taxonomy"},
+    )
+
+    use_case.execute(_input())
+
+    assert fraud_port.queries == []
+    observation = llm_factory.created[0].received_messages[1][-1].content
+    assert "Unknown tool" in observation

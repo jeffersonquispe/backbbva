@@ -50,6 +50,9 @@ def _serializable(value: Any) -> Any:
     return dataclasses.asdict(value) if dataclasses.is_dataclass(value) else value
 
 
+_PROFILING_OPERATIONS = ("user_profile", "transaction_profile", "transactional_profile")
+
+
 class ProfileAlertUseCase:
     def __init__(
         self,
@@ -57,6 +60,7 @@ class ProfileAlertUseCase:
         monitoring: MonitoringPort,
         model: str,
         system_prompt: str | None = None,
+        extra_instructions: dict[str, str] | None = None,
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
@@ -64,7 +68,21 @@ class ProfileAlertUseCase:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
         self._model = model
-        self._system_prompt = system_prompt or _SYSTEM_PROMPT
+        extra_instructions = extra_instructions or {}
+        self._system_prompts: dict[str, str] = {}
+        for op in _PROFILING_OPERATIONS:
+            if system_prompt is not None:
+                # Full replace - test-run admin override, wins outright
+                # over any segment-level extra_instructions.
+                self._system_prompts[op] = system_prompt
+            elif extra_instructions.get(op):
+                self._system_prompts[op] = (
+                    _SYSTEM_PROMPT
+                    + "\n\nInstrucciones adicionales para este segmento:\n"
+                    + extra_instructions[op]
+                )
+            else:
+                self._system_prompts[op] = _SYSTEM_PROMPT
         self._status_reporter = status_reporter
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
@@ -91,7 +109,10 @@ class ProfileAlertUseCase:
         )
         result = uow.invoke(
             [
-                LLMMessage(role=LLMMessageRole.SYSTEM, content=self._system_prompt),
+                LLMMessage(
+                    role=LLMMessageRole.SYSTEM,
+                    content=self._system_prompts[operation_name],
+                ),
                 LLMMessage(
                     role=LLMMessageRole.USER,
                     content=_PROFILE_PROMPTS[operation_name].format(

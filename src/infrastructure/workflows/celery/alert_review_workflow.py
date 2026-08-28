@@ -32,6 +32,12 @@ from src.application.dtos.profile_alert_dtos import (
 )
 from src.application.ports.alert_port import AlertStatus
 from src.application.ports.async_operation_port import AsyncOperationStatus
+from src.application.ports.configuration_port import (
+    ClassificationConfig,
+    ProfilingStrategyKey,
+    SegmentSettings,
+    VectorStoreTool,
+)
 from src.application.ports.workflow_port import (
     WorkflowExecutionRecord,
     WorkflowStatus,
@@ -51,16 +57,21 @@ from src.infrastructure.workflows.celery.factories import (
     get_adversarial_review_alert_use_case,
     get_analyst_review_alert_use_case,
     get_classify_alert_use_case,
+    get_configuration_repository,
     get_post_process_alert_use_case,
     get_pre_process_alert_use_case,
     get_profile_alert_use_case,
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
 )
+from src.application.use_cases.alerts.resolve_alert_segment import (
+    ResolveAlertSegmentUseCase,
+)
 from src.application.use_cases.test_runs.dataset_sampling import (
     MARCACION_FIELD,
     TIPO_FIELD,
 )
+from src.domain.configurations.exceptions import ConfigurationNotFoundError
 from src.infrastructure.workflows.queued.queued_status_reporter import (
     QueuedWorkflowStatusReporter,
 )
@@ -130,6 +141,8 @@ class AlertReviewWorkflowRunner:
                     context = self._run_adversarial_review(workflow, context)
                     continue
                 context = self._run_step(workflow, step_name, context)
+                if step_name == "pre_process":
+                    context = _resolve_segment(context)
                 if step_name == "analyst":
                     # Fire-and-forget: runs in its own Celery task,
                     # concurrently with the rest of this workflow, so a
@@ -295,9 +308,10 @@ class AlertReviewWorkflowRunner:
         context: dict[str, Any],
     ) -> dict[str, Any]:
         context = self._run_step(workflow, "adversarial", context)
+        effective_max = _effective_max_feedback_iterations(workflow, context)
         while _needs_classification_feedback(
             context,
-            workflow.max_feedback_iterations,
+            effective_max,
         ):
             context["feedback_iterations"] = (
                 context.get("feedback_iterations", 0) + 1
@@ -319,7 +333,7 @@ class AlertReviewWorkflowRunner:
         if (
             adversarial.requires_classification_feedback
             and context.get("feedback_iterations", 0)
-            >= workflow.max_feedback_iterations
+            >= effective_max
         ):
             raise AdversarialFeedbackLimitExceededError(
                 f"Adversarial review still flagged issues after "
@@ -377,13 +391,52 @@ def _step_overrides(
     }
 
 
+_VECTOR_TOOL_MAP = {
+    VectorStoreTool.SIMILAR_CASE: "get_similar_frauds",
+    VectorStoreTool.TAXONOMIA: "get_similar_taxonomy",
+    VectorStoreTool.MODUS_OPERANDI: "get_similar_modus_operandi",
+    # RED_FLAG / YELLOW_FLAG: no backing tool yet, silently dropped.
+}
+
+_PROFILING_STRATEGY_OPERATION_MAP = {
+    ProfilingStrategyKey.USUARIO: "user_profile",
+    ProfilingStrategyKey.TRANSACCION: "transaction_profile",
+    ProfilingStrategyKey.TRANSACCIONAL: "transactional_profile",
+}
+
+
+def _segment_tool_kwargs(classification_cfg: ClassificationConfig) -> dict[str, Any]:
+    if not classification_cfg.vector_store_tools:  # empty == no restriction
+        return {}
+    return {
+        "enabled_tools": {
+            _VECTOR_TOOL_MAP[t]
+            for t in classification_cfg.vector_store_tools
+            if t in _VECTOR_TOOL_MAP
+        }
+    }
+
+
 def _run_profiling(context: dict[str, Any]) -> ProfileAlertOutput:
     workflow_execution_id, step_id = _step_reporting_ids(context)
+    overrides = _step_overrides(context, "profiling")
+    segment_kwargs: dict[str, Any] = {}
+    if not overrides.get("system_prompt"):
+        segment = _active_segment(context)
+        if segment is not None:
+            extra_instructions = {
+                _PROFILING_STRATEGY_OPERATION_MAP[s.key]: s.main_prompt
+                for s in segment.agent.profiling.strategies
+                if s.main_prompt and s.key in _PROFILING_STRATEGY_OPERATION_MAP
+            }
+            if extra_instructions:
+                segment_kwargs["extra_instructions"] = extra_instructions
     use_case = get_profile_alert_use_case(
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
-        **_step_overrides(context, "profiling"),
+        **overrides,
+        **segment_kwargs,
     )
     return use_case.execute(
         ProfileAlertInput(
@@ -393,13 +446,92 @@ def _run_profiling(context: dict[str, Any]) -> ProfileAlertOutput:
     )
 
 
+def _resolve_configuration(context: dict[str, Any]):
+    # A test run can pin an exact (possibly inactive) ConfigurationRecord
+    # via configuration_ref, instead of the implicit get_active() - see
+    # ConfigurationRef (configuration_port.py) and TestRunConfig
+    # (test_run_port.py). Unlike the no-ref path below, an explicit ref
+    # that doesn't resolve must raise: silently falling back to whatever
+    # is currently active would corrupt the meaning of the test, and the
+    # caller (the outer Celery task) is expected to surface this as a
+    # failed workflow, not a misleadingly "successful" one run against
+    # the wrong config.
+    ref = (context.get("input") or {}).get("configuration_ref")
+    repo = get_configuration_repository()
+    if ref:
+        configuration_id = ref["configuration_id"]
+        version = ref.get("version")
+        config = (
+            repo.get(configuration_id, version)
+            if version is not None
+            else repo.get_latest_version(configuration_id)
+        )
+        if config is None:
+            raise ConfigurationNotFoundError(configuration_id, version)
+        return config
+    try:
+        return repo.get_active()
+    except Exception:
+        return None
+
+
+def _resolve_segment(context: dict[str, Any]) -> dict[str, Any]:
+    # Context enrichment, not a persisted workflow step - must fail safe to
+    # "no segment" (None) and never break existing behavior when there's no
+    # active configuration or nothing matches. The one exception is an
+    # explicit configuration_ref that fails to resolve - see
+    # _resolve_configuration.
+    config = _resolve_configuration(context)
+    context["active_configuration"] = config
+    context["segment_code"] = None
+    if config is None:
+        return context
+    try:
+        pre_process: PreProcessAlertOutput = context["pre_process"]
+        context["segment_code"] = ResolveAlertSegmentUseCase().execute(
+            mandatory_fields=pre_process.mandatory_fields,
+            segments=config.segments,
+        )
+    except Exception:
+        context["segment_code"] = None
+    return context
+
+
+def _active_segment(context: dict[str, Any]) -> SegmentSettings | None:
+    config = context.get("active_configuration")
+    code = context.get("segment_code")
+    if config is None or code is None:
+        return None
+    segment = config.segments.get(code)
+    return segment if segment is not None and segment.enabled else None
+
+
+def _effective_max_feedback_iterations(
+    workflow: WorkflowExecutionRecord, context: dict[str, Any]
+) -> int:
+    segment = _active_segment(context)
+    if segment is not None:
+        return segment.agent.adversarial.max_cycles
+    return workflow.max_feedback_iterations
+
+
 def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
     workflow_execution_id, step_id = _step_reporting_ids(context)
+    overrides = _step_overrides(context, "classification")
+    segment_kwargs: dict[str, Any] = {}
+    if not overrides.get("system_prompt"):
+        segment = _active_segment(context)
+        if segment is not None:
+            classification_cfg = segment.agent.classification
+            if classification_cfg.prompt:
+                segment_kwargs["extra_instructions"] = classification_cfg.prompt
+            segment_kwargs.update(_segment_tool_kwargs(classification_cfg))
     use_case = get_classify_alert_use_case(
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
-        **_step_overrides(context, "classification"),
+        **overrides,
+        **segment_kwargs,
     )
     alert_payload = (context.get("input") or {}).get("alert_payload") or {}
     return use_case.execute(
@@ -415,11 +547,22 @@ def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
 
 def _run_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
     workflow_execution_id, step_id = _step_reporting_ids(context)
+    overrides = _step_overrides(context, "adversarial")
+    segment_kwargs: dict[str, Any] = {}
+    if not overrides.get("system_prompt"):
+        segment = _active_segment(context)
+        if segment is not None:
+            if segment.agent.adversarial.prompt:
+                segment_kwargs["extra_instructions"] = segment.agent.adversarial.prompt
+            # No tool picker of its own by product design - reuses
+            # Classification's selection.
+            segment_kwargs.update(_segment_tool_kwargs(segment.agent.classification))
     use_case = get_adversarial_review_alert_use_case(
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
-        **_step_overrides(context, "adversarial"),
+        **overrides,
+        **segment_kwargs,
     )
     return use_case.execute(
         AdversarialReviewAlertInput(

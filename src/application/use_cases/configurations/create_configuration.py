@@ -13,6 +13,10 @@ from src.application.use_cases.configurations.index_configuration_knowledge impo
 )
 
 
+class ConfigurationVersionConflictError(Exception):
+    pass
+
+
 class CreateConfigurationUseCase:
     def __init__(
         self,
@@ -23,15 +27,39 @@ class CreateConfigurationUseCase:
         self._index_configuration_knowledge = index_configuration_knowledge
 
     def execute(self, input: CreateConfigurationInput) -> ConfigurationRecord:
+        now = datetime.now(timezone.utc)
+        overwrite = False
         if input.configuration_id is not None:
             latest = self._configurations.get_latest_version(input.configuration_id)
+            if input.based_on_version is not None and (
+                latest is None or latest.version != input.based_on_version
+            ):
+                latest_version = latest.version if latest is not None else None
+                raise ConfigurationVersionConflictError(
+                    f"Configuration {input.configuration_id} latest version is "
+                    f"{latest_version}, but this draft was based on version "
+                    f"{input.based_on_version}"
+                )
             configuration_id = input.configuration_id
-            version = latest.version + 1 if latest is not None else 1
+            # Overwrite the latest version in place instead of minting a new
+            # one, as long as it never reached production - otherwise every
+            # small tweak-and-save cycle piles up a fresh immutable version.
+            # Once a version has ever been activated it's frozen for audit,
+            # so the next save mints version+1 as before.
+            overwrite = (
+                latest is not None
+                and input.based_on_version == latest.version
+                and not latest.ever_activated
+            )
+            version = (
+                latest.version
+                if overwrite
+                else (latest.version + 1 if latest is not None else 1)
+            )
         else:
             configuration_id = str(uuid.uuid4())
             version = 1
 
-        now = datetime.now(timezone.utc)
         record = ConfigurationRecord(
             configuration_id=configuration_id,
             version=version,
@@ -44,13 +72,16 @@ class CreateConfigurationUseCase:
             general=input.general,
             infra=input.infra,
             ops=input.ops,
-            monitoring=input.monitoring,
-            agent=input.agent,
             test=input.test,
-            created_at=now,
+            created_at=latest.created_at if overwrite else now,
             updated_at=now,
             created_by=input.created_by,
+            segments=input.segments,
         )
-        created = self._configurations.create(record)
+        created = (
+            self._configurations.update(record)
+            if overwrite
+            else self._configurations.create(record)
+        )
         self._index_configuration_knowledge.execute(created)
         return created

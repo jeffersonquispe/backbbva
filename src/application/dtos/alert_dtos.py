@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
+from src.application.ports.configuration_port import ConfigurationRef
+
 
 @dataclass
 class StartAlertWorkflowInput:
@@ -16,6 +18,13 @@ class StartAlertWorkflowInput:
     test_run_id: UUID | None = None
     config_overrides: dict[str, Any] = field(default_factory=dict)
     max_feedback_iterations: int = 1
+    # Which stored ConfigurationRecord to resolve segments against - kept
+    # as its own typed field, not folded into config_overrides, since it
+    # selects a whole config (with validation/fail-loud semantics) rather
+    # than patching a per-step string. None = today's behavior
+    # (ConfigurationRepository.get_active()). See _resolve_segment in
+    # alert_review_workflow.py.
+    configuration_ref: ConfigurationRef | None = None
 
 
 @dataclass

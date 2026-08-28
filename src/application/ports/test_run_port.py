@@ -6,6 +6,8 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
+from src.application.ports.configuration_port import ConfigurationRef
+
 
 class TestRunStatus(StrEnum):
     PENDING = "PENDING"
@@ -30,6 +32,13 @@ class TestRunConfig:
     # further on final escalation, so raising it has real token/cost
     # impact.
     max_feedback_iterations: int = 1
+    # Which stored ConfigurationRecord to resolve segments against for this
+    # test run - None (default) keeps today's behavior, resolving against
+    # ConfigurationRepository.get_active(). Set to test against a specific
+    # (possibly inactive) config without touching the global active flag,
+    # so multiple test runs can each target a different configuration
+    # concurrently - see alert_review_workflow.py's _resolve_segment.
+    configuration_ref: ConfigurationRef | None = None
 
 
 @dataclass

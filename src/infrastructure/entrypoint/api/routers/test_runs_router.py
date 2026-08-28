@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.application.dtos.test_run_dtos import DeleteTestRunsInput, StartTestRunInput
+from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.test_run_port import TestRunConfig
 from src.application.use_cases.test_runs.dataset_sampling import (
     InsufficientSampleDataError,
@@ -60,6 +61,14 @@ def start_test_run(
                     prompt_overrides=request.config.prompt_overrides,
                     model_overrides=request.config.model_overrides,
                     max_feedback_iterations=request.config.max_feedback_iterations,
+                    configuration_ref=(
+                        ConfigurationRef(
+                            configuration_id=request.config.configuration_ref.configuration_id,
+                            version=request.config.configuration_ref.version,
+                        )
+                        if request.config.configuration_ref is not None
+                        else None
+                    ),
                 ),
                 sample_size=request.sample_size,
                 sample_distribution=request.sample_distribution,

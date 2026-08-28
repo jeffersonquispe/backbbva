@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+from dataclasses import asdict
 from typing import Any
 from uuid import UUID
 
@@ -56,6 +58,7 @@ from src.infrastructure.entrypoint.worker.celery.celery_app import app
 from src.infrastructure.queues.celery.inspector import (
     CeleryAsyncExecutionInspector,
 )
+from src.domain.configurations.exceptions import ConfigurationNotFoundError
 from src.infrastructure.workflows.celery.alert_review_workflow import (
     AdversarialFeedbackLimitExceededError,
     AlertReviewWorkflowRunner,
@@ -120,7 +123,10 @@ _ALERT_REVIEW_MAX_RETRIES = 3
     bind=True,
     name="workflows.alert_review.run",
     autoretry_for=(Exception,),
-    dont_autoretry_for=(AdversarialFeedbackLimitExceededError,),
+    dont_autoretry_for=(
+        AdversarialFeedbackLimitExceededError,
+        ConfigurationNotFoundError,
+    ),
     retry_backoff=True,
     retry_kwargs={"max_retries": _ALERT_REVIEW_MAX_RETRIES},
 )
@@ -133,6 +139,10 @@ def run_alert_review_workflow(self, workflow_execution_id: str) -> dict:
     # already means "classification looped to its cap, escalate" - retrying
     # would just re-run pre_process/classification/adversarial from scratch
     # and burn tokens for a result the internal loop already decided.
+    # ConfigurationNotFoundError is excluded too: a test run's pinned
+    # configuration_ref not resolving is deterministic - the id/version
+    # won't appear on retry, so autoretry would just burn 3 attempts for
+    # the same failure.
     is_final_attempt = self.request.retries >= _ALERT_REVIEW_MAX_RETRIES
     return AlertReviewWorkflowRunner().run(
         UUID(workflow_execution_id), is_final_attempt=is_final_attempt
@@ -239,3 +249,28 @@ def analyze_dataset_task(self, dataset_name: str) -> dict:
     )
     use_case.execute(dataset_name)
     return {"status": "ok", "dataset_name": dataset_name}
+
+
+# No autoretry (contrast with analyze_dataset_task above): a malformed
+# workbook is a deterministic user-input error, not a transient one -
+# retrying with backoff would only delay the FAILED result reaching the
+# user, never turn it into a success. Result is read back via Celery's own
+# result backend (AsyncResult), not a DynamoDB record - see
+# analyst_capacity_import_port.py for why.
+@app.task(name="analyst_capacity.parse_workbook")
+def parse_analyst_capacity_workbook_task(content_b64: str) -> dict:
+    # Lazy import: openpyxl is a worker-only dependency (see pyproject.
+    # worker.toml) - tasks.py itself is also imported by the API process
+    # (CeleryAnalystCapacityImportDispatcher imports this module just to
+    # call .delay()), which never actually parses a workbook and doesn't
+    # carry openpyxl in its own deps.
+    from src.application.use_cases.analyst_capacity.workbook_parsing import (
+        parse_analyst_capacity_workbook,
+    )
+
+    content = base64.b64decode(content_b64)
+    profiles, day_overrides = parse_analyst_capacity_workbook(content)
+    return {
+        "profiles": [asdict(p) for p in profiles],
+        "day_overrides": {str(day): profile_id for day, profile_id in day_overrides.items()},
+    }

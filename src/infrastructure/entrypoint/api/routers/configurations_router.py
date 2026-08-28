@@ -6,29 +6,43 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
 from src.application.ports.configuration_port import (
+    AdversarialConfig,
     AgentSettings,
     AnalystCapacity,
+    AnalystConfig,
+    AnalystPlaybook,
+    ClassificationConfig,
     ConfigurationRecord,
     DayProfile,
     DistributionValue,
+    DocumentationConfig,
     ExampleCase,
+    FieldCategorization,
+    FieldCriterion,
+    FilterCondition,
+    FilterGroup,
+    Flag,
     GeneralSettings,
     InfraSettings,
     ModusOperandi,
     MonitoringSettings,
     OpsSettings,
-    RedFlag,
+    ProfilingConfig,
+    ProfilingStrategy,
     SamplingCriterion,
+    SegmentSettings,
     ShortageBehavior,
     Taxonomy,
     TestSettings,
-    YellowFlag,
+    VoicebotCategoryPrompt,
+    VoicebotConfig,
 )
 from src.application.use_cases.configurations.activate_configuration import (
     ActivateConfigurationUseCase,
     ConfigurationNotFoundError,
 )
 from src.application.use_cases.configurations.create_configuration import (
+    ConfigurationVersionConflictError,
     CreateConfigurationUseCase,
 )
 from src.application.use_cases.configurations.get_active_configuration import (
@@ -52,25 +66,38 @@ from src.infrastructure.entrypoint.api.factories.configuration_factory import (
     get_list_configurations_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
+    AdversarialConfigSchema,
     AgentSettingsSchema,
     AnalystCapacitySchema,
+    AnalystConfigSchema,
+    AnalystPlaybookSchema,
+    ClassificationConfigSchema,
     ConfigurationDetailResponse,
     ConfigurationSummaryResponse,
     CreateConfigurationRequest,
     DayProfileSchema,
     DistributionValueSchema,
+    DocumentationConfigSchema,
     ExampleCaseSchema,
+    FieldCategorizationSchema,
+    FieldCriterionSchema,
+    FilterConditionSchema,
+    FilterGroupSchema,
+    FlagSchema,
     GeneralSettingsSchema,
     InfraSettingsSchema,
     ModusOperandiSchema,
     MonitoringSettingsSchema,
     OpsSettingsSchema,
-    RedFlagSchema,
+    ProfilingConfigSchema,
+    ProfilingStrategySchema,
     SamplingCriterionSchema,
+    SegmentSettingsSchema,
     ShortageBehaviorSchema,
     TaxonomySchema,
     TestSettingsSchema,
-    YellowFlagSchema,
+    VoicebotCategoryPromptSchema,
+    VoicebotConfigSchema,
 )
 
 router = APIRouter(prefix="/configurations", tags=["configurations"])
@@ -83,20 +110,26 @@ def create_configuration(
         CreateConfigurationUseCase, Depends(get_create_configuration_use_case)
     ],
 ):
-    record = use_case.execute(
-        CreateConfigurationInput(
-            name=request.name,
-            configuration_id=request.configuration_id,
-            description=request.description,
-            general=_general_from_schema(request.general),
-            infra=_infra_from_schema(request.infra),
-            ops=_ops_from_schema(request.ops),
-            monitoring=_monitoring_from_schema(request.monitoring),
-            agent=_agent_from_schema(request.agent),
-            test=_test_from_schema(request.test),
-            created_by=request.created_by,
+    try:
+        record = use_case.execute(
+            CreateConfigurationInput(
+                name=request.name,
+                configuration_id=request.configuration_id,
+                based_on_version=request.based_on_version,
+                description=request.description,
+                general=_general_from_schema(request.general),
+                infra=_infra_from_schema(request.infra),
+                ops=_ops_from_schema(request.ops),
+                test=_test_from_schema(request.test),
+                created_by=request.created_by,
+                segments={
+                    code: _segment_settings_from_schema(schema)
+                    for code, schema in request.segments.items()
+                },
+            )
         )
-    )
+    except ConfigurationVersionConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return _to_detail_response(record)
 
 
@@ -177,6 +210,7 @@ def _to_summary_response(record: ConfigurationRecord) -> ConfigurationSummaryRes
         name=record.name,
         description=record.description,
         active=record.active,
+        ever_activated=record.ever_activated,
         created_at=record.created_at,
         updated_at=record.updated_at,
     )
@@ -189,6 +223,7 @@ def _to_detail_response(record: ConfigurationRecord) -> ConfigurationDetailRespo
         name=record.name,
         description=record.description,
         active=record.active,
+        ever_activated=record.ever_activated,
         created_at=record.created_at,
         updated_at=record.updated_at,
         created_by=record.created_by,
@@ -206,6 +241,9 @@ def _to_detail_response(record: ConfigurationRecord) -> ConfigurationDetailRespo
             ),
             queue_max_lifetime_value=record.ops.queue_max_lifetime_value,
             queue_max_lifetime_unit=record.ops.queue_max_lifetime_unit,
+            queue_discard_amount_threshold=record.ops.queue_discard_amount_threshold,
+            queue_rule_filter_enabled=record.ops.queue_rule_filter_enabled,
+            queue_allowed_triggered_rules=record.ops.queue_allowed_triggered_rules,
             voicebot_shortage_behavior=ShortageBehaviorSchema(
                 **record.ops.voicebot_shortage_behavior.__dict__
             ),
@@ -213,49 +251,106 @@ def _to_detail_response(record: ConfigurationRecord) -> ConfigurationDetailRespo
                 **record.ops.analyst_shortage_behavior.__dict__
             ),
         ),
-        monitoring=MonitoringSettingsSchema(
-            sampling_interval_value=record.monitoring.sampling_interval_value,
-            sampling_interval_unit=record.monitoring.sampling_interval_unit,
-            sampling_criteria=[
-                SamplingCriterionSchema(
-                    id=c.id,
-                    name=c.name,
-                    values=[
-                        DistributionValueSchema(**v.__dict__) for v in c.values
-                    ],
-                )
-                for c in record.monitoring.sampling_criteria
-            ],
-            max_samples=record.monitoring.max_samples,
-            prompt_clasificacion=record.monitoring.prompt_clasificacion,
-            prompt_analista=record.monitoring.prompt_analista,
-            prompt_monitoreo=record.monitoring.prompt_monitoreo,
-            evaluation_variables=record.monitoring.evaluation_variables,
-        ),
-        agent=AgentSettingsSchema(
-            perfil_usuario=record.agent.perfil_usuario,
-            perfil_usuario_vars=record.agent.perfil_usuario_vars,
-            perfil_transaccion=record.agent.perfil_transaccion,
-            perfil_transaccion_vars=record.agent.perfil_transaccion_vars,
-            perfil_transaccional=record.agent.perfil_transaccional,
-            perfil_transaccional_vars=record.agent.perfil_transaccional_vars,
-            taxonomies=[
-                TaxonomySchema(**t.__dict__) for t in record.agent.taxonomies
-            ],
-            modus_operandi=[
-                ModusOperandiSchema(**m.__dict__)
-                for m in record.agent.modus_operandi
-            ],
-            red_flags=[RedFlagSchema(**r.__dict__) for r in record.agent.red_flags],
-            yellow_flags=[
-                YellowFlagSchema(**y.__dict__) for y in record.agent.yellow_flags
-            ],
-            example_cases=[
-                ExampleCaseSchema(**e.__dict__) for e in record.agent.example_cases
-            ],
-            active_fields=record.agent.active_fields,
-        ),
         test=TestSettingsSchema(**record.test.__dict__),
+        segments={
+            code: _segment_settings_to_schema(settings)
+            for code, settings in record.segments.items()
+        },
+    )
+
+
+def _monitoring_to_schema(monitoring: MonitoringSettings) -> MonitoringSettingsSchema:
+    return MonitoringSettingsSchema(
+        sampling_interval_value=monitoring.sampling_interval_value,
+        sampling_interval_unit=monitoring.sampling_interval_unit,
+        sampling_criteria=[
+            SamplingCriterionSchema(
+                id=c.id,
+                name=c.name,
+                values=[DistributionValueSchema(**v.__dict__) for v in c.values],
+            )
+            for c in monitoring.sampling_criteria
+        ],
+        max_samples=monitoring.max_samples,
+        prompt_clasificacion=monitoring.prompt_clasificacion,
+        prompt_clasificacion_vars=monitoring.prompt_clasificacion_vars,
+        prompt_analista=monitoring.prompt_analista,
+        prompt_analista_vars=monitoring.prompt_analista_vars,
+        prompt_monitoreo=monitoring.prompt_monitoreo,
+        prompt_monitoreo_vars=monitoring.prompt_monitoreo_vars,
+    )
+
+
+def _flag_to_schema(flag: Flag) -> FlagSchema:
+    return FlagSchema(**flag.__dict__)
+
+
+def _profiling_to_schema(profiling: ProfilingConfig) -> ProfilingConfigSchema:
+    return ProfilingConfigSchema(
+        field_categorizations=[
+            FieldCategorizationSchema(
+                field=fc.field,
+                kind=fc.kind,
+                criteria=[FieldCriterionSchema(**c.__dict__) for c in fc.criteria],
+            )
+            for fc in profiling.field_categorizations
+        ],
+        strategies=[
+            ProfilingStrategySchema(**s.__dict__) for s in profiling.strategies
+        ],
+    )
+
+
+def _classification_to_schema(
+    classification: ClassificationConfig,
+) -> ClassificationConfigSchema:
+    return ClassificationConfigSchema(**classification.__dict__)
+
+
+def _adversarial_to_schema(adversarial: AdversarialConfig) -> AdversarialConfigSchema:
+    return AdversarialConfigSchema(**adversarial.__dict__)
+
+
+def _voicebot_to_schema(voicebot: VoicebotConfig) -> VoicebotConfigSchema:
+    return VoicebotConfigSchema(
+        base_prompt=voicebot.base_prompt,
+        base_prompt_vars=voicebot.base_prompt_vars,
+        category_prompts=[
+            VoicebotCategoryPromptSchema(**c.__dict__)
+            for c in voicebot.category_prompts
+        ],
+    )
+
+
+def _analyst_to_schema(analyst: AnalystConfig) -> AnalystConfigSchema:
+    return AnalystConfigSchema(
+        playbooks=[AnalystPlaybookSchema(**p.__dict__) for p in analyst.playbooks],
+        voicebot=_voicebot_to_schema(analyst.voicebot),
+    )
+
+
+def _documentation_to_schema(
+    documentation: DocumentationConfig,
+) -> DocumentationConfigSchema:
+    return DocumentationConfigSchema(**documentation.__dict__)
+
+
+def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
+    return AgentSettingsSchema(
+        profiling=_profiling_to_schema(agent.profiling),
+        classification=_classification_to_schema(agent.classification),
+        adversarial=_adversarial_to_schema(agent.adversarial),
+        analyst=_analyst_to_schema(agent.analyst),
+        documentation=_documentation_to_schema(agent.documentation),
+        taxonomies=[TaxonomySchema(**t.__dict__) for t in agent.taxonomies],
+        modus_operandi=[
+            ModusOperandiSchema(**m.__dict__) for m in agent.modus_operandi
+        ],
+        flags=[_flag_to_schema(f) for f in agent.flags],
+        example_cases=[
+            ExampleCaseSchema(**e.__dict__) for e in agent.example_cases
+        ],
+        active_fields=agent.active_fields,
     )
 
 
@@ -280,6 +375,9 @@ def _ops_from_schema(schema: OpsSettingsSchema) -> OpsSettings:
         ),
         queue_max_lifetime_value=schema.queue_max_lifetime_value,
         queue_max_lifetime_unit=schema.queue_max_lifetime_unit,
+        queue_discard_amount_threshold=schema.queue_discard_amount_threshold,
+        queue_rule_filter_enabled=schema.queue_rule_filter_enabled,
+        queue_allowed_triggered_rules=schema.queue_allowed_triggered_rules,
         voicebot_shortage_behavior=ShortageBehavior(
             **schema.voicebot_shortage_behavior.model_dump()
         ),
@@ -303,26 +401,79 @@ def _monitoring_from_schema(schema: MonitoringSettingsSchema) -> MonitoringSetti
         ],
         max_samples=schema.max_samples,
         prompt_clasificacion=schema.prompt_clasificacion,
+        prompt_clasificacion_vars=schema.prompt_clasificacion_vars,
         prompt_analista=schema.prompt_analista,
+        prompt_analista_vars=schema.prompt_analista_vars,
         prompt_monitoreo=schema.prompt_monitoreo,
-        evaluation_variables=schema.evaluation_variables,
+        prompt_monitoreo_vars=schema.prompt_monitoreo_vars,
     )
+
+
+def _flag_from_schema(schema: FlagSchema) -> Flag:
+    return Flag(**schema.model_dump())
+
+
+def _profiling_from_schema(schema: ProfilingConfigSchema) -> ProfilingConfig:
+    return ProfilingConfig(
+        field_categorizations=[
+            FieldCategorization(
+                field=fc.field,
+                kind=fc.kind,
+                criteria=[FieldCriterion(**c.model_dump()) for c in fc.criteria],
+            )
+            for fc in schema.field_categorizations
+        ],
+        strategies=[
+            ProfilingStrategy(**s.model_dump()) for s in schema.strategies
+        ],
+    )
+
+
+def _classification_from_schema(
+    schema: ClassificationConfigSchema,
+) -> ClassificationConfig:
+    return ClassificationConfig(**schema.model_dump())
+
+
+def _adversarial_from_schema(schema: AdversarialConfigSchema) -> AdversarialConfig:
+    return AdversarialConfig(**schema.model_dump())
+
+
+def _voicebot_from_schema(schema: VoicebotConfigSchema) -> VoicebotConfig:
+    return VoicebotConfig(
+        base_prompt=schema.base_prompt,
+        base_prompt_vars=schema.base_prompt_vars,
+        category_prompts=[
+            VoicebotCategoryPrompt(**c.model_dump()) for c in schema.category_prompts
+        ],
+    )
+
+
+def _analyst_from_schema(schema: AnalystConfigSchema) -> AnalystConfig:
+    return AnalystConfig(
+        playbooks=[AnalystPlaybook(**p.model_dump()) for p in schema.playbooks],
+        voicebot=_voicebot_from_schema(schema.voicebot),
+    )
+
+
+def _documentation_from_schema(
+    schema: DocumentationConfigSchema,
+) -> DocumentationConfig:
+    return DocumentationConfig(**schema.model_dump())
 
 
 def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
     return AgentSettings(
-        perfil_usuario=schema.perfil_usuario,
-        perfil_usuario_vars=schema.perfil_usuario_vars,
-        perfil_transaccion=schema.perfil_transaccion,
-        perfil_transaccion_vars=schema.perfil_transaccion_vars,
-        perfil_transaccional=schema.perfil_transaccional,
-        perfil_transaccional_vars=schema.perfil_transaccional_vars,
+        profiling=_profiling_from_schema(schema.profiling),
+        classification=_classification_from_schema(schema.classification),
+        adversarial=_adversarial_from_schema(schema.adversarial),
+        analyst=_analyst_from_schema(schema.analyst),
+        documentation=_documentation_from_schema(schema.documentation),
         taxonomies=[Taxonomy(**t.model_dump()) for t in schema.taxonomies],
         modus_operandi=[
             ModusOperandi(**m.model_dump()) for m in schema.modus_operandi
         ],
-        red_flags=[RedFlag(**r.model_dump()) for r in schema.red_flags],
-        yellow_flags=[YellowFlag(**y.model_dump()) for y in schema.yellow_flags],
+        flags=[_flag_from_schema(f) for f in schema.flags],
         example_cases=[
             ExampleCase(**e.model_dump()) for e in schema.example_cases
         ],
@@ -332,3 +483,57 @@ def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
 
 def _test_from_schema(schema: TestSettingsSchema) -> TestSettings:
     return TestSettings(**schema.model_dump())
+
+
+def _filter_condition_from_schema(schema: FilterConditionSchema) -> FilterCondition:
+    return FilterCondition(
+        id=schema.id,
+        category=schema.category,
+        operator=schema.operator,
+        values=schema.values,
+    )
+
+
+def _filter_group_from_schema(schema: FilterGroupSchema) -> FilterGroup:
+    return FilterGroup(
+        id=schema.id,
+        operator=schema.operator,
+        conditions=[_filter_condition_from_schema(c) for c in schema.conditions],
+        groups=[_filter_group_from_schema(g) for g in schema.groups],
+    )
+
+
+def _segment_settings_from_schema(schema: SegmentSettingsSchema) -> SegmentSettings:
+    return SegmentSettings(
+        enabled=schema.enabled,
+        filter=_filter_group_from_schema(schema.filter),
+        monitoring=_monitoring_from_schema(schema.monitoring),
+        agent=_agent_from_schema(schema.agent),
+    )
+
+
+def _filter_condition_to_schema(condition: FilterCondition) -> FilterConditionSchema:
+    return FilterConditionSchema(
+        id=condition.id,
+        category=condition.category,
+        operator=condition.operator,
+        values=condition.values,
+    )
+
+
+def _filter_group_to_schema(group: FilterGroup) -> FilterGroupSchema:
+    return FilterGroupSchema(
+        id=group.id,
+        operator=group.operator,
+        conditions=[_filter_condition_to_schema(c) for c in group.conditions],
+        groups=[_filter_group_to_schema(g) for g in group.groups],
+    )
+
+
+def _segment_settings_to_schema(settings: SegmentSettings) -> SegmentSettingsSchema:
+    return SegmentSettingsSchema(
+        enabled=settings.enabled,
+        filter=_filter_group_to_schema(settings.filter),
+        monitoring=_monitoring_to_schema(settings.monitoring),
+        agent=_agent_to_schema(settings.agent),
+    )

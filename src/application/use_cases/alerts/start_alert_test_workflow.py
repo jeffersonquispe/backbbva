@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import uuid
 from datetime import datetime, timezone
@@ -99,6 +100,11 @@ class StartAlertTestWorkflowUseCase:
                 input={
                     "alert_payload": input.payload,
                     "config_overrides": input.config_overrides,
+                    "configuration_ref": (
+                        dataclasses.asdict(input.configuration_ref)
+                        if input.configuration_ref is not None
+                        else None
+                    ),
                 },
                 output=None,
                 error=None,

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
+from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.test_run_port import (
     TestRunConfig,
     TestRunRecord,
@@ -72,6 +73,14 @@ def _to_item(run: TestRunRecord) -> dict[str, Any]:
         "prompt_overrides": run.config.prompt_overrides,
         "model_overrides": run.config.model_overrides,
         "max_feedback_iterations": run.config.max_feedback_iterations,
+        "configuration_ref": (
+            {
+                "configuration_id": run.config.configuration_ref.configuration_id,
+                "version": run.config.configuration_ref.version,
+            }
+            if run.config.configuration_ref is not None
+            else None
+        ),
         "status": run.status.value,
         "total": run.total,
         "created_at": run.created_at.isoformat(),
@@ -82,6 +91,7 @@ def _to_item(run: TestRunRecord) -> dict[str, Any]:
 
 def _from_item(item: dict[str, Any]) -> TestRunRecord:
     finished_at = item.get("finished_at")
+    configuration_ref = item.get("configuration_ref")
     return TestRunRecord(
         id=UUID(item["test_run_id"]),
         name=item["name"],
@@ -94,6 +104,16 @@ def _from_item(item: dict[str, Any]) -> TestRunRecord:
             # number here.
             max_feedback_iterations=int(
                 item.get("max_feedback_iterations", TestRunConfig().max_feedback_iterations)
+            ),
+            # Older items predate this field entirely - None, same as the
+            # dataclass default (test against whatever is active).
+            configuration_ref=(
+                ConfigurationRef(
+                    configuration_id=configuration_ref["configuration_id"],
+                    version=int(configuration_ref["version"]),
+                )
+                if configuration_ref is not None
+                else None
             ),
         ),
         status=TestRunStatus(item["status"]),

@@ -6,16 +6,33 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from src.application.ports.analyst_capacity_import_port import (
+    AnalystCapacityImportStatus,
+)
 from src.application.ports.async_execution_inspector_port import (
     AsyncExecutionState,
 )
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.ports.configuration_port import (
+    BuiltInTool,
+    ComparisonOperator,
+    CriteriaMode,
+    DocumentationStrategy,
+    FieldKind,
+    FilterConditionOperator,
+    FlagType,
+    LogicalOperator,
+    ProfilingStrategyKey,
+    ResolutionTag,
     SamplingIntervalUnit,
     ShortageAction,
     TestCleanupPolicy,
+    VectorStoreTool,
 )
 from src.application.ports.dataset_analysis_port import DatasetAnalysisStatus
+from src.application.ports.marcacion_catalog_port import RiskLabel
+from src.application.ports.watchlist_port import WatchlistType
+from src.application.ports.tag_catalog_port import TagCategory
 from src.application.ports.test_run_port import TestRunStatus
 from src.application.ports.workflow_port import WorkflowStatus, WorkflowStepStatus
 
@@ -75,6 +92,12 @@ class ReconcileAsyncOperationsResponse(BaseModel):
     operations: list[ReconciledAsyncOperationResponse]
 
 
+class ConfigurationRefRequest(BaseModel):
+    configuration_id: str
+    # None = that lineage's latest version.
+    version: int | None = None
+
+
 class TestRunConfigRequest(BaseModel):
     prompt_overrides: dict[str, str] = Field(default_factory=dict)
     model_overrides: dict[str, str] = Field(default_factory=dict)
@@ -82,6 +105,11 @@ class TestRunConfigRequest(BaseModel):
     # before escalating to an analyst - see WorkflowExecutionRecord.
     # max_feedback_iterations.
     max_feedback_iterations: int = Field(default=1, ge=0)
+    # Pin this test run to one specific (possibly inactive)
+    # ConfigurationRecord instead of the currently-active one - lets
+    # multiple test runs each target a different configuration
+    # concurrently without touching the global active flag.
+    configuration_ref: ConfigurationRefRequest | None = None
 
 
 class StartTestRunRequest(BaseModel):
@@ -111,6 +139,13 @@ class TestRunResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     finished_at: datetime | None
+    # Nested (not a flattened configuration_ref field) so this matches the
+    # same test_run.config -> TestRunConfigRequest attribute pass-through
+    # TestRunDetailResponse already relies on below - configuration_ref is
+    # None when this run tested the active configuration at dispatch time
+    # (today's only behavior before ConfigurationRef existed). See
+    # TestRunConfig.configuration_ref (test_run_port.py).
+    config: TestRunConfigRequest
 
 
 class TestCaseSummaryResponse(BaseModel):
@@ -226,12 +261,40 @@ class DatasetSummaryResponse(BaseModel):
     error: str | None
 
 
+# --- Analyst capacity import --------------------------------------------
+# Excel import for OpsSettings.analyst_capacity (configuration_port.py) -
+# result only ever feeds the frontend's draft, never persisted server-side,
+# see analyst_capacity_import_port.py.
+
+
+class AnalystCapacityImportProfileSchema(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    hourly: list[int]
+
+
+class UploadAnalystCapacityImportResponse(BaseModel):
+    task_id: str
+    status: AnalystCapacityImportStatus
+
+
+class AnalystCapacityImportResponse(BaseModel):
+    task_id: str
+    status: AnalystCapacityImportStatus
+    profiles: list[AnalystCapacityImportProfileSchema] = Field(default_factory=list)
+    day_overrides: dict[int, str] = Field(default_factory=dict)
+    error: str | None = None
+
+
 # --- Configuration -----------------------------------------------------
 # One schema class per sub-configuration group, reused for both request
 # and response bodies (request fields all have defaults; responses are
 # always fully populated) - avoids a duplicate Request/Response pair per
-# group. Field-for-field mirror of application/ports/configuration_port.py,
-# itself mirroring frontend_mockup/src/data/configs.ts's ConfigSettings.
+# group. Field-for-field mirror of application/ports/configuration_port.py
+# and application/ports/tag_catalog_port.py, themselves mirroring
+# frontend_mockup/src/data/configs.ts's ConfigSettings and the new
+# segment/filter/tag-catalog types added alongside it.
 
 
 class TaxonomySchema(BaseModel):
@@ -250,26 +313,18 @@ class ModusOperandiSchema(BaseModel):
     title: str
     narrative: str = ""
     taxonomy_id: str
+    evolved_variables: list[str] = Field(default_factory=list)
+    active: bool = True
     segmento: str = ""
 
 
-class RedFlagSchema(BaseModel):
+class FlagSchema(BaseModel):
     id: str = ""
+    flag_type: FlagType
     name: str
     description: str = ""
-    modus_operandi_id: str
-    taxonomy_id: str
-    variables: list[str] = Field(default_factory=list)
-    segmento: str = ""
-
-
-class YellowFlagSchema(BaseModel):
-    id: str = ""
-    name: str
-    description: str = ""
-    modus_operandi_id: str
-    taxonomy_id: str
-    variables: list[str] = Field(default_factory=list)
+    evolved_variables: list[str] = Field(default_factory=list)
+    modus_operandi_ids: list[str] = Field(default_factory=list)
     segmento: str = ""
 
 
@@ -329,18 +384,21 @@ class AnalystCapacitySchema(BaseModel):
 
 class ShortageBehaviorSchema(BaseModel):
     action: ShortageAction = ShortageAction.BLOCK_SOFT
-    custom_text: str = ""
 
 
 class GeneralSettingsSchema(BaseModel):
     agent_enabled: bool = True
     migration_window_enabled: bool = False
     migration_window_hour: int = Field(default=2, ge=0, le=23)
+    analyst_escalation_enabled: bool = True
+    voicebot_escalation_enabled: bool = True
 
 
 class InfraSettingsSchema(BaseModel):
     max_instances: int = 8
     auto_scale: bool = True
+    fraud_history_db_retention_days: int = Field(default=90, ge=1)
+    fraud_history_cold_storage_retention_months: int = Field(default=24, ge=1)
 
 
 class OpsSettingsSchema(BaseModel):
@@ -350,6 +408,9 @@ class OpsSettingsSchema(BaseModel):
     )
     queue_max_lifetime_value: int = 60
     queue_max_lifetime_unit: SamplingIntervalUnit = SamplingIntervalUnit.MINUTES
+    queue_discard_amount_threshold: float = 0
+    queue_rule_filter_enabled: bool = False
+    queue_allowed_triggered_rules: list[str] = Field(default_factory=list)
     voicebot_shortage_behavior: ShortageBehaviorSchema = Field(
         default_factory=ShortageBehaviorSchema
     )
@@ -364,22 +425,118 @@ class MonitoringSettingsSchema(BaseModel):
     sampling_criteria: list[SamplingCriterionSchema] = Field(default_factory=list)
     max_samples: int = 200
     prompt_clasificacion: str = ""
+    prompt_clasificacion_vars: list[str] = Field(default_factory=list)
     prompt_analista: str = ""
+    prompt_analista_vars: list[str] = Field(default_factory=list)
     prompt_monitoreo: str = ""
-    evaluation_variables: list[str] = Field(default_factory=list)
+    prompt_monitoreo_vars: list[str] = Field(default_factory=list)
+
+
+class FieldCriterionSchema(BaseModel):
+    id: str
+    mode: CriteriaMode
+    output: str
+    min_value: float | None = None
+    max_value: float | None = None
+    operator: ComparisonOperator | None = None
+    numeric_value: float | None = None
+    text_value: str | None = None
+    values: list[str] = Field(default_factory=list)
+
+
+class FieldCategorizationSchema(BaseModel):
+    field: str
+    kind: FieldKind
+    criteria: list[FieldCriterionSchema] = Field(default_factory=list)
+
+
+class ProfilingStrategySchema(BaseModel):
+    key: ProfilingStrategyKey
+    main_prompt: str = ""
+    main_prompt_vars: list[str] = Field(default_factory=list)
+    categorization_prompt: str = ""
+    categorization_prompt_vars: list[str] = Field(default_factory=list)
+    produced_variables: list[str] = Field(default_factory=list)
+    use_pandas_history_mcp: bool = False
+
+
+def _default_profiling_strategy_schemas() -> list[ProfilingStrategySchema]:
+    return [ProfilingStrategySchema(key=key) for key in ProfilingStrategyKey]
+
+
+class ProfilingConfigSchema(BaseModel):
+    field_categorizations: list[FieldCategorizationSchema] = Field(
+        default_factory=list
+    )
+    strategies: list[ProfilingStrategySchema] = Field(
+        default_factory=_default_profiling_strategy_schemas
+    )
+
+
+class ClassificationConfigSchema(BaseModel):
+    vector_store_tools: list[VectorStoreTool] = Field(default_factory=list)
+    built_in_tools: list[BuiltInTool] = Field(default_factory=list)
+    prompt: str = ""
+    prompt_vars: list[str] = Field(default_factory=list)
+
+
+class AdversarialConfigSchema(BaseModel):
+    prompt: str = ""
+    prompt_vars: list[str] = Field(default_factory=list)
+    max_cycles: int = 1
+    feed_feedback_to_classification: bool = True
+
+
+class AnalystPlaybookSchema(BaseModel):
+    id: str
+    name: str
+    strategy: str = ""
+    resolution_tag: ResolutionTag = ResolutionTag.SCALE_TO_ANALYST
+    resolution_method_id: str | None = None
+
+
+class VoicebotCategoryPromptSchema(BaseModel):
+    id: str
+    taxonomy_id: str
+    prompt: str = ""
+
+
+class VoicebotConfigSchema(BaseModel):
+    base_prompt: str = ""
+    base_prompt_vars: list[str] = Field(default_factory=list)
+    category_prompts: list[VoicebotCategoryPromptSchema] = Field(
+        default_factory=list
+    )
+
+
+class AnalystConfigSchema(BaseModel):
+    playbooks: list[AnalystPlaybookSchema] = Field(default_factory=list)
+    voicebot: VoicebotConfigSchema = Field(default_factory=VoicebotConfigSchema)
+
+
+class DocumentationConfigSchema(BaseModel):
+    strategy: DocumentationStrategy = DocumentationStrategy.TEMPLATE
+    template: str = ""
+    template_vars: list[str] = Field(default_factory=list)
+    agent_prompt: str = ""
+    agent_prompt_vars: list[str] = Field(default_factory=list)
 
 
 class AgentSettingsSchema(BaseModel):
-    perfil_usuario: str = ""
-    perfil_usuario_vars: list[str] = Field(default_factory=list)
-    perfil_transaccion: str = ""
-    perfil_transaccion_vars: list[str] = Field(default_factory=list)
-    perfil_transaccional: str = ""
-    perfil_transaccional_vars: list[str] = Field(default_factory=list)
+    profiling: ProfilingConfigSchema = Field(default_factory=ProfilingConfigSchema)
+    classification: ClassificationConfigSchema = Field(
+        default_factory=ClassificationConfigSchema
+    )
+    adversarial: AdversarialConfigSchema = Field(
+        default_factory=AdversarialConfigSchema
+    )
+    analyst: AnalystConfigSchema = Field(default_factory=AnalystConfigSchema)
+    documentation: DocumentationConfigSchema = Field(
+        default_factory=DocumentationConfigSchema
+    )
     taxonomies: list[TaxonomySchema] = Field(default_factory=list)
     modus_operandi: list[ModusOperandiSchema] = Field(default_factory=list)
-    red_flags: list[RedFlagSchema] = Field(default_factory=list)
-    yellow_flags: list[YellowFlagSchema] = Field(default_factory=list)
+    flags: list[FlagSchema] = Field(default_factory=list)
     example_cases: list[ExampleCaseSchema] = Field(default_factory=list)
     active_fields: list[str] = Field(default_factory=list)
 
@@ -392,21 +549,50 @@ class TestSettingsSchema(BaseModel):
     test_cleanup_policy: TestCleanupPolicy = TestCleanupPolicy.OLDEST
 
 
+class FilterConditionSchema(BaseModel):
+    id: str = ""
+    category: TagCategory
+    operator: FilterConditionOperator = FilterConditionOperator.IN
+    values: list[str] = Field(default_factory=list)
+
+
+class FilterGroupSchema(BaseModel):
+    id: str = ""
+    operator: LogicalOperator = LogicalOperator.AND
+    conditions: list[FilterConditionSchema] = Field(default_factory=list)
+    groups: list["FilterGroupSchema"] = Field(default_factory=list)
+
+
+FilterGroupSchema.model_rebuild()
+
+
+class SegmentSettingsSchema(BaseModel):
+    enabled: bool = False
+    filter: FilterGroupSchema = Field(
+        default_factory=lambda: FilterGroupSchema(id="root")
+    )
+    monitoring: MonitoringSettingsSchema = Field(
+        default_factory=MonitoringSettingsSchema
+    )
+    agent: AgentSettingsSchema = Field(default_factory=AgentSettingsSchema)
+
+
 class CreateConfigurationRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     # Omit for a brand-new configuration (fresh id, version 1). Set to an
     # existing configuration_id to append a new version to that lineage.
     configuration_id: str | None = None
+    # Optimistic-concurrency guard, set alongside configuration_id: the
+    # version this draft was loaded from. Rejected with 409 if the lineage
+    # has since moved past it.
+    based_on_version: int | None = None
     description: str = ""
     general: GeneralSettingsSchema = Field(default_factory=GeneralSettingsSchema)
     infra: InfraSettingsSchema = Field(default_factory=InfraSettingsSchema)
     ops: OpsSettingsSchema = Field(default_factory=OpsSettingsSchema)
-    monitoring: MonitoringSettingsSchema = Field(
-        default_factory=MonitoringSettingsSchema
-    )
-    agent: AgentSettingsSchema = Field(default_factory=AgentSettingsSchema)
     test: TestSettingsSchema = Field(default_factory=TestSettingsSchema)
     created_by: str | None = Field(default=None, max_length=120)
+    segments: dict[str, SegmentSettingsSchema] = Field(default_factory=dict)
 
 
 class ConfigurationSummaryResponse(BaseModel):
@@ -415,6 +601,11 @@ class ConfigurationSummaryResponse(BaseModel):
     name: str
     description: str
     active: bool
+    # Sticky - true once this version has ever gone to production, even if
+    # a later version has since taken over. Frontend uses it to tell
+    # whether the next save on this lineage will overwrite this version in
+    # place or must mint a new one.
+    ever_activated: bool
     created_at: datetime
     updated_at: datetime
 
@@ -423,7 +614,252 @@ class ConfigurationDetailResponse(ConfigurationSummaryResponse):
     general: GeneralSettingsSchema
     infra: InfraSettingsSchema
     ops: OpsSettingsSchema
-    monitoring: MonitoringSettingsSchema
-    agent: AgentSettingsSchema
     test: TestSettingsSchema
-    created_by: str | None
+    segments: dict[str, SegmentSettingsSchema] = Field(default_factory=dict)
+    created_by: str | None = None
+
+
+# --- Tag catalog ---------------------------------------------------------
+
+
+class TagEntrySchema(BaseModel):
+    id: str
+    category: TagCategory
+    value: str
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateTagRequest(BaseModel):
+    category: TagCategory
+    value: str = Field(..., min_length=1, max_length=200)
+
+
+class UpdateTagRequest(BaseModel):
+    value: str | None = Field(default=None, min_length=1, max_length=200)
+    active: bool | None = None
+
+
+# --- Marcación catalog -----------------------------------------------------
+
+
+class MarcacionCategorySchema(BaseModel):
+    id: str
+    value: str
+    risk_label: RiskLabel
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateMarcacionCategoryRequest(BaseModel):
+    value: str = Field(..., min_length=1, max_length=200)
+    risk_label: RiskLabel
+
+
+class UpdateMarcacionCategoryRequest(BaseModel):
+    value: str | None = Field(default=None, min_length=1, max_length=200)
+    risk_label: RiskLabel | None = None
+    active: bool | None = None
+
+
+# --- Knowledge library (global, config-independent reference data used to
+# populate a segment's taxonomies/modus operandi/flags/similar cases via
+# "Importar de biblioteca" - snapshot-copied, never referenced live) ------
+
+
+class TaxonomyLibraryEntrySchema(BaseModel):
+    id: str
+    code: str
+    name: str
+    description: str
+    variables: list[str] = Field(default_factory=list)
+    examples: list[str] = Field(default_factory=list)
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateTaxonomyLibraryEntryRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    variables: list[str] = Field(default_factory=list)
+    examples: list[str] = Field(default_factory=list)
+
+
+class UpdateTaxonomyLibraryEntryRequest(BaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=50)
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    variables: list[str] | None = None
+    examples: list[str] | None = None
+    active: bool | None = None
+
+
+class ModusOperandiLibraryEntrySchema(BaseModel):
+    id: str
+    title: str
+    narrative: str
+    taxonomy_library_id: str
+    evolved_variables: list[str] = Field(default_factory=list)
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateModusOperandiLibraryEntryRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    narrative: str = Field(..., min_length=1, max_length=2000)
+    taxonomy_library_id: str
+    evolved_variables: list[str] = Field(default_factory=list)
+
+
+class UpdateModusOperandiLibraryEntryRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    narrative: str | None = Field(default=None, min_length=1, max_length=2000)
+    taxonomy_library_id: str | None = None
+    evolved_variables: list[str] | None = None
+    active: bool | None = None
+
+
+class FlagLibraryEntrySchema(BaseModel):
+    id: str
+    flag_type: FlagType
+    name: str
+    description: str
+    evolved_variables: list[str] = Field(default_factory=list)
+    modus_operandi_library_ids: list[str] = Field(default_factory=list)
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateFlagLibraryEntryRequest(BaseModel):
+    flag_type: FlagType
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    evolved_variables: list[str] = Field(default_factory=list)
+    modus_operandi_library_ids: list[str] = Field(default_factory=list)
+
+
+class UpdateFlagLibraryEntryRequest(BaseModel):
+    flag_type: FlagType | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    evolved_variables: list[str] | None = None
+    modus_operandi_library_ids: list[str] | None = None
+    active: bool | None = None
+
+
+class SimilarCaseLibraryEntrySchema(BaseModel):
+    id: str
+    text: str
+    modus_operandi_library_id: str
+    taxonomy_library_id: str
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateSimilarCaseLibraryEntryRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+    modus_operandi_library_id: str
+    taxonomy_library_id: str
+
+
+class UpdateSimilarCaseLibraryEntryRequest(BaseModel):
+    text: str | None = Field(default=None, min_length=1, max_length=2000)
+    modus_operandi_library_id: str | None = None
+    taxonomy_library_id: str | None = None
+    active: bool | None = None
+
+
+# --- Resolution method catalog ------------------------------------------
+
+
+class ResolutionMethodSchema(BaseModel):
+    id: str
+    value: str
+    resolution_tag: ResolutionTag
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateResolutionMethodRequest(BaseModel):
+    value: str = Field(..., min_length=1, max_length=200)
+    resolution_tag: ResolutionTag
+
+
+class UpdateResolutionMethodRequest(BaseModel):
+    value: str | None = Field(default=None, min_length=1, max_length=200)
+    resolution_tag: ResolutionTag | None = None
+    active: bool | None = None
+
+
+# --- Variable catalog --------------------------------------------------
+
+
+class VariableSchema(BaseModel):
+    id: str
+    value: str
+    description: str
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateVariableRequest(BaseModel):
+    value: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(default="", max_length=500)
+
+
+class UpdateVariableRequest(BaseModel):
+    value: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=500)
+    active: bool | None = None
+
+
+# --- Watchlists (blacklist / whitelist) ------------------------------------
+
+
+class WatchlistSchema(BaseModel):
+    id: str
+    name: str
+    description: str
+    list_type: WatchlistType
+    elements: list[str]
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateWatchlistRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(..., min_length=1, max_length=1000)
+    list_type: WatchlistType
+    elements: list[str] = Field(default_factory=list)
+
+
+class UpdateWatchlistRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, min_length=1, max_length=1000)
+    elements: list[str] | None = None
+    active: bool | None = None
+
+
+class CheckWatchlistMembershipRequest(BaseModel):
+    list_type: WatchlistType
+    value: str = Field(..., min_length=1)
+
+
+class WatchlistMatchSchema(BaseModel):
+    watchlist_id: str
+    watchlist_name: str
+
+
+class CheckWatchlistMembershipResponse(BaseModel):
+    is_member: bool
+    matches: list[WatchlistMatchSchema]

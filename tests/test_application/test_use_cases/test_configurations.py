@@ -10,16 +10,23 @@ from src.application.ports.configuration_port import (
     AgentSettings,
     ConfigurationRecord,
     ExampleCase,
+    FilterCondition,
+    FilterGroup,
+    Flag,
+    FlagType,
     GeneralSettings,
     InfraSettings,
+    LogicalOperator,
     ModusOperandi,
     MonitoringSettings,
     OpsSettings,
-    RedFlag,
+    SegmentCode,
+    SegmentSettings,
     Taxonomy,
     TestSettings,
-    YellowFlag,
+    default_segments,
 )
+from src.application.ports.tag_catalog_port import TagCategory
 from src.application.ports.embedding_port import (
     EmbeddingResult,
     EmbeddingUnitOfWork,
@@ -35,6 +42,7 @@ from src.application.use_cases.configurations.activate_configuration import (
     ConfigurationNotFoundError,
 )
 from src.application.use_cases.configurations.create_configuration import (
+    ConfigurationVersionConflictError,
     CreateConfigurationUseCase,
 )
 from src.application.use_cases.configurations.get_active_configuration import (
@@ -52,20 +60,15 @@ from src.application.use_cases.configurations.list_configuration_versions import
 from src.application.use_cases.configurations.list_configurations import (
     ListConfigurationsUseCase,
 )
+from src.application.use_cases.fraud_knowledge.ingest_flag import IngestFlagUseCase
 from src.application.use_cases.fraud_knowledge.ingest_modus_operandi import (
     IngestModusOperandiUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_red_flag import (
-    IngestRedFlagUseCase,
 )
 from src.application.use_cases.fraud_knowledge.ingest_similar_case import (
     IngestSimilarCaseUseCase,
 )
 from src.application.use_cases.fraud_knowledge.ingest_taxonomia import (
     IngestTaxonomiaUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_yellow_flag import (
-    IngestYellowFlagUseCase,
 )
 
 
@@ -74,6 +77,10 @@ class InMemoryConfigurationRepository:
         self.items: dict[tuple[str, int], ConfigurationRecord] = {}
 
     def create(self, config: ConfigurationRecord) -> ConfigurationRecord:
+        self.items[(config.configuration_id, config.version)] = config
+        return config
+
+    def update(self, config: ConfigurationRecord) -> ConfigurationRecord:
         self.items[(config.configuration_id, config.version)] = config
         return config
 
@@ -119,27 +126,29 @@ class InMemoryConfigurationRepository:
                 (current_active.configuration_id, current_active.version)
             ] = _with_active(current_active, False)
         target = self.items[(configuration_id, version)]
-        activated = _with_active(target, True)
+        activated = _with_active(target, True, ever_activated=True)
         self.items[(configuration_id, version)] = activated
         return activated
 
 
-def _with_active(config: ConfigurationRecord, active: bool) -> ConfigurationRecord:
+def _with_active(
+    config: ConfigurationRecord, active: bool, *, ever_activated: bool | None = None
+) -> ConfigurationRecord:
     return ConfigurationRecord(
         configuration_id=config.configuration_id,
         version=config.version,
         name=config.name,
         description=config.description,
         active=active,
+        ever_activated=config.ever_activated if ever_activated is None else ever_activated,
         general=config.general,
         infra=config.infra,
         ops=config.ops,
-        monitoring=config.monitoring,
-        agent=config.agent,
         test=config.test,
         created_at=config.created_at,
         updated_at=datetime.now(timezone.utc),
         created_by=config.created_by,
+        segments=config.segments,
     )
 
 
@@ -241,8 +250,7 @@ def _index_use_case(
     return IndexConfigurationKnowledgeUseCase(
         ingest_taxonomia=IngestTaxonomiaUseCase(**kwargs),
         ingest_modus_operandi=IngestModusOperandiUseCase(**kwargs),
-        ingest_red_flag=IngestRedFlagUseCase(**kwargs),
-        ingest_yellow_flag=IngestYellowFlagUseCase(**kwargs),
+        ingest_flag=IngestFlagUseCase(**kwargs),
         ingest_similar_case=IngestSimilarCaseUseCase(**kwargs),
     )
 
@@ -276,9 +284,59 @@ def test_create_configuration_starts_new_lineage_at_version_1_inactive() -> None
     assert record.general == GeneralSettings()
     assert record.infra == InfraSettings()
     assert record.ops == OpsSettings()
-    assert record.monitoring == MonitoringSettings()
-    assert record.agent == AgentSettings()
     assert record.test == TestSettings()
+    assert record.segments == default_segments()
+    assert set(record.segments) == {SegmentCode.CANALES_DIGITALES, SegmentCode.TARJETAS}
+    assert all(not s.enabled for s in record.segments.values())
+    assert all(s.monitoring == MonitoringSettings() for s in record.segments.values())
+    assert all(s.agent == AgentSettings() for s in record.segments.values())
+
+
+def test_create_configuration_with_custom_segment_filter_tree() -> None:
+    repo = InMemoryConfigurationRepository()
+    use_case = _create_use_case(repo)
+
+    segments = {
+        SegmentCode.TARJETAS.value: SegmentSettings(
+            enabled=True,
+            filter=FilterGroup(
+                id="root",
+                operator=LogicalOperator.OR,
+                conditions=[
+                    FilterCondition(
+                        id="c1",
+                        category=TagCategory.EVENT_TYPE,
+                        values=["authentication"],
+                    )
+                ],
+                groups=[
+                    FilterGroup(
+                        id="g1",
+                        operator=LogicalOperator.AND,
+                        conditions=[
+                            FilterCondition(
+                                id="c2",
+                                category=TagCategory.TRIGGERED_RULE,
+                                values=["CUSTOMER - dg_no_digital"],
+                            )
+                        ],
+                    )
+                ],
+            ),
+        )
+    }
+
+    record = use_case.execute(
+        CreateConfigurationInput(name="Producción", segments=segments)
+    )
+
+    tarjetas = record.segments[SegmentCode.TARJETAS.value]
+    assert tarjetas.enabled is True
+    assert tarjetas.filter.operator == LogicalOperator.OR
+    assert tarjetas.filter.conditions[0].category == TagCategory.EVENT_TYPE
+    assert tarjetas.filter.groups[0].conditions[0].values == [
+        "CUSTOMER - dg_no_digital"
+    ]
 
 
 def test_create_configuration_appends_new_version_to_existing_lineage() -> None:
@@ -300,6 +358,80 @@ def test_create_configuration_appends_new_version_to_existing_lineage() -> None:
     assert v2.infra.max_instances == 12
     # v1 untouched by creating v2.
     assert repo.get(v1.configuration_id, 1) == v1
+
+
+def test_create_configuration_rejects_stale_based_on_version() -> None:
+    repo = InMemoryConfigurationRepository()
+    use_case = _create_use_case(repo)
+
+    v1 = use_case.execute(CreateConfigurationInput(name="Producción"))
+    # Someone else appends v2 while our draft still thinks v1 is latest.
+    use_case.execute(
+        CreateConfigurationInput(
+            name="Producción", configuration_id=v1.configuration_id
+        )
+    )
+
+    with pytest.raises(ConfigurationVersionConflictError):
+        use_case.execute(
+            CreateConfigurationInput(
+                name="Producción",
+                configuration_id=v1.configuration_id,
+                based_on_version=1,
+            )
+        )
+    # The conflict must not have created a v3 out of the stale draft.
+    assert repo.get_latest_version(v1.configuration_id).version == 2
+
+
+def test_create_configuration_with_matching_based_on_version_overwrites_never_activated_version() -> (
+    None
+):
+    repo = InMemoryConfigurationRepository()
+    use_case = _create_use_case(repo)
+
+    v1 = use_case.execute(CreateConfigurationInput(name="Producción"))
+    saved = use_case.execute(
+        CreateConfigurationInput(
+            name="Producción",
+            configuration_id=v1.configuration_id,
+            based_on_version=1,
+            infra=InfraSettings(max_instances=12, auto_scale=False),
+        )
+    )
+
+    # Small edits on a version that never reached production overwrite that
+    # same version in place, instead of piling up a new one for every save.
+    assert saved.version == 1
+    assert saved.infra.max_instances == 12
+    assert repo.get_latest_version(v1.configuration_id).version == 1
+    assert repo.get_latest_version(v1.configuration_id).infra.max_instances == 12
+
+
+def test_create_configuration_mints_new_version_once_latest_was_activated() -> None:
+    repo = InMemoryConfigurationRepository()
+    create = _create_use_case(repo)
+    activate = _activate_use_case(repo)
+
+    v1 = create.execute(CreateConfigurationInput(name="Producción"))
+    activate.execute(v1.configuration_id, 1)
+
+    v2 = create.execute(
+        CreateConfigurationInput(
+            name="Producción",
+            configuration_id=v1.configuration_id,
+            based_on_version=1,
+            infra=InfraSettings(max_instances=12),
+        )
+    )
+
+    # Once a version has ever gone to production it's frozen - the next
+    # save mints version+1 instead of overwriting it.
+    assert v2.version == 2
+    assert v2.active is False
+    frozen_v1 = repo.get(v1.configuration_id, 1)
+    assert frozen_v1.infra.max_instances == InfraSettings().max_instances
+    assert frozen_v1.ever_activated is True
 
 
 def test_activate_enforces_single_active_invariant_across_activations() -> None:
@@ -405,19 +537,19 @@ def _agent_with_full_knowledge() -> AgentSettings:
         narrative="Llamada suplantando soporte.",
         taxonomy_id="tx-1",
     )
-    red_flag = RedFlag(
+    red_flag = Flag(
         id="rf-1",
+        flag_type=FlagType.RED,
         name="Llamada sospechosa",
         description="Llamada de número desconocido.",
-        modus_operandi_id="mo-1",
-        taxonomy_id="tx-1",
+        modus_operandi_ids=["mo-1"],
     )
-    yellow_flag = YellowFlag(
+    yellow_flag = Flag(
         id="yf-1",
+        flag_type=FlagType.YELLOW,
         name="Cambio reciente de datos",
         description="Cambio de celular en los últimos 7 días.",
-        modus_operandi_id="mo-1",
-        taxonomy_id="tx-1",
+        modus_operandi_ids=["mo-1"],
     )
     example_case = ExampleCase(
         id="ec-1",
@@ -428,8 +560,7 @@ def _agent_with_full_knowledge() -> AgentSettings:
     return AgentSettings(
         taxonomies=[taxonomy],
         modus_operandi=[modus_operandi],
-        red_flags=[red_flag],
-        yellow_flags=[yellow_flag],
+        flags=[red_flag, yellow_flag],
         example_cases=[example_case],
     )
 
@@ -441,7 +572,12 @@ def test_create_configuration_indexes_full_knowledge_graph_into_opensearch() -> 
 
     record = use_case.execute(
         CreateConfigurationInput(
-            name="Producción", agent=_agent_with_full_knowledge()
+            name="Producción",
+            segments={
+                SegmentCode.CANALES_DIGITALES.value: SegmentSettings(
+                    agent=_agent_with_full_knowledge()
+                )
+            },
         )
     )
 
@@ -455,9 +591,43 @@ def test_create_configuration_indexes_full_knowledge_graph_into_opensearch() -> 
     by_type = {doc.type: doc for doc in documents}
     modus_operandi_doc = by_type[DocumentType.MODUS_OPERANDI]
     assert modus_operandi_doc.taxonomia_id == by_type[DocumentType.TAXONOMIA].id
-    assert len(modus_operandi_doc.red_flags) == 1
-    assert len(modus_operandi_doc.yellow_flags) == 1
+    assert len(modus_operandi_doc.flags) == 2
     assert len(modus_operandi_doc.similar_cases) == 1
+
+
+def test_create_configuration_indexes_knowledge_per_segment_with_correct_segmento_code() -> (
+    None
+):
+    repo = InMemoryConfigurationRepository()
+    fraud_repo = InMemoryFraudKnowledgeRepository()
+    use_case = _create_use_case(repo, fraud_repo)
+
+    use_case.execute(
+        CreateConfigurationInput(
+            name="Producción",
+            segments={
+                SegmentCode.CANALES_DIGITALES.value: SegmentSettings(
+                    agent=_agent_with_full_knowledge()
+                ),
+                SegmentCode.TARJETAS.value: SegmentSettings(
+                    agent=_agent_with_full_knowledge()
+                ),
+            },
+        )
+    )
+
+    documents = fraud_repo.list()
+    assert len(documents) == 10
+
+    canales_docs = fraud_repo.list(channel=SegmentCode.CANALES_DIGITALES.value)
+    tarjetas_docs = fraud_repo.list(channel=SegmentCode.TARJETAS.value)
+    assert len(canales_docs) == 5
+    assert len(tarjetas_docs) == 5
+    assert all(doc.segmento == SegmentCode.CANALES_DIGITALES.value for doc in canales_docs)
+    assert all(doc.segmento == SegmentCode.TARJETAS.value for doc in tarjetas_docs)
+    # Each segment's ingest gets its own fresh OpenSearch document ids, even
+    # though both segments reuse the same domain-level taxonomy/MO ids.
+    assert {doc.id for doc in canales_docs}.isdisjoint({doc.id for doc in tarjetas_docs})
 
 
 def test_create_configuration_with_dangling_taxonomy_reference_raises() -> None:
@@ -472,7 +642,14 @@ def test_create_configuration_with_dangling_taxonomy_reference_raises() -> None:
     )
 
     with pytest.raises(ValueError):
-        use_case.execute(CreateConfigurationInput(name="Producción", agent=agent))
+        use_case.execute(
+            CreateConfigurationInput(
+                name="Producción",
+                segments={
+                    SegmentCode.CANALES_DIGITALES.value: SegmentSettings(agent=agent)
+                },
+            )
+        )
 
 
 def test_activate_flips_opensearch_documents_activate_flag() -> None:
@@ -482,13 +659,24 @@ def test_activate_flips_opensearch_documents_activate_flag() -> None:
     activate = _activate_use_case(repo, fraud_repo)
 
     v1 = create.execute(
-        CreateConfigurationInput(name="Producción", agent=_agent_with_full_knowledge())
+        CreateConfigurationInput(
+            name="Producción",
+            segments={
+                SegmentCode.CANALES_DIGITALES.value: SegmentSettings(
+                    agent=_agent_with_full_knowledge()
+                )
+            },
+        )
     )
     v2 = create.execute(
         CreateConfigurationInput(
             name="Producción",
             configuration_id=v1.configuration_id,
-            agent=_agent_with_full_knowledge(),
+            segments={
+                SegmentCode.CANALES_DIGITALES.value: SegmentSettings(
+                    agent=_agent_with_full_knowledge()
+                )
+            },
         )
     )
 

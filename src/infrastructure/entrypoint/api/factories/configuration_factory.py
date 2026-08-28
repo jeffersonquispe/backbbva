@@ -25,11 +25,10 @@ from src.application.use_cases.configurations.list_configurations import (
 )
 from src.infrastructure.entrypoint.api.factories.fraud_knowledge_factory import (
     get_fraud_knowledge_repository,
+    get_ingest_flag_use_case,
     get_ingest_modus_operandi_use_case,
-    get_ingest_red_flag_use_case,
     get_ingest_similar_case_use_case,
     get_ingest_taxonomia_use_case,
-    get_ingest_yellow_flag_use_case,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
     DynamoConfigurationRepository,
@@ -45,8 +44,7 @@ def get_index_configuration_knowledge_use_case() -> IndexConfigurationKnowledgeU
     return IndexConfigurationKnowledgeUseCase(
         ingest_taxonomia=get_ingest_taxonomia_use_case(),
         ingest_modus_operandi=get_ingest_modus_operandi_use_case(),
-        ingest_red_flag=get_ingest_red_flag_use_case(),
-        ingest_yellow_flag=get_ingest_yellow_flag_use_case(),
+        ingest_flag=get_ingest_flag_use_case(),
         ingest_similar_case=get_ingest_similar_case_use_case(),
     )
 

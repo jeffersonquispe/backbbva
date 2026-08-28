@@ -13,6 +13,7 @@ from src.application.use_cases.test_runs.dataset_sampling import (
 )
 from src.application.ports.alert_port import AlertRecord
 from src.application.ports.async_operation_port import AsyncOperationRecord
+from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.dataset_port import DatasetRecord
 from src.application.ports.test_run_port import (
     TestRunConfig,
@@ -250,6 +251,39 @@ def test_start_test_run_dispatches_one_workflow_per_dataset_row() -> None:
         assert workflow.input["config_overrides"]["model_overrides"] == {
             "classification": "gpt-test"
         }
+
+
+def test_start_test_run_threads_configuration_ref_separately_from_config_overrides() -> None:
+    datasets = InMemoryDatasetRepository({"sample": [{"eventId": "e-1"}]})
+    workflows = InMemoryWorkflowExecutionRepository()
+    use_case = StartTestRunUseCase(
+        dataset_repository=datasets,
+        test_run_repository=InMemoryTestRunRepository(),
+        alert_repository=InMemoryAlertRepository(),
+        async_operation_repository=InMemoryAsyncOperationRepository(),
+        workflow_repository=workflows,
+        workflow_executor=RecordingWorkflowExecutor(),
+    )
+
+    output = use_case.execute(
+        StartTestRunInput(
+            name="run",
+            dataset_name="sample",
+            config=TestRunConfig(
+                configuration_ref=ConfigurationRef(
+                    configuration_id="cfg-under-test", version=2
+                )
+            ),
+        )
+    )
+
+    dispatched = workflows.list_by_test_run(output.test_run_id)
+    assert dispatched[0].input["configuration_ref"] == {
+        "configuration_id": "cfg-under-test",
+        "version": 2,
+    }
+    # Not duplicated into the per-step overrides blob.
+    assert "configuration_ref" not in dispatched[0].input["config_overrides"]
 
 
 def _use_case(

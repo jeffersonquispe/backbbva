@@ -46,6 +46,9 @@ from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
     DynamoAlertRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
+    DynamoConfigurationRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
@@ -78,6 +81,11 @@ from src.infrastructure.queues.celery.analyst_escalation_dispatcher import (
 @lru_cache
 def get_alert_repository() -> DynamoAlertRepository:
     return DynamoAlertRepository()
+
+
+@lru_cache
+def get_configuration_repository() -> DynamoConfigurationRepository:
+    return DynamoConfigurationRepository()
 
 
 @lru_cache
@@ -187,6 +195,7 @@ def get_profile_alert_use_case(
     step_id: UUID | None,
     system_prompt: str | None = None,
     model: str | None = None,
+    extra_instructions: dict[str, str] | None = None,
 ) -> ProfileAlertUseCase | DeterministicProfileAlertUseCase:
     backend = genai_config.PROFILING_BACKEND.strip().lower()
     if backend == "deterministic":
@@ -201,6 +210,7 @@ def get_profile_alert_use_case(
             monitoring=get_monitoring(),
             model=model or genai_config.PROFILING_LLM_MODEL,
             system_prompt=system_prompt,
+            extra_instructions=extra_instructions,
             status_reporter=status_reporter,
             workflow_execution_id=workflow_execution_id,
             step_id=step_id,
@@ -215,6 +225,8 @@ def get_classify_alert_use_case(
     step_id: UUID | None,
     system_prompt: str | None = None,
     model: str | None = None,
+    extra_instructions: str | None = None,
+    enabled_tools: set[str] | None = None,
 ) -> ClassifyAlertUseCase:
     return ClassifyAlertUseCase(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
@@ -224,6 +236,8 @@ def get_classify_alert_use_case(
         fraud_taxonomy_port=get_fraud_taxonomy_port(),
         modus_operandi_port=get_modus_operandi_port(),
         system_prompt=system_prompt,
+        extra_instructions=extra_instructions,
+        enabled_tools=enabled_tools,
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
@@ -237,6 +251,8 @@ def get_adversarial_review_alert_use_case(
     step_id: UUID | None,
     system_prompt: str | None = None,
     model: str | None = None,
+    extra_instructions: str | None = None,
+    enabled_tools: set[str] | None = None,
 ) -> AdversarialReviewAlertUseCase:
     return AdversarialReviewAlertUseCase(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
@@ -246,6 +262,8 @@ def get_adversarial_review_alert_use_case(
         fraud_taxonomy_port=get_fraud_taxonomy_port(),
         modus_operandi_port=get_modus_operandi_port(),
         system_prompt=system_prompt,
+        extra_instructions=extra_instructions,
+        enabled_tools=enabled_tools,
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,

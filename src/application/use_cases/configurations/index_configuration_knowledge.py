@@ -2,14 +2,19 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from src.application.ports.configuration_port import ConfigurationRecord
+from src.application.ports.configuration_port import (
+    AgentSettings,
+    ConfigurationRecord,
+    FlagType,
+)
+from src.application.ports.fraud_knowledge_port import DocumentType
+from src.application.use_cases.fraud_knowledge.ingest_flag import (
+    IngestFlagInput,
+    IngestFlagUseCase,
+)
 from src.application.use_cases.fraud_knowledge.ingest_modus_operandi import (
     IngestModusOperandiInput,
     IngestModusOperandiUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_red_flag import (
-    IngestRedFlagInput,
-    IngestRedFlagUseCase,
 )
 from src.application.use_cases.fraud_knowledge.ingest_similar_case import (
     IngestSimilarCaseInput,
@@ -18,10 +23,6 @@ from src.application.use_cases.fraud_knowledge.ingest_similar_case import (
 from src.application.use_cases.fraud_knowledge.ingest_taxonomia import (
     IngestTaxonomiaInput,
     IngestTaxonomiaUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_yellow_flag import (
-    IngestYellowFlagInput,
-    IngestYellowFlagUseCase,
 )
 
 
@@ -43,18 +44,21 @@ class IndexConfigurationKnowledgeUseCase:
         self,
         ingest_taxonomia: IngestTaxonomiaUseCase,
         ingest_modus_operandi: IngestModusOperandiUseCase,
-        ingest_red_flag: IngestRedFlagUseCase,
-        ingest_yellow_flag: IngestYellowFlagUseCase,
+        ingest_flag: IngestFlagUseCase,
         ingest_similar_case: IngestSimilarCaseUseCase,
     ) -> None:
         self._ingest_taxonomia = ingest_taxonomia
         self._ingest_modus_operandi = ingest_modus_operandi
-        self._ingest_red_flag = ingest_red_flag
-        self._ingest_yellow_flag = ingest_yellow_flag
+        self._ingest_flag = ingest_flag
         self._ingest_similar_case = ingest_similar_case
 
     def execute(self, record: ConfigurationRecord) -> None:
-        agent = record.agent
+        for segment_code, segment_settings in record.segments.items():
+            self._index_segment(record, segment_code, segment_settings.agent)
+
+    def _index_segment(
+        self, record: ConfigurationRecord, segment_code: str, agent: AgentSettings
+    ) -> None:
         taxonomy_by_id = {t.id: t for t in agent.taxonomies}
 
         taxonomia_os_id: dict[str, UUID] = {}
@@ -65,7 +69,7 @@ class IndexConfigurationKnowledgeUseCase:
             created = self._ingest_taxonomia.execute(
                 IngestTaxonomiaInput(
                     text=text,
-                    segmento=taxonomy.segmento,
+                    segmento=segment_code,
                     configuration=record.configuration_id,
                     version=record.version,
                     activate=record.active,
@@ -84,7 +88,7 @@ class IndexConfigurationKnowledgeUseCase:
             created = self._ingest_modus_operandi.execute(
                 IngestModusOperandiInput(
                     text=f"{mo.title}: {mo.narrative}",
-                    segmento=mo.segmento,
+                    segmento=segment_code,
                     configuration=record.configuration_id,
                     version=record.version,
                     taxonomia_id=taxonomia_os_id[mo.taxonomy_id],
@@ -94,36 +98,22 @@ class IndexConfigurationKnowledgeUseCase:
             )
             modus_operandi_os_id[mo.id] = created.id
 
-        for red_flag in agent.red_flags:
-            self._ingest_red_flag.execute(
-                IngestRedFlagInput(
-                    text=f"{red_flag.name}: {red_flag.description}",
-                    segmento=red_flag.segmento,
+        for flag in agent.flags:
+            self._ingest_flag.execute(
+                IngestFlagInput(
+                    text=f"{flag.name}: {flag.description}",
+                    flag_type=(
+                        DocumentType.RED_FLAG
+                        if flag.flag_type == FlagType.RED
+                        else DocumentType.YELLOW_FLAG
+                    ),
+                    segmento=segment_code,
                     configuration=record.configuration_id,
                     version=record.version,
-                    modus_operandi_id=self._resolve_modus_operandi(
-                        modus_operandi_os_id, red_flag.modus_operandi_id
-                    ),
-                    taxonomia_id=self._resolve_taxonomia(
-                        taxonomia_os_id, red_flag.taxonomy_id
-                    ),
-                    activate=record.active,
-                )
-            )
-
-        for yellow_flag in agent.yellow_flags:
-            self._ingest_yellow_flag.execute(
-                IngestYellowFlagInput(
-                    text=f"{yellow_flag.name}: {yellow_flag.description}",
-                    segmento=yellow_flag.segmento,
-                    configuration=record.configuration_id,
-                    version=record.version,
-                    modus_operandi_id=self._resolve_modus_operandi(
-                        modus_operandi_os_id, yellow_flag.modus_operandi_id
-                    ),
-                    taxonomia_id=self._resolve_taxonomia(
-                        taxonomia_os_id, yellow_flag.taxonomy_id
-                    ),
+                    modus_operandi_ids=[
+                        self._resolve_modus_operandi(modus_operandi_os_id, mid)
+                        for mid in flag.modus_operandi_ids
+                    ],
                     activate=record.active,
                 )
             )
@@ -132,7 +122,7 @@ class IndexConfigurationKnowledgeUseCase:
             self._ingest_similar_case.execute(
                 IngestSimilarCaseInput(
                     text=example_case.text,
-                    segmento=example_case.segmento,
+                    segmento=segment_code,
                     configuration=record.configuration_id,
                     version=record.version,
                     modus_operandi_id=self._resolve_modus_operandi(

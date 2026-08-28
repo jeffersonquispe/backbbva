@@ -66,7 +66,13 @@ class StartTestRunUseCase:
                 updated_at=now,
             )
         )
+        # config_overrides only ever carries the per-step string patches
+        # (_step_overrides in alert_review_workflow.py reads just
+        # prompt_overrides/model_overrides from it) - configuration_ref is
+        # a whole-config selection threaded separately below, not folded
+        # into this blob.
         config_overrides = dataclasses.asdict(input.config)
+        config_overrides.pop("configuration_ref", None)
         for row in rows:
             self._start_alert.execute(
                 StartAlertWorkflowInput(
@@ -74,6 +80,7 @@ class StartTestRunUseCase:
                     test_run_id=test_run.id,
                     config_overrides=config_overrides,
                     max_feedback_iterations=input.config.max_feedback_iterations,
+                    configuration_ref=input.config.configuration_ref,
                 )
             )
         self._test_runs.update(test_run.id, status=TestRunStatus.RUNNING)

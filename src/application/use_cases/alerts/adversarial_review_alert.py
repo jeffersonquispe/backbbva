@@ -157,6 +157,8 @@ class AdversarialReviewAlertUseCase:
         fraud_taxonomy_port: FraudTaxonomyPort,
         modus_operandi_port: ModusOperandiPort,
         system_prompt: str | None = None,
+        extra_instructions: str | None = None,
+        enabled_tools: set[str] | None = None,
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
@@ -164,7 +166,19 @@ class AdversarialReviewAlertUseCase:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
         self._model = model
-        self._system_prompt = system_prompt or _SYSTEM_PROMPT
+        if system_prompt is not None:
+            # Full replace - test-run admin override, expected to already
+            # include the ReAct protocol below. Wins outright over any
+            # segment-level extra_instructions.
+            self._system_prompt = system_prompt
+        elif extra_instructions:
+            self._system_prompt = (
+                _SYSTEM_PROMPT
+                + "\n\nInstrucciones adicionales para este segmento:\n"
+                + extra_instructions
+            )
+        else:
+            self._system_prompt = _SYSTEM_PROMPT
         self._status_reporter = status_reporter
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
@@ -173,6 +187,12 @@ class AdversarialReviewAlertUseCase:
             "get_similar_taxonomy": fraud_taxonomy_port.find_similar,
             "get_similar_modus_operandi": modus_operandi_port.find_similar,
         }
+        if enabled_tools is not None:
+            self._tools = {
+                name: tool
+                for name, tool in self._tools.items()
+                if name in enabled_tools
+            }
 
     def _report_progress(self, detail: str) -> None:
         if self._status_reporter is None or self._workflow_execution_id is None:

@@ -11,7 +11,10 @@ from src.application.ports.llm_unit_of_work_port import (
     LLMUnitOfWorkFactory,
 )
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
-from src.application.use_cases.alerts.profile_alert import ProfileAlertUseCase
+from src.application.use_cases.alerts.profile_alert import (
+    _SYSTEM_PROMPT,
+    ProfileAlertUseCase,
+)
 
 
 class RecordingLLMUnitOfWork(LLMUnitOfWork):
@@ -117,3 +120,59 @@ def test_profile_alert_runs_three_inferences_and_returns_descriptions() -> None:
     for uow in llm_factory.created:
         assert uow.received_messages is not None
         assert len(uow.received_messages) == 2
+
+
+def test_profile_alert_default_system_prompt_used_for_all_three_operations() -> None:
+    llm_factory = RecordingLLMUnitOfWorkFactory()
+    use_case = ProfileAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=RecordingMonitoringPort(),
+        model="fake-deployment",
+    )
+
+    use_case.execute(
+        ProfileAlertInput(alert_id=uuid.uuid4(), pre_process=_pre_process_output())
+    )
+
+    for uow in llm_factory.created:
+        assert uow.received_messages[0].content == _SYSTEM_PROMPT
+
+
+def test_profile_alert_extra_instructions_applies_only_to_its_own_operation() -> None:
+    llm_factory = RecordingLLMUnitOfWorkFactory()
+    use_case = ProfileAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=RecordingMonitoringPort(),
+        model="fake-deployment",
+        extra_instructions={"transaction_profile": "Foo"},
+    )
+
+    use_case.execute(
+        ProfileAlertInput(alert_id=uuid.uuid4(), pre_process=_pre_process_output())
+    )
+
+    user_profile, transaction_profile, transactional_profile = llm_factory.created
+    assert user_profile.received_messages[0].content == _SYSTEM_PROMPT
+    assert transactional_profile.received_messages[0].content == _SYSTEM_PROMPT
+    transaction_content = transaction_profile.received_messages[0].content
+    assert transaction_content.startswith(_SYSTEM_PROMPT)
+    assert "Foo" in transaction_content
+
+
+def test_profile_alert_system_prompt_override_wins_over_extra_instructions() -> None:
+    llm_factory = RecordingLLMUnitOfWorkFactory()
+    override_prompt = "Full test-run override prompt."
+    use_case = ProfileAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=RecordingMonitoringPort(),
+        model="fake-deployment",
+        system_prompt=override_prompt,
+        extra_instructions={"user_profile": "must not appear"},
+    )
+
+    use_case.execute(
+        ProfileAlertInput(alert_id=uuid.uuid4(), pre_process=_pre_process_output())
+    )
+
+    for uow in llm_factory.created:
+        assert uow.received_messages[0].content == override_prompt
