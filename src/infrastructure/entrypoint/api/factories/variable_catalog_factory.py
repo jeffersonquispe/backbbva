@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+from functools import lru_cache
+
+from src.application.use_cases.variable_catalog.create_variable import (
+    CreateVariableUseCase,
+)
+from src.application.use_cases.variable_catalog.delete_variable import (
+    DeleteVariableUseCase,
+)
+from src.application.use_cases.variable_catalog.list_variables import (
+    ListVariablesUseCase,
+)
+from src.application.use_cases.variable_catalog.update_variable import (
+    UpdateVariableUseCase,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.variable_catalog_repository import (
+    DynamoVariableCatalogRepository,
+)
+
+
+@lru_cache
+def get_variable_catalog_repository() -> DynamoVariableCatalogRepository:
+    return DynamoVariableCatalogRepository()
+
+
+def get_create_variable_use_case() -> CreateVariableUseCase:
+    return CreateVariableUseCase(get_variable_catalog_repository())
+
+
+def get_list_variables_use_case() -> ListVariablesUseCase:
+    return ListVariablesUseCase(get_variable_catalog_repository())
+
+
+def get_update_variable_use_case() -> UpdateVariableUseCase:
+    return UpdateVariableUseCase(get_variable_catalog_repository())
+
+
+def get_delete_variable_use_case() -> DeleteVariableUseCase:
+    return DeleteVariableUseCase(get_variable_catalog_repository())
