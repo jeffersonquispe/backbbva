@@ -4,29 +4,25 @@ import uuid
 
 import pytest
 
+from dataclasses import replace
+
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
+    FlagDocument,
     FraudKnowledgeDocument,
     ModusOperandiDocument,
-    RedFlagDocument,
     SimilarCaseDocument,
     TaxonomiaDocument,
-    YellowFlagDocument,
 )
+from src.application.use_cases.fraud_knowledge.delete_flag import DeleteFlagUseCase
 from src.application.use_cases.fraud_knowledge.delete_modus_operandi import (
     DeleteModusOperandiUseCase,
-)
-from src.application.use_cases.fraud_knowledge.delete_red_flag import (
-    DeleteRedFlagUseCase,
 )
 from src.application.use_cases.fraud_knowledge.delete_similar_case import (
     DeleteSimilarCaseUseCase,
 )
 from src.application.use_cases.fraud_knowledge.delete_taxonomia import (
     DeleteTaxonomiaUseCase,
-)
-from src.application.use_cases.fraud_knowledge.delete_yellow_flag import (
-    DeleteYellowFlagUseCase,
 )
 
 
@@ -66,8 +62,8 @@ def _seed_full_tree(
     TaxonomiaDocument,
     ModusOperandiDocument,
     SimilarCaseDocument,
-    RedFlagDocument,
-    YellowFlagDocument,
+    FlagDocument,
+    FlagDocument,
 ]:
     taxonomia = repository.create(
         TaxonomiaDocument(
@@ -93,8 +89,7 @@ def _seed_full_tree(
             taxonomia_id=taxonomia.id,
             taxonomia=taxonomia.text,
             similar_cases=[similar_case_id],
-            red_flags=[red_flag_id],
-            yellow_flags=[yellow_flag_id],
+            flags=[red_flag_id, yellow_flag_id],
         )
     )
     similar_case = repository.create(
@@ -110,27 +105,27 @@ def _seed_full_tree(
         )
     )
     red_flag = repository.create(
-        RedFlagDocument(
+        FlagDocument(
             id=red_flag_id,
             text="alerta roja",
             text_embedded=[0.1],
             segmento="tarjetas",
             configuration="default",
             version=1,
-            modus_operandi_id=modus_operandi.id,
-            taxonomia_id=taxonomia.id,
+            modus_operandi_ids=[modus_operandi.id],
+            type=DocumentType.RED_FLAG,
         )
     )
     yellow_flag = repository.create(
-        YellowFlagDocument(
+        FlagDocument(
             id=yellow_flag_id,
             text="alerta amarilla",
             text_embedded=[0.1],
             segmento="tarjetas",
             configuration="default",
             version=1,
-            modus_operandi_id=modus_operandi.id,
-            taxonomia_id=taxonomia.id,
+            modus_operandi_ids=[modus_operandi.id],
+            type=DocumentType.YELLOW_FLAG,
         )
     )
     return taxonomia, modus_operandi, similar_case, red_flag, yellow_flag
@@ -148,28 +143,77 @@ def test_delete_similar_case_removes_id_from_parent() -> None:
     assert updated_parent.similar_cases == []
 
 
-def test_delete_red_flag_removes_id_from_parent() -> None:
+def test_delete_flag_removes_id_from_parent() -> None:
     repository = InMemoryFraudKnowledgeRepository()
-    _, modus_operandi, _, red_flag, _ = _seed_full_tree(repository)
+    _, modus_operandi, _, red_flag, yellow_flag = _seed_full_tree(repository)
 
-    DeleteRedFlagUseCase(repository).execute(red_flag.id)
+    DeleteFlagUseCase(repository).execute(red_flag.id)
 
     assert repository.get(red_flag.id) is None
     updated_parent = repository.get(modus_operandi.id)
     assert isinstance(updated_parent, ModusOperandiDocument)
-    assert updated_parent.red_flags == []
+    assert updated_parent.flags == [yellow_flag.id]
 
 
-def test_delete_yellow_flag_removes_id_from_parent() -> None:
+def test_delete_flag_removes_id_from_all_parents_when_many_to_many() -> None:
     repository = InMemoryFraudKnowledgeRepository()
-    _, modus_operandi, _, _, yellow_flag = _seed_full_tree(repository)
+    _, mo_a, _, flag, _ = _seed_full_tree(repository)
+    mo_b = repository.create(
+        ModusOperandiDocument(
+            id=uuid.uuid4(),
+            text="modus operandi B",
+            text_embedded=[0.1],
+            segmento="tarjetas",
+            configuration="default",
+            version=1,
+            taxonomia_id=mo_a.taxonomia_id,
+            taxonomia=mo_a.taxonomia,
+            similar_cases=[],
+            flags=[flag.id],
+        )
+    )
+    repository.update(replace(flag, modus_operandi_ids=[mo_a.id, mo_b.id]))
 
-    DeleteYellowFlagUseCase(repository).execute(yellow_flag.id)
+    DeleteFlagUseCase(repository).execute(flag.id)
 
-    assert repository.get(yellow_flag.id) is None
-    updated_parent = repository.get(modus_operandi.id)
-    assert isinstance(updated_parent, ModusOperandiDocument)
-    assert updated_parent.yellow_flags == []
+    assert repository.get(flag.id) is None
+    updated_a = repository.get(mo_a.id)
+    updated_b = repository.get(mo_b.id)
+    assert isinstance(updated_a, ModusOperandiDocument)
+    assert isinstance(updated_b, ModusOperandiDocument)
+    assert flag.id not in updated_a.flags
+    assert updated_b.flags == []
+
+
+def test_delete_modus_operandi_detaches_shared_flag_but_keeps_it_alive() -> None:
+    repository = InMemoryFraudKnowledgeRepository()
+    _, mo_a, _, flag, _ = _seed_full_tree(repository)
+    mo_b = repository.create(
+        ModusOperandiDocument(
+            id=uuid.uuid4(),
+            text="modus operandi B",
+            text_embedded=[0.1],
+            segmento="tarjetas",
+            configuration="default",
+            version=1,
+            taxonomia_id=mo_a.taxonomia_id,
+            taxonomia=mo_a.taxonomia,
+            similar_cases=[],
+            flags=[flag.id],
+        )
+    )
+    repository.update(replace(flag, modus_operandi_ids=[mo_a.id, mo_b.id]))
+
+    # Deleting mo_a must leave the shared flag alive, now only linked to mo_b.
+    DeleteModusOperandiUseCase(repository).execute(mo_a.id)
+    still_alive = repository.get(flag.id)
+    assert still_alive is not None
+    assert isinstance(still_alive, FlagDocument)
+    assert still_alive.modus_operandi_ids == [mo_b.id]
+
+    # Deleting mo_b next must now delete the orphaned flag.
+    DeleteModusOperandiUseCase(repository).execute(mo_b.id)
+    assert repository.get(flag.id) is None
 
 
 def test_delete_modus_operandi_cascades_to_all_children() -> None:

@@ -59,8 +59,7 @@ class IngestModusOperandiUseCase:
             taxonomia_id=data.taxonomia_id,
             taxonomia=data.taxonomia,
             similar_cases=[],
-            red_flags=[],
-            yellow_flags=[],
+            flags=[],
             activate=data.activate,
         )
         return self._repository.create(document)

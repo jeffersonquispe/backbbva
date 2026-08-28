@@ -31,9 +31,9 @@ _INDEX_BODY = {
             "taxonomia_id": {"type": "keyword"},
             "taxonomia": {"type": "text", "analyzer": "spanish"},
             "modus_operandi_id": {"type": "keyword"},
+            "modus_operandi_ids": {"type": "keyword"},
             "similar_cases": {"type": "keyword"},
-            "red_flags": {"type": "keyword"},
-            "yellow_flags": {"type": "keyword"},
+            "flags": {"type": "keyword"},
         }
     },
 }

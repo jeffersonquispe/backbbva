@@ -37,8 +37,7 @@ class ModusOperandiDocument:
     taxonomia_id: UUID
     taxonomia: str
     similar_cases: list[UUID]
-    red_flags: list[UUID]
-    yellow_flags: list[UUID]
+    flags: list[UUID]
     activate: bool = True
     type: DocumentType = DocumentType.MODUS_OPERANDI
 
@@ -58,39 +57,25 @@ class SimilarCaseDocument:
 
 
 @dataclass(frozen=True)
-class RedFlagDocument:
+class FlagDocument:
+    # Many-to-many with ModusOperandiDocument (see `modus_operandi_ids`) -
+    # no `taxonomia_id`, since a flag's taxonomy is derived from whichever
+    # modus operandi it's attached to, not a single denormalized value.
+    # `type` still discriminates red vs. yellow (DocumentType.RED_FLAG /
+    # .YELLOW_FLAG) - the two colors share this one document shape.
     id: UUID
     text: str
     text_embedded: list[float]
     segmento: str
     configuration: str
     version: int
-    modus_operandi_id: UUID
-    taxonomia_id: UUID
+    modus_operandi_ids: list[UUID]
     activate: bool = True
     type: DocumentType = DocumentType.RED_FLAG
 
 
-@dataclass(frozen=True)
-class YellowFlagDocument:
-    id: UUID
-    text: str
-    text_embedded: list[float]
-    segmento: str
-    configuration: str
-    version: int
-    modus_operandi_id: UUID
-    taxonomia_id: UUID
-    activate: bool = True
-    type: DocumentType = DocumentType.YELLOW_FLAG
-
-
 FraudKnowledgeDocument = (
-    TaxonomiaDocument
-    | ModusOperandiDocument
-    | SimilarCaseDocument
-    | RedFlagDocument
-    | YellowFlagDocument
+    TaxonomiaDocument | ModusOperandiDocument | SimilarCaseDocument | FlagDocument
 )
 
 

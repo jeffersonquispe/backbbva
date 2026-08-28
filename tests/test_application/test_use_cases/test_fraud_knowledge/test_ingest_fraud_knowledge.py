@@ -15,13 +15,13 @@ from src.application.ports.fraud_knowledge_port import (
     ModusOperandiDocument,
 )
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.use_cases.fraud_knowledge.ingest_flag import (
+    IngestFlagInput,
+    IngestFlagUseCase,
+)
 from src.application.use_cases.fraud_knowledge.ingest_modus_operandi import (
     IngestModusOperandiInput,
     IngestModusOperandiUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_red_flag import (
-    IngestRedFlagInput,
-    IngestRedFlagUseCase,
 )
 from src.application.use_cases.fraud_knowledge.ingest_similar_case import (
     IngestSimilarCaseInput,
@@ -30,10 +30,6 @@ from src.application.use_cases.fraud_knowledge.ingest_similar_case import (
 from src.application.use_cases.fraud_knowledge.ingest_taxonomia import (
     IngestTaxonomiaInput,
     IngestTaxonomiaUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_yellow_flag import (
-    IngestYellowFlagInput,
-    IngestYellowFlagUseCase,
 )
 
 
@@ -196,8 +192,7 @@ def test_ingest_modus_operandi_succeeds_with_existing_taxonomia() -> None:
     assert created.type == DocumentType.MODUS_OPERANDI
     assert created.taxonomia_id == taxonomia.id
     assert created.similar_cases == []
-    assert created.red_flags == []
-    assert created.yellow_flags == []
+    assert created.flags == []
 
 
 def _seed_taxonomia_and_modus_operandi(
@@ -276,10 +271,10 @@ def test_ingest_similar_case_appends_id_to_parent() -> None:
     assert updated_parent.similar_cases == [created.id]
 
 
-def test_ingest_red_flag_appends_id_to_parent() -> None:
+def test_ingest_flag_appends_id_to_parent() -> None:
     repository = InMemoryFraudKnowledgeRepository()
     modus_operandi = _seed_taxonomia_and_modus_operandi(repository)
-    use_case = IngestRedFlagUseCase(
+    use_case = IngestFlagUseCase(
         repository=repository,
         embedding_unit_of_work_factory=ScriptedEmbeddingUnitOfWorkFactory(),
         monitoring=NullMonitoringPort(),
@@ -287,42 +282,79 @@ def test_ingest_red_flag_appends_id_to_parent() -> None:
     )
 
     created = use_case.execute(
-        IngestRedFlagInput(
+        IngestFlagInput(
             text="senal de alerta roja",
+            flag_type=DocumentType.RED_FLAG,
             segmento="tarjetas",
             configuration="default",
             version=1,
-            modus_operandi_id=modus_operandi.id,
-            taxonomia_id=modus_operandi.taxonomia_id,
+            modus_operandi_ids=[modus_operandi.id],
         )
     )
 
+    assert created.type == DocumentType.RED_FLAG
     updated_parent = repository.get(modus_operandi.id)
     assert isinstance(updated_parent, ModusOperandiDocument)
-    assert updated_parent.red_flags == [created.id]
+    assert updated_parent.flags == [created.id]
 
 
-def test_ingest_yellow_flag_appends_id_to_parent() -> None:
+def test_ingest_flag_appends_id_to_all_parents_when_many_to_many() -> None:
     repository = InMemoryFraudKnowledgeRepository()
-    modus_operandi = _seed_taxonomia_and_modus_operandi(repository)
-    use_case = IngestYellowFlagUseCase(
+    embedding_factory = ScriptedEmbeddingUnitOfWorkFactory()
+    taxonomia = IngestTaxonomiaUseCase(
         repository=repository,
-        embedding_unit_of_work_factory=ScriptedEmbeddingUnitOfWorkFactory(),
+        embedding_unit_of_work_factory=embedding_factory,
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    ).execute(_taxonomia_input())
+    ingest_mo = IngestModusOperandiUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=embedding_factory,
         monitoring=NullMonitoringPort(),
         embedding_model="fake-deployment",
     )
-
-    created = use_case.execute(
-        IngestYellowFlagInput(
-            text="senal de alerta amarilla",
+    mo_a = ingest_mo.execute(
+        IngestModusOperandiInput(
+            text="patron A",
             segmento="tarjetas",
             configuration="default",
             version=1,
-            modus_operandi_id=modus_operandi.id,
-            taxonomia_id=modus_operandi.taxonomia_id,
+            taxonomia_id=taxonomia.id,
+            taxonomia=taxonomia.text,
+        )
+    )
+    mo_b = ingest_mo.execute(
+        IngestModusOperandiInput(
+            text="patron B",
+            segmento="tarjetas",
+            configuration="default",
+            version=1,
+            taxonomia_id=taxonomia.id,
+            taxonomia=taxonomia.text,
         )
     )
 
-    updated_parent = repository.get(modus_operandi.id)
-    assert isinstance(updated_parent, ModusOperandiDocument)
-    assert updated_parent.yellow_flags == [created.id]
+    use_case = IngestFlagUseCase(
+        repository=repository,
+        embedding_unit_of_work_factory=embedding_factory,
+        monitoring=NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    )
+    created = use_case.execute(
+        IngestFlagInput(
+            text="senal compartida",
+            flag_type=DocumentType.YELLOW_FLAG,
+            segmento="tarjetas",
+            configuration="default",
+            version=1,
+            modus_operandi_ids=[mo_a.id, mo_b.id],
+        )
+    )
+
+    updated_a = repository.get(mo_a.id)
+    updated_b = repository.get(mo_b.id)
+    assert isinstance(updated_a, ModusOperandiDocument)
+    assert isinstance(updated_b, ModusOperandiDocument)
+    assert updated_a.flags == [created.id]
+    assert updated_b.flags == [created.id]
+    assert created.modus_operandi_ids == [mo_a.id, mo_b.id]

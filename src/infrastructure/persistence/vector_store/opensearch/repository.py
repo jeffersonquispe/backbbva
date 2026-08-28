@@ -8,12 +8,11 @@ from opensearchpy.exceptions import NotFoundError
 
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
+    FlagDocument,
     FraudKnowledgeDocument,
     ModusOperandiDocument,
-    RedFlagDocument,
     SimilarCaseDocument,
     TaxonomiaDocument,
-    YellowFlagDocument,
 )
 from src.infrastructure.persistence.vector_store.opensearch.index import (
     FRAUD_KNOWLEDGE_INDEX,
@@ -23,11 +22,9 @@ _DOCUMENT_CLASSES = {
     DocumentType.TAXONOMIA: TaxonomiaDocument,
     DocumentType.MODUS_OPERANDI: ModusOperandiDocument,
     DocumentType.SIMILAR_CASE: SimilarCaseDocument,
-    DocumentType.RED_FLAG: RedFlagDocument,
-    DocumentType.YELLOW_FLAG: YellowFlagDocument,
+    DocumentType.RED_FLAG: FlagDocument,
+    DocumentType.YELLOW_FLAG: FlagDocument,
 }
-
-_PARENTED_TYPES = (SimilarCaseDocument, RedFlagDocument, YellowFlagDocument)
 
 
 def document_to_source(document: FraudKnowledgeDocument) -> dict[str, Any]:
@@ -46,13 +43,16 @@ def document_to_source(document: FraudKnowledgeDocument) -> dict[str, Any]:
             taxonomia_id=str(document.taxonomia_id),
             taxonomia=document.taxonomia,
             similar_cases=[str(i) for i in document.similar_cases],
-            red_flags=[str(i) for i in document.red_flags],
-            yellow_flags=[str(i) for i in document.yellow_flags],
+            flags=[str(i) for i in document.flags],
         )
-    elif isinstance(document, _PARENTED_TYPES):
+    elif isinstance(document, SimilarCaseDocument):
         source.update(
             modus_operandi_id=str(document.modus_operandi_id),
             taxonomia_id=str(document.taxonomia_id),
+        )
+    elif isinstance(document, FlagDocument):
+        source.update(
+            modus_operandi_ids=[str(i) for i in document.modus_operandi_ids],
         )
     return source
 
@@ -75,17 +75,18 @@ def document_from_source(source: dict[str, Any]) -> FraudKnowledgeDocument:
             taxonomia_id=UUID(source["taxonomia_id"]),
             taxonomia=source["taxonomia"],
             similar_cases=[UUID(i) for i in source.get("similar_cases", [])],
-            red_flags=[UUID(i) for i in source.get("red_flags", [])],
-            yellow_flags=[UUID(i) for i in source.get("yellow_flags", [])],
+            flags=[UUID(i) for i in source.get("flags", [])],
         )
-    elif document_type in (
-        DocumentType.SIMILAR_CASE,
-        DocumentType.RED_FLAG,
-        DocumentType.YELLOW_FLAG,
-    ):
+    elif document_type == DocumentType.SIMILAR_CASE:
         fields.update(
             modus_operandi_id=UUID(source["modus_operandi_id"]),
             taxonomia_id=UUID(source["taxonomia_id"]),
+        )
+    elif document_type in (DocumentType.RED_FLAG, DocumentType.YELLOW_FLAG):
+        fields.update(
+            modus_operandi_ids=[
+                UUID(i) for i in source.get("modus_operandi_ids", [])
+            ],
         )
     return document_cls(**fields)
 

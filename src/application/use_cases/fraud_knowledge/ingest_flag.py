@@ -6,8 +6,8 @@ from uuid import UUID, uuid4
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
+    FlagDocument,
     ModusOperandiDocument,
-    YellowFlagDocument,
 )
 from src.application.ports.fraud_knowledge_repository_port import (
     FraudKnowledgeRepository,
@@ -16,17 +16,17 @@ from src.application.ports.monitoring_port import MonitoringPort
 
 
 @dataclass(frozen=True)
-class IngestYellowFlagInput:
+class IngestFlagInput:
     text: str
+    flag_type: DocumentType  # RED_FLAG | YELLOW_FLAG
     segmento: str
     configuration: str
     version: int
-    modus_operandi_id: UUID
-    taxonomia_id: UUID
+    modus_operandi_ids: list[UUID]
     activate: bool = True
 
 
-class IngestYellowFlagUseCase:
+class IngestFlagUseCase:
     def __init__(
         self,
         repository: FraudKnowledgeRepository,
@@ -39,41 +39,35 @@ class IngestYellowFlagUseCase:
         self._monitoring = monitoring
         self._embedding_model = embedding_model
 
-    def execute(self, data: IngestYellowFlagInput) -> YellowFlagDocument:
-        modus_operandi = self._repository.get(data.modus_operandi_id)
-        if modus_operandi is None or modus_operandi.type != DocumentType.MODUS_OPERANDI:
-            raise ValueError(f"modus_operandi {data.modus_operandi_id} does not exist")
-        assert isinstance(modus_operandi, ModusOperandiDocument)
-        if modus_operandi.taxonomia_id != data.taxonomia_id:
-            raise ValueError(
-                f"taxonomia_id {data.taxonomia_id} does not match "
-                f"modus_operandi {data.modus_operandi_id}'s parent "
-                f"taxonomia {modus_operandi.taxonomia_id}"
-            )
+    def execute(self, data: IngestFlagInput) -> FlagDocument:
+        parents: list[ModusOperandiDocument] = []
+        for modus_operandi_id in data.modus_operandi_ids:
+            parent = self._repository.get(modus_operandi_id)
+            if parent is None or parent.type != DocumentType.MODUS_OPERANDI:
+                raise ValueError(f"modus_operandi {modus_operandi_id} does not exist")
+            assert isinstance(parent, ModusOperandiDocument)
+            parents.append(parent)
 
         uow = self._embedding_unit_of_work_factory.create(
             model=self._embedding_model,
             monitoring=self._monitoring,
-            operation_name="ingest_yellow_flag",
+            operation_name="ingest_flag",
         )
         embedding = uow.embed([data.text])
-        document = YellowFlagDocument(
+        document = FlagDocument(
             id=uuid4(),
             text=data.text,
             text_embedded=embedding.vectors[0],
             segmento=data.segmento,
             configuration=data.configuration,
             version=data.version,
-            modus_operandi_id=data.modus_operandi_id,
-            taxonomia_id=data.taxonomia_id,
+            modus_operandi_ids=data.modus_operandi_ids,
             activate=data.activate,
+            type=data.flag_type,
         )
         created = self._repository.create(document)
 
-        self._repository.update(
-            replace(
-                modus_operandi,
-                yellow_flags=[*modus_operandi.yellow_flags, created.id],
-            )
-        )
+        for parent in parents:
+            self._repository.update(replace(parent, flags=[*parent.flags, created.id]))
+
         return created

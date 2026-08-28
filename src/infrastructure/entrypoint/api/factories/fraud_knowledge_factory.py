@@ -11,11 +11,9 @@ from src.application.ports.fraud_knowledge_repository_port import (
     FraudKnowledgeRepository,
 )
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.use_cases.fraud_knowledge.delete_flag import DeleteFlagUseCase
 from src.application.use_cases.fraud_knowledge.delete_modus_operandi import (
     DeleteModusOperandiUseCase,
-)
-from src.application.use_cases.fraud_knowledge.delete_red_flag import (
-    DeleteRedFlagUseCase,
 )
 from src.application.use_cases.fraud_knowledge.delete_similar_case import (
     DeleteSimilarCaseUseCase,
@@ -23,26 +21,18 @@ from src.application.use_cases.fraud_knowledge.delete_similar_case import (
 from src.application.use_cases.fraud_knowledge.delete_taxonomia import (
     DeleteTaxonomiaUseCase,
 )
-from src.application.use_cases.fraud_knowledge.delete_yellow_flag import (
-    DeleteYellowFlagUseCase,
-)
 from src.application.use_cases.fraud_knowledge.get_related_fraud_knowledge import (
     GetRelatedFraudKnowledgeUseCase,
 )
+from src.application.use_cases.fraud_knowledge.ingest_flag import IngestFlagUseCase
 from src.application.use_cases.fraud_knowledge.ingest_modus_operandi import (
     IngestModusOperandiUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_red_flag import (
-    IngestRedFlagUseCase,
 )
 from src.application.use_cases.fraud_knowledge.ingest_similar_case import (
     IngestSimilarCaseUseCase,
 )
 from src.application.use_cases.fraud_knowledge.ingest_taxonomia import (
     IngestTaxonomiaUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_yellow_flag import (
-    IngestYellowFlagUseCase,
 )
 from src.application.use_cases.fraud_knowledge.list_fraud_knowledge_documents import (
     ListFraudKnowledgeDocumentsUseCase,
@@ -128,19 +118,9 @@ def get_ingest_similar_case_use_case() -> IngestSimilarCaseUseCase:
     )
 
 
-def get_ingest_red_flag_use_case() -> IngestRedFlagUseCase:
+def get_ingest_flag_use_case() -> IngestFlagUseCase:
     embedding_factory, monitoring, model = _embedding_deps()
-    return IngestRedFlagUseCase(
-        repository=get_fraud_knowledge_repository(),
-        embedding_unit_of_work_factory=embedding_factory,
-        monitoring=monitoring,
-        embedding_model=model,
-    )
-
-
-def get_ingest_yellow_flag_use_case() -> IngestYellowFlagUseCase:
-    embedding_factory, monitoring, model = _embedding_deps()
-    return IngestYellowFlagUseCase(
+    return IngestFlagUseCase(
         repository=get_fraud_knowledge_repository(),
         embedding_unit_of_work_factory=embedding_factory,
         monitoring=monitoring,
@@ -172,12 +152,8 @@ def get_delete_similar_case_use_case() -> DeleteSimilarCaseUseCase:
     return DeleteSimilarCaseUseCase(get_fraud_knowledge_repository())
 
 
-def get_delete_red_flag_use_case() -> DeleteRedFlagUseCase:
-    return DeleteRedFlagUseCase(get_fraud_knowledge_repository())
-
-
-def get_delete_yellow_flag_use_case() -> DeleteYellowFlagUseCase:
-    return DeleteYellowFlagUseCase(get_fraud_knowledge_repository())
+def get_delete_flag_use_case() -> DeleteFlagUseCase:
+    return DeleteFlagUseCase(get_fraud_knowledge_repository())
 
 
 def get_list_fraud_knowledge_documents_use_case() -> ListFraudKnowledgeDocumentsUseCase:

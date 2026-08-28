@@ -4,6 +4,7 @@ from uuid import UUID
 
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
+    FlagDocument,
     FraudKnowledgeDocument,
     ModusOperandiDocument,
 )
@@ -55,17 +56,20 @@ class OpenSearchFraudKnowledgeRelationsAdapter(FraudKnowledgeRelationsPort):
         taxonomia = self._repository.get(document.taxonomia_id)
         if taxonomia is not None:
             related.append(taxonomia)
-        for child_id in (
-            *document.similar_cases,
-            *document.red_flags,
-            *document.yellow_flags,
-        ):
+        for child_id in (*document.similar_cases, *document.flags):
             child = self._repository.get(child_id)
             if child is not None:
                 related.append(child)
         return related
 
     def _related_to_flag_or_case(
+        self, document: FraudKnowledgeDocument
+    ) -> list[FraudKnowledgeDocument]:
+        if isinstance(document, FlagDocument):
+            return self._related_to_flag(document)
+        return self._related_to_similar_case(document)
+
+    def _related_to_similar_case(
         self, document: FraudKnowledgeDocument
     ) -> list[FraudKnowledgeDocument]:
         related: list[FraudKnowledgeDocument] = []
@@ -79,15 +83,35 @@ class OpenSearchFraudKnowledgeRelationsAdapter(FraudKnowledgeRelationsPort):
         assert isinstance(parent, ModusOperandiDocument)
         related.append(parent)
 
-        sibling_ids = (
-            *parent.similar_cases,
-            *parent.red_flags,
-            *parent.yellow_flags,
-        )
-        for sibling_id in sibling_ids:
+        for sibling_id in (*parent.similar_cases, *parent.flags):
             if sibling_id == document.id:
                 continue
             sibling = self._repository.get(sibling_id)
             if sibling is not None:
                 related.append(sibling)
+        return related
+
+    def _related_to_flag(self, document: FlagDocument) -> list[FraudKnowledgeDocument]:
+        # A flag can have multiple parent modus operandi (M2M) - collect
+        # every parent, every parent's taxonomia (deduped), and every
+        # parent's siblings (deduped, since two parents can share one).
+        related: list[FraudKnowledgeDocument] = []
+        seen_ids: set[UUID] = set()
+
+        def _add(doc: FraudKnowledgeDocument | None) -> None:
+            if doc is not None and doc.id not in seen_ids:
+                seen_ids.add(doc.id)
+                related.append(doc)
+
+        for mo_id in document.modus_operandi_ids:
+            parent = self._repository.get(mo_id)
+            if parent is None or parent.type != DocumentType.MODUS_OPERANDI:
+                continue
+            assert isinstance(parent, ModusOperandiDocument)
+            _add(parent)
+            _add(self._repository.get(parent.taxonomia_id))
+            for sibling_id in (*parent.similar_cases, *parent.flags):
+                if sibling_id == document.id:
+                    continue
+                _add(self._repository.get(sibling_id))
         return related
