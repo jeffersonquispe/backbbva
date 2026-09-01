@@ -6,7 +6,6 @@ from src.application.ports.configuration_port import (
     FilterCondition,
     FilterGroup,
     LogicalOperator,
-    SegmentCode,
     SegmentSettings,
 )
 from src.application.ports.tag_catalog_port import TagCategory
@@ -64,9 +63,10 @@ def _group_matches(
 class ResolveAlertSegmentUseCase:
     """Which enabled segment's filter matches this alert - pure logic, no
     ports (operates on data the caller already fetched). Tie-break for
-    overlapping matches is SegmentCode declaration order: an admin who
-    enables canales_digitales without narrowing its filter creates a
-    catch-all that wins over tarjetas, since digital is declared first."""
+    overlapping matches is SegmentSettings.order (admin-editable via
+    drag-and-drop on the Segmento tab): an admin who enables a segment
+    without narrowing its filter creates a catch-all that wins over any
+    segment ordered after it."""
 
     def execute(
         self,
@@ -74,10 +74,10 @@ class ResolveAlertSegmentUseCase:
         segments: dict[str, SegmentSettings],
     ) -> str | None:
         alert_values = _alert_values(mandatory_fields)
-        for code in SegmentCode:
-            segment = segments.get(code.value)
-            if segment is None or not segment.enabled:
+        ordered = sorted(segments.items(), key=lambda item: item[1].order)
+        for code, segment in ordered:
+            if not segment.enabled:
                 continue
             if _group_matches(segment.filter, alert_values):
-                return code.value
+                return code
         return None

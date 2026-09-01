@@ -37,7 +37,6 @@ from src.application.ports.configuration_port import (
     SamplingCriterion,
     SamplingIntervalUnit,
     SegmentSettings,
-    ShortageAction,
     ShortageBehavior,
     Taxonomy,
     TestCleanupPolicy,
@@ -293,8 +292,12 @@ def test_operations_round_trips_through_its_own_table_item_minus_profiles() -> N
         queue_max_lifetime_value=120,
         queue_max_lifetime_unit=SamplingIntervalUnit.HOURS,
         queue_discard_amount_threshold=15000,
-        voicebot_shortage_behavior=ShortageBehavior(action=ShortageAction.BLOCK_HARD),
-        analyst_shortage_behavior=ShortageBehavior(action=ShortageAction.BLOCK_SOFT),
+        voicebot_shortage_behavior=ShortageBehavior(
+            resolution_tag=ResolutionTag.BLOCK_HARD, resolution_method_id="rm-1"
+        ),
+        analyst_shortage_behavior=ShortageBehavior(
+            resolution_tag=ResolutionTag.BLOCK_SOFT, resolution_method_id="rm-2"
+        ),
     )
     item = {
         "configuration_id": "cfg-1",
@@ -313,8 +316,10 @@ def test_operations_round_trips_through_its_own_table_item_minus_profiles() -> N
     assert restored.queue_max_lifetime_value == 120
     assert restored.queue_max_lifetime_unit == SamplingIntervalUnit.HOURS
     assert restored.queue_discard_amount_threshold == 15000
-    assert restored.voicebot_shortage_behavior.action == ShortageAction.BLOCK_HARD
-    assert restored.analyst_shortage_behavior.action == ShortageAction.BLOCK_SOFT
+    assert restored.voicebot_shortage_behavior.resolution_tag == ResolutionTag.BLOCK_HARD
+    assert restored.voicebot_shortage_behavior.resolution_method_id == "rm-1"
+    assert restored.analyst_shortage_behavior.resolution_tag == ResolutionTag.BLOCK_SOFT
+    assert restored.analyst_shortage_behavior.resolution_method_id == "rm-2"
 
 
 def test_evaluation_round_trips_through_its_own_table_item() -> None:

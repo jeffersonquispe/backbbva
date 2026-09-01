@@ -6,7 +6,6 @@ from src.application.ports.configuration_port import (
     FilterGroup,
     LogicalOperator,
     MonitoringSettings,
-    SegmentCode,
     SegmentSettings,
 )
 from src.application.ports.tag_catalog_port import TagCategory
@@ -15,12 +14,13 @@ from src.application.use_cases.alerts.resolve_alert_segment import (
 )
 
 
-def _segment(*, enabled: bool, filter: FilterGroup) -> SegmentSettings:
+def _segment(*, enabled: bool, filter: FilterGroup, order: int = 0) -> SegmentSettings:
     return SegmentSettings(
         enabled=enabled,
         filter=filter,
         monitoring=MonitoringSettings(),
         agent=AgentSettings(),
+        order=order,
     )
 
 
@@ -35,12 +35,12 @@ def test_single_condition_matches_and_does_not_match() -> None:
         conditions=[_condition(TagCategory.EVENT_TYPE, ["login"])],
     )
     segments = {
-        SegmentCode.TARJETAS.value: _segment(enabled=True, filter=matching_filter),
+        "tarjetas": _segment(enabled=True, filter=matching_filter),
     }
 
     assert (
         use_case.execute({"event_type": "login"}, segments)
-        == SegmentCode.TARJETAS.value
+        == "tarjetas"
     )
     assert use_case.execute({"event_type": "logout"}, segments) is None
 
@@ -55,13 +55,13 @@ def test_and_group_requires_all_children() -> None:
             _condition(TagCategory.INTEGRATION_POINT, ["web"], id="c2"),
         ],
     )
-    segments = {SegmentCode.TARJETAS.value: _segment(enabled=True, filter=filter_group)}
+    segments = {"tarjetas": _segment(enabled=True, filter=filter_group)}
 
     assert (
         use_case.execute(
             {"event_type": "login", "integration_point": "web"}, segments
         )
-        == SegmentCode.TARJETAS.value
+        == "tarjetas"
     )
     assert (
         use_case.execute(
@@ -81,13 +81,13 @@ def test_or_group_requires_any_child() -> None:
             _condition(TagCategory.INTEGRATION_POINT, ["web"], id="c2"),
         ],
     )
-    segments = {SegmentCode.TARJETAS.value: _segment(enabled=True, filter=filter_group)}
+    segments = {"tarjetas": _segment(enabled=True, filter=filter_group)}
 
     assert (
         use_case.execute(
             {"event_type": "logout", "integration_point": "web"}, segments
         )
-        == SegmentCode.TARJETAS.value
+        == "tarjetas"
     )
     assert (
         use_case.execute(
@@ -110,13 +110,13 @@ def test_nested_group_matches() -> None:
         conditions=[_condition(TagCategory.INTEGRATION_POINT, ["web"], id="c1")],
         groups=[inner],
     )
-    segments = {SegmentCode.TARJETAS.value: _segment(enabled=True, filter=outer)}
+    segments = {"tarjetas": _segment(enabled=True, filter=outer)}
 
     assert (
         use_case.execute(
             {"event_type": "login", "integration_point": "web"}, segments
         )
-        == SegmentCode.TARJETAS.value
+        == "tarjetas"
     )
     assert (
         use_case.execute(
@@ -129,18 +129,18 @@ def test_nested_group_matches() -> None:
 def test_empty_filter_group_matches_everything() -> None:
     use_case = ResolveAlertSegmentUseCase()
     segments = {
-        SegmentCode.TARJETAS.value: _segment(
+        "tarjetas": _segment(
             enabled=True, filter=FilterGroup(id="root")
         )
     }
 
-    assert use_case.execute({}, segments) == SegmentCode.TARJETAS.value
+    assert use_case.execute({}, segments) == "tarjetas"
 
 
 def test_disabled_segment_never_matches() -> None:
     use_case = ResolveAlertSegmentUseCase()
     segments = {
-        SegmentCode.TARJETAS.value: _segment(
+        "tarjetas": _segment(
             enabled=False, filter=FilterGroup(id="root")
         )
     }
@@ -148,15 +148,15 @@ def test_disabled_segment_never_matches() -> None:
     assert use_case.execute({}, segments) is None
 
 
-def test_tie_break_returns_first_declared_segment_code() -> None:
+def test_tie_break_returns_lowest_order_segment() -> None:
     use_case = ResolveAlertSegmentUseCase()
     catch_all = FilterGroup(id="root")
     segments = {
-        SegmentCode.TARJETAS.value: _segment(enabled=True, filter=catch_all),
-        SegmentCode.CANALES_DIGITALES.value: _segment(enabled=True, filter=catch_all),
+        "tarjetas": _segment(enabled=True, filter=catch_all, order=1),
+        "canales_digitales": _segment(enabled=True, filter=catch_all, order=0),
     }
 
-    assert use_case.execute({}, segments) == SegmentCode.CANALES_DIGITALES.value
+    assert use_case.execute({}, segments) == "canales_digitales"
 
 
 def test_no_match_returns_none() -> None:
@@ -164,7 +164,7 @@ def test_no_match_returns_none() -> None:
     filter_group = FilterGroup(
         id="root", conditions=[_condition(TagCategory.EVENT_TYPE, ["login"])]
     )
-    segments = {SegmentCode.TARJETAS.value: _segment(enabled=True, filter=filter_group)}
+    segments = {"tarjetas": _segment(enabled=True, filter=filter_group)}
 
     assert use_case.execute({"event_type": "other"}, segments) is None
 
@@ -175,11 +175,11 @@ def test_rules_normalization_list_of_dicts_shape() -> None:
         id="root",
         conditions=[_condition(TagCategory.TRIGGERED_RULE, ["CUSTOMER - dg_no_digital"])],
     )
-    segments = {SegmentCode.TARJETAS.value: _segment(enabled=True, filter=filter_group)}
+    segments = {"tarjetas": _segment(enabled=True, filter=filter_group)}
 
     mandatory_fields = {"rules": [{"name": "CUSTOMER - dg_no_digital"}]}
     assert (
-        use_case.execute(mandatory_fields, segments) == SegmentCode.TARJETAS.value
+        use_case.execute(mandatory_fields, segments) == "tarjetas"
     )
 
 
@@ -189,11 +189,11 @@ def test_rules_normalization_bracketed_string_shape() -> None:
         id="root",
         conditions=[_condition(TagCategory.TRIGGERED_RULE, ["CUSTOMER - Score1000Net"])],
     )
-    segments = {SegmentCode.TARJETAS.value: _segment(enabled=True, filter=filter_group)}
+    segments = {"tarjetas": _segment(enabled=True, filter=filter_group)}
 
     mandatory_fields = {"rules": "[CUSTOMER - Score1000Net]"}
     assert (
-        use_case.execute(mandatory_fields, segments) == SegmentCode.TARJETAS.value
+        use_case.execute(mandatory_fields, segments) == "tarjetas"
     )
 
 
@@ -203,6 +203,6 @@ def test_missing_fields_never_crash_and_produce_no_match() -> None:
         id="root",
         conditions=[_condition(TagCategory.EVENT_TYPE, ["login"])],
     )
-    segments = {SegmentCode.TARJETAS.value: _segment(enabled=True, filter=filter_group)}
+    segments = {"tarjetas": _segment(enabled=True, filter=filter_group)}
 
     assert use_case.execute({}, segments) is None

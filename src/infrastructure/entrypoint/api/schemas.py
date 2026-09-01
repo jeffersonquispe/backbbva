@@ -25,7 +25,6 @@ from src.application.ports.configuration_port import (
     ProfilingStrategyKey,
     ResolutionTag,
     SamplingIntervalUnit,
-    ShortageAction,
     TestCleanupPolicy,
     VectorStoreTool,
 )
@@ -383,7 +382,8 @@ class AnalystCapacitySchema(BaseModel):
 
 
 class ShortageBehaviorSchema(BaseModel):
-    action: ShortageAction = ShortageAction.BLOCK_SOFT
+    resolution_tag: ResolutionTag = ResolutionTag.BLOCK_SOFT
+    resolution_method_id: str | None = None
 
 
 class GeneralSettingsSchema(BaseModel):
@@ -575,6 +575,7 @@ class SegmentSettingsSchema(BaseModel):
         default_factory=MonitoringSettingsSchema
     )
     agent: AgentSettingsSchema = Field(default_factory=AgentSettingsSchema)
+    order: int = 0
 
 
 class CreateConfigurationRequest(BaseModel):
@@ -695,6 +696,33 @@ class UpdateTaxonomyLibraryEntryRequest(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     variables: list[str] | None = None
     examples: list[str] | None = None
+    active: bool | None = None
+
+
+# --- Channel library (global, config-independent - replaces the old fixed
+# SegmentCode enum; a configuration's segments dict keys off these ids) ---
+
+
+class ChannelLibraryEntrySchema(BaseModel):
+    id: str
+    code: str
+    name: str
+    description: str
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateChannelLibraryEntryRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+
+
+class UpdateChannelLibraryEntryRequest(BaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=50)
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
     active: bool | None = None
 
 

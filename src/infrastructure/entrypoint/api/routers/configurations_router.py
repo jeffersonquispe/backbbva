@@ -509,6 +509,7 @@ def _segment_settings_from_schema(schema: SegmentSettingsSchema) -> SegmentSetti
         filter=_filter_group_from_schema(schema.filter),
         monitoring=_monitoring_from_schema(schema.monitoring),
         agent=_agent_from_schema(schema.agent),
+        order=schema.order,
     )
 
 
@@ -536,4 +537,5 @@ def _segment_settings_to_schema(settings: SegmentSettings) -> SegmentSettingsSch
         filter=_filter_group_to_schema(settings.filter),
         monitoring=_monitoring_to_schema(settings.monitoring),
         agent=_agent_to_schema(settings.agent),
+        order=settings.order,
     )

@@ -10,10 +10,13 @@ from src.application.ports.configuration_port import ResolutionTag
 @dataclass
 class ResolutionMethod:
     # Flat catalog, mirrors marcacion_catalog_port.py's MarcacionCategory -
-    # `resolution_tag` is the fixed dimension (the 3 values the workflow
-    # will eventually branch on, see configuration_port.py's
-    # AnalystPlaybook comment), `value` is the admin-editable display name,
-    # same relationship as MarcacionCategory.value -> RiskLabel.
+    # `resolution_tag` is the fixed dimension (the 5 values the workflow
+    # will eventually branch on: 3 shared with AnalystPlaybook.resolution_tag
+    # plus BLOCK_SOFT/BLOCK_HARD used only by ShortageBehavior.resolution_tag,
+    # see configuration_port.py), `value` is the admin-editable display name,
+    # same relationship as MarcacionCategory.value -> RiskLabel. Same catalog
+    # is shared by both consumers - an admin names a method once and it's
+    # pickable wherever a resolution_method_id field exists.
     id: str
     value: str
     resolution_tag: ResolutionTag

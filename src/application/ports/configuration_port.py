@@ -20,12 +20,16 @@ class TestCleanupPolicy(StrEnum):
     FAILED_FIRST = "failed-first"
 
 
-class ShortageAction(StrEnum):
-    BLOCK_SOFT = "block-soft"
-    BLOCK_HARD = "block-hard"
-    PASS = "pass"
-    MOVE_TO_ANALYST = "move-to-analyst"
-    MOVE_TO_VOICEBOT = "move-to-voicebot"
+class ResolutionTag(StrEnum):
+    # Fixed dimension a ResolutionMethod catalog entry maps onto (see
+    # resolution_method_catalog_port.py) - the workflow will eventually
+    # branch on this. BLOCK_SOFT/BLOCK_HARD exist only for ShortageBehavior
+    # below; AnalystPlaybook only ever uses the first three.
+    SCALE_TO_ANALYST = "scale_to_analyst"
+    SEND_TO_VOICEBOT = "send_to_voicebot"
+    HANDLE_BY_ARIA = "handle_by_aria"
+    BLOCK_SOFT = "block_soft"
+    BLOCK_HARD = "block_hard"
 
 
 @dataclass
@@ -133,7 +137,14 @@ class AnalystCapacity:
 
 @dataclass
 class ShortageBehavior:
-    action: ShortageAction = ShortageAction.BLOCK_SOFT
+    # Same catalog as AnalystPlaybook.resolution_method_id below - an admin
+    # names methods once (ResolutionMethodCatalogRepository) and reuses them
+    # here. resolution_tag stays denormalized for the same reason as
+    # AnalystPlaybook's; resolution_method_id is nullable so a freshly
+    # created config still has a sane default (block_soft) until an admin
+    # actually picks a method.
+    resolution_tag: ResolutionTag = ResolutionTag.BLOCK_SOFT
+    resolution_method_id: str | None = None
 
 
 @dataclass
@@ -310,12 +321,6 @@ class AdversarialConfig:
     feed_feedback_to_classification: bool = True
 
 
-class ResolutionTag(StrEnum):
-    SCALE_TO_ANALYST = "scale_to_analyst"
-    SEND_TO_VOICEBOT = "send_to_voicebot"
-    HANDLE_BY_ARIA = "handle_by_aria"
-
-
 @dataclass
 class AnalystPlaybook:
     # Config-time definition, distinct from fraud_playbook_port.py's
@@ -395,11 +400,6 @@ class TestSettings:
     test_cleanup_policy: TestCleanupPolicy = TestCleanupPolicy.OLDEST
 
 
-class SegmentCode(StrEnum):
-    CANALES_DIGITALES = "canales_digitales"
-    TARJETAS = "tarjetas"
-
-
 class FilterConditionOperator(StrEnum):
     IN = "in"
 
@@ -437,10 +437,26 @@ class SegmentSettings:
     filter: FilterGroup = field(default_factory=lambda: FilterGroup(id="root"))
     monitoring: MonitoringSettings = field(default_factory=MonitoringSettings)
     agent: AgentSettings = field(default_factory=AgentSettings)
+    # Tie-break order when more than one enabled segment's filter matches
+    # the same alert (see ResolveAlertSegmentUseCase) - admin-editable via
+    # drag-and-drop on the Segmento tab, per configuration version. Lower
+    # sorts first. Replaces the old fixed SegmentCode enum's declaration
+    # order now that segment keys come from channel_library_port.py's
+    # admin-editable catalog instead of a hardcoded enum.
+    order: int = 0
 
 
 def default_segments() -> dict[str, SegmentSettings]:
-    return {code.value: SegmentSettings() for code in SegmentCode}
+    # Fallback only, for callers that construct a ConfigurationRecord
+    # without an explicit segments= (tests, manager.py's seed_defaults) -
+    # NOT the source of truth for a real config, which gets its segments
+    # dict from the caller (frontend snapshot-copies the active
+    # channel_library_port.py catalog at draft-creation time, same
+    # semantics as taxonomy_library_port.py's "Importar de biblioteca").
+    return {
+        "canales_digitales": SegmentSettings(order=0),
+        "tarjetas": SegmentSettings(order=1),
+    }
 
 
 @dataclass

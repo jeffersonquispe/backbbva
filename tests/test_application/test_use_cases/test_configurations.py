@@ -20,7 +20,6 @@ from src.application.ports.configuration_port import (
     ModusOperandi,
     MonitoringSettings,
     OpsSettings,
-    SegmentCode,
     SegmentSettings,
     Taxonomy,
     TestSettings,
@@ -286,7 +285,7 @@ def test_create_configuration_starts_new_lineage_at_version_1_inactive() -> None
     assert record.ops == OpsSettings()
     assert record.test == TestSettings()
     assert record.segments == default_segments()
-    assert set(record.segments) == {SegmentCode.CANALES_DIGITALES, SegmentCode.TARJETAS}
+    assert set(record.segments) == {"canales_digitales", "tarjetas"}
     assert all(not s.enabled for s in record.segments.values())
     assert all(s.monitoring == MonitoringSettings() for s in record.segments.values())
     assert all(s.agent == AgentSettings() for s in record.segments.values())
@@ -297,7 +296,7 @@ def test_create_configuration_with_custom_segment_filter_tree() -> None:
     use_case = _create_use_case(repo)
 
     segments = {
-        SegmentCode.TARJETAS.value: SegmentSettings(
+        "tarjetas": SegmentSettings(
             enabled=True,
             filter=FilterGroup(
                 id="root",
@@ -330,7 +329,7 @@ def test_create_configuration_with_custom_segment_filter_tree() -> None:
         CreateConfigurationInput(name="Producción", segments=segments)
     )
 
-    tarjetas = record.segments[SegmentCode.TARJETAS.value]
+    tarjetas = record.segments["tarjetas"]
     assert tarjetas.enabled is True
     assert tarjetas.filter.operator == LogicalOperator.OR
     assert tarjetas.filter.conditions[0].category == TagCategory.EVENT_TYPE
@@ -574,7 +573,7 @@ def test_create_configuration_indexes_full_knowledge_graph_into_opensearch() -> 
         CreateConfigurationInput(
             name="Producción",
             segments={
-                SegmentCode.CANALES_DIGITALES.value: SegmentSettings(
+                "canales_digitales": SegmentSettings(
                     agent=_agent_with_full_knowledge()
                 )
             },
@@ -606,10 +605,10 @@ def test_create_configuration_indexes_knowledge_per_segment_with_correct_segment
         CreateConfigurationInput(
             name="Producción",
             segments={
-                SegmentCode.CANALES_DIGITALES.value: SegmentSettings(
+                "canales_digitales": SegmentSettings(
                     agent=_agent_with_full_knowledge()
                 ),
-                SegmentCode.TARJETAS.value: SegmentSettings(
+                "tarjetas": SegmentSettings(
                     agent=_agent_with_full_knowledge()
                 ),
             },
@@ -619,12 +618,12 @@ def test_create_configuration_indexes_knowledge_per_segment_with_correct_segment
     documents = fraud_repo.list()
     assert len(documents) == 10
 
-    canales_docs = fraud_repo.list(channel=SegmentCode.CANALES_DIGITALES.value)
-    tarjetas_docs = fraud_repo.list(channel=SegmentCode.TARJETAS.value)
+    canales_docs = fraud_repo.list(channel="canales_digitales")
+    tarjetas_docs = fraud_repo.list(channel="tarjetas")
     assert len(canales_docs) == 5
     assert len(tarjetas_docs) == 5
-    assert all(doc.segmento == SegmentCode.CANALES_DIGITALES.value for doc in canales_docs)
-    assert all(doc.segmento == SegmentCode.TARJETAS.value for doc in tarjetas_docs)
+    assert all(doc.segmento == "canales_digitales" for doc in canales_docs)
+    assert all(doc.segmento == "tarjetas" for doc in tarjetas_docs)
     # Each segment's ingest gets its own fresh OpenSearch document ids, even
     # though both segments reuse the same domain-level taxonomy/MO ids.
     assert {doc.id for doc in canales_docs}.isdisjoint({doc.id for doc in tarjetas_docs})
@@ -646,7 +645,7 @@ def test_create_configuration_with_dangling_taxonomy_reference_raises() -> None:
             CreateConfigurationInput(
                 name="Producción",
                 segments={
-                    SegmentCode.CANALES_DIGITALES.value: SegmentSettings(agent=agent)
+                    "canales_digitales": SegmentSettings(agent=agent)
                 },
             )
         )
@@ -662,7 +661,7 @@ def test_activate_flips_opensearch_documents_activate_flag() -> None:
         CreateConfigurationInput(
             name="Producción",
             segments={
-                SegmentCode.CANALES_DIGITALES.value: SegmentSettings(
+                "canales_digitales": SegmentSettings(
                     agent=_agent_with_full_knowledge()
                 )
             },
@@ -673,7 +672,7 @@ def test_activate_flips_opensearch_documents_activate_flag() -> None:
             name="Producción",
             configuration_id=v1.configuration_id,
             segments={
-                SegmentCode.CANALES_DIGITALES.value: SegmentSettings(
+                "canales_digitales": SegmentSettings(
                     agent=_agent_with_full_knowledge()
                 )
             },

@@ -47,7 +47,6 @@ from src.application.ports.configuration_port import (
     SamplingCriterion,
     SamplingIntervalUnit,
     SegmentSettings,
-    ShortageAction,
     ShortageBehavior,
     Taxonomy,
     TestCleanupPolicy,
@@ -715,7 +714,10 @@ def _evaluation_from_item(item: dict[str, Any]) -> TestSettings:
 
 
 def _shortage_behavior_from_item(item: dict[str, Any]) -> ShortageBehavior:
-    return ShortageBehavior(action=ShortageAction(item.get("action", "block-soft")))
+    return ShortageBehavior(
+        resolution_tag=ResolutionTag(item.get("resolution_tag", "block_soft")),
+        resolution_method_id=item.get("resolution_method_id"),
+    )
 
 
 # --- sub-entity item <-> dataclass ---------------------------------------
@@ -831,6 +833,13 @@ def _segment_settings_from_item(item: dict[str, Any]) -> SegmentSettings:
         filter=FilterGroup(id="root"),  # own tables - filled in by _hydrate
         monitoring=_monitoring_from_item(item.get("monitoring") or {}),
         agent=_agent_from_item(item.get("agent") or {}),
+        # Pre-migration rows (written before this field existed) default to
+        # 0 for every segment - same tie-break result as the old fixed
+        # SegmentCode enum only for a 1-segment config; a multi-segment
+        # pre-migration config falls back to dict order, which is no
+        # longer guaranteed meaningful. No such records exist outside local
+        # dev data at the time of this migration.
+        order=int(item.get("order", 0)),
     )
 
 

@@ -11,6 +11,7 @@ from src.application.ports.configuration_port import (
     ResolutionTag,
     TestSettings,
 )
+from src.application.ports.channel_library_port import ChannelLibraryEntry
 from src.application.ports.fraud_playbook_port import FraudPlaybookRecord
 from src.application.ports.marcacion_catalog_port import MarcacionCategory, RiskLabel
 from src.application.ports.resolution_method_catalog_port import ResolutionMethod
@@ -48,6 +49,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.similar_case_
 from src.infrastructure.persistence.database.dynamodb.repositories.taxonomy_library_repository import (
     DynamoTaxonomyLibraryRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.channel_library_repository import (
+    DynamoChannelLibraryRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.tag_catalog_repository import (
     DynamoTagCatalogRepository,
 )
@@ -80,6 +84,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     DATASET_SAMPLES_TABLE,
     DATASET_SUMMARIES_TABLE,
     FRAUD_PLAYBOOKS_TABLE,
+    LIBRARY_CHANNELS_TABLE,
     LIBRARY_FLAGS_TABLE,
     LIBRARY_MODUS_OPERANDI_TABLE,
     LIBRARY_SIMILAR_CASES_TABLE,
@@ -196,6 +201,14 @@ _DEFAULT_VARIABLES: list[str] = [
     "Última transacción", "Número de cuenta", "Oficina", "Producto",
 ]
 
+# One entry per existing SegmentCode value so configs keep working out of
+# the box once segments switch from that fixed enum to this catalog -
+# admins can rename/add/deactivate alongside these.
+_DEFAULT_CHANNELS: list[tuple[str, str]] = [
+    ("canales_digitales", "Canales digitales"),
+    ("tarjetas", "Tarjetas"),
+]
+
 
 def create_table(schema: dict) -> None:
     """Create a DynamoDB table from a boto3-style schema. Idempotent if table already exists."""
@@ -249,6 +262,7 @@ def ensure_all_tables() -> None:
     create_table(RESOLUTION_METHOD_CATALOG_TABLE)
     create_table(VARIABLE_CATALOG_TABLE)
     create_table(LIBRARY_TAXONOMIES_TABLE)
+    create_table(LIBRARY_CHANNELS_TABLE)
     create_table(LIBRARY_MODUS_OPERANDI_TABLE)
     create_table(LIBRARY_FLAGS_TABLE)
     create_table(LIBRARY_SIMILAR_CASES_TABLE)
@@ -372,6 +386,24 @@ def seed_defaults() -> None:
             )
             existing_variable_values.add(value)
             print(f"Variable sembrada: {value}")
+
+    channels = DynamoChannelLibraryRepository()
+    existing_channel_codes = {entry.code for entry in channels.list()}
+    for code, name in _DEFAULT_CHANNELS:
+        if code not in existing_channel_codes:
+            now = datetime.now(timezone.utc)
+            channels.create(
+                ChannelLibraryEntry(
+                    id=str(uuid.uuid4()),
+                    code=code,
+                    name=name,
+                    description="",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            existing_channel_codes.add(code)
+            print(f"Canal sembrado: {code}")
 
 
 def drop_table(table_name: str) -> None:

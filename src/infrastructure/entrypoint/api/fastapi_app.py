@@ -42,6 +42,9 @@ from src.infrastructure.entrypoint.api.routers.modus_operandi_library_router imp
 from src.infrastructure.entrypoint.api.routers.resolution_method_catalog_router import (
     router as resolution_method_catalog_router,
 )
+from src.infrastructure.entrypoint.api.routers.channel_library_router import (
+    router as channel_library_router,
+)
 from src.infrastructure.entrypoint.api.routers.similar_case_library_router import (
     router as similar_case_library_router,
 )
@@ -111,6 +114,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         variable_catalog_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        channel_library_router,
         prefix=genai_config.API_V0_STR,
     )
     app.include_router(

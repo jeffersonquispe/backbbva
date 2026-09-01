@@ -419,6 +419,17 @@ LIBRARY_TAXONOMIES_TABLE = {
     ],
 }
 
+LIBRARY_CHANNELS_TABLE = {
+    "TableName": "library_channels",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "id", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "id", "AttributeType": "S"},
+    ],
+}
+
 
 LIBRARY_MODUS_OPERANDI_TABLE = {
     "TableName": "library_modus_operandi",
