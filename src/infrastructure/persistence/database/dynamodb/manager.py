@@ -95,6 +95,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     TAG_CATALOG_TABLE,
     TEST_RUNS_TABLE,
     VARIABLE_CATALOG_TABLE,
+    WATCHLIST_ELEMENTS_TABLE,
     WATCHLIST_TABLE,
     WORKFLOW_EXECUTIONS_TABLE,
     WORKFLOW_STEP_EXECUTIONS_TABLE,
@@ -267,6 +268,7 @@ def ensure_all_tables() -> None:
     create_table(LIBRARY_FLAGS_TABLE)
     create_table(LIBRARY_SIMILAR_CASES_TABLE)
     create_table(WATCHLIST_TABLE)
+    create_table(WATCHLIST_ELEMENTS_TABLE)
 
 
 def seed_defaults() -> None:

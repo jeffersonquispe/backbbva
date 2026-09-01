@@ -17,14 +17,12 @@ class UpdateWatchlistUseCase:
         *,
         name: str | None = None,
         description: str | None = None,
-        elements: list[str] | None = None,
         active: bool | None = None,
     ) -> Watchlist:
         updated = self._watchlists.update(
             watchlist_id,
             name=name,
             description=description,
-            elements=elements,
             active=active,
         )
         if updated is None:

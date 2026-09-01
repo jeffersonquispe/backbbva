@@ -22,14 +22,16 @@ class CreateWatchlistUseCase:
         elements: list[str] | None = None,
     ) -> Watchlist:
         now = datetime.now(timezone.utc)
-        return self._watchlists.create(
+        watchlist = self._watchlists.create(
             Watchlist(
                 id=str(uuid.uuid4()),
                 name=name,
                 description=description,
                 list_type=list_type,
-                elements=elements or [],
                 created_at=now,
                 updated_at=now,
             )
         )
+        if elements:
+            watchlist.element_count = self._watchlists.add_elements(watchlist.id, elements)
+        return watchlist

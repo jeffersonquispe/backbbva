@@ -501,3 +501,22 @@ WATCHLIST_TABLE = {
         {"AttributeName": "id", "AttributeType": "S"},
     ],
 }
+
+
+# One item per element (watchlist_id, normalized value) instead of a list
+# embedded in the watchlist item - a Dynamo item caps at 400KB, which a
+# "gigantic" list blows past. This shape gives O(1) GetItem/BatchGetItem
+# membership checks and incremental add/remove regardless of list size. See
+# watchlist_repository.py.
+WATCHLIST_ELEMENTS_TABLE = {
+    "TableName": "watchlist_elements",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "watchlist_id", "KeyType": "HASH"},
+        {"AttributeName": "value", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "watchlist_id", "AttributeType": "S"},
+        {"AttributeName": "value", "AttributeType": "S"},
+    ],
+}
