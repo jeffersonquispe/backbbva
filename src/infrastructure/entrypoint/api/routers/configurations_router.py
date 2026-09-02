@@ -292,6 +292,7 @@ def _profiling_to_schema(profiling: ProfilingConfig) -> ProfilingConfigSchema:
                 field=fc.field,
                 kind=fc.kind,
                 criteria=[FieldCriterionSchema(**c.__dict__) for c in fc.criteria],
+                output_variable=fc.output_variable,
             )
             for fc in profiling.field_categorizations
         ],
@@ -420,6 +421,7 @@ def _profiling_from_schema(schema: ProfilingConfigSchema) -> ProfilingConfig:
                 field=fc.field,
                 kind=fc.kind,
                 criteria=[FieldCriterion(**c.model_dump()) for c in fc.criteria],
+                output_variable=fc.output_variable,
             )
             for fc in schema.field_categorizations
         ],

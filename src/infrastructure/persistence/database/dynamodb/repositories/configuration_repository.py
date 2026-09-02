@@ -41,6 +41,7 @@ from src.application.ports.configuration_port import (
     MonitoringSettings,
     OpsSettings,
     ProfilingConfig,
+    ProfilingPromptMode,
     ProfilingStrategy,
     ProfilingStrategyKey,
     ResolutionTag,
@@ -952,6 +953,7 @@ def _field_categorization_from_item(item: dict[str, Any]) -> FieldCategorization
         criteria=[
             _field_criterion_from_item(c) for c in item.get("criteria") or []
         ],
+        output_variable=item.get("output_variable") or "",
     )
 
 
@@ -986,10 +988,12 @@ def _profiling_strategy_from_item(item: dict[str, Any]) -> ProfilingStrategy:
         key=ProfilingStrategyKey(item["key"]),
         main_prompt=item.get("main_prompt") or "",
         main_prompt_vars=list(item.get("main_prompt_vars") or []),
+        main_prompt_mode=ProfilingPromptMode(
+            item.get("main_prompt_mode") or ProfilingPromptMode.FSTRING
+        ),
         categorization_prompt=item.get("categorization_prompt") or "",
         categorization_prompt_vars=list(
             item.get("categorization_prompt_vars") or []
         ),
-        produced_variables=list(item.get("produced_variables") or []),
         use_pandas_history_mcp=bool(item.get("use_pandas_history_mcp", False)),
     )

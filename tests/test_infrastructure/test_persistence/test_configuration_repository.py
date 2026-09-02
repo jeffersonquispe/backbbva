@@ -31,6 +31,7 @@ from src.application.ports.configuration_port import (
     MonitoringSettings,
     OpsSettings,
     ProfilingConfig,
+    ProfilingPromptMode,
     ProfilingStrategy,
     ProfilingStrategyKey,
     ResolutionTag,
@@ -146,7 +147,6 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
                     ProfilingStrategy(
                         key=ProfilingStrategyKey.USUARIO,
                         main_prompt="perfil",
-                        produced_variables=["riesgo_usuario"],
                     ),
                     ProfilingStrategy(key=ProfilingStrategyKey.TRANSACCION),
                     ProfilingStrategy(key=ProfilingStrategyKey.TRANSACCIONAL),
@@ -349,9 +349,9 @@ def test_profiling_strategy_round_trips_through_its_own_table_item() -> None:
         key=ProfilingStrategyKey.USUARIO,
         main_prompt="perfil",
         main_prompt_vars=["Saldo"],
+        main_prompt_mode=ProfilingPromptMode.LLM,
         categorization_prompt="categoriza",
         categorization_prompt_vars=["Saldo"],
-        produced_variables=["riesgo_usuario"],
         use_pandas_history_mcp=True,
     )
     # Keyed by `key`, not a uuid - a strategy has no separate identity.
@@ -361,7 +361,9 @@ def test_profiling_strategy_round_trips_through_its_own_table_item() -> None:
 
 
 def test_field_categorization_round_trips_through_its_own_table_item() -> None:
-    categorization = FieldCategorization(field="Saldo", kind=FieldKind.CUANTIZABLE)
+    categorization = FieldCategorization(
+        field="Saldo", kind=FieldKind.CUANTIZABLE, output_variable="saldo_riesgo"
+    )
     # Keyed by `field`, not a uuid - a field is categorized once per segment.
     item = {"segment_id": _SEGMENT_ID, **asdict(categorization)}
 

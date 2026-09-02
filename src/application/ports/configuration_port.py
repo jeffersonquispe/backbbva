@@ -249,6 +249,14 @@ class FieldCategorization:
     field: str
     kind: FieldKind
     criteria: list[FieldCriterion] = field(default_factory=list)
+    # Name of the enrichment variable this categorization produces (the
+    # transformed/derived value - e.g. field "saldo" -> output_variable
+    # "saldo_riesgo") - distinct from `field` so both the original and the
+    # transformed value can be referenced. Citable from every agent prompt
+    # in this segment (classification/adversarial/analyst/documentation/
+    # profiling), not just later profiling strategies - see
+    # SegmentAgentSection.tsx's enrichmentVariables on the frontend.
+    output_variable: str = ""
 
 
 class ProfilingStrategyKey(StrEnum):
@@ -257,17 +265,23 @@ class ProfilingStrategyKey(StrEnum):
     TRANSACCIONAL = "transaccional"
 
 
+# Whether main_prompt is used as a literal f-string (placeholders
+# substituted directly, no LLM call) or as an actual prompt sent to an LLM.
+# categorization_prompt has no such switch - it is always LLM-executed.
+class ProfilingPromptMode(StrEnum):
+    FSTRING = "fstring"
+    LLM = "llm"
+
+
 @dataclass
 class ProfilingStrategy:
     key: ProfilingStrategyKey
     main_prompt: str = ""
     main_prompt_vars: list[str] = field(default_factory=list)
-    # Sub-prompt run through an LLM to categorize/quantize values; its
-    # output is what `produced_variables` names, and becomes available to
-    # this and every later strategy's main_prompt variable pool.
+    main_prompt_mode: ProfilingPromptMode = ProfilingPromptMode.FSTRING
+    # Sub-prompt always run through an LLM to categorize/quantize values.
     categorization_prompt: str = ""
     categorization_prompt_vars: list[str] = field(default_factory=list)
-    produced_variables: list[str] = field(default_factory=list)
     use_pandas_history_mcp: bool = False
 
 
@@ -277,10 +291,11 @@ def _default_profiling_strategies() -> list[ProfilingStrategy]:
 
 @dataclass
 class ProfilingConfig:
+    # Each categorization's output_variable is available to every prompt in
+    # the segment's agent config (see FieldCategorization.output_variable).
     field_categorizations: list[FieldCategorization] = field(default_factory=list)
-    # Fixed 3-step chain (usuario -> transaccion -> transaccional); each
-    # strategy's produced_variables feed the variable pool of every
-    # strategy after it.
+    # Fixed 3-step chain (usuario -> transaccion -> transaccional), run in
+    # this order - variable availability no longer depends on that order.
     strategies: list[ProfilingStrategy] = field(
         default_factory=_default_profiling_strategies
     )

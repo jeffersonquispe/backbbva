@@ -22,6 +22,7 @@ from src.application.ports.configuration_port import (
     FilterConditionOperator,
     FlagType,
     LogicalOperator,
+    ProfilingPromptMode,
     ProfilingStrategyKey,
     ResolutionTag,
     SamplingIntervalUnit,
@@ -448,15 +449,16 @@ class FieldCategorizationSchema(BaseModel):
     field: str
     kind: FieldKind
     criteria: list[FieldCriterionSchema] = Field(default_factory=list)
+    output_variable: str = ""
 
 
 class ProfilingStrategySchema(BaseModel):
     key: ProfilingStrategyKey
     main_prompt: str = ""
     main_prompt_vars: list[str] = Field(default_factory=list)
+    main_prompt_mode: ProfilingPromptMode = ProfilingPromptMode.FSTRING
     categorization_prompt: str = ""
     categorization_prompt_vars: list[str] = Field(default_factory=list)
-    produced_variables: list[str] = Field(default_factory=list)
     use_pandas_history_mcp: bool = False
 
 
