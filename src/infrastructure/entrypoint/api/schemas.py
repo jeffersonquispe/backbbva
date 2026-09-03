@@ -21,6 +21,7 @@ from src.application.ports.configuration_port import (
     FieldKind,
     FilterConditionOperator,
     FlagType,
+    ListMembershipMode,
     LogicalOperator,
     ProfilingPromptMode,
     ProfilingStrategyKey,
@@ -411,7 +412,11 @@ class OpsSettingsSchema(BaseModel):
     queue_max_lifetime_unit: SamplingIntervalUnit = SamplingIntervalUnit.MINUTES
     queue_discard_amount_threshold: float = 0
     queue_rule_filter_enabled: bool = False
+    queue_rule_filter_mode: ListMembershipMode = ListMembershipMode.BELONGS
     queue_allowed_triggered_rules: list[str] = Field(default_factory=list)
+    queue_discard_behavior: ShortageBehaviorSchema = Field(
+        default_factory=ShortageBehaviorSchema
+    )
     voicebot_shortage_behavior: ShortageBehaviorSchema = Field(
         default_factory=ShortageBehaviorSchema
     )

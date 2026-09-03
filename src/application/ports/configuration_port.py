@@ -20,6 +20,11 @@ class TestCleanupPolicy(StrEnum):
     FAILED_FIRST = "failed-first"
 
 
+class ListMembershipMode(StrEnum):
+    BELONGS = "belongs"
+    NOT_BELONGS = "not_belongs"
+
+
 class ResolutionTag(StrEnum):
     # Fixed dimension a ResolutionMethod catalog entry maps onto (see
     # resolution_method_catalog_port.py) - the workflow will eventually
@@ -177,11 +182,18 @@ class OpsSettings:
     queue_max_lifetime_value: int = 60
     queue_max_lifetime_unit: SamplingIntervalUnit = SamplingIntervalUnit.MINUTES
     queue_discard_amount_threshold: float = 0
-    # When enabled, only alerts whose triggered_rule tag is in
-    # queue_allowed_triggered_rules get queued - the rest are discarded
-    # instead, same as queue_discard_amount_threshold's amount-based discard.
+    # When enabled, alerts are filtered by whether their triggered_rule tag
+    # belongs to queue_allowed_triggered_rules (per queue_rule_filter_mode) -
+    # non-matching alerts are discarded instead of queued, same as
+    # queue_discard_amount_threshold's amount-based discard.
     queue_rule_filter_enabled: bool = False
+    queue_rule_filter_mode: ListMembershipMode = ListMembershipMode.BELONGS
     queue_allowed_triggered_rules: list[str] = field(default_factory=list)
+    # What to do with an alert instead of queuing it normally, whenever any
+    # of the three queue-discard paths above trigger (lifetime skip, amount
+    # threshold, or rule filter) - same resolution-method catalog as
+    # voicebot/analyst shortage below.
+    queue_discard_behavior: ShortageBehavior = field(default_factory=ShortageBehavior)
     voicebot_shortage_behavior: ShortageBehavior = field(
         default_factory=ShortageBehavior
     )

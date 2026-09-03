@@ -36,6 +36,7 @@ from src.application.ports.configuration_port import (
     FlagType,
     GeneralSettings,
     InfraSettings,
+    ListMembershipMode,
     LogicalOperator,
     ModusOperandi,
     MonitoringSettings,
@@ -690,8 +691,14 @@ def _ops_from_item(item: dict[str, Any]) -> OpsSettings:
             item.get("queue_discard_amount_threshold", 0)
         ),
         queue_rule_filter_enabled=bool(item.get("queue_rule_filter_enabled", False)),
+        queue_rule_filter_mode=ListMembershipMode(
+            item.get("queue_rule_filter_mode", "belongs")
+        ),
         queue_allowed_triggered_rules=list(
             item.get("queue_allowed_triggered_rules") or []
+        ),
+        queue_discard_behavior=_shortage_behavior_from_item(
+            item.get("queue_discard_behavior") or {}
         ),
         voicebot_shortage_behavior=_shortage_behavior_from_item(
             item.get("voicebot_shortage_behavior") or {}

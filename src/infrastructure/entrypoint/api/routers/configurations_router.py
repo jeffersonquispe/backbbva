@@ -243,7 +243,11 @@ def _to_detail_response(record: ConfigurationRecord) -> ConfigurationDetailRespo
             queue_max_lifetime_unit=record.ops.queue_max_lifetime_unit,
             queue_discard_amount_threshold=record.ops.queue_discard_amount_threshold,
             queue_rule_filter_enabled=record.ops.queue_rule_filter_enabled,
+            queue_rule_filter_mode=record.ops.queue_rule_filter_mode,
             queue_allowed_triggered_rules=record.ops.queue_allowed_triggered_rules,
+            queue_discard_behavior=ShortageBehaviorSchema(
+                **record.ops.queue_discard_behavior.__dict__
+            ),
             voicebot_shortage_behavior=ShortageBehaviorSchema(
                 **record.ops.voicebot_shortage_behavior.__dict__
             ),
@@ -378,7 +382,11 @@ def _ops_from_schema(schema: OpsSettingsSchema) -> OpsSettings:
         queue_max_lifetime_unit=schema.queue_max_lifetime_unit,
         queue_discard_amount_threshold=schema.queue_discard_amount_threshold,
         queue_rule_filter_enabled=schema.queue_rule_filter_enabled,
+        queue_rule_filter_mode=schema.queue_rule_filter_mode,
         queue_allowed_triggered_rules=schema.queue_allowed_triggered_rules,
+        queue_discard_behavior=ShortageBehavior(
+            **schema.queue_discard_behavior.model_dump()
+        ),
         voicebot_shortage_behavior=ShortageBehavior(
             **schema.voicebot_shortage_behavior.model_dump()
         ),
