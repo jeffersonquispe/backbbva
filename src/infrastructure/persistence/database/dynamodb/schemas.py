@@ -151,6 +151,18 @@ TEST_RUNS_TABLE = {
 }
 
 
+MODELS_TABLE = {
+    "TableName": "models",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "model_id", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "model_id", "AttributeType": "S"},
+    ],
+}
+
+
 DATASET_SAMPLES_TABLE = {
     "TableName": "dataset_samples",
     "BillingMode": "PAY_PER_REQUEST",

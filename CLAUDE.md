@@ -78,7 +78,7 @@ for the template.
   `infrastructure/`, not under `entrypoint/api/factories/`: both the API and
   the worker need to import them without pulling in FastAPI.
 
-## Two separate poetry projects — deps must go in both
+## Two (really three) separate poetry projects — deps must go in the right ones
 
 `deploy/requirements/pyproject.toml` (API) and `pyproject.worker.toml`
 (Celery worker) are independent Poetry projects with **separate lock
@@ -88,6 +88,18 @@ container `ImportError`s at task runtime. `poetry lock` needs Python 3.11
 (`pyenv shell 3.11.9` locally) and BBVA's `bbvarepo` Artifactory source
 configured — neither is available in a bare sandbox, expect to run it
 yourself.
+
+`pyproject.mcp.toml` is a **third** independent project (`infrastructure/
+entrypoint/mcp/`, the FastMCP model-serving service) — an explicit, agreed
+exception to "two projects": it needs the ML inference stack (xgboost/
+sklearn/pandas/joblib/shap) that neither the API nor the worker's other code
+needs, and runs as neither FastAPI nor Celery. It does share the
+feature-building code in `infrastructure/workflows/celery/model_training.py`
+with the worker (training and scoring must build features identically), so a
+dependency that module needs (pandas/numpy/xgboost/scikit-learn/joblib) goes
+in **both** `pyproject.worker.toml` and `pyproject.mcp.toml` — `shap` is the
+one exception, needed only by the MCP project (explanations are computed at
+serving time, not at training time).
 
 ## Testing conventions
 

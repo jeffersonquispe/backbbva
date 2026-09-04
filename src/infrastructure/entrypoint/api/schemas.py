@@ -32,6 +32,10 @@ from src.application.ports.configuration_port import (
 )
 from src.application.ports.dataset_analysis_port import DatasetAnalysisStatus
 from src.application.ports.marcacion_catalog_port import RiskLabel
+from src.application.ports.model_port import (
+    FieldTransformKind as ModelFieldTransformKind,
+    ModelStatus,
+)
 from src.application.ports.watchlist_port import WatchlistType
 from src.application.ports.tag_catalog_port import TagCategory
 from src.application.ports.test_run_port import TestRunStatus
@@ -261,6 +265,60 @@ class DatasetSummaryResponse(BaseModel):
     uploaded_at: datetime | None
     updated_at: datetime | None
     error: str | None
+
+
+# --- Models (XGBoost training) ------------------------------------------
+
+class FieldTransformRequest(BaseModel):
+    field: str = Field(..., min_length=1)
+    kind: ModelFieldTransformKind
+    reference_field: str | None = None
+    top_n: int = 30
+
+
+class FieldTransformResponse(BaseModel):
+    field: str
+    kind: ModelFieldTransformKind
+    reference_field: str | None
+    top_n: int
+
+
+class CreateModelRequest(BaseModel):
+    tag: str = Field(..., min_length=1, max_length=120)
+    description: str = Field(default="", max_length=2000)
+    dataset_name: str = Field(..., min_length=1)
+    target_field: str = Field(..., min_length=1)
+    positive_labels: list[str] = Field(default_factory=list)
+    feature_transforms: list[FieldTransformRequest] = Field(default_factory=list)
+    created_by: str | None = None
+
+
+class ModelResponse(BaseModel):
+    id: UUID
+    tag: str
+    description: str
+    status: ModelStatus
+    dataset_name: str
+    target_field: str
+    positive_labels: list[str]
+    feature_transforms: list[FieldTransformResponse]
+    active: bool
+    metrics: dict[str, float] | None
+    storage_ref: str | None
+    created_at: datetime
+    updated_at: datetime
+    created_by: str | None
+    error: str | None
+
+
+class StartModelTrainingResponse(BaseModel):
+    async_operation_id: UUID
+    model_id: UUID
+
+
+class DeleteModelResponse(BaseModel):
+    id: UUID
+    deleted: bool
 
 
 # --- Analyst capacity import --------------------------------------------

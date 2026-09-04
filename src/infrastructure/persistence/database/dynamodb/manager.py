@@ -90,6 +90,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     LIBRARY_SIMILAR_CASES_TABLE,
     LIBRARY_TAXONOMIES_TABLE,
     MARCACION_CATALOG_TABLE,
+    MODELS_TABLE,
     OPERATIONS_CAPACITY_TABLE,
     RESOLUTION_METHOD_CATALOG_TABLE,
     TAG_CATALOG_TABLE,
@@ -237,6 +238,7 @@ def ensure_all_tables() -> None:
     create_table(FRAUD_PLAYBOOKS_TABLE)
     create_table(OPERATIONS_CAPACITY_TABLE)
     create_table(TEST_RUNS_TABLE)
+    create_table(MODELS_TABLE)
     create_table(CONFIGURATIONS_TABLE)
     create_table(CONFIGURATION_GENERAL_TABLE)
     create_table(CONFIGURATION_INFRASTRUCTURE_TABLE)

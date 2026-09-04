@@ -15,3 +15,8 @@ def get_object_storage() -> ObjectStoragePort:
 @lru_cache(maxsize=1)
 def get_dataset_object_storage() -> ObjectStoragePort:
     return MinioObjectStorageAdapter(bucket=genai_config.DATASET_STORAGE_BUCKET)
+
+
+@lru_cache(maxsize=1)
+def get_model_object_storage() -> ObjectStoragePort:
+    return MinioObjectStorageAdapter(bucket=genai_config.MODEL_STORAGE_BUCKET)

@@ -115,6 +115,11 @@ class Config(BaseSettings):
     DATASET_STORAGE_BACKEND: str = "filesystem"
     DATASET_STORAGE_BUCKET: str = "datasets"
 
+    # MODELS - versioned XGBoost training artifacts (joblib bundles), see
+    # infrastructure/persistence/object_storage/minio/__init__.py's
+    # get_model_object_storage().
+    MODEL_STORAGE_BUCKET: str = "models"
+
     model_config = ConfigDict(extra="ignore")
 
     def model_post_init(self, __context):

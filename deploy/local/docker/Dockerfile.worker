@@ -14,6 +14,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR ${APP_DIR}
 
+# libgomp1 - xgboost's Linux wheel dynamically links against it; python:3.11-slim
+# doesn't ship it and the wheel otherwise fails to import at task runtime.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir poetry==${POETRY_VERSION}
 COPY deploy/requirements/pyproject.worker.toml ./pyproject.toml
 RUN poetry install --only main --no-root

@@ -251,6 +251,33 @@ def analyze_dataset_task(self, dataset_name: str) -> dict:
     return {"status": "ok", "dataset_name": dataset_name}
 
 
+# No autoretry (unlike analyze_dataset_task above): a training run is
+# expensive (minutes of XGBoost fitting) and its progress is already
+# persisted incrementally in the AsyncOperationRecord - a transient failure
+# should surface as FAILED for the user to re-trigger explicitly via
+# "Entrenar" again, not silently re-run a costly job in the background.
+@app.task(name="models.train")
+def train_model_task(model_id: str, async_operation_id: str) -> dict:
+    from src.infrastructure.persistence.database.dynamodb.repositories.model_repository import (
+        DynamoModelRepository,
+    )
+    from src.infrastructure.persistence.object_storage.minio import (
+        get_model_object_storage,
+    )
+    from src.infrastructure.workflows.celery.model_training import (
+        run_model_training,
+    )
+
+    return run_model_training(
+        model_id,
+        async_operation_id,
+        model_repository=DynamoModelRepository(),
+        async_operation_repository=DynamoAsyncOperationRepository(),
+        dataset_repository=MinioCsvDatasetRepository(get_dataset_object_storage()),
+        model_object_storage=get_model_object_storage(),
+    )
+
+
 # No autoretry (contrast with analyze_dataset_task above): a malformed
 # workbook is a deterministic user-input error, not a transient one -
 # retrying with backoff would only delay the FAILED result reaching the
