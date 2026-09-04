@@ -248,6 +248,14 @@ LOCAL_IMAGE_TAG ?= local
 # checkout without it (e.g. CI, a fresh clone) doesn't fail the backend stack.
 FRONTEND_DIR ?= ../frontend_mockup
 
+.PHONY: frontend
+frontend:  ## Build and run the sibling frontend project from ../frontend.
+	@if [ ! -d "$(FRONTEND_DIR)" ]; then \
+		echo "Error: $(FRONTEND_DIR) directory does not exist." >&2; \
+		exit 1; \
+	fi; \
+	( cd $(FRONTEND_DIR) && $(MAKE) build && $(MAKE) run )
+
 LOCAL_DOCKER_ENV_FLAGS = \
 	GENAI_ENVIRONMENT=$(LOCAL_DOCKER_ENV) \
 	LOCAL_API_PORT=$(LOCAL_API_PORT) \
