@@ -24,6 +24,10 @@ class MinioCsvDatasetRepository(DatasetRepository):
     def get_rows(self, name: str) -> list[dict[str, Any]]:
         return [unflatten_row(row) for row in csv.DictReader(self._lines(f"{name}.csv"))]
 
+    def get_fields(self, name: str) -> list[str]:
+        reader = csv.DictReader(self._lines(f"{name}.csv"))
+        return [field for field in (reader.fieldnames or []) if field]
+
     def delete(self, name: str) -> None:
         self._object_storage.delete(f"{name}.csv")
 

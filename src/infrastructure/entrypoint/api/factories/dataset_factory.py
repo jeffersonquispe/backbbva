@@ -74,7 +74,9 @@ def get_upload_dataset_use_case() -> UploadDatasetUseCase:
 
 
 def get_get_dataset_summary_use_case() -> GetDatasetSummaryUseCase:
-    return GetDatasetSummaryUseCase(get_dataset_summary_repository())
+    return GetDatasetSummaryUseCase(
+        get_dataset_summary_repository(), get_dataset_repository()
+    )
 
 
 def get_delete_dataset_use_case() -> DeleteDatasetUseCase:

@@ -36,6 +36,38 @@ LIST_VALUED_FIELDS = frozenset({"razon_marcacion", "triggered_rules"})
 UNKNOWN = "unknown"
 
 
+def discover_fields(rows: list[dict[str, Any]]) -> list[str]:
+    """Return every leaf field present in the dataset, preserving order.
+
+    CSV headers containing dots are expanded by ``unflatten_row`` before this
+    use case sees them. Walking nested mappings restores those fields as dotted
+    paths, so the catalog works for both flat analytics exports and raw ARIC
+    shaped datasets.
+    """
+    fields: list[str] = []
+    seen: set[str] = set()
+
+    def visit(value: Any, prefix: str = "") -> None:
+        if not isinstance(value, dict):
+            if prefix and prefix not in seen:
+                seen.add(prefix)
+                fields.append(prefix)
+            return
+        for key, child in value.items():
+            if not key:
+                continue
+            path = f"{prefix}.{key}" if prefix else key
+            if isinstance(child, dict):
+                visit(child, path)
+            elif path not in seen:
+                seen.add(path)
+                fields.append(path)
+
+    for row in rows:
+        visit(row)
+    return fields
+
+
 def extract_fields(row: dict[str, Any]) -> dict[str, str | None]:
     extracted: dict[str, str | None] = {}
     for field_name in ANALYSIS_FIELDS:

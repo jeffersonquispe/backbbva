@@ -257,6 +257,7 @@ class DatasetSummaryResponse(BaseModel):
     status: DatasetAnalysisStatus
     total_rows: int
     field_distributions: dict[str, list[FieldDistributionResponse]]
+    available_fields: list[str]
     uploaded_at: datetime | None
     updated_at: datetime | None
     error: str | None

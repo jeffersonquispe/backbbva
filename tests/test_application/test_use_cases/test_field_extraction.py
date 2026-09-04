@@ -3,9 +3,34 @@ from __future__ import annotations
 from src.application.use_cases.datasets.field_extraction import (
     ANALYSIS_FIELDS,
     compute_distributions,
+    discover_fields,
     extract_fields,
     split_list_value,
 )
+
+
+def test_discover_fields_returns_complete_ordered_catalog() -> None:
+    rows = [
+        {
+            "reviewstatus_first": "risk-suspected",
+            "channel": "GL",
+            "biocatch": {"score": "258", "isRat": "False"},
+        },
+        {
+            "channel": "OM",
+            "Model_score": "0.27087",
+            "transactionid": "tx-1",
+        },
+    ]
+
+    assert discover_fields(rows) == [
+        "reviewstatus_first",
+        "channel",
+        "biocatch.score",
+        "biocatch.isRat",
+        "Model_score",
+        "transactionid",
+    ]
 
 
 def test_extract_fields_reads_exact_column_names() -> None:

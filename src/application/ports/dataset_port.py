@@ -17,5 +17,9 @@ class DatasetRepository(Protocol):
     def get_rows(self, name: str) -> list[dict[str, Any]]:
         ...
 
+    def get_fields(self, name: str) -> list[str]:
+        """Return dataset columns without loading all rows when possible."""
+        ...
+
     def delete(self, name: str) -> None:
         ...

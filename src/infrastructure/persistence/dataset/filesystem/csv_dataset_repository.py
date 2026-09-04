@@ -27,5 +27,14 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
         with path.open(newline="", encoding="utf-8") as f:
             return [unflatten_row(row) for row in csv.DictReader(f)]
 
+    def get_fields(self, name: str) -> list[str]:
+        path = self._dir / f"{name}.csv"
+        with path.open(newline="", encoding="utf-8") as f:
+            return [
+                field
+                for field in (csv.DictReader(f).fieldnames or [])
+                if field
+            ]
+
     def delete(self, name: str) -> None:
         (self._dir / f"{name}.csv").unlink(missing_ok=True)

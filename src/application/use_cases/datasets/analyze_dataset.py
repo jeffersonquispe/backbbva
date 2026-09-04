@@ -13,6 +13,7 @@ from src.application.ports.dataset_port import DatasetRepository
 from src.application.use_cases.datasets.field_extraction import (
     ANALYSIS_FIELDS,
     compute_distributions,
+    discover_fields,
     extract_fields,
 )
 
@@ -45,12 +46,19 @@ class AnalyzeDatasetUseCase:
             if samples:
                 self._samples.create_batch(samples)
             distributions = compute_distributions(rows, ANALYSIS_FIELDS)
+            get_fields = getattr(self._datasets, "get_fields", None)
+            available_fields = (
+                get_fields(dataset_name) if callable(get_fields) else None
+            )
+            if not isinstance(available_fields, list):
+                available_fields = discover_fields(rows)
             self._summaries.upsert(
                 DatasetSummaryRecord(
                     dataset_name=dataset_name,
                     status=DatasetAnalysisStatus.READY,
                     total_rows=len(rows),
                     field_distributions=distributions,
+                    available_fields=available_fields,
                     uploaded_at=uploaded_at,
                     updated_at=datetime.now(timezone.utc),
                 )

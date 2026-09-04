@@ -33,6 +33,10 @@ class DatasetSummaryRecord:
     # read time (see get_dataset_summary.py) rather than stored, so they
     # never drift from total_rows.
     field_distributions: dict[str, dict[str, int]] = field(default_factory=dict)
+    # Complete dataset column catalog. Kept separate from distributions so
+    # high-cardinality fields (ids, JSON history, timestamps) can appear in
+    # model field selectors without bloating the DynamoDB summary item.
+    available_fields: list[str] = field(default_factory=list)
     uploaded_at: datetime | None = None
     updated_at: datetime | None = None
     error: str | None = None

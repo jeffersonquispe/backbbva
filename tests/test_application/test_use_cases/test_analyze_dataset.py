@@ -90,6 +90,13 @@ def test_analyze_dataset_persists_samples_and_ready_summary() -> None:
     summary = summaries.get("ds")
     assert summary.status == DatasetAnalysisStatus.READY
     assert summary.total_rows == 2
+    assert summary.available_fields == [
+        "marcacion_final",
+        "tipo",
+        "razon_marcacion",
+        "integrationpoint",
+        "triggered_rules",
+    ]
     assert summary.field_distributions["marcacion_final"] == {"no-risk": 1, "risk": 1}
     assert summary.field_distributions["tipo"] == {"NoFraude": 1, "Fraude": 1}
     assert summary.field_distributions["razon_marcacion"] == {

@@ -31,6 +31,7 @@ class DatasetSummaryOutput:
     status: DatasetAnalysisStatus
     total_rows: int
     field_distributions: dict[str, list[FieldValueCount]] = field(default_factory=dict)
+    available_fields: list[str] = field(default_factory=list)
     uploaded_at: datetime | None = None
     updated_at: datetime | None = None
     error: str | None = None

@@ -40,6 +40,7 @@ def _to_item(summary: DatasetSummaryRecord) -> dict[str, Any]:
         "status": summary.status.value,
         "total_rows": summary.total_rows,
         "field_distributions": summary.field_distributions,
+        "available_fields": summary.available_fields,
         "uploaded_at": summary.uploaded_at.isoformat() if summary.uploaded_at else None,
         "updated_at": summary.updated_at.isoformat() if summary.updated_at else None,
         "error": summary.error,
@@ -57,6 +58,7 @@ def _from_item(item: dict[str, Any]) -> DatasetSummaryRecord:
             field_name: {value: int(count) for value, count in counts.items()}
             for field_name, counts in (item.get("field_distributions") or {}).items()
         },
+        available_fields=list(item.get("available_fields") or []),
         uploaded_at=datetime.fromisoformat(uploaded_at) if uploaded_at else None,
         updated_at=datetime.fromisoformat(updated_at) if updated_at else None,
         error=item.get("error"),

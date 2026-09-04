@@ -36,6 +36,12 @@ def test_list_counts_rows_and_get_rows_unflattens_dotted_headers(tmp_path: Path)
             "amount": {"baseValue": "250"},
         },
     ]
+    assert repo.get_fields("sample") == [
+        "eventId",
+        "customerId",
+        "object.triggeredRules",
+        "amount.baseValue",
+    ]
 
 
 def test_list_returns_empty_when_directory_missing(tmp_path: Path) -> None:
@@ -54,6 +60,7 @@ def test_get_rows_drops_leading_unnamed_index_column(tmp_path: Path) -> None:
     rows = repo.get_rows("indexed")
 
     assert rows == [{"eventId": "e-1", "customerId": "c-1"}]
+    assert repo.get_fields("indexed") == ["eventId", "customerId"]
 
 
 def test_list_and_get_rows_handle_fields_past_python_default_csv_limit(
