@@ -547,6 +547,7 @@ class AgentSettingsSchema(BaseModel):
     flags: list[FlagSchema] = Field(default_factory=list)
     example_cases: list[ExampleCaseSchema] = Field(default_factory=list)
     active_fields: list[str] = Field(default_factory=list)
+    active_model_id: str | None = None
 
 
 class TestSettingsSchema(BaseModel):
@@ -602,6 +603,18 @@ class CreateConfigurationRequest(BaseModel):
     test: TestSettingsSchema = Field(default_factory=TestSettingsSchema)
     created_by: str | None = Field(default=None, max_length=120)
     segments: dict[str, SegmentSettingsSchema] = Field(default_factory=dict)
+
+
+class ConfigurationChangeResponse(BaseModel):
+    path: str
+    previous: Any
+    proposed: Any
+
+
+class TestConfigurationResponse(BaseModel):
+    valid: bool
+    changes: list[ConfigurationChangeResponse]
+    warnings: list[str]
 
 
 class ConfigurationSummaryResponse(BaseModel):

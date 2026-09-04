@@ -892,6 +892,7 @@ def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
         analyst=_analyst_from_item(agent_item.get("analyst") or {}),
         documentation=_documentation_from_item(agent_item.get("documentation") or {}),
         active_fields=list(agent_item.get("active_fields") or []),
+        active_model_id=agent_item.get("active_model_id"),
     )
 
 

@@ -22,6 +22,7 @@ from src.infrastructure.entrypoint.api.routers.analyst_capacity_router import (
     router as analyst_capacity_router,
 )
 from src.infrastructure.entrypoint.api.routers.configurations_router import (
+    configuration_test_router,
     router as configurations_router,
 )
 from src.infrastructure.entrypoint.api.routers.datasets_router import (
@@ -94,6 +95,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         configurations_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        configuration_test_router,
         prefix=genai_config.API_V0_STR,
     )
     app.include_router(

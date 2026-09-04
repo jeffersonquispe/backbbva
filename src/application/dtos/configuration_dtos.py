@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from src.application.ports.configuration_port import (
     GeneralSettings,
@@ -30,3 +31,20 @@ class CreateConfigurationInput:
     test: TestSettings = field(default_factory=TestSettings)
     created_by: str | None = None
     segments: dict[str, SegmentSettings] = field(default_factory=default_segments)
+
+
+@dataclass(frozen=True)
+class ConfigurationChange:
+    path: str
+    previous: Any
+    proposed: Any
+
+
+@dataclass(frozen=True)
+class ConfigurationPreviewOutput:
+    changes: list[ConfigurationChange]
+    warnings: list[str]
+
+    @property
+    def valid(self) -> bool:
+        return True

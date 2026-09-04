@@ -416,6 +416,12 @@ class AgentSettings:
     flags: list[Flag] = field(default_factory=list)
     example_cases: list[ExampleCase] = field(default_factory=list)
     active_fields: list[str] = field(default_factory=list)
+    # Which trained model (model_port.ModelRecord.id, as str) this segment's
+    # agent should use - the "modelo" subtab in configuracion/agente.
+    # ModelRepository.get_active() (the FastMCP server's reload target) is a
+    # separate, global concept: this field is what the frontend model
+    # picker writes, and stays independent per config version.
+    active_model_id: str | None = None
 
 
 @dataclass

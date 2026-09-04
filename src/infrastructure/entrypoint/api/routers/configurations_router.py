@@ -57,6 +57,10 @@ from src.application.use_cases.configurations.list_configuration_versions import
 from src.application.use_cases.configurations.list_configurations import (
     ListConfigurationsUseCase,
 )
+from src.application.use_cases.configurations.test_configuration import (
+    ConfigurationBaseNotFoundError,
+    PreviewConfigurationUseCase,
+)
 from src.infrastructure.entrypoint.api.factories.configuration_factory import (
     get_activate_configuration_use_case,
     get_create_configuration_use_case,
@@ -64,6 +68,7 @@ from src.infrastructure.entrypoint.api.factories.configuration_factory import (
     get_get_configuration_use_case,
     get_list_configuration_versions_use_case,
     get_list_configurations_use_case,
+    get_test_configuration_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
     AdversarialConfigSchema,
@@ -72,6 +77,7 @@ from src.infrastructure.entrypoint.api.schemas import (
     AnalystConfigSchema,
     AnalystPlaybookSchema,
     ClassificationConfigSchema,
+    ConfigurationChangeResponse,
     ConfigurationDetailResponse,
     ConfigurationSummaryResponse,
     CreateConfigurationRequest,
@@ -95,12 +101,38 @@ from src.infrastructure.entrypoint.api.schemas import (
     SegmentSettingsSchema,
     ShortageBehaviorSchema,
     TaxonomySchema,
+    TestConfigurationResponse,
     TestSettingsSchema,
     VoicebotCategoryPromptSchema,
     VoicebotConfigSchema,
 )
 
 router = APIRouter(prefix="/configurations", tags=["configurations"])
+configuration_test_router = APIRouter(
+    prefix="/configuration", tags=["configurations"]
+)
+
+
+@configuration_test_router.post("/test", response_model=TestConfigurationResponse)
+def test_configuration(
+    request: CreateConfigurationRequest,
+    use_case: Annotated[
+        PreviewConfigurationUseCase, Depends(get_test_configuration_use_case)
+    ],
+):
+    try:
+        result = use_case.execute(_input_from_request(request))
+    except ConfigurationVersionConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ConfigurationBaseNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return TestConfigurationResponse(
+        valid=result.valid,
+        changes=[
+            ConfigurationChangeResponse(**change.__dict__) for change in result.changes
+        ],
+        warnings=result.warnings,
+    )
 
 
 @router.post("", response_model=ConfigurationDetailResponse, status_code=status.HTTP_201_CREATED)
@@ -111,26 +143,28 @@ def create_configuration(
     ],
 ):
     try:
-        record = use_case.execute(
-            CreateConfigurationInput(
-                name=request.name,
-                configuration_id=request.configuration_id,
-                based_on_version=request.based_on_version,
-                description=request.description,
-                general=_general_from_schema(request.general),
-                infra=_infra_from_schema(request.infra),
-                ops=_ops_from_schema(request.ops),
-                test=_test_from_schema(request.test),
-                created_by=request.created_by,
-                segments={
-                    code: _segment_settings_from_schema(schema)
-                    for code, schema in request.segments.items()
-                },
-            )
-        )
+        record = use_case.execute(_input_from_request(request))
     except ConfigurationVersionConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return _to_detail_response(record)
+
+
+def _input_from_request(request: CreateConfigurationRequest) -> CreateConfigurationInput:
+    return CreateConfigurationInput(
+        name=request.name,
+        configuration_id=request.configuration_id,
+        based_on_version=request.based_on_version,
+        description=request.description,
+        general=_general_from_schema(request.general),
+        infra=_infra_from_schema(request.infra),
+        ops=_ops_from_schema(request.ops),
+        test=_test_from_schema(request.test),
+        created_by=request.created_by,
+        segments={
+            code: _segment_settings_from_schema(schema)
+            for code, schema in request.segments.items()
+        },
+    )
 
 
 @router.get("", response_model=list[ConfigurationSummaryResponse])
@@ -356,6 +390,7 @@ def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
             ExampleCaseSchema(**e.__dict__) for e in agent.example_cases
         ],
         active_fields=agent.active_fields,
+        active_model_id=agent.active_model_id,
     )
 
 
@@ -488,6 +523,7 @@ def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
             ExampleCase(**e.model_dump()) for e in schema.example_cases
         ],
         active_fields=schema.active_fields,
+        active_model_id=schema.active_model_id,
     )
 
 

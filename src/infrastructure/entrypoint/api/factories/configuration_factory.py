@@ -23,6 +23,9 @@ from src.application.use_cases.configurations.list_configuration_versions import
 from src.application.use_cases.configurations.list_configurations import (
     ListConfigurationsUseCase,
 )
+from src.application.use_cases.configurations.test_configuration import (
+    PreviewConfigurationUseCase,
+)
 from src.infrastructure.entrypoint.api.factories.fraud_knowledge_factory import (
     get_fraud_knowledge_repository,
     get_ingest_flag_use_case,
@@ -76,3 +79,7 @@ def get_activate_configuration_use_case() -> ActivateConfigurationUseCase:
 
 def get_get_active_configuration_use_case() -> GetActiveConfigurationUseCase:
     return GetActiveConfigurationUseCase(get_configuration_repository())
+
+
+def get_test_configuration_use_case() -> PreviewConfigurationUseCase:
+    return PreviewConfigurationUseCase(get_configuration_repository())
