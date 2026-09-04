@@ -256,7 +256,7 @@ def test_general_round_trips_through_its_own_table_item() -> None:
     general = GeneralSettings(
         agent_enabled=False,
         migration_window_enabled=True,
-        migration_window_hour=3,
+        migration_window_datetime="2026-01-01T03:00",
     )
     item = {
         "configuration_id": "cfg-1",

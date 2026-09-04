@@ -156,9 +156,9 @@ class ShortageBehavior:
 class GeneralSettings:
     agent_enabled: bool = True
     migration_window_enabled: bool = False
-    # Hour of day, 0-23 (see schemas.GeneralSettingsSchema for the ge/le
-    # validation - the dataclass itself doesn't enforce it).
-    migration_window_hour: int = 2
+    # ISO datetime string ("YYYY-MM-DDTHH:MM"), same format the frontend's
+    # <input type="datetime-local"> produces - stored as-is, no parsing.
+    migration_window_datetime: str = "2000-01-01T02:00"
     analyst_escalation_enabled: bool = True
     voicebot_escalation_enabled: bool = True
 

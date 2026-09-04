@@ -450,7 +450,7 @@ class ShortageBehaviorSchema(BaseModel):
 class GeneralSettingsSchema(BaseModel):
     agent_enabled: bool = True
     migration_window_enabled: bool = False
-    migration_window_hour: int = Field(default=2, ge=0, le=23)
+    migration_window_datetime: str = "2000-01-01T02:00"
     analyst_escalation_enabled: bool = True
     voicebot_escalation_enabled: bool = True
 

@@ -650,7 +650,9 @@ def _general_from_item(item: dict[str, Any]) -> GeneralSettings:
     return GeneralSettings(
         agent_enabled=bool(item.get("agent_enabled", True)),
         migration_window_enabled=bool(item.get("migration_window_enabled", False)),
-        migration_window_hour=int(item.get("migration_window_hour", 2)),
+        migration_window_datetime=str(
+            item.get("migration_window_datetime", "2000-01-01T02:00")
+        ),
         analyst_escalation_enabled=bool(item.get("analyst_escalation_enabled", True)),
         voicebot_escalation_enabled=bool(item.get("voicebot_escalation_enabled", True)),
     )
