@@ -154,6 +154,32 @@ MUESTRA_TOTAL_ARIA_PAYLOAD = {
 }
 
 
+NEW_ALERT_EXPORT_PAYLOAD = {
+    **MUESTRA_TOTAL_ARIA_PAYLOAD,
+    "reviewstatus_first": "risk-suspected",
+    "marcacion_final": "risk-suspected",
+    "razon_marcacion": "[FR___NO_HABITO_TRXS]",
+    "Model_score": 0.27087,
+    "fecha_primer_marcacion": "2026-05-02 14:50:53.213",
+    "fecha_ultima_marcacion": "2026-05-02 14:57:54.499",
+    "biocatch_isMobileRat": "False",
+    "biocatch_isEmulator": False,
+    "biocatch_isRat": 0,
+    "biocatch_isBot": "false",
+    "biocatch_indrobo1": "True",
+    "biocatch_isOnCall": 1,
+    "biocatch_isVoipOnCall": "true",
+    "biocatch_screenBroadcast": True,
+    "transactionid": "1022284400130126000200452051122000",
+    "output_tags": "[PARTY - outcome: deny]",
+    "MontoMasAltoPSE": 360000.0,
+    "MontoMasAltoBreB": 122000.0,
+    "MontoMasAltoGlomo": 122000.0,
+    "MontoMasAltoRetirosTarjeta": 500000.0,
+    "tipo": "Fraude",
+}
+
+
 def test_pre_process_alert_accepts_muestra_total_aria_flat_schema() -> None:
     use_case = _use_case()
 
@@ -174,6 +200,42 @@ def test_pre_process_alert_accepts_muestra_total_aria_flat_schema() -> None:
     # mode, ...) must not block pre_process.
     assert "merchant_id" not in output.mandatory_fields
     assert "account_id" not in output.mandatory_fields
+
+
+def test_pre_process_alert_maps_new_export_risk_fields_without_label_leakage() -> None:
+    output = _use_case().execute(
+        PreProcessAlertInput(
+            alert_id=uuid.uuid4(), payload=NEW_ALERT_EXPORT_PAYLOAD
+        )
+    )
+
+    assert output.optional_fields["model_score"] == 0.27087
+    assert output.optional_fields["transaction_id"].endswith("1122000")
+    assert output.optional_fields["max_amount_pse"] == 360000.0
+    assert output.optional_fields["max_amount_breb"] == 122000.0
+    assert output.optional_fields["max_amount_glomo"] == 122000.0
+    assert output.optional_fields["max_amount_card_withdrawals"] == 500000.0
+
+    signals = output.enrichment["aric_signals"]
+    assert signals.is_mobile_rat is False
+    assert signals.is_emulator_rat is False
+    assert signals.is_rat is False
+    assert signals.is_bot is False
+    assert signals.ind_robo1 is True
+    assert signals.is_on_call_active is True
+    assert signals.is_voip_on_call is True
+    assert signals.screen_broadcast is True
+
+    exposed = output.mandatory_fields.keys() | output.optional_fields.keys()
+    assert not {
+        "reviewstatus_first",
+        "marcacion_final",
+        "razon_marcacion",
+        "fecha_primer_marcacion",
+        "fecha_ultima_marcacion",
+        "output_tags",
+        "tipo",
+    } & exposed
 
 
 def test_pre_process_alert_raises_on_missing_mandatory_field() -> None:
@@ -251,6 +313,43 @@ def test_pre_process_alert_prefers_payload_transaction_history_over_port() -> No
     assert history[0].event_type == "cardNRT"
     assert history[0].amount == 63800.0
     assert history[0].event_time == "2026-05-04 16:00:44"
+
+
+def test_pre_process_alert_preserves_new_transaction_history_details() -> None:
+    tx_port = RecordingHostServiceTransactionHistoryPort()
+    use_case = PreProcessAlertUseCase(
+        aric_alert_port=RecordingAricAlertPort(),
+        host_customer_profile_port=RecordingHostServiceCustomerProfilePort(),
+        host_transaction_history_port=tx_port,
+        host_personal_data_changes_port=FlakyHostServicePersonalDataChangesPort(0),
+    )
+    payload = {
+        **VALID_PAYLOAD,
+        "transacciones_json": [
+            {
+                "tipo_transaccion": "paymentRT",
+                "amount_value": 122000.0,
+                "alertas": "PARTY - dg_breb_lista_negra_cedula",
+                "cuenta_origen": "account-hash",
+                "integrationpoint": "paymentsCreateRequestSendTransferV0",
+                "eventtime": "2026-05-02 14:47:35",
+                "canal": "GL",
+                "destino": "counterparty-hash",
+            }
+        ],
+    }
+
+    output = use_case.execute(
+        PreProcessAlertInput(alert_id=uuid.uuid4(), payload=payload)
+    )
+
+    assert tx_port.calls == 0
+    transaction = output.enrichment["transaction_history"][0]
+    assert transaction.alerts == "PARTY - dg_breb_lista_negra_cedula"
+    assert transaction.account_id == "account-hash"
+    assert transaction.integration_point == "paymentsCreateRequestSendTransferV0"
+    assert transaction.channel == "GL"
+    assert transaction.counterparty == "counterparty-hash"
 
 
 def test_pre_process_alert_falls_back_to_port_when_no_transactions_in_payload() -> None:

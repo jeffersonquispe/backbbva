@@ -9,7 +9,10 @@ class AricAlertSignals:
     is_emulator_rat: bool | None = None
     is_rat: bool | None = None
     is_bot: bool | None = None
+    ind_robo1: bool | None = None
     is_on_call_active: bool | None = None
+    is_voip_on_call: bool | None = None
+    screen_broadcast: bool | None = None
 
 
 class AricAlertPort:

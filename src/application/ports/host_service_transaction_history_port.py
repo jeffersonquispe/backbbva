@@ -10,6 +10,11 @@ class TransactionHistoryEntry:
     event_time: str
     amount: float | None = None
     status: str | None = None
+    alerts: str | None = None
+    account_id: str | None = None
+    integration_point: str | None = None
+    channel: str | None = None
+    counterparty: str | None = None
 
 
 class HostServiceTransactionHistoryPort:

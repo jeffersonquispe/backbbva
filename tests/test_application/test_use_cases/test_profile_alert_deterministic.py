@@ -108,6 +108,34 @@ def test_transaction_profile_lists_biocatch_flags() -> None:
     assert "RULE-1" in output.transaction_profile
 
 
+def test_transaction_profile_lists_new_biocatch_flags_and_scores() -> None:
+    output = _use_case().execute(
+        ProfileAlertInput(
+            alert_id=uuid.uuid4(),
+            pre_process=_pre_process(
+                mandatory={
+                    "customer_id": "cust-1",
+                    "channel": "GL",
+                    "biocatch_score": 258.0,
+                    "model_score": 0.27087,
+                },
+                aric_signals=AricAlertSignals(
+                    ind_robo1=True,
+                    is_on_call_active=True,
+                    is_voip_on_call=True,
+                    screen_broadcast=True,
+                ),
+            ),
+        )
+    )
+
+    assert "BioCatch: 258.0" in output.transaction_profile
+    assert "modelo: 0.27087" in output.transaction_profile
+    assert "indicador de robo" in output.transaction_profile
+    assert "llamada VoIP activa" in output.transaction_profile
+    assert "transmisión de pantalla" in output.transaction_profile
+
+
 def test_transaction_profile_reports_no_flags_when_clean() -> None:
     output = _use_case().execute(
         ProfileAlertInput(alert_id=uuid.uuid4(), pre_process=_pre_process())
@@ -161,6 +189,25 @@ def test_transactional_profile_reports_no_history() -> None:
     assert output.transactional_profile == (
         "No hay historial de transacciones disponible para este cliente."
     )
+
+
+def test_transactional_profile_includes_exported_historical_maxima() -> None:
+    output = _use_case().execute(
+        ProfileAlertInput(
+            alert_id=uuid.uuid4(),
+            pre_process=_pre_process(
+                mandatory={
+                    "customer_id": "cust-1",
+                    "channel": "GL",
+                    "max_amount_breb": 122000.0,
+                    "max_amount_card_withdrawals": 500000.0,
+                }
+            ),
+        )
+    )
+
+    assert "Bre-B: 122,000" in output.transactional_profile
+    assert "retiros con tarjeta: 500,000" in output.transactional_profile
 
 
 def test_transactional_profile_computes_real_stats_over_full_history() -> None:

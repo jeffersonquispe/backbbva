@@ -24,16 +24,27 @@ _ARIC_FLAG_LABELS = (
     ("is_emulator_rat", "RAT de emulador"),
     ("is_rat", "RAT"),
     ("is_bot", "bot"),
+    ("ind_robo1", "indicador de robo"),
     ("is_on_call_active", "llamada activa"),
+    ("is_voip_on_call", "llamada VoIP activa"),
+    ("screen_broadcast", "transmisión de pantalla"),
 )
 
-# New-destination detection: TransactionHistoryEntry carries no
-# counterparty field today (neither the mocked host service nor the
-# dataset's transacciones_json record one), so there is no real signal to
-# check against. Simulated instead of omitted, per explicit instruction -
-# a stable hash of (customer_id, counterparty) so the same alert always
-# gets the same answer. Replace with a real lookup once destination
-# history exists; this whole function goes away at that point.
+_HISTORICAL_MAX_LABELS = (
+    ("max_amount_pse", "PSE"),
+    ("max_amount_payment_gateway", "pasarela"),
+    ("max_amount_breb", "Bre-B"),
+    ("max_amount_glomo", "GloMo"),
+    ("max_amount_net", "Net"),
+    ("max_amount_loan", "préstamos"),
+    ("max_amount_bills", "facturas"),
+    ("max_amount_card_withdrawals", "retiros con tarjeta"),
+)
+
+# New-destination detection is still simulated because this narrator does
+# not yet receive the history alongside the current transaction. The new
+# export adapter now preserves each historical counterparty, so this can be
+# replaced with a real comparison when that contract is expanded.
 _SIMULATED_NEW_DESTINATION_RATE = 30  # out of 100, arbitrary
 
 
@@ -130,6 +141,14 @@ def _narrate_transaction(
     if rules:
         parts.append(f"Activó la(s) siguiente(s) regla(s): {rules}.")
 
+    scores = []
+    for key, label in (("biocatch_score", "BioCatch"), ("model_score", "modelo")):
+        value = mandatory.get(key)
+        if value is not None:
+            scores.append(f"{label}: {value}")
+    if scores:
+        parts.append("Puntajes de riesgo: " + ", ".join(scores) + ".")
+
     flags = [
         label
         for attr, label in _ARIC_FLAG_LABELS
@@ -165,9 +184,20 @@ def _narrate_transaction(
 def _narrate_transactional(
     transaction_history: list[TransactionHistoryEntry],
     current_amount: float | None,
+    fields: dict[str, Any],
 ) -> str:
+    parts: list[str] = []
+    historical_maxima = [
+        f"{label}: {value:,.0f}"
+        for key, label in _HISTORICAL_MAX_LABELS
+        if (value := _to_float(fields.get(key))) is not None
+    ]
+    if historical_maxima:
+        parts.append("Techos históricos por producto: " + ", ".join(historical_maxima) + ".")
+
     if not transaction_history:
-        return "No hay historial de transacciones disponible para este cliente."
+        parts.append("No hay historial de transacciones disponible para este cliente.")
+        return " ".join(parts)
 
     amounts = [t.amount for t in transaction_history if t.amount is not None]
     types = Counter(t.event_type for t in transaction_history)
@@ -175,7 +205,7 @@ def _narrate_transactional(
 
     summary = f"El cliente tiene {len(transaction_history)} transacción(es) registrada(s)"
     summary += f", entre {times[0]} y {times[-1]}" if times else ""
-    parts = [summary + "."]
+    parts.append(summary + ".")
 
     median_amount = statistics.median(amounts) if amounts else None
     max_amount = max(amounts) if amounts else None
@@ -273,6 +303,7 @@ class DeterministicProfileAlertUseCase:
         transactional_profile = _narrate_transactional(
             transaction_history=transaction_history,
             current_amount=_to_float(fields.get("amount")),
+            fields=fields,
         )
 
         return ProfileAlertOutput(

@@ -10,7 +10,7 @@ from src.application.dtos.pre_process_dtos import (
     PreProcessAlertInput,
     PreProcessAlertOutput,
 )
-from src.application.ports.aric_alert_port import AricAlertPort
+from src.application.ports.aric_alert_port import AricAlertPort, AricAlertSignals
 from src.application.ports.host_service_customer_port import (
     HostServiceCustomerProfilePort,
 )
@@ -75,12 +75,14 @@ _CARD_ONLY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
 _OPTIONAL_FIELD_PATHS: dict[str, tuple[str, ...]] = {
     "reason_code": ("msgReason",),
     "biocatch_score": ("biocatch.score", "biocatch_score"),
+    "model_score": ("model.score", "Model_score", "model_score"),
     "counterparty": (
         "counterpartyName.fullName",
         "counterpartyId",
         "counterpartyentityid_encrypted",
     ),
     "amount": ("amount.baseValue", "amount_value"),
+    "transaction_id": ("transactionId", "transactionid"),
     "biocatch_muid": ("biocatch.muid",),
     "tags": ("object.tags",),
     "triggered_models": ("object.triggeredModels",),
@@ -98,6 +100,45 @@ _OPTIONAL_FIELD_PATHS: dict[str, tuple[str, ...]] = {
     "direction": ("direction",),
     "ip_biocatch": ("biocatch.ip",),
     "user_agent": ("device.userAgentString",),
+    "max_amount_pse": ("MontoMasAltoPSE",),
+    "max_amount_payment_gateway": ("MontoMasAltoPasarelaPago",),
+    "max_amount_breb": ("MontoMasAltoBreB",),
+    "max_amount_glomo": ("MontoMasAltoGlomo",),
+    "max_amount_net": ("MontoMasAltoNet",),
+    "max_amount_loan": ("MontoMasAltoPrestamo",),
+    "max_amount_bills": ("MontoMasAltoFacturas",),
+    "max_amount_card_withdrawals": ("MontoMasAltoRetirosTarjeta",),
+}
+
+# These export columns describe a review outcome or a matured fraud label.
+# Keeping them out of mandatory_fields/optional_fields prevents target leakage
+# into profiling and classification. The raw payload remains persisted for
+# test-run evaluation (marcacion_final and tipo are threaded separately by the
+# workflow).
+_OUTCOME_ONLY_FIELDS = frozenset(
+    {
+        "reviewstatus_first",
+        "marcacion_final",
+        "razon_marcacion",
+        "fecha_primer_marcacion",
+        "fecha_ultima_marcacion",
+        "output_tags",
+        "tipo",
+    }
+)
+
+_PAYLOAD_ARIC_SIGNAL_PATHS: dict[str, tuple[str, ...]] = {
+    "is_mobile_rat": ("biocatch.isMobileRat", "biocatch_isMobileRat"),
+    "is_emulator_rat": ("biocatch.isEmulator", "biocatch_isEmulator"),
+    "is_rat": ("biocatch.isRat", "biocatch_isRat"),
+    "is_bot": ("biocatch.isBot", "biocatch_isBot"),
+    "ind_robo1": ("biocatch.indrobo1", "biocatch_indrobo1"),
+    "is_on_call_active": ("biocatch.isOnCall", "biocatch_isOnCall"),
+    "is_voip_on_call": ("biocatch.isVoipOnCall", "biocatch_isVoipOnCall"),
+    "screen_broadcast": (
+        "biocatch.screenBroadcast",
+        "biocatch_screenBroadcast",
+    ),
 }
 
 T = TypeVar("T")
@@ -146,11 +187,44 @@ def _extract_mandatory_fields(
 
 
 def _extract_optional_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    model_input_payload = {
+        key: value
+        for key, value in payload.items()
+        if key not in _OUTCOME_ONLY_FIELDS
+    }
     return {
         name: value
         for name, paths in _OPTIONAL_FIELD_PATHS.items()
-        if (value := _first_present(payload, paths)) is not None
+        if (value := _first_present(model_input_payload, paths)) is not None
     }
+
+
+def _to_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "si", "sí"}:
+            return True
+        if normalized in {"false", "0", "no"}:
+            return False
+    return None
+
+
+def _merge_aric_signals(
+    payload: dict[str, Any], fetched: AricAlertSignals
+) -> AricAlertSignals:
+    values: dict[str, bool | None] = {}
+    for name, paths in _PAYLOAD_ARIC_SIGNAL_PATHS.items():
+        payload_value = _to_bool(_first_present(payload, paths))
+        values[name] = (
+            payload_value
+            if payload_value is not None
+            else getattr(fetched, name)
+        )
+    return AricAlertSignals(**values)
 
 
 def _transaction_history_from_payload(
@@ -190,6 +264,31 @@ def _transaction_history_from_payload(
                 event_type=str(entry.get("tipo_transaccion") or "unknown"),
                 event_time=event_time,
                 amount=float(amount) if amount is not None else None,
+                alerts=(
+                    str(entry["alertas"])
+                    if entry.get("alertas") is not None
+                    else None
+                ),
+                account_id=(
+                    str(entry["cuenta_origen"])
+                    if entry.get("cuenta_origen") is not None
+                    else None
+                ),
+                integration_point=(
+                    str(entry["integrationpoint"])
+                    if entry.get("integrationpoint") is not None
+                    else None
+                ),
+                channel=(
+                    str(entry["canal"])
+                    if entry.get("canal") is not None
+                    else None
+                ),
+                counterparty=(
+                    str(entry["destino"])
+                    if entry.get("destino") is not None
+                    else None
+                ),
             )
         )
     return history
@@ -252,8 +351,11 @@ class PreProcessAlertUseCase:
         event_id = str(mandatory_fields["event_id"])
 
         self._report_progress("fetching_aric_signals")
-        aric_signals = _with_retry(
+        fetched_aric_signals = _with_retry(
             lambda: self._aric.fetch_signals(event_id, session_id)
+        )
+        aric_signals = _merge_aric_signals(
+            input.payload, fetched_aric_signals
         )
         self._report_progress("fetching_customer_profile")
         customer_profile = _with_retry(
