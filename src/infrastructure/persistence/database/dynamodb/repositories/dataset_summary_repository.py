@@ -5,6 +5,7 @@ from typing import Any
 
 from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
+    DatasetOrigin,
     DatasetSummaryRecord,
     DatasetSummaryRepository,
 )
@@ -44,6 +45,9 @@ def _to_item(summary: DatasetSummaryRecord) -> dict[str, Any]:
         "uploaded_at": summary.uploaded_at.isoformat() if summary.uploaded_at else None,
         "updated_at": summary.updated_at.isoformat() if summary.updated_at else None,
         "error": summary.error,
+        "origin": summary.origin.value,
+        "source_dataset_names": summary.source_dataset_names,
+        "extraction_filter": summary.extraction_filter,
     }
 
 
@@ -62,4 +66,7 @@ def _from_item(item: dict[str, Any]) -> DatasetSummaryRecord:
         uploaded_at=datetime.fromisoformat(uploaded_at) if uploaded_at else None,
         updated_at=datetime.fromisoformat(updated_at) if updated_at else None,
         error=item.get("error"),
+        origin=DatasetOrigin(item["origin"]) if item.get("origin") else DatasetOrigin.UPLOADED,
+        source_dataset_names=list(item.get("source_dataset_names") or []),
+        extraction_filter=dict(item["extraction_filter"]) if item.get("extraction_filter") else None,
     )

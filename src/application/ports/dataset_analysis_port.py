@@ -13,6 +13,19 @@ class DatasetAnalysisStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class DatasetOrigin(StrEnum):
+    """How a dataset came to exist. Orthogonal to DatasetAnalysisStatus,
+    which tracks the analysis lifecycle, not provenance. Records how a
+    dataset started, not an exhaustive ingestion history — a dataset can
+    receive rows from multiple origins over its life via progressive fill.
+    """
+
+    UPLOADED = "UPLOADED"
+    EMPTY = "EMPTY"
+    EXTRACTED = "EXTRACTED"
+    ALERT_CURATED = "ALERT_CURATED"
+
+
 @dataclass
 class DatasetSampleRecord:
     dataset_name: str
@@ -40,6 +53,13 @@ class DatasetSummaryRecord:
     uploaded_at: datetime | None = None
     updated_at: datetime | None = None
     error: str | None = None
+    origin: DatasetOrigin = DatasetOrigin.UPLOADED
+    # Populated only when origin is EXTRACTED — the dataset(s) rows were
+    # sampled from.
+    source_dataset_names: list[str] = field(default_factory=list)
+    # Populated only when origin is EXTRACTED — the field=value filters the
+    # source rows were narrowed by before sampling.
+    extraction_filter: dict[str, str] | None = None
 
 
 class DatasetSampleRepository(Protocol):
