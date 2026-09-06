@@ -179,6 +179,29 @@ def test_append_rows_raises_when_dataset_missing(tmp_path: Path) -> None:
         repo.append_rows("missing", [{"eventId": "e-1"}])
 
 
+def test_append_rows_preserves_column_alignment_with_leading_unnamed_column(
+    tmp_path: Path,
+) -> None:
+    # Regression: a pandas to_csv(index=True) export (real datasets have
+    # this exact shape) has a blank/unnamed first column. append_rows must
+    # not reuse get_fields()'s display-oriented filtering (which drops that
+    # blank name) to build its CSV writer header - doing so silently drops
+    # a real column position and shifts every appended value one column
+    # left of where the file's actual header puts it. Found by testing
+    # against a real, larger reference dataset with this shape.
+    csv_path = tmp_path / "sample.csv"
+    csv_path.write_text(",name,amount\n0,alice,100\n1,bob,200\n")
+    repo = FilesystemCsvDatasetRepository(tmp_path)
+
+    repo.append_rows("sample", [{"name": "carol", "amount": "300"}])
+
+    assert repo.get_rows("sample") == [
+        {"name": "alice", "amount": "100"},
+        {"name": "bob", "amount": "200"},
+        {"name": "carol", "amount": "300"},
+    ]
+
+
 def test_get_rows_page_returns_slice_and_total(tmp_path: Path) -> None:
     csv_path = tmp_path / "sample.csv"
     csv_path.write_text(

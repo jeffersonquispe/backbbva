@@ -57,7 +57,14 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
 
     def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:
         path = self._dir / f"{name}.csv"
-        fields = self.get_fields(name)
+        # Deliberately NOT get_fields() here - it filters out a blank/unnamed
+        # column (e.g. pandas to_csv(index=True)'s leading index column,
+        # confirmed present in real exports) for clean display purposes.
+        # Reusing that filtered list as the CSV writer's fieldnames would
+        # silently drop a real column position, shifting every written value
+        # one column left of where the file's actual header puts it.
+        with path.open(newline="", encoding="utf-8") as f:
+            fields = csv.DictReader(f).fieldnames or []
         with path.open("a", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
             for row in rows:

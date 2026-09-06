@@ -106,6 +106,28 @@ def test_append_rows_flattens_nested_values_and_returns_new_total() -> None:
     assert len(repo.get_rows("events")) == 3
 
 
+def test_append_rows_preserves_column_alignment_with_leading_unnamed_column() -> None:
+    # Regression: a pandas to_csv(index=True) export (real datasets have
+    # this exact shape) has a blank/unnamed first column. append_rows must
+    # not reuse get_fields()'s display-oriented filtering (which drops that
+    # blank name) to build its CSV writer header - doing so silently drops
+    # a real column position and shifts every value one column left,
+    # including for already-existing rows since this adapter rewrites the
+    # whole object on every append. Found by testing against a real, larger
+    # reference dataset with this shape.
+    storage = InMemoryObjectStoragePort()
+    storage.put_text("sample.csv", ",name,amount\n0,alice,100\n1,bob,200\n", content_type="text/csv")
+    repo = MinioCsvDatasetRepository(object_storage=storage)
+
+    repo.append_rows("sample", [{"name": "carol", "amount": "300"}])
+
+    assert repo.get_rows("sample") == [
+        {"name": "alice", "amount": "100"},
+        {"name": "bob", "amount": "200"},
+        {"name": "carol", "amount": "300"},
+    ]
+
+
 def test_get_rows_page_slices_and_reports_total() -> None:
     storage = InMemoryObjectStoragePort()
     repo = MinioCsvDatasetRepository(object_storage=storage)

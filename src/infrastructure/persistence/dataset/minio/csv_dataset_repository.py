@@ -49,7 +49,13 @@ class MinioCsvDatasetRepository(DatasetRepository):
     def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:
         key = f"{name}.csv"
         reader = csv.DictReader(self._lines(key))
-        fields = [field for field in (reader.fieldnames or []) if field]
+        # Deliberately NOT the get_fields()-style filter here - it drops a
+        # blank/unnamed column (e.g. pandas to_csv(index=True)'s leading
+        # index column, confirmed present in real exports). Since this whole
+        # file gets rewritten on every append, filtering it out here would
+        # shift every column one position left - including for the
+        # already-existing rows re-encoded below, not just the new ones.
+        fields = reader.fieldnames or []
         all_rows = list(reader) + [flatten_row(row) for row in rows]
 
         buffer = io.StringIO()
