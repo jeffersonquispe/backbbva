@@ -11,26 +11,26 @@ from src.application.ports.dataset_analysis_port import (
     DatasetSummaryRecord,
     DatasetSummaryRepository,
 )
-from src.application.ports.object_storage_port import ObjectStoragePort
+from src.application.ports.dataset_port import DatasetRepository
 
 
 class UploadDatasetUseCase:
     def __init__(
         self,
-        object_storage: ObjectStoragePort,
+        dataset_repository: DatasetRepository,
         summary_repository: DatasetSummaryRepository,
         dispatcher: DatasetAnalysisDispatcher,
     ) -> None:
-        self._object_storage = object_storage
+        self._datasets = dataset_repository
         self._summaries = summary_repository
         self._dispatcher = dispatcher
 
     def execute(self, input: UploadDatasetInput) -> UploadDatasetOutput:
-        self._object_storage.put_bytes(
-            key=f"{input.name}.csv",
-            content=input.content,
-            content_type="text/csv",
-        )
+        # Writes via DatasetRepository (not ObjectStoragePort directly) so the
+        # upload always lands wherever list()/get_rows()/delete() will look for
+        # it - those already switch on DATASET_STORAGE_BACKEND, and previously
+        # uploads bypassed that switch by always writing straight to MinIO.
+        self._datasets.create_from_csv_bytes(input.name, input.content)
         now = datetime.now(timezone.utc)
         self._summaries.upsert(
             DatasetSummaryRecord(

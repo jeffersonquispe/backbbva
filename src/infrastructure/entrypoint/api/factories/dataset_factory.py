@@ -67,7 +67,7 @@ def get_list_datasets_use_case() -> ListDatasetsUseCase:
 
 def get_upload_dataset_use_case() -> UploadDatasetUseCase:
     return UploadDatasetUseCase(
-        object_storage=get_dataset_object_storage(),
+        dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
     )

@@ -48,6 +48,13 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
         with path.open("w", newline="", encoding="utf-8") as f:
             csv.DictWriter(f, fieldnames=fields).writeheader()
 
+    def create_from_csv_bytes(self, name: str, content: bytes) -> None:
+        path = self._dir / f"{name}.csv"
+        if path.exists():
+            raise FileExistsError(f"Dataset '{name}' already exists")
+        self._dir.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+
     def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:
         path = self._dir / f"{name}.csv"
         fields = self.get_fields(name)

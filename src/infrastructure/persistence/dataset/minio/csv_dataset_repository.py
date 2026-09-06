@@ -39,6 +39,11 @@ class MinioCsvDatasetRepository(DatasetRepository):
         csv.writer(buffer).writerow(fields)
         self._object_storage.put_text(f"{name}.csv", buffer.getvalue(), content_type="text/csv")
 
+    def create_from_csv_bytes(self, name: str, content: bytes) -> None:
+        if f"{name}.csv" in self._object_storage.list_keys(".csv"):
+            raise FileExistsError(f"Dataset '{name}' already exists")
+        self._object_storage.put_bytes(f"{name}.csv", content, content_type="text/csv")
+
     def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:
         key = f"{name}.csv"
         reader = csv.DictReader(self._lines(key))
