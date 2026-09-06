@@ -7,9 +7,23 @@ from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.use_cases.datasets.analyze_dataset_on_demand import (
+    AnalyzeDatasetOnDemandUseCase,
+)
+from src.application.use_cases.datasets.append_dataset_rows import (
+    AppendDatasetRowsUseCase,
+)
+from src.application.use_cases.datasets.create_empty_dataset import (
+    CreateEmptyDatasetUseCase,
+)
 from src.application.use_cases.datasets.delete_dataset import DeleteDatasetUseCase
+from src.application.use_cases.datasets.extract_dataset import ExtractDatasetUseCase
+from src.application.use_cases.datasets.get_dataset_rows import GetDatasetRowsUseCase
 from src.application.use_cases.datasets.get_dataset_summary import (
     GetDatasetSummaryUseCase,
+)
+from src.application.use_cases.datasets.get_dataset_template import (
+    GetDatasetTemplateUseCase,
 )
 from src.application.use_cases.datasets.upload_dataset import UploadDatasetUseCase
 from src.application.use_cases.test_runs.list_datasets import ListDatasetsUseCase
@@ -85,3 +99,41 @@ def get_delete_dataset_use_case() -> DeleteDatasetUseCase:
         sample_repository=get_dataset_sample_repository(),
         summary_repository=get_dataset_summary_repository(),
     )
+
+
+def get_create_empty_dataset_use_case() -> CreateEmptyDatasetUseCase:
+    return CreateEmptyDatasetUseCase(
+        dataset_repository=get_dataset_repository(),
+        summary_repository=get_dataset_summary_repository(),
+    )
+
+
+def get_extract_dataset_use_case() -> ExtractDatasetUseCase:
+    return ExtractDatasetUseCase(
+        dataset_repository=get_dataset_repository(),
+        summary_repository=get_dataset_summary_repository(),
+        dispatcher=get_dataset_analysis_dispatcher(),
+    )
+
+
+def get_append_dataset_rows_use_case() -> AppendDatasetRowsUseCase:
+    return AppendDatasetRowsUseCase(
+        dataset_repository=get_dataset_repository(),
+        summary_repository=get_dataset_summary_repository(),
+        dispatcher=get_dataset_analysis_dispatcher(),
+    )
+
+
+def get_analyze_dataset_on_demand_use_case() -> AnalyzeDatasetOnDemandUseCase:
+    return AnalyzeDatasetOnDemandUseCase(
+        summary_repository=get_dataset_summary_repository(),
+        dispatcher=get_dataset_analysis_dispatcher(),
+    )
+
+
+def get_get_dataset_rows_use_case() -> GetDatasetRowsUseCase:
+    return GetDatasetRowsUseCase(get_dataset_repository())
+
+
+def get_get_dataset_template_use_case() -> GetDatasetTemplateUseCase:
+    return GetDatasetTemplateUseCase(get_dataset_repository())

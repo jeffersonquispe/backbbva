@@ -267,6 +267,33 @@ class DatasetSummaryResponse(BaseModel):
     error: str | None
 
 
+class CreateEmptyDatasetRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+    fields: list[str] = Field(..., min_length=1)
+
+
+class ExtractDatasetRequest(BaseModel):
+    source_names: list[str] = Field(..., min_length=1)
+    filters: dict[str, str] = Field(default_factory=dict)
+    percentage: float = Field(..., gt=0, le=100)
+    target_name: str = Field(..., min_length=1)
+
+
+class AppendDatasetRowsRequest(BaseModel):
+    rows: list[dict[str, Any]] = Field(..., min_length=1)
+
+
+class AppendDatasetRowsResponse(BaseModel):
+    name: str
+    total_rows: int
+    status: DatasetAnalysisStatus
+
+
+class DatasetRowsResponse(BaseModel):
+    rows: list[dict[str, Any]]
+    total: int
+
+
 # --- Models (XGBoost training) ------------------------------------------
 
 class FieldTransformRequest(BaseModel):
