@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
+    DatasetOrigin,
     DatasetSampleRecord,
     DatasetSampleRepository,
     DatasetSummaryRecord,
@@ -32,6 +33,12 @@ class AnalyzeDatasetUseCase:
     def execute(self, dataset_name: str) -> None:
         existing = self._summaries.get(dataset_name)
         uploaded_at = existing.uploaded_at if existing else None
+        # Provenance is set once at creation (create_empty/extract_dataset/
+        # upload) and must survive every subsequent re-analysis - it's not
+        # something this use case computes.
+        origin = existing.origin if existing else DatasetOrigin.UPLOADED
+        source_dataset_names = existing.source_dataset_names if existing else []
+        extraction_filter = existing.extraction_filter if existing else None
         try:
             rows = self._datasets.get_rows(dataset_name)
             samples = [
@@ -61,6 +68,9 @@ class AnalyzeDatasetUseCase:
                     available_fields=available_fields,
                     uploaded_at=uploaded_at,
                     updated_at=datetime.now(timezone.utc),
+                    origin=origin,
+                    source_dataset_names=source_dataset_names,
+                    extraction_filter=extraction_filter,
                 )
             )
         except Exception as exc:
@@ -73,6 +83,9 @@ class AnalyzeDatasetUseCase:
                     uploaded_at=uploaded_at,
                     updated_at=datetime.now(timezone.utc),
                     error=str(exc),
+                    origin=origin,
+                    source_dataset_names=source_dataset_names,
+                    extraction_filter=extraction_filter,
                 )
             )
             raise
