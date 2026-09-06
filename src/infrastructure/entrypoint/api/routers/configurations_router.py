@@ -248,6 +248,7 @@ def _to_summary_response(record: ConfigurationRecord) -> ConfigurationSummaryRes
         description=record.description,
         active=record.active,
         ever_activated=record.ever_activated,
+        ever_tested=record.ever_tested,
         created_at=record.created_at,
         updated_at=record.updated_at,
     )
@@ -261,6 +262,7 @@ def _to_detail_response(record: ConfigurationRecord) -> ConfigurationDetailRespo
         description=record.description,
         active=record.active,
         ever_activated=record.ever_activated,
+        ever_tested=record.ever_tested,
         created_at=record.created_at,
         updated_at=record.updated_at,
         created_by=record.created_by,

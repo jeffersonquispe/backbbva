@@ -417,3 +417,30 @@ def test_start_test_run_rejects_distribution_without_sample_size() -> None:
                 sample_distribution={"no-risk": 1.0},
             )
         )
+
+
+@pytest.mark.parametrize("explicit", [True, False])
+def test_start_freezes_and_records_resolved_configuration(explicit: bool) -> None:
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    configurations = Mock()
+    record = SimpleNamespace(configuration_id="cfg", version=3)
+    configurations.get.return_value = record
+    configurations.get_active.return_value = record
+    runs = InMemoryTestRunRepository()
+    use_case = StartTestRunUseCase(
+        dataset_repository=InMemoryDatasetRepository({"sample": []}),
+        test_run_repository=runs,
+        alert_repository=InMemoryAlertRepository(),
+        async_operation_repository=InMemoryAsyncOperationRepository(),
+        workflow_repository=InMemoryWorkflowExecutionRepository(),
+        workflow_executor=RecordingWorkflowExecutor(),
+        configuration_repository=configurations,
+    )
+    output = use_case.execute(StartTestRunInput(
+        name="Freeze", dataset_name="sample",
+        config=TestRunConfig(configuration_ref=ConfigurationRef("cfg", 3) if explicit else None),
+    ))
+    configurations.mark_tested.assert_called_once_with("cfg", 3)
+    assert runs.get(output.test_run_id).config.configuration_ref == ConfigurationRef("cfg", 3)

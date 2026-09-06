@@ -525,11 +525,15 @@ class ConfigurationRecord:
     # still overwrite this version in place (see update()) or must mint a
     # new one: a version that ever reached production is frozen for audit.
     ever_activated: bool = False
+    ever_tested: bool = False
     segments: dict[str, SegmentSettings] = field(default_factory=default_segments)
 
 
 class ConfigurationRepository(Protocol):
     def create(self, config: ConfigurationRecord) -> ConfigurationRecord:
+        ...
+
+    def mark_tested(self, configuration_id: str, version: int) -> None:
         ...
 
     def update(self, config: ConfigurationRecord) -> ConfigurationRecord:

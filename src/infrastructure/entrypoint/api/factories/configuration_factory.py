@@ -59,6 +59,7 @@ def get_create_configuration_use_case() -> CreateConfigurationUseCase:
     return CreateConfigurationUseCase(
         get_configuration_repository(),
         get_index_configuration_knowledge_use_case(),
+        get_test_run_repository(),
     )
 
 

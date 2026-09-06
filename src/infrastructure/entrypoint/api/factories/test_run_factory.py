@@ -39,7 +39,10 @@ def get_workflow_step_execution_repository() -> DynamoWorkflowStepExecutionRepos
 
 
 def get_start_test_run_use_case() -> StartTestRunUseCase:
+    from src.infrastructure.entrypoint.api.factories.configuration_factory import get_configuration_repository
+
     return StartTestRunUseCase(
+        configuration_repository=get_configuration_repository(),
         dataset_repository=get_dataset_repository(),
         test_run_repository=get_test_run_repository(),
         alert_repository=get_alert_repository(),

@@ -9,6 +9,7 @@ from src.application.dtos.test_run_dtos import StartTestRunInput, StartTestRunOu
 from src.application.ports.alert_port import AlertRepository
 from src.application.ports.async_operation_port import AsyncOperationRepository
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.configuration_port import ConfigurationRepository, ConfigurationRef
 from src.application.ports.test_run_port import (
     TestRunRecord,
     TestRunRepository,
@@ -31,7 +32,9 @@ class StartTestRunUseCase:
         async_operation_repository: AsyncOperationRepository,
         workflow_repository: WorkflowExecutionRepository,
         workflow_executor: WorkflowExecutor,
+        configuration_repository: ConfigurationRepository | None = None,
     ) -> None:
+        self._configurations = configuration_repository
         self._datasets = dataset_repository
         self._test_runs = test_run_repository
         # Reused as-is, not re-derived: this already builds the exact
@@ -53,6 +56,16 @@ class StartTestRunUseCase:
             rows = sample_rows(
                 rows, size=input.sample_size, distribution=input.sample_distribution
             )
+        if self._configurations is not None:
+            ref = input.config.configuration_ref
+            config = self._configurations.get(ref.configuration_id, ref.version) if ref else self._configurations.get_active()
+            if config is None and ref is not None:
+                raise ValueError("Configuration version not found")
+            if config is not None:
+                self._configurations.mark_tested(config.configuration_id, config.version)
+                input.config = dataclasses.replace(input.config, configuration_ref=ConfigurationRef(
+                    configuration_id=config.configuration_id, version=config.version,
+                ))
         now = datetime.now(timezone.utc)
         test_run = self._test_runs.create(
             TestRunRecord(

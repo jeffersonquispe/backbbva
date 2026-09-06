@@ -686,6 +686,7 @@ class ConfigurationSummaryResponse(BaseModel):
     # whether the next save on this lineage will overwrite this version in
     # place or must mint a new one.
     ever_activated: bool
+    ever_tested: bool = False
     created_at: datetime
     updated_at: datetime
 

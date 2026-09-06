@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import uuid
+
 from datetime import datetime, timezone
+
+from src.application.ports.test_run_port import TestRunRepository
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
 from src.application.ports.configuration_port import (
@@ -22,7 +25,9 @@ class CreateConfigurationUseCase:
         self,
         configuration_repository: ConfigurationRepository,
         index_configuration_knowledge: IndexConfigurationKnowledgeUseCase,
+        test_run_repository: TestRunRepository,
     ) -> None:
+        self._test_runs = test_run_repository
         self._configurations = configuration_repository
         self._index_configuration_knowledge = index_configuration_knowledge
 
@@ -49,7 +54,15 @@ class CreateConfigurationUseCase:
             overwrite = (
                 latest is not None
                 and input.based_on_version == latest.version
+                and not latest.ever_tested
+                and not latest.active
                 and not latest.ever_activated
+                and not any(
+                    run.config.configuration_ref is not None
+                    and run.config.configuration_ref.configuration_id == configuration_id
+                    and run.config.configuration_ref.version == latest.version
+                    for run in self._test_runs.list()
+                )
             )
             version = (
                 latest.version

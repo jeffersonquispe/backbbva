@@ -133,6 +133,14 @@ class DynamoConfigurationRepository(ConfigurationRepository):
     def create(self, config: ConfigurationRecord) -> ConfigurationRecord:
         return self._write_version(config)
 
+    def mark_tested(self, configuration_id: str, version: int) -> None:
+        self._table.update_item(
+            Key={"configuration_id": configuration_id, "version": version},
+            UpdateExpression="SET ever_tested = :tested",
+            ExpressionAttributeValues={":tested": True},
+            ConditionExpression="attribute_exists(configuration_id)",
+        )
+
     def update(self, config: ConfigurationRecord) -> ConfigurationRecord:
         # Every per-segment child row is keyed off a fresh uuid segment_id
         # minted on each write (see the loop below) - overwriting in place
@@ -599,6 +607,7 @@ def _to_item(config: ConfigurationRecord) -> dict[str, Any]:
         "description": config.description,
         "active": config.active,
         "ever_activated": config.ever_activated,
+        "ever_tested": config.ever_tested,
         "created_at": config.created_at.isoformat(),
         "updated_at": config.updated_at.isoformat(),
         "created_by": config.created_by,
@@ -633,6 +642,7 @@ def _from_item(item: dict[str, Any]) -> ConfigurationRecord:
         description=item.get("description") or "",
         active=bool(item.get("active", False)),
         ever_activated=bool(item.get("ever_activated", False)),
+        ever_tested=bool(item.get("ever_tested", False)),
         general=GeneralSettings(),
         infra=InfraSettings(),
         ops=OpsSettings(),

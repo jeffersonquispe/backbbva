@@ -303,7 +303,8 @@ def _create_use_case(
     fraud_repo: InMemoryFraudKnowledgeRepository | None = None,
 ) -> CreateConfigurationUseCase:
     return CreateConfigurationUseCase(
-        repo, _index_use_case(fraud_repo or InMemoryFraudKnowledgeRepository())
+        repo, _index_use_case(fraud_repo or InMemoryFraudKnowledgeRepository()),
+        InMemoryTestRunRepository(),
     )
 
 
@@ -456,10 +457,12 @@ def test_create_configuration_with_matching_based_on_version_overwrites_never_ac
 
 def test_create_configuration_mints_new_version_once_latest_was_activated() -> None:
     repo = InMemoryConfigurationRepository()
+    test_run_repo = InMemoryTestRunRepository()
     create = _create_use_case(repo)
-    activate = _activate_use_case(repo)
+    activate = _activate_use_case(repo, test_run_repo=test_run_repo)
 
     v1 = create.execute(CreateConfigurationInput(name="Producción"))
+    test_run_repo.add_succeeded(v1.configuration_id, 1)
     activate.execute(v1.configuration_id, 1)
 
     v2 = create.execute(
@@ -779,3 +782,34 @@ def test_activate_flips_opensearch_documents_activate_flag() -> None:
         doc.activate
         for doc in fraud_repo.list(configuration=v1.configuration_id, version=1)
     )
+
+
+def test_tested_latest_configuration_is_preserved_after_test_history_deleted() -> None:
+    repo = InMemoryConfigurationRepository()
+    create = _create_use_case(repo)
+    original = create.execute(CreateConfigurationInput(name="Protected"))
+    original.ever_tested = True
+    saved = create.execute(CreateConfigurationInput(
+        name="Changed", configuration_id=original.configuration_id, based_on_version=1,
+    ))
+    assert saved.version == 2
+    assert repo.get(original.configuration_id, 1).name == "Protected"
+    assert saved.ever_tested is False
+
+
+def test_legacy_test_run_protects_only_its_configuration_version() -> None:
+    repo = InMemoryConfigurationRepository()
+    runs = InMemoryTestRunRepository()
+    create = CreateConfigurationUseCase(repo, _index_use_case(InMemoryFraudKnowledgeRepository()), runs)
+    original = create.execute(CreateConfigurationInput(name="Protected"))
+    runs.add_succeeded(original.configuration_id, 1)
+    runs._runs[0].status = TestRunStatus.FAILED
+    saved = create.execute(CreateConfigurationInput(
+        name="Changed", configuration_id=original.configuration_id, based_on_version=1,
+    ))
+    assert saved.version == 2
+    assert repo.get(original.configuration_id, 1).name == "Protected"
+    edited = create.execute(CreateConfigurationInput(
+        name="Editable", configuration_id=original.configuration_id, based_on_version=2,
+    ))
+    assert edited.version == 2
