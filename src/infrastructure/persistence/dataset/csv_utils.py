@@ -30,3 +30,19 @@ def unflatten_row(row: dict[str, str]) -> dict[str, Any]:
             node = node.setdefault(part, {})
         node[parts[-1]] = value
     return result
+
+
+def flatten_row(row: dict[str, Any], _prefix: str = "") -> dict[str, str]:
+    """Inverse of unflatten_row: {"a": {"b": 1}} -> {"a.b": "1"}. Used when
+    writing rows back to CSV (append_rows/create) so nested values produced
+    by get_rows' unflatten round-trip through the same dotted-header shape
+    already on disk.
+    """
+    result: dict[str, str] = {}
+    for key, value in row.items():
+        full_key = f"{_prefix}{key}"
+        if isinstance(value, dict):
+            result.update(flatten_row(value, f"{full_key}."))
+        else:
+            result[full_key] = "" if value is None else str(value)
+    return result
