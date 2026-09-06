@@ -294,6 +294,10 @@ class DatasetRowsResponse(BaseModel):
     total: int
 
 
+class CurateAlertToDatasetRequest(BaseModel):
+    dataset_name: str = Field(..., min_length=1)
+
+
 # --- Models (XGBoost training) ------------------------------------------
 
 class FieldTransformRequest(BaseModel):

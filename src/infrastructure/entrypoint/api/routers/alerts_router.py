@@ -6,13 +6,24 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from src.application.dtos.alert_dtos import StartAlertWorkflowInput
+from src.application.dtos.alert_dtos import (
+    CurateAlertToDatasetInput,
+    StartAlertWorkflowInput,
+)
+from src.application.use_cases.alerts.curate_alert_to_dataset import (
+    CurateAlertToDatasetUseCase,
+)
 from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
 )
 from src.domain.alerts.exceptions import AlertPayloadTooLargeError
 from src.infrastructure.entrypoint.api.factories.alert_factory import (
+    get_curate_alert_to_dataset_use_case,
     get_start_alert_test_workflow_use_case,
+)
+from src.infrastructure.entrypoint.api.schemas import (
+    AppendDatasetRowsResponse,
+    CurateAlertToDatasetRequest,
 )
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -51,3 +62,27 @@ def start_alert_test_workflow(
         )
     except AlertPayloadTooLargeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/{alert_id}/curate-to-dataset",
+    response_model=AppendDatasetRowsResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def curate_alert_to_dataset(
+    alert_id: UUID,
+    request: CurateAlertToDatasetRequest,
+    use_case: Annotated[
+        CurateAlertToDatasetUseCase, Depends(get_curate_alert_to_dataset_use_case)
+    ],
+):
+    try:
+        return use_case.execute(
+            CurateAlertToDatasetInput(
+                alert_id=alert_id, dataset_name=request.dataset_name
+            )
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

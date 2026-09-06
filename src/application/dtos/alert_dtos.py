@@ -33,3 +33,9 @@ class StartAlertWorkflowOutput:
     async_operation_id: UUID
     workflow_execution_id: UUID
     status: str
+
+
+@dataclass
+class CurateAlertToDatasetInput:
+    alert_id: UUID
+    dataset_name: str

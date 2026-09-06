@@ -7,10 +7,18 @@ from src.application.ports.workflow_executor_port import (
     WorkflowExecutor,
 )
 from src.application.ports.workflow_port import WorkflowExecutionRecord
+from src.application.use_cases.alerts.curate_alert_to_dataset import (
+    CurateAlertToDatasetUseCase,
+)
 from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.entrypoint.api.factories.dataset_factory import (
+    get_dataset_analysis_dispatcher,
+    get_dataset_repository,
+    get_dataset_summary_repository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
     DynamoAlertRepository,
 )
@@ -60,4 +68,13 @@ def get_start_alert_test_workflow_use_case() -> StartAlertTestWorkflowUseCase:
         async_operation_repository=DynamoAsyncOperationRepository(),
         workflow_repository=get_workflow_execution_repository(),
         workflow_executor=get_workflow_executor(),
+    )
+
+
+def get_curate_alert_to_dataset_use_case() -> CurateAlertToDatasetUseCase:
+    return CurateAlertToDatasetUseCase(
+        alert_repository=get_alert_repository(),
+        dataset_repository=get_dataset_repository(),
+        summary_repository=get_dataset_summary_repository(),
+        dispatcher=get_dataset_analysis_dispatcher(),
     )
