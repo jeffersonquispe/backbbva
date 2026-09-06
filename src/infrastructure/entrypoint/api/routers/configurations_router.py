@@ -40,6 +40,7 @@ from src.application.ports.configuration_port import (
 from src.application.use_cases.configurations.activate_configuration import (
     ActivateConfigurationUseCase,
     ConfigurationNotFoundError,
+    ConfigurationNotTestedError,
 )
 from src.application.use_cases.configurations.create_configuration import (
     ConfigurationVersionConflictError,
@@ -234,6 +235,8 @@ def activate_configuration(
         record = use_case.execute(configuration_id, version)
     except ConfigurationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ConfigurationNotTestedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _to_detail_response(record)
 
 

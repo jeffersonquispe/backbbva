@@ -9,6 +9,7 @@ from src.application.dtos.configuration_dtos import CreateConfigurationInput
 from src.application.ports.configuration_port import (
     AgentSettings,
     ConfigurationRecord,
+    ConfigurationRef,
     ExampleCase,
     FilterCondition,
     FilterGroup,
@@ -36,9 +37,15 @@ from src.application.ports.fraud_knowledge_port import (
     FraudKnowledgeDocument,
 )
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.test_run_port import (
+    TestRunConfig,
+    TestRunRecord,
+    TestRunStatus,
+)
 from src.application.use_cases.configurations.activate_configuration import (
     ActivateConfigurationUseCase,
     ConfigurationNotFoundError,
+    ConfigurationNotTestedError,
 )
 from src.application.use_cases.configurations.create_configuration import (
     ConfigurationVersionConflictError,
@@ -194,6 +201,43 @@ class InMemoryFraudKnowledgeRepository:
         return results
 
 
+class InMemoryTestRunRepository:
+    def __init__(self) -> None:
+        self._runs: list[TestRunRecord] = []
+
+    def add_succeeded(self, configuration_id: str, version: int) -> None:
+        self._runs.append(
+            TestRunRecord(
+                id=uuid.uuid4(),
+                name="run",
+                dataset_name="dataset",
+                config=TestRunConfig(
+                    configuration_ref=ConfigurationRef(configuration_id, version)
+                ),
+                status=TestRunStatus.SUCCEEDED,
+                total=1,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+        )
+
+    def create(self, run: TestRunRecord) -> TestRunRecord:
+        self._runs.append(run)
+        return run
+
+    def get(self, run_id: uuid.UUID) -> TestRunRecord | None:
+        return next((r for r in self._runs if r.id == run_id), None)
+
+    def update(self, run_id, *, status=None, finished_at=None):
+        raise NotImplementedError
+
+    def list(self) -> list[TestRunRecord]:
+        return list(self._runs)
+
+    def delete(self, run_id: uuid.UUID) -> None:
+        self._runs = [r for r in self._runs if r.id != run_id]
+
+
 class ScriptedEmbeddingUnitOfWork(EmbeddingUnitOfWork):
     def embed(self, texts: list[str]) -> EmbeddingResult:
         return EmbeddingResult(
@@ -266,9 +310,12 @@ def _create_use_case(
 def _activate_use_case(
     repo: InMemoryConfigurationRepository,
     fraud_repo: InMemoryFraudKnowledgeRepository | None = None,
+    test_run_repo: InMemoryTestRunRepository | None = None,
 ) -> ActivateConfigurationUseCase:
     return ActivateConfigurationUseCase(
-        repo, fraud_repo or InMemoryFraudKnowledgeRepository()
+        repo,
+        fraud_repo or InMemoryFraudKnowledgeRepository(),
+        test_run_repo or InMemoryTestRunRepository(),
     )
 
 
@@ -435,8 +482,9 @@ def test_create_configuration_mints_new_version_once_latest_was_activated() -> N
 
 def test_activate_enforces_single_active_invariant_across_activations() -> None:
     repo = InMemoryConfigurationRepository()
+    test_run_repo = InMemoryTestRunRepository()
     create = _create_use_case(repo)
-    activate = _activate_use_case(repo)
+    activate = _activate_use_case(repo, test_run_repo=test_run_repo)
     get_active = GetActiveConfigurationUseCase(repo)
 
     assert get_active.execute() is None
@@ -447,6 +495,8 @@ def test_activate_enforces_single_active_invariant_across_activations() -> None:
             name="Producción", configuration_id=v1.configuration_id
         )
     )
+    test_run_repo.add_succeeded(v1.configuration_id, 1)
+    test_run_repo.add_succeeded(v2.configuration_id, 2)
 
     activated_v1 = activate.execute(v1.configuration_id, 1)
     assert activated_v1.active is True
@@ -468,6 +518,37 @@ def test_activate_unknown_configuration_raises() -> None:
 
     with pytest.raises(ConfigurationNotFoundError):
         activate.execute("missing", 1)
+
+
+def test_activate_without_succeeded_test_run_raises() -> None:
+    repo = InMemoryConfigurationRepository()
+    create = _create_use_case(repo)
+    activate = _activate_use_case(repo)
+
+    v1 = create.execute(CreateConfigurationInput(name="Producción"))
+
+    with pytest.raises(ConfigurationNotTestedError):
+        activate.execute(v1.configuration_id, 1)
+
+
+def test_activate_ignores_succeeded_test_run_targeting_a_different_version() -> None:
+    repo = InMemoryConfigurationRepository()
+    test_run_repo = InMemoryTestRunRepository()
+    create = _create_use_case(repo)
+    activate = _activate_use_case(repo, test_run_repo=test_run_repo)
+
+    v1 = create.execute(CreateConfigurationInput(name="Producción"))
+    v2 = create.execute(
+        CreateConfigurationInput(
+            name="Producción", configuration_id=v1.configuration_id
+        )
+    )
+    # Only v1 has passed a test - v2 must stay blocked even though the
+    # lineage as a whole has a succeeded run.
+    test_run_repo.add_succeeded(v1.configuration_id, 1)
+
+    with pytest.raises(ConfigurationNotTestedError):
+        activate.execute(v2.configuration_id, 2)
 
 
 def test_list_configurations_returns_one_row_per_lineage_at_latest_version() -> None:
@@ -654,8 +735,9 @@ def test_create_configuration_with_dangling_taxonomy_reference_raises() -> None:
 def test_activate_flips_opensearch_documents_activate_flag() -> None:
     repo = InMemoryConfigurationRepository()
     fraud_repo = InMemoryFraudKnowledgeRepository()
+    test_run_repo = InMemoryTestRunRepository()
     create = _create_use_case(repo, fraud_repo)
-    activate = _activate_use_case(repo, fraud_repo)
+    activate = _activate_use_case(repo, fraud_repo, test_run_repo)
 
     v1 = create.execute(
         CreateConfigurationInput(
@@ -678,6 +760,8 @@ def test_activate_flips_opensearch_documents_activate_flag() -> None:
             },
         )
     )
+    test_run_repo.add_succeeded(v1.configuration_id, 1)
+    test_run_repo.add_succeeded(v2.configuration_id, 2)
 
     activate.execute(v1.configuration_id, 1)
     assert all(

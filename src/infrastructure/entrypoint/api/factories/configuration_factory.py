@@ -33,6 +33,9 @@ from src.infrastructure.entrypoint.api.factories.fraud_knowledge_factory import 
     get_ingest_similar_case_use_case,
     get_ingest_taxonomia_use_case,
 )
+from src.infrastructure.entrypoint.api.factories.test_run_factory import (
+    get_test_run_repository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
     DynamoConfigurationRepository,
 )
@@ -73,7 +76,9 @@ def get_list_configuration_versions_use_case() -> ListConfigurationVersionsUseCa
 
 def get_activate_configuration_use_case() -> ActivateConfigurationUseCase:
     return ActivateConfigurationUseCase(
-        get_configuration_repository(), get_fraud_knowledge_repository()
+        get_configuration_repository(),
+        get_fraud_knowledge_repository(),
+        get_test_run_repository(),
     )
 
 

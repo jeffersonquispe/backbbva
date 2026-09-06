@@ -9,9 +9,14 @@ from src.application.ports.configuration_port import (
 from src.application.ports.fraud_knowledge_repository_port import (
     FraudKnowledgeRepository,
 )
+from src.application.ports.test_run_port import TestRunRepository, TestRunStatus
 
 
 class ConfigurationNotFoundError(Exception):
+    pass
+
+
+class ConfigurationNotTestedError(Exception):
     pass
 
 
@@ -20,14 +25,22 @@ class ActivateConfigurationUseCase:
         self,
         configuration_repository: ConfigurationRepository,
         fraud_knowledge_repository: FraudKnowledgeRepository,
+        test_run_repository: TestRunRepository,
     ) -> None:
         self._configurations = configuration_repository
         self._fraud_knowledge = fraud_knowledge_repository
+        self._test_runs = test_run_repository
 
     def execute(self, configuration_id: str, version: int) -> ConfigurationRecord:
         if self._configurations.get(configuration_id, version) is None:
             raise ConfigurationNotFoundError(
                 f"Configuration {configuration_id} v{version} not found"
+            )
+
+        if not self._has_succeeded_test_run(configuration_id, version):
+            raise ConfigurationNotTestedError(
+                f"Configuration {configuration_id} v{version} has not passed a "
+                "test run in Testing"
             )
 
         previous_active = self._configurations.get_active()
@@ -48,6 +61,15 @@ class ActivateConfigurationUseCase:
         self._set_documents_active(configuration_id, version, True)
 
         return activated
+
+    def _has_succeeded_test_run(self, configuration_id: str, version: int) -> bool:
+        return any(
+            run.status == TestRunStatus.SUCCEEDED
+            and run.config.configuration_ref is not None
+            and run.config.configuration_ref.configuration_id == configuration_id
+            and run.config.configuration_ref.version == version
+            for run in self._test_runs.list()
+        )
 
     def _set_documents_active(
         self, configuration_id: str, version: int, active: bool
