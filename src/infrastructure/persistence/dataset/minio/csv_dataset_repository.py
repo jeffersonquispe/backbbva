@@ -4,6 +4,8 @@ import csv
 import io
 from typing import Any
 
+from botocore.exceptions import ClientError
+
 from src.application.ports.dataset_port import DatasetRecord, DatasetRepository
 from src.application.ports.object_storage_port import ObjectStoragePort
 from src.infrastructure.persistence.dataset.csv_utils import flatten_row, unflatten_row
@@ -63,5 +65,12 @@ class MinioCsvDatasetRepository(DatasetRepository):
         self._object_storage.delete(f"{name}.csv")
 
     def _lines(self, key: str) -> io.StringIO:
-        content = self._object_storage.get_bytes(key)
+        # Normalizes a missing-object lookup to FileNotFoundError - the
+        # exception type every dataset router route already catches for a
+        # 404 - instead of leaking a raw botocore ClientError (S3 NoSuchKey)
+        # or a plain KeyError (from in-memory test fakes) as an unhandled 500.
+        try:
+            content = self._object_storage.get_bytes(key)
+        except (ClientError, KeyError) as exc:
+            raise FileNotFoundError(key) from exc
         return io.StringIO(content.decode("utf-8"))

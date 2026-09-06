@@ -126,6 +126,7 @@ def get_append_dataset_rows_use_case() -> AppendDatasetRowsUseCase:
 
 def get_analyze_dataset_on_demand_use_case() -> AnalyzeDatasetOnDemandUseCase:
     return AnalyzeDatasetOnDemandUseCase(
+        dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
     )

@@ -11,6 +11,7 @@ from src.application.ports.dataset_analysis_port import (
     DatasetSummaryRecord,
     DatasetSummaryRepository,
 )
+from src.application.ports.dataset_port import DatasetRepository
 
 
 class AnalyzeDatasetOnDemandUseCase:
@@ -20,13 +21,19 @@ class AnalyzeDatasetOnDemandUseCase:
 
     def __init__(
         self,
+        dataset_repository: DatasetRepository,
         summary_repository: DatasetSummaryRepository,
         dispatcher: DatasetAnalysisDispatcher,
     ) -> None:
+        self._datasets = dataset_repository
         self._summaries = summary_repository
         self._dispatcher = dispatcher
 
     def execute(self, dataset_name: str) -> UploadDatasetOutput:
+        # Raises FileNotFoundError for a nonexistent dataset - checked before
+        # touching the summary so a typo'd/deleted name can't leave behind a
+        # phantom PENDING summary record for a dataset that was never created.
+        self._datasets.get_fields(dataset_name)
         existing = self._summaries.get(dataset_name)
         now = datetime.now(timezone.utc)
         if existing is not None:

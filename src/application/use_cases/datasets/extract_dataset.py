@@ -50,7 +50,12 @@ class ExtractDatasetUseCase:
                 f"No rows matched the given filters across {input.source_names}"
             )
 
-        fields = discover_fields(sampled)
+        # Derived from the full filtered set, not just the sampled subset -
+        # a sparsely-populated column can easily have zero non-null values
+        # in whichever rows happened to be sampled, which would silently
+        # drop that column from the new dataset's header entirely (not just
+        # leave it blank) if discover_fields ran on `sampled` instead.
+        fields = discover_fields(filtered)
 
         self._datasets.create(input.target_name, fields)
         self._datasets.append_rows(input.target_name, sampled)

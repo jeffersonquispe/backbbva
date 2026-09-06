@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
+
+import pytest
 
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
@@ -11,9 +14,41 @@ from src.application.ports.dataset_analysis_port import (
     DatasetSummaryRecord,
     DatasetSummaryRepository,
 )
+from src.application.ports.dataset_port import DatasetRepository
 from src.application.use_cases.datasets.analyze_dataset_on_demand import (
     AnalyzeDatasetOnDemandUseCase,
 )
+
+
+class FakeDatasetRepository(DatasetRepository):
+    def __init__(self, existing_names: set[str]) -> None:
+        self._existing_names = existing_names
+
+    def list(self):
+        return []
+
+    def get_rows(self, name: str) -> list[dict[str, Any]]:
+        return []
+
+    def get_fields(self, name: str) -> list[str]:
+        if name not in self._existing_names:
+            raise FileNotFoundError(name)
+        return []
+
+    def get_rows_page(self, name: str, offset: int, limit: int):
+        return [], 0
+
+    def create(self, name: str, fields: list[str]) -> None:
+        pass
+
+    def create_from_csv_bytes(self, name: str, content: bytes) -> None:
+        pass
+
+    def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:
+        return 0
+
+    def delete(self, name: str) -> None:
+        pass
 
 
 class InMemoryDatasetSummaryRepository(DatasetSummaryRepository):
@@ -60,7 +95,9 @@ def test_analyze_dataset_on_demand_preserves_existing_summary_fields() -> None:
         )
     )
     use_case = AnalyzeDatasetOnDemandUseCase(
-        summary_repository=summaries, dispatcher=dispatcher
+        dataset_repository=FakeDatasetRepository(existing_names={"ds1"}),
+        summary_repository=summaries,
+        dispatcher=dispatcher,
     )
 
     output = use_case.execute("ds1")
@@ -85,10 +122,15 @@ def test_analyze_dataset_on_demand_preserves_existing_summary_fields() -> None:
 
 
 def test_analyze_dataset_on_demand_with_no_existing_summary_creates_minimal_pending() -> None:
+    # Dataset exists in storage but has no DynamoDB summary yet (defensive
+    # path - shouldn't normally happen since every dataset gets a summary at
+    # creation, but this must not crash if it does).
     summaries = InMemoryDatasetSummaryRepository()
     dispatcher = RecordingDatasetAnalysisDispatcher()
     use_case = AnalyzeDatasetOnDemandUseCase(
-        summary_repository=summaries, dispatcher=dispatcher
+        dataset_repository=FakeDatasetRepository(existing_names={"brand_new"}),
+        summary_repository=summaries,
+        dispatcher=dispatcher,
     )
 
     output = use_case.execute("brand_new")
@@ -107,3 +149,19 @@ def test_analyze_dataset_on_demand_with_no_existing_summary_creates_minimal_pend
     assert summary.extraction_filter is None
 
     assert dispatcher.dispatched == ["brand_new"]
+
+
+def test_analyze_dataset_on_demand_raises_file_not_found_for_nonexistent_dataset() -> None:
+    summaries = InMemoryDatasetSummaryRepository()
+    dispatcher = RecordingDatasetAnalysisDispatcher()
+    use_case = AnalyzeDatasetOnDemandUseCase(
+        dataset_repository=FakeDatasetRepository(existing_names=set()),
+        summary_repository=summaries,
+        dispatcher=dispatcher,
+    )
+
+    with pytest.raises(FileNotFoundError):
+        use_case.execute("ghost")
+
+    assert summaries.get("ghost") is None
+    assert dispatcher.dispatched == []

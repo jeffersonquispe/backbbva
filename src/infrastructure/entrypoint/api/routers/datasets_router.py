@@ -78,7 +78,10 @@ async def upload_dataset(
         raise HTTPException(status_code=400, detail="Only .csv files are supported")
     name = file.filename[: -len(".csv")]
     content = await file.read()
-    return use_case.execute(UploadDatasetInput(name=name, content=content))
+    try:
+        return use_case.execute(UploadDatasetInput(name=name, content=content))
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/datasets/{name}/summary", response_model=DatasetSummaryResponse)
@@ -212,4 +215,7 @@ def analyze_dataset_on_demand(
         AnalyzeDatasetOnDemandUseCase, Depends(get_analyze_dataset_on_demand_use_case)
     ],
 ):
-    return use_case.execute(name)
+    try:
+        return use_case.execute(name)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

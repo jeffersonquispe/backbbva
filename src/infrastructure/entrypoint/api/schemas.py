@@ -30,7 +30,10 @@ from src.application.ports.configuration_port import (
     TestCleanupPolicy,
     VectorStoreTool,
 )
-from src.application.ports.dataset_analysis_port import DatasetAnalysisStatus
+from src.application.ports.dataset_analysis_port import (
+    DatasetAnalysisStatus,
+    DatasetOrigin,
+)
 from src.application.ports.marcacion_catalog_port import RiskLabel
 from src.application.ports.model_port import (
     FieldTransformKind as ModelFieldTransformKind,
@@ -265,6 +268,9 @@ class DatasetSummaryResponse(BaseModel):
     uploaded_at: datetime | None
     updated_at: datetime | None
     error: str | None
+    origin: DatasetOrigin
+    source_dataset_names: list[str]
+    extraction_filter: dict[str, str] | None
 
 
 class CreateEmptyDatasetRequest(BaseModel):

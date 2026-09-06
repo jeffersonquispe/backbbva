@@ -95,6 +95,40 @@ def _rows(prefix: str, n: int, **extra: str) -> list[dict[str, Any]]:
     return rows
 
 
+def test_extract_header_includes_columns_absent_from_the_sampled_subset() -> None:
+    # A column sparsely populated across the filtered set can easily have
+    # zero non-null values in whichever specific rows get randomly sampled -
+    # the header must still include it (discover_fields on the full filtered
+    # set, not just the sampled rows), or that column silently vanishes from
+    # the new dataset entirely rather than just being blank for some rows.
+    # 2 filtered rows, only one carrying "rare_flag", percentage=50 samples
+    # exactly 1 of the 2 (round(2 * 0.5) == 1) - whichever one random.sample
+    # picks, the header must still include "rare_flag" because it's derived
+    # from the full filtered set, not the random 1-row sample.
+    datasets = InMemoryDatasetRepository()
+    rows = _rows("row", 2, region="north")
+    rows[0]["rare_flag"] = "yes"
+    datasets.seed("source_a", rows)
+    summaries = InMemoryDatasetSummaryRepository()
+    dispatcher = RecordingDatasetAnalysisDispatcher()
+    use_case = ExtractDatasetUseCase(
+        dataset_repository=datasets,
+        summary_repository=summaries,
+        dispatcher=dispatcher,
+    )
+
+    use_case.execute(
+        ExtractDatasetInput(
+            source_names=["source_a"],
+            filters={"region": "north"},
+            percentage=50,
+            target_name="extracted_sparse",
+        )
+    )
+
+    assert "rare_flag" in datasets._fields["extracted_sparse"]
+
+
 def test_extract_single_source_happy_path() -> None:
     datasets = InMemoryDatasetRepository()
     # 10 rows match the filter, 5 don't - 50% of 10 matching rows -> 5 sampled.

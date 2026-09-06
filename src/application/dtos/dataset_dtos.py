@@ -4,7 +4,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from src.application.ports.dataset_analysis_port import DatasetAnalysisStatus
+from src.application.ports.dataset_analysis_port import (
+    DatasetAnalysisStatus,
+    DatasetOrigin,
+)
 
 
 @dataclass
@@ -99,3 +102,6 @@ class DatasetSummaryOutput:
     uploaded_at: datetime | None = None
     updated_at: datetime | None = None
     error: str | None = None
+    origin: DatasetOrigin = DatasetOrigin.UPLOADED
+    source_dataset_names: list[str] = field(default_factory=list)
+    extraction_filter: dict[str, str] | None = None

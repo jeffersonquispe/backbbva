@@ -60,4 +60,7 @@ class GetDatasetSummaryUseCase:
             uploaded_at=summary.uploaded_at,
             updated_at=summary.updated_at,
             error=summary.error,
+            origin=summary.origin,
+            source_dataset_names=summary.source_dataset_names,
+            extraction_filter=summary.extraction_filter,
         )
