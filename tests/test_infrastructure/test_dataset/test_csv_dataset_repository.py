@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from pathlib import Path
 
 from src.infrastructure.persistence.dataset.filesystem.csv_dataset_repository import (
@@ -79,3 +81,123 @@ def test_list_and_get_rows_handle_fields_past_python_default_csv_limit(
 
     rows = repo.get_rows("big")
     assert rows[0]["payload"] == huge_field
+
+
+def test_create_writes_header_only_csv(tmp_path: Path) -> None:
+    repo = FilesystemCsvDatasetRepository(tmp_path)
+
+    repo.create("new_dataset", ["eventId", "customerId", "object.triggeredRules"])
+
+    csv_path = tmp_path / "new_dataset.csv"
+    # Path.read_text() applies universal-newline translation, so the CSV
+    # writer's \r\n line terminator reads back as plain \n here.
+    assert csv_path.read_text() == "eventId,customerId,object.triggeredRules\n"
+    assert repo.get_fields("new_dataset") == [
+        "eventId",
+        "customerId",
+        "object.triggeredRules",
+    ]
+    assert repo.get_rows("new_dataset") == []
+
+
+def test_create_raises_when_dataset_already_exists(tmp_path: Path) -> None:
+    repo = FilesystemCsvDatasetRepository(tmp_path)
+    repo.create("dupe", ["eventId"])
+
+    with pytest.raises(FileExistsError):
+        repo.create("dupe", ["eventId"])
+
+
+def test_append_rows_flattens_nested_values_and_round_trips_on_get_rows(
+    tmp_path: Path,
+) -> None:
+    repo = FilesystemCsvDatasetRepository(tmp_path)
+    repo.create("events", ["eventId", "customerId", "object.triggeredRules"])
+
+    new_total = repo.append_rows(
+        "events",
+        [
+            {
+                "eventId": "e-1",
+                "customerId": "c-1",
+                "object": {"triggeredRules": "RULE_A"},
+            },
+            {
+                "eventId": "e-2",
+                "customerId": "c-2",
+                "object": {"triggeredRules": "RULE_B"},
+            },
+        ],
+    )
+
+    assert new_total == 2
+    assert repo.get_rows("events") == [
+        {
+            "eventId": "e-1",
+            "customerId": "c-1",
+            "object": {"triggeredRules": "RULE_A"},
+        },
+        {
+            "eventId": "e-2",
+            "customerId": "c-2",
+            "object": {"triggeredRules": "RULE_B"},
+        },
+    ]
+
+
+def test_append_rows_drops_fields_not_in_existing_header(tmp_path: Path) -> None:
+    repo = FilesystemCsvDatasetRepository(tmp_path)
+    repo.create("events", ["eventId"])
+
+    new_total = repo.append_rows(
+        "events",
+        [{"eventId": "e-1", "extra": {"nested": "dropped"}}],
+    )
+
+    assert new_total == 1
+    assert repo.get_rows("events") == [{"eventId": "e-1"}]
+
+
+def test_append_rows_appends_to_existing_data(tmp_path: Path) -> None:
+    csv_path = tmp_path / "sample.csv"
+    csv_path.write_text("eventId,customerId\ne-1,c-1\n")
+    repo = FilesystemCsvDatasetRepository(tmp_path)
+
+    new_total = repo.append_rows("sample", [{"eventId": "e-2", "customerId": "c-2"}])
+
+    assert new_total == 2
+    assert repo.get_rows("sample") == [
+        {"eventId": "e-1", "customerId": "c-1"},
+        {"eventId": "e-2", "customerId": "c-2"},
+    ]
+
+
+def test_append_rows_raises_when_dataset_missing(tmp_path: Path) -> None:
+    repo = FilesystemCsvDatasetRepository(tmp_path)
+
+    with pytest.raises(FileNotFoundError):
+        repo.append_rows("missing", [{"eventId": "e-1"}])
+
+
+def test_get_rows_page_returns_slice_and_total(tmp_path: Path) -> None:
+    csv_path = tmp_path / "sample.csv"
+    csv_path.write_text(
+        "eventId\n" + "".join(f"e-{i}\n" for i in range(5))
+    )
+    repo = FilesystemCsvDatasetRepository(tmp_path)
+
+    page, total = repo.get_rows_page("sample", offset=1, limit=2)
+
+    assert total == 5
+    assert page == [{"eventId": "e-1"}, {"eventId": "e-2"}]
+
+
+def test_get_rows_page_out_of_range_offset_returns_empty_page(tmp_path: Path) -> None:
+    csv_path = tmp_path / "sample.csv"
+    csv_path.write_text("eventId\ne-0\ne-1\n")
+    repo = FilesystemCsvDatasetRepository(tmp_path)
+
+    page, total = repo.get_rows_page("sample", offset=10, limit=5)
+
+    assert page == []
+    assert total == 2

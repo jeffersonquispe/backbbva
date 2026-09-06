@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from src.application.ports.dataset_port import DatasetRecord, DatasetRepository
-from src.infrastructure.persistence.dataset.csv_utils import unflatten_row
+from src.infrastructure.persistence.dataset.csv_utils import flatten_row, unflatten_row
 
 
 class FilesystemCsvDatasetRepository(DatasetRepository):
@@ -35,6 +35,29 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
                 for field in (csv.DictReader(f).fieldnames or [])
                 if field
             ]
+
+    def get_rows_page(self, name: str, offset: int, limit: int) -> tuple[list[dict[str, Any]], int]:
+        rows = self.get_rows(name)
+        return rows[offset:offset + limit], len(rows)
+
+    def create(self, name: str, fields: list[str]) -> None:
+        path = self._dir / f"{name}.csv"
+        if path.exists():
+            raise FileExistsError(f"Dataset '{name}' already exists")
+        self._dir.mkdir(parents=True, exist_ok=True)
+        with path.open("w", newline="", encoding="utf-8") as f:
+            csv.DictWriter(f, fieldnames=fields).writeheader()
+
+    def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:
+        path = self._dir / f"{name}.csv"
+        fields = self.get_fields(name)
+        with path.open("a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+            for row in rows:
+                writer.writerow(flatten_row(row))
+        with path.open(newline="", encoding="utf-8") as f:
+            total = sum(1 for _ in csv.reader(f)) - 1  # minus header
+        return max(total, 0)
 
     def delete(self, name: str) -> None:
         (self._dir / f"{name}.csv").unlink(missing_ok=True)
