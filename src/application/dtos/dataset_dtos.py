@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from src.application.ports.dataset_analysis_port import DatasetAnalysisStatus
 
@@ -16,6 +17,69 @@ class UploadDatasetInput:
 class UploadDatasetOutput:
     name: str
     status: DatasetAnalysisStatus
+
+
+@dataclass
+class CreateEmptyDatasetInput:
+    name: str
+    fields: list[str]
+
+
+@dataclass
+class CreateEmptyDatasetOutput:
+    name: str
+    status: DatasetAnalysisStatus
+
+
+@dataclass
+class ExtractDatasetInput:
+    source_names: list[str]
+    # AND-combined field=value filters, applied before sampling.
+    filters: dict[str, str]
+    percentage: float
+    target_name: str
+
+
+@dataclass
+class ExtractDatasetOutput:
+    name: str
+    status: DatasetAnalysisStatus
+
+
+@dataclass
+class AppendDatasetRowsInput:
+    name: str
+    # Already-shaped rows (nested-dict form, same shape DatasetRepository.get_rows
+    # returns) - the router/use-case layer that builds these from a CSV upload,
+    # a spreadsheet form, an extraction, or (later) an alert is responsible for
+    # producing this shape before calling the use case that wraps this DTO.
+    rows: list[dict[str, Any]]
+
+
+@dataclass
+class AppendDatasetRowsOutput:
+    name: str
+    total_rows: int
+    status: DatasetAnalysisStatus
+
+
+@dataclass
+class GetDatasetRowsInput:
+    name: str
+    offset: int = 0
+    limit: int = 50
+
+
+@dataclass
+class GetDatasetRowsOutput:
+    rows: list[dict[str, Any]]
+    total: int
+
+
+@dataclass
+class GetDatasetTemplateOutput:
+    filename: str
+    content: str
 
 
 @dataclass
