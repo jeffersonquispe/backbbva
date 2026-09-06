@@ -68,6 +68,23 @@ def discover_fields(rows: list[dict[str, Any]]) -> list[str]:
     return fields
 
 
+def get_nested_value(row: dict[str, Any], field_name: str) -> str | None:
+    """Look up a value by dotted path (e.g. "object.triggeredRules") in a
+    row already unflattened by unflatten_row. Returns None for a missing
+    path, a non-dict intermediate node, or an empty-string leaf. Used for
+    any field outside the 5 special-cased ANALYSIS_FIELDS - arbitrary
+    dataset columns don't get alias resolution or list-value splitting.
+    """
+    node: Any = row
+    for part in field_name.split("."):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(part)
+    if node in (None, ""):
+        return None
+    return str(node)
+
+
 def extract_fields(row: dict[str, Any]) -> dict[str, str | None]:
     extracted: dict[str, str | None] = {}
     for field_name in ANALYSIS_FIELDS:
