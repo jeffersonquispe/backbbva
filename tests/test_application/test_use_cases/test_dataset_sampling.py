@@ -7,6 +7,8 @@ import pytest
 
 from src.application.use_cases.test_runs.dataset_sampling import (
     InsufficientSampleDataError,
+    filter_rows,
+    sample_percentage,
     sample_rows,
 )
 
@@ -93,3 +95,97 @@ def test_result_size_always_matches_request_across_uneven_percentages() -> None:
     for size in range(1, 30):
         sampled = sample_rows(rows, size=size, rng=random.Random(size))
         assert len(sampled) == size
+
+
+def test_filter_rows_single_filter() -> None:
+    rows = [
+        {"id": "a", "region": "north"},
+        {"id": "b", "region": "south"},
+        {"id": "c", "region": "north"},
+    ]
+
+    filtered = filter_rows(rows, {"region": "north"})
+
+    assert [r["id"] for r in filtered] == ["a", "c"]
+
+
+def test_filter_rows_multiple_and_combined_filters() -> None:
+    rows = [
+        {"id": "a", "region": "north", "tipo": "fraud"},
+        {"id": "b", "region": "north", "tipo": "legit"},
+        {"id": "c", "region": "south", "tipo": "fraud"},
+    ]
+
+    filtered = filter_rows(rows, {"region": "north", "tipo": "fraud"})
+
+    assert [r["id"] for r in filtered] == ["a"]
+
+
+def test_filter_rows_on_nested_dotted_field() -> None:
+    rows = [
+        {"id": "a", "object": {"integrationPoint": "web"}},
+        {"id": "b", "object": {"integrationPoint": "mobile"}},
+    ]
+
+    filtered = filter_rows(rows, {"object.integrationPoint": "web"})
+
+    assert [r["id"] for r in filtered] == ["a"]
+
+
+def test_filter_rows_empty_filters_matches_every_row() -> None:
+    rows = [{"id": "a"}, {"id": "b"}]
+
+    filtered = filter_rows(rows, {})
+
+    assert filtered == rows
+
+
+def test_filter_rows_no_matches_returns_empty_list() -> None:
+    rows = [{"id": "a", "region": "north"}]
+
+    filtered = filter_rows(rows, {"region": "south"})
+
+    assert filtered == []
+
+
+def test_sample_percentage_returns_correct_count() -> None:
+    rows = [{"id": i} for i in range(20)]
+
+    sampled = sample_percentage(rows, 50, rng=random.Random(0))
+
+    assert len(sampled) == 10
+    # every sampled row must come from the source rows, no duplicates
+    ids = [r["id"] for r in sampled]
+    assert len(set(ids)) == len(ids)
+    assert set(ids) <= {r["id"] for r in rows}
+
+
+def test_sample_percentage_rejects_zero_percentage() -> None:
+    with pytest.raises(ValueError, match="0"):
+        sample_percentage([{"id": 1}], 0)
+
+
+def test_sample_percentage_rejects_over_100_percentage() -> None:
+    with pytest.raises(ValueError, match="101"):
+        sample_percentage([{"id": 1}], 101)
+
+
+def test_sample_percentage_empty_rows_returns_empty_list() -> None:
+    assert sample_percentage([], 50) == []
+
+
+def test_composed_filter_then_sample_percentage() -> None:
+    rows = _rows({"no-risk": 40, "risk": 10}) + [
+        {"id": f"other-{i}", "marcacion_final": "risk", "region": "east"}
+        for i in range(10)
+    ]
+    # tag half the "risk" rows as region "west" to filter on
+    for i, row in enumerate(r for r in rows if r["marcacion_final"] == "risk"):
+        row["region"] = "west" if i < 10 else row.get("region", "east")
+
+    filtered = filter_rows(rows, {"marcacion_final": "risk", "region": "west"})
+    sampled = sample_percentage(filtered, 50, rng=random.Random(0))
+
+    assert len(filtered) == 10
+    assert len(sampled) == 5
+    assert all(r["marcacion_final"] == "risk" and r["region"] == "west" for r in sampled)

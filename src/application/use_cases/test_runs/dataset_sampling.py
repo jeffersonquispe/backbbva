@@ -3,6 +3,8 @@ from __future__ import annotations
 import random
 from typing import Any
 
+from src.application.use_cases.datasets.field_extraction import get_nested_value
+
 # The 3 ground-truth values a dataset row's "marcacion_final" column can
 # carry (analyst-labeled, see Muestra_total_ARIA.csv) - the only closed
 # vocabulary this sampler knows about, matched exactly.
@@ -103,6 +105,52 @@ def _resolve_proportions(
             f"distribution percentages must sum to 1.0, got {total_pct}"
         )
     return {cls: distribution.get(cls, 0.0) for cls in MARCACION_CLASSES}
+
+
+def filter_rows(
+    rows: list[dict[str, Any]], filters: dict[str, str]
+) -> list[dict[str, Any]]:
+    """Keep only rows matching every (field, value) pair in `filters`,
+    AND-combined - "field A equals X AND field B equals Y", exact match,
+    no partial/substring matching. Field names are dotted paths resolved
+    via get_nested_value (same lookup field_extraction.py uses for
+    arbitrary, non-special-cased dataset columns), so a nested field name
+    like "object.integrationPoint" works.
+
+    An empty `filters` dict matches every row - returns `rows` itself
+    (not a copy), same as passing no filter at all.
+
+    Deliberately no stratification here: this feeds a straight
+    filter+percentage dataset-extraction feature, not an evaluation-set
+    builder like sample_rows above.
+    """
+    if not filters:
+        return rows
+    return [
+        row
+        for row in rows
+        if all(get_nested_value(row, field) == value for field, value in filters.items())
+    ]
+
+
+def sample_percentage(
+    rows: list[dict[str, Any]],
+    percentage: float,
+    rng: random.Random | None = None,
+) -> list[dict[str, Any]]:
+    """Take a straight percentage of `rows` via simple random sampling -
+    no stratification, unlike sample_rows above. Meant to run against the
+    output of filter_rows: sample_percentage(filter_rows(rows, filters),
+    percentage).
+
+    percentage must be in (0, 100]; anything else raises ValueError.
+    """
+    if not (0 < percentage <= 100):
+        raise ValueError(f"percentage must be in (0, 100], got {percentage}")
+
+    count = round(len(rows) * percentage / 100)
+    count = min(count, len(rows))  # defensive: guard against float rounding overshoot
+    return (rng or random.Random()).sample(rows, count)
 
 
 def _allocate_counts(size: int, proportions: dict[str, float]) -> dict[str, int]:
