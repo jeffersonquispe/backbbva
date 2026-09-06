@@ -192,16 +192,100 @@ _DEFAULT_RESOLUTION_METHODS: list[tuple[str, ResolutionTag]] = [
     ("Resolver con ARIA", ResolutionTag.HANDLE_BY_ARIA),
 ]
 
-# Starter pool matching the frontend's previous hardcoded ALL_VARIABLES
-# (data/configs.ts) so existing VariablePicker usages keep working once the
-# picker switches from that const to this catalog - admins can add/retire
-# from here afterward.
+# Source-variable schema from Muestra_total_ARIA_Ver2_2.csv.  Names and casing
+# intentionally match the file headers exactly.  The leading unnamed pandas
+# index column is not alert data and is therefore omitted.  Derived variables
+# created by profiling are kept separately in FieldCategorization.output_variable.
 _DEFAULT_VARIABLES: list[str] = [
-    "Altamira", "Documento", "Celular", "Nombre del cliente", "Teléfono adicional",
-    "Segmento", "Fecha de alta", "Correo", "Saldo", "Dirección", "Fecha de nacimiento",
-    "Segmento empresa", "País de origen", "Canal de ingreso", "Tipo de cuenta",
-    "Última transacción", "Número de cuenta", "Oficina", "Producto",
+    "reviewstatus_first",
+    "marcacion_final",
+    "razon_marcacion",
+    "eventtype",
+    "channel",
+    "integrationpoint",
+    "biocatch_score",
+    "Model_score",
+    "amount_value",
+    "fecha_transaccion",
+    "fecha_primer_marcacion",
+    "fecha_ultima_marcacion",
+    "biocatch_isMobileRat",
+    "biocatch_isEmulator",
+    "biocatch_isRat",
+    "biocatch_isBot",
+    "biocatch_indrobo1",
+    "biocatch_isOnCall",
+    "biocatch_isVoipOnCall",
+    "biocatch_screenBroadcast",
+    "deviceid",
+    "eventid",
+    "triggered_rules",
+    "device_ipaddress_encrypted",
+    "counterpartyentityid_encrypted",
+    "customerid",
+    "transactionid",
+    "output_tags",
+    "tipo_documento",
+    "numero_documento",
+    "nombre_razon_social",
+    "fecha_nacimiento",
+    "sexo",
+    "fecha_expedicion_documento",
+    "indicador_revinculado",
+    "codigo_ciudad",
+    "ciudad",
+    "empleado_banco",
+    "fecha_alta",
+    "direccion",
+    "correo_1",
+    "correo_2",
+    "celular",
+    "fecha_ultima_modificacion",
+    "MontoMasAltoPSE",
+    "MontoMasAltoPasarelaPago",
+    "MontoMasAltoBreB",
+    "MontoMasAltoGlomo",
+    "MontoMasAltoNet",
+    "MontoMasAltoPrestamo",
+    "MontoMasAltoFacturas",
+    "MontoMasAltoRetirosTarjeta",
+    "tipo",
+    "transacciones_json",
 ]
+
+# Defaults used before the source schema was aligned with
+# Muestra_total_ARIA_Ver2_2.csv.  They are retained only to migrate an existing
+# catalog once: deactivation hides them from active pickers without breaking
+# historical configurations that still reference their values.
+_LEGACY_DEFAULT_VARIABLES = {
+    "Altamira",
+    "Documento",
+    "Celular",
+    "Nombre del cliente",
+    "Teléfono adicional",
+    "Segmento",
+    "Fecha de alta",
+    "Correo",
+    "Saldo",
+    "Dirección",
+    "Fecha de nacimiento",
+    "Segmento empresa",
+    "País de origen",
+    "Canal de ingreso",
+    "Tipo de cuenta",
+    "Última transacción",
+    "Número de cuenta",
+    "Oficina",
+    "Producto",
+    "CoT (cadena de razonamiento)",
+    "Variables de entrada",
+    "Score de confianza",
+    "Taxonomía asignada",
+    "Red flag detectada",
+    "Prompt utilizado",
+    "Latencia de respuesta",
+    "Resultado final",
+}
 
 # One entry per existing SegmentCode value so configs keep working out of
 # the box once segments switch from that fixed enum to this catalog -
@@ -376,7 +460,16 @@ def seed_defaults() -> None:
             print(f"Método de resolución sembrado: {value}")
 
     variables = DynamoVariableCatalogRepository()
-    existing_variable_values = {entry.value for entry in variables.list()}
+    existing_variables = variables.list()
+    existing_variable_values = {entry.value for entry in existing_variables}
+    source_schema_was_present = set(_DEFAULT_VARIABLES).issubset(
+        existing_variable_values
+    )
+    if not source_schema_was_present:
+        for entry in existing_variables:
+            if entry.active and entry.value in _LEGACY_DEFAULT_VARIABLES:
+                variables.update(entry.id, active=False)
+                print(f"Variable predeterminada anterior desactivada: {entry.value}")
     for value in _DEFAULT_VARIABLES:
         if value not in existing_variable_values:
             now = datetime.now(timezone.utc)
