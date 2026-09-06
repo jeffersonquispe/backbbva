@@ -112,6 +112,33 @@ def test_analyze_dataset_persists_samples_and_ready_summary() -> None:
     assert summary.uploaded_at == datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
+def test_analyze_dataset_profiles_non_aria_columns_on_extracted_style_dataset() -> None:
+    # An extracted/empty-style dataset with none of the 5 ARIA columns -
+    # before the fix, compute_distributions was hardcoded to the 5 ARIA
+    # fields (via extract_fields always extracting exactly those 5 keys),
+    # so a dataset shaped like this would only ever produce "unknown"-only
+    # distributions and never profile its actual "foo" column.
+    rows = [{"foo": "a"}, {"foo": "a"}, {"foo": "b"}]
+    datasets = InMemoryDatasetRepository({"ds": rows})
+    samples = InMemoryDatasetSampleRepository()
+    summaries = InMemoryDatasetSummaryRepository()
+    use_case = AnalyzeDatasetUseCase(datasets, samples, summaries)
+
+    use_case.execute("ds")
+
+    summary = summaries.get("ds")
+    assert summary.status == DatasetAnalysisStatus.READY
+    assert summary.available_fields == ["foo"]
+    # The 5 ARIA fields are still first-class in the distributions (for
+    # backward-compatible UI labeling) even though they're absent from this
+    # dataset's actual columns - every row falls into "unknown" for them.
+    assert summary.field_distributions["tipo"] == {"unknown": 3}
+    assert summary.field_distributions["marcacion_final"] == {"unknown": 3}
+    # The dataset's real column is now profiled too, instead of being
+    # silently dropped or raising KeyError.
+    assert summary.field_distributions["foo"] == {"a": 2, "b": 1}
+
+
 def test_analyze_dataset_marks_failed_and_reraises_on_error() -> None:
     datasets = InMemoryDatasetRepository({})  # "ds" missing -> get_rows raises KeyError
     samples = InMemoryDatasetSampleRepository()
