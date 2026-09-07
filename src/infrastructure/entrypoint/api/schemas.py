@@ -302,6 +302,32 @@ class DatasetRowsResponse(BaseModel):
 
 class CurateAlertToDatasetRequest(BaseModel):
     dataset_name: str = Field(..., min_length=1)
+    justification: str = Field(..., min_length=1)
+    # Manual override of the configuration/version this curation's
+    # Feedback record attributes to - when omitted, the use case tries to
+    # auto-detect it from the alert's own workflow execution, and raises
+    # ValueError (mapped to 400 below) if neither is available.
+    configuration_id: str | None = None
+    version: int | None = None
+
+
+class CurateAlertToDatasetResponse(BaseModel):
+    dataset_name: str
+    total_rows: int
+    status: DatasetAnalysisStatus
+    feedback_id: UUID
+    configuration_id: str
+    version: int
+
+
+class AlertFieldMappingResponse(BaseModel):
+    dataset_name: str
+    mappings: dict[str, str]
+    updated_at: datetime | None
+
+
+class SaveAlertFieldMappingRequest(BaseModel):
+    mappings: dict[str, str]
 
 
 # --- Models (XGBoost training) ------------------------------------------

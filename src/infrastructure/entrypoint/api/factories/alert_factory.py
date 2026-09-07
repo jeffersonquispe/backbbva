@@ -15,6 +15,7 @@ from src.application.use_cases.alerts.start_alert_test_workflow import (
 )
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.factories.dataset_factory import (
+    get_alert_field_mapping_repository,
     get_dataset_analysis_dispatcher,
     get_dataset_repository,
     get_dataset_summary_repository,
@@ -24,6 +25,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.alert_reposit
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.feedback_repository import (
+    DynamoFeedbackRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
     DynamoWorkflowExecutionRepository,
@@ -71,10 +75,18 @@ def get_start_alert_test_workflow_use_case() -> StartAlertTestWorkflowUseCase:
     )
 
 
+@lru_cache
+def get_feedback_repository() -> DynamoFeedbackRepository:
+    return DynamoFeedbackRepository()
+
+
 def get_curate_alert_to_dataset_use_case() -> CurateAlertToDatasetUseCase:
     return CurateAlertToDatasetUseCase(
         alert_repository=get_alert_repository(),
         dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
+        mapping_repository=get_alert_field_mapping_repository(),
+        feedback_repository=get_feedback_repository(),
+        workflow_execution_repository=get_workflow_execution_repository(),
     )

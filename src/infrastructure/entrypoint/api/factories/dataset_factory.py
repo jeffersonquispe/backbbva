@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from src.application.ports.alert_field_mapping_port import AlertFieldMappingRepository
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
@@ -18,6 +19,9 @@ from src.application.use_cases.datasets.create_empty_dataset import (
 )
 from src.application.use_cases.datasets.delete_dataset import DeleteDatasetUseCase
 from src.application.use_cases.datasets.extract_dataset import ExtractDatasetUseCase
+from src.application.use_cases.datasets.get_alert_field_mapping import (
+    GetAlertFieldMappingUseCase,
+)
 from src.application.use_cases.datasets.get_dataset_rows import GetDatasetRowsUseCase
 from src.application.use_cases.datasets.get_dataset_summary import (
     GetDatasetSummaryUseCase,
@@ -25,9 +29,15 @@ from src.application.use_cases.datasets.get_dataset_summary import (
 from src.application.use_cases.datasets.get_dataset_template import (
     GetDatasetTemplateUseCase,
 )
+from src.application.use_cases.datasets.save_alert_field_mapping import (
+    SaveAlertFieldMappingUseCase,
+)
 from src.application.use_cases.datasets.upload_dataset import UploadDatasetUseCase
 from src.application.use_cases.test_runs.list_datasets import ListDatasetsUseCase
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_field_mapping_repository import (
+    DynamoAlertFieldMappingRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sample_repository import (
     DynamoDatasetSampleRepository,
 )
@@ -138,3 +148,16 @@ def get_get_dataset_rows_use_case() -> GetDatasetRowsUseCase:
 
 def get_get_dataset_template_use_case() -> GetDatasetTemplateUseCase:
     return GetDatasetTemplateUseCase(get_dataset_repository())
+
+
+@lru_cache
+def get_alert_field_mapping_repository() -> AlertFieldMappingRepository:
+    return DynamoAlertFieldMappingRepository()
+
+
+def get_get_alert_field_mapping_use_case() -> GetAlertFieldMappingUseCase:
+    return GetAlertFieldMappingUseCase(get_alert_field_mapping_repository())
+
+
+def get_save_alert_field_mapping_use_case() -> SaveAlertFieldMappingUseCase:
+    return SaveAlertFieldMappingUseCase(get_alert_field_mapping_repository())

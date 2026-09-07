@@ -11,6 +11,7 @@ from src.application.dtos.dataset_dtos import (
     GetDatasetRowsInput,
     UploadDatasetInput,
 )
+from src.application.dtos.alert_field_mapping_dtos import SaveAlertFieldMappingInput
 from src.application.use_cases.datasets.analyze_dataset_on_demand import (
     AnalyzeDatasetOnDemandUseCase,
 )
@@ -22,12 +23,18 @@ from src.application.use_cases.datasets.create_empty_dataset import (
 )
 from src.application.use_cases.datasets.delete_dataset import DeleteDatasetUseCase
 from src.application.use_cases.datasets.extract_dataset import ExtractDatasetUseCase
+from src.application.use_cases.datasets.get_alert_field_mapping import (
+    GetAlertFieldMappingUseCase,
+)
 from src.application.use_cases.datasets.get_dataset_rows import GetDatasetRowsUseCase
 from src.application.use_cases.datasets.get_dataset_summary import (
     GetDatasetSummaryUseCase,
 )
 from src.application.use_cases.datasets.get_dataset_template import (
     GetDatasetTemplateUseCase,
+)
+from src.application.use_cases.datasets.save_alert_field_mapping import (
+    SaveAlertFieldMappingUseCase,
 )
 from src.application.use_cases.datasets.upload_dataset import UploadDatasetUseCase
 from src.application.use_cases.test_runs.list_datasets import ListDatasetsUseCase
@@ -37,13 +44,16 @@ from src.infrastructure.entrypoint.api.factories.dataset_factory import (
     get_create_empty_dataset_use_case,
     get_delete_dataset_use_case,
     get_extract_dataset_use_case,
+    get_get_alert_field_mapping_use_case,
     get_get_dataset_rows_use_case,
     get_get_dataset_summary_use_case,
     get_get_dataset_template_use_case,
     get_list_datasets_use_case,
+    get_save_alert_field_mapping_use_case,
     get_upload_dataset_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
+    AlertFieldMappingResponse,
     AppendDatasetRowsRequest,
     AppendDatasetRowsResponse,
     CreateEmptyDatasetRequest,
@@ -52,6 +62,7 @@ from src.infrastructure.entrypoint.api.schemas import (
     DatasetSummaryResponse,
     DeleteDatasetResponse,
     ExtractDatasetRequest,
+    SaveAlertFieldMappingRequest,
     UploadDatasetResponse,
 )
 
@@ -219,3 +230,32 @@ def analyze_dataset_on_demand(
         return use_case.execute(name)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/datasets/{name}/alert-field-mapping",
+    response_model=AlertFieldMappingResponse,
+)
+def get_alert_field_mapping(
+    name: str,
+    use_case: Annotated[
+        GetAlertFieldMappingUseCase, Depends(get_get_alert_field_mapping_use_case)
+    ],
+):
+    return use_case.execute(name)
+
+
+@router.put(
+    "/datasets/{name}/alert-field-mapping",
+    response_model=AlertFieldMappingResponse,
+)
+def save_alert_field_mapping(
+    name: str,
+    request: SaveAlertFieldMappingRequest,
+    use_case: Annotated[
+        SaveAlertFieldMappingUseCase, Depends(get_save_alert_field_mapping_use_case)
+    ],
+):
+    return use_case.execute(
+        SaveAlertFieldMappingInput(dataset_name=name, mappings=request.mappings)
+    )

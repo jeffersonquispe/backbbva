@@ -22,8 +22,8 @@ from src.infrastructure.entrypoint.api.factories.alert_factory import (
     get_start_alert_test_workflow_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
-    AppendDatasetRowsResponse,
     CurateAlertToDatasetRequest,
+    CurateAlertToDatasetResponse,
 )
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -66,7 +66,7 @@ def start_alert_test_workflow(
 
 @router.post(
     "/{alert_id}/curate-to-dataset",
-    response_model=AppendDatasetRowsResponse,
+    response_model=CurateAlertToDatasetResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
 def curate_alert_to_dataset(
@@ -79,10 +79,16 @@ def curate_alert_to_dataset(
     try:
         return use_case.execute(
             CurateAlertToDatasetInput(
-                alert_id=alert_id, dataset_name=request.dataset_name
+                alert_id=alert_id,
+                dataset_name=request.dataset_name,
+                justification=request.justification,
+                configuration_id=request.configuration_id,
+                version=request.version,
             )
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
