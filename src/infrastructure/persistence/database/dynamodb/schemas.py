@@ -189,6 +189,37 @@ DATASET_SUMMARIES_TABLE = {
 }
 
 
+# 1:1 with a dataset - how an alert's payload fields translate into that
+# dataset's columns when curating an alert into it (curate_alert_to_dataset).
+ALERT_FIELD_MAPPINGS_TABLE = {
+    "TableName": "alert_field_mappings",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "dataset_name", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "dataset_name", "AttributeType": "S"},
+    ],
+}
+
+
+# An analyst's structured feedback about a configuration version, captured
+# from the "Al dataset" alert-curation action - owned by the configuration
+# it's about, not by whichever dataset the alert also got curated into (see
+# feedback_port.py). Flat CRUD repo (own id), list() filters/scans by
+# configuration_id/version rather than a GSI - low write volume expected.
+FEEDBACK_TABLE = {
+    "TableName": "feedback",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "id", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "id", "AttributeType": "S"},
+    ],
+}
+
+
 OPERATIONS_CAPACITY_TABLE = {
     "TableName": "operations_capacity",
     "BillingMode": "PAY_PER_REQUEST",

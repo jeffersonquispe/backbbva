@@ -59,6 +59,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.variable_cata
     DynamoVariableCatalogRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.schemas import (
+    ALERT_FIELD_MAPPINGS_TABLE,
     ALERTS_TABLE,
     ASYNC_OPERATIONS_TABLE,
     AUDIT_LOG_TABLE,
@@ -83,6 +84,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     CONFIGURATIONS_TABLE,
     DATASET_SAMPLES_TABLE,
     DATASET_SUMMARIES_TABLE,
+    FEEDBACK_TABLE,
     FRAUD_PLAYBOOKS_TABLE,
     LIBRARY_CHANNELS_TABLE,
     LIBRARY_FLAGS_TABLE,
@@ -344,6 +346,8 @@ def ensure_all_tables() -> None:
     create_table(CONFIGURATION_FILTER_CONDITIONS_TABLE)
     create_table(DATASET_SAMPLES_TABLE)
     create_table(DATASET_SUMMARIES_TABLE)
+    create_table(ALERT_FIELD_MAPPINGS_TABLE)
+    create_table(FEEDBACK_TABLE)
     create_table(TAG_CATALOG_TABLE)
     create_table(MARCACION_CATALOG_TABLE)
     create_table(RESOLUTION_METHOD_CATALOG_TABLE)

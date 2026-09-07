@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from src.application.ports.configuration_port import ConfigurationRef
+from src.application.ports.dataset_analysis_port import DatasetAnalysisStatus
 
 
 @dataclass
@@ -39,3 +40,21 @@ class StartAlertWorkflowOutput:
 class CurateAlertToDatasetInput:
     alert_id: UUID
     dataset_name: str
+    justification: str
+    # Manual override - when omitted, the use case tries to auto-detect the
+    # configuration+version from the alert's own workflow execution (only
+    # resolvable when that execution pinned one explicitly, e.g. a test
+    # run - see start_alert_test_workflow.py's configuration_ref). Both
+    # must be given together, or neither.
+    configuration_id: str | None = None
+    version: int | None = None
+
+
+@dataclass
+class CurateAlertToDatasetOutput:
+    dataset_name: str
+    total_rows: int
+    status: DatasetAnalysisStatus
+    feedback_id: UUID
+    configuration_id: str
+    version: int
