@@ -518,6 +518,18 @@ run-ruff-format:  ## Run ruff format to delete unused imports.
 	@echo "Running ruff format to delete unused imports... 🪄"
 	@poetry run ruff format .
 
+# Static dead-code scan. It never modifies source files. The default confidence
+# (80%) focuses on unreachable code and unused imports; use 60 for a broader
+# review that will include framework-driven functions and therefore needs
+# manual triage.
+DEAD_CODE_CONFIG ?= deploy/requirements/pyproject.toml
+DEAD_CODE_MIN_CONFIDENCE ?= 80
+
+.PHONY: dead-code
+dead-code:  ## Report statically-detectable dead code (override DEAD_CODE_MIN_CONFIDENCE=60 for review).
+	@echo "Running Vulture (minimum confidence: $(DEAD_CODE_MIN_CONFIDENCE)%)..."
+	@poetry run vulture --config $(DEAD_CODE_CONFIG) --min-confidence $(DEAD_CODE_MIN_CONFIDENCE)
+
 
 .PHONY: update-poetry-internally
 update-poetry-internally:  ## Update poetry internally.

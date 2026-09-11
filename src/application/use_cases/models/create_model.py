@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from copy import deepcopy
 from datetime import datetime, timezone
 
 from src.application.dtos.model_dtos import CreateModelInput, ModelOutput
@@ -28,6 +29,10 @@ def _to_output(model: ModelRecord) -> ModelOutput:
         updated_at=model.updated_at,
         created_by=model.created_by,
         error=model.error,
+        historical_features=model.historical_features,
+        training_config=model.training_config,
+        training_report=model.training_report,
+        feature_configuration=deepcopy(model.feature_configuration),
     )
 
 
@@ -36,6 +41,9 @@ class CreateModelUseCase:
         self._repository = repository
 
     def execute(self, input: CreateModelInput) -> ModelOutput:
+        if input.feature_configuration is not None:
+            from src.domain.models.feature_recipe import validate_feature_definition
+            validate_feature_definition(input.feature_configuration, forbidden_paths=(input.target_field,))
         now = datetime.now(timezone.utc)
         model = ModelRecord(
             id=uuid.uuid4(),
@@ -52,6 +60,9 @@ class CreateModelUseCase:
             created_at=now,
             updated_at=now,
             created_by=input.created_by,
+            historical_features=input.historical_features,
+            training_config=input.training_config,
+            feature_configuration=deepcopy(input.feature_configuration),
         )
         saved = self._repository.create(model)
         return _to_output(saved)

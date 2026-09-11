@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
+from typing import Any
 
-from src.application.ports.model_port import FieldTransform, ModelStatus
+from src.application.ports.model_port import FieldTransform, HistoricalFeature, TrainingConfig, ModelStatus
 
 
 @dataclass
@@ -16,6 +17,9 @@ class CreateModelInput:
     positive_labels: list[str] = field(default_factory=list)
     feature_transforms: list[FieldTransform] = field(default_factory=list)
     created_by: str | None = None
+    historical_features: list[HistoricalFeature] = field(default_factory=list)
+    feature_configuration: dict[str, Any] | None = None
+    training_config: TrainingConfig = field(default_factory=TrainingConfig)
 
 
 @dataclass
@@ -35,6 +39,10 @@ class ModelOutput:
     updated_at: datetime
     created_by: str | None
     error: str | None
+    historical_features: list[HistoricalFeature] = field(default_factory=list)
+    feature_configuration: dict[str, Any] | None = None
+    training_config: TrainingConfig = field(default_factory=TrainingConfig)
+    training_report: dict[str, Any] | None = None
 
 
 @dataclass

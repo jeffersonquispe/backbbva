@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 
 from src.application.ports.tag_catalog_port import TagCategory
 
@@ -216,59 +216,19 @@ class MonitoringSettings:
     prompt_monitoreo_vars: list[str] = field(default_factory=list)
 
 
-class FieldKind(StrEnum):
-    CUANTIZABLE = "cuantizable"
-    CATEGORICO = "categorico"
-
-
-class CriteriaMode(StrEnum):
-    # cuantizable
-    INTERVALO = "intervalo"
-    COMPARATIVA = "comparativa"
-    # categorico
-    IGUALDAD = "igualdad"
-    NO_IGUALDAD = "no_igualdad"
-    PERTENENCIA = "pertenencia"
-    NO_PERTENENCIA = "no_pertenencia"
-
-
-class ComparisonOperator(StrEnum):
-    GT = ">"
-    GTE = ">="
-    LT = "<"
-    LTE = "<="
-
-
-@dataclass
-class FieldCriterion:
-    id: str
-    mode: CriteriaMode
-    output: str  # e.g. risk label ("bajo", "medio", "alto", "altisimo")
-    # intervalo
-    min_value: float | None = None
-    max_value: float | None = None
-    # comparativa
-    operator: ComparisonOperator | None = None
-    numeric_value: float | None = None
-    # igualdad / no_igualdad
-    text_value: str | None = None
-    # pertenencia / no_pertenencia
-    values: list[str] = field(default_factory=list)
-
-
-@dataclass
-class FieldCategorization:
-    field: str
-    kind: FieldKind
-    criteria: list[FieldCriterion] = field(default_factory=list)
-    # Name of the enrichment variable this categorization produces (the
-    # transformed/derived value - e.g. field "saldo" -> output_variable
-    # "saldo_riesgo") - distinct from `field` so both the original and the
-    # transformed value can be referenced. Citable from every agent prompt
-    # in this segment (classification/adversarial/analyst/documentation/
-    # profiling), not just later profiling strategies - see
-    # SegmentAgentSection.tsx's enrichmentVariables on the frontend.
-    output_variable: str = ""
+def _default_field_enrichment() -> dict[str, Any]:
+    # Same shape as models' FeatureConfiguration (schema_version/mappings/
+    # recipes - see src/domain/models/feature_recipe.py, validated by the
+    # same validate_feature_definition). Unlike models, where the dataset's
+    # history column varies per source, this context always exposes a
+    # single alert's transaction history under a fixed "history" key (see
+    # EnrichProfilingFieldsUseCase), so the default mapping pre-fills it -
+    # an admin building a profiling recipe never has to pick a history path.
+    return {
+        "schema_version": 2,
+        "mappings": {"timezone": "America/Bogota", "history": "history"},
+        "recipes": [],
+    }
 
 
 class ProfilingStrategyKey(StrEnum):
@@ -303,9 +263,17 @@ def _default_profiling_strategies() -> list[ProfilingStrategy]:
 
 @dataclass
 class ProfilingConfig:
-    # Each categorization's output_variable is available to every prompt in
-    # the segment's agent config (see FieldCategorization.output_variable).
-    field_categorizations: list[FieldCategorization] = field(default_factory=list)
+    # Feature-recipe configuration (dict, validated by
+    # validate_feature_definition - see src/domain/models/feature_recipe.py)
+    # producing named enrichment variables. Each enabled recipe's `name` is
+    # available to Perfilamiento's prompts (see
+    # EnrichProfilingFieldsUseCase/_run_profiling in
+    # alert_review_workflow.py) - not yet to the other agent prompts
+    # (classification/adversarial/analyst), which don't resolve {variable}
+    # tokens at all today.
+    field_enrichment: dict[str, Any] = field(
+        default_factory=_default_field_enrichment
+    )
     # Fixed 3-step chain (usuario -> transaccion -> transaccional), run in
     # this order - variable availability no longer depends on that order.
     strategies: list[ProfilingStrategy] = field(

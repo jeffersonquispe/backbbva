@@ -17,18 +17,13 @@ from src.application.ports.configuration_port import (
     AnalystPlaybook,
     BuiltInTool,
     ClassificationConfig,
-    ComparisonOperator,
     ConfigurationRecord,
     ConfigurationRepository,
-    CriteriaMode,
     DayProfile,
     DistributionValue,
     DocumentationConfig,
     DocumentationStrategy,
     ExampleCase,
-    FieldCategorization,
-    FieldCriterion,
-    FieldKind,
     FilterCondition,
     FilterConditionOperator,
     FilterGroup,
@@ -62,6 +57,10 @@ from src.application.ports.tag_catalog_port import TagCategory
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
+from src.infrastructure.persistence.database.dynamodb.serialization import (
+    from_dynamodb,
+    to_dynamodb,
+)
 
 CONFIGURATIONS_TABLE_NAME = "configurations"
 GENERAL_TABLE_NAME = "configuration_general"
@@ -71,7 +70,6 @@ EVALUATION_TABLE_NAME = "configuration_evaluation"
 ANALYST_PROFILES_TABLE_NAME = "configuration_analyst_profiles"
 SEGMENTS_TABLE_NAME = "configuration_segments"
 PROFILING_STRATEGIES_TABLE_NAME = "configuration_profiling_strategies"
-FIELD_CATEGORIZATIONS_TABLE_NAME = "configuration_field_categorizations"
 TAXONOMIES_TABLE_NAME = "configuration_taxonomies"
 MODUS_OPERANDI_TABLE_NAME = "configuration_modus_operandi"
 FLAGS_TABLE_NAME = "configuration_red_yellow_flags"
@@ -114,9 +112,6 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         self._analyst_profiles = resource.Table(ANALYST_PROFILES_TABLE_NAME)
         self._segments = resource.Table(SEGMENTS_TABLE_NAME)
         self._profiling_strategies = resource.Table(PROFILING_STRATEGIES_TABLE_NAME)
-        self._field_categorizations = resource.Table(
-            FIELD_CATEGORIZATIONS_TABLE_NAME
-        )
         self._taxonomies = resource.Table(TAXONOMIES_TABLE_NAME)
         self._modus_operandi = resource.Table(MODUS_OPERANDI_TABLE_NAME)
         self._flags = resource.Table(FLAGS_TABLE_NAME)
@@ -194,9 +189,6 @@ class DynamoConfigurationRepository(ConfigurationRepository):
                 "segment_id",
                 segment_id,
                 agent.profiling.strategies,
-            )
-            self._put_field_categorizations(
-                segment_id, agent.profiling.field_categorizations
             )
             self._put_entities(
                 self._taxonomies, "segment_id", segment_id, agent.taxonomies
@@ -350,12 +342,6 @@ class DynamoConfigurationRepository(ConfigurationRepository):
             agent = segment.agent
             segment.filter = self._load_filter_tree(segment_id)
             agent.profiling.strategies = self._load_profiling_strategies(segment_id)
-            agent.profiling.field_categorizations = self._query_entities(
-                self._field_categorizations,
-                "segment_id",
-                segment_id,
-                _field_categorization_from_item,
-            )
             agent.taxonomies = self._query_entities(
                 self._taxonomies, "segment_id", segment_id, _taxonomy_from_item
             )
@@ -405,20 +391,6 @@ class DynamoConfigurationRepository(ConfigurationRepository):
     ) -> list[Any]:
         response = table.query(KeyConditionExpression=Key(hash_attr).eq(key))
         return [from_item(entity_item) for entity_item in response.get("Items", [])]
-
-    def _put_field_categorizations(
-        self, segment_id: str, categorizations: list[FieldCategorization]
-    ) -> None:
-        # Not routed through the generic _put_entities: criteria carry
-        # min/max/numeric_value floats, which DynamoDB rejects unless
-        # converted to Decimal first.
-        if not categorizations:
-            return
-        with self._field_categorizations.batch_writer() as batch:
-            for fc in categorizations:
-                item = asdict(fc)
-                item["criteria"] = [_criterion_to_item(c) for c in fc.criteria]
-                batch.put_item(Item={"segment_id": segment_id, **item})
 
     def _put_sampling_criteria(
         self, segment_id: str, criteria: list[SamplingCriterion]
@@ -536,7 +508,6 @@ class DynamoConfigurationRepository(ConfigurationRepository):
 
     def _delete_segment_children(self, segment_id: str) -> None:
         self._delete_query(self._profiling_strategies, "segment_id", segment_id, range_attr="key")
-        self._delete_query(self._field_categorizations, "segment_id", segment_id, range_attr="field")
         self._delete_query(self._taxonomies, "segment_id", segment_id)
         self._delete_query(self._modus_operandi, "segment_id", segment_id)
         self._delete_query(self._flags, "segment_id", segment_id)
@@ -622,7 +593,13 @@ def _segment_to_item(segment: SegmentSettings) -> dict[str, Any]:
     del item["filter"]  # own tables now (configuration_filter_groups/_conditions)
     del item["monitoring"]["sampling_criteria"]
     del item["agent"]["profiling"]["strategies"]
-    del item["agent"]["profiling"]["field_categorizations"]
+    # field_enrichment is a plain dict (a FeatureConfiguration - see
+    # feature_recipe.py), not a dataclass list like the other extracted
+    # collections here, so it stays inline on this item rather than in its
+    # own table - to_dynamodb converts any nested floats to Decimal first.
+    item["agent"]["profiling"]["field_enrichment"] = to_dynamodb(
+        segment.agent.profiling.field_enrichment
+    )
     for key in ("taxonomies", "modus_operandi", "flags", "example_cases"):
         del item["agent"][key]
     del item["agent"]["analyst"]["playbooks"]
@@ -953,54 +930,17 @@ def _documentation_from_item(item: dict[str, Any]) -> DocumentationConfig:
 
 def _profiling_from_item(profiling_item: dict[str, Any]) -> ProfilingConfig:
     strategies_raw = profiling_item.get("strategies")
-    return ProfilingConfig(
-        field_categorizations=[
-            _field_categorization_from_item(fc)
-            for fc in profiling_item.get("field_categorizations") or []
-        ],
+    profiling = ProfilingConfig(
         strategies=(
             [_profiling_strategy_from_item(s) for s in strategies_raw]
             if strategies_raw
             else [ProfilingStrategy(key=key) for key in ProfilingStrategyKey]
         ),
     )
-
-
-def _field_categorization_from_item(item: dict[str, Any]) -> FieldCategorization:
-    return FieldCategorization(
-        field=item["field"],
-        kind=FieldKind(item["kind"]),
-        criteria=[
-            _field_criterion_from_item(c) for c in item.get("criteria") or []
-        ],
-        output_variable=item.get("output_variable") or "",
-    )
-
-
-def _optional_float(value: Any) -> float | None:
-    return float(value) if value is not None else None
-
-
-def _criterion_to_item(criterion: FieldCriterion) -> dict[str, Any]:
-    item = asdict(criterion)
-    for key in ("min_value", "max_value", "numeric_value"):
-        if item[key] is not None:
-            item[key] = Decimal(str(item[key]))
-    return item
-
-
-def _field_criterion_from_item(item: dict[str, Any]) -> FieldCriterion:
-    return FieldCriterion(
-        id=item["id"],
-        mode=CriteriaMode(item["mode"]),
-        output=item["output"],
-        min_value=_optional_float(item.get("min_value")),
-        max_value=_optional_float(item.get("max_value")),
-        operator=ComparisonOperator(item["operator"]) if item.get("operator") else None,
-        numeric_value=_optional_float(item.get("numeric_value")),
-        text_value=item.get("text_value"),
-        values=list(item.get("values") or []),
-    )
+    field_enrichment_raw = profiling_item.get("field_enrichment")
+    if field_enrichment_raw:
+        profiling.field_enrichment = from_dynamodb(field_enrichment_raw)
+    return profiling
 
 
 def _profiling_strategy_from_item(item: dict[str, Any]) -> ProfilingStrategy:

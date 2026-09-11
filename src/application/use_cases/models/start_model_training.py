@@ -15,7 +15,6 @@ from src.application.ports.model_training_dispatcher_port import (
     ModelTrainingDispatcher,
 )
 from src.domain.models.exceptions import (
-    ModelAlreadyTrainingError,
     ModelNotFoundError,
 )
 
@@ -37,8 +36,14 @@ class StartModelTrainingUseCase:
         model = self._models.get(model_id)
         if model is None:
             raise ModelNotFoundError(model_id)
-        if model.status == ModelStatus.TRAINING:
-            raise ModelAlreadyTrainingError(model_id)
+        if model.status != ModelStatus.DRAFT:
+            raise ValueError(
+                "El modelo solo puede entrenarse una vez; crea un nuevo modelo para volver a entrenar"
+            )
+
+        if model.feature_configuration is not None:
+            from src.domain.models.feature_recipe import validate_feature_definition
+            validate_feature_definition(model.feature_configuration, forbidden_paths=(model.target_field,))
 
         now = datetime.now(timezone.utc)
         operation = self._async_operations.create(
@@ -55,10 +60,19 @@ class StartModelTrainingUseCase:
         )
         model.status = ModelStatus.TRAINING
         model.error = None
+        model.metrics = None
+        model.training_report = None
         model.updated_at = now
         self._models.update(model)
 
-        self._dispatcher.dispatch(model_id, operation.id)
+        try:
+            self._dispatcher.dispatch(model_id, operation.id)
+        except Exception:
+            model.status = ModelStatus.FAILED
+            model.error = "No se pudo enviar el entrenamiento a la cola; crea un nuevo modelo para intentarlo de nuevo"
+            self._models.update(model)
+            self._async_operations.update(operation.id, status=AsyncOperationStatus.FAILED, error=model.error)
+            raise
 
         return StartModelTrainingOutput(
             async_operation_id=operation.id, model_id=model_id

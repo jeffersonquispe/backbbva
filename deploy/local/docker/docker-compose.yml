@@ -10,6 +10,7 @@ services:
       - dynamodb-data:/home/dynamodblocal/data
     networks:
       - aria-net
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/localhost/8000' 2>/dev/null"]
       interval: 5s
@@ -22,6 +23,7 @@ services:
     container_name: aria-redis
     ports:
       - "${LOCAL_REDIS_PORT:-6379}:6379"
+    restart: unless-stopped
     networks:
       - aria-net
     healthcheck:
@@ -45,6 +47,7 @@ services:
       - minio-data:/data
     networks:
       - aria-net
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -64,6 +67,7 @@ services:
       - "${LOCAL_OPENSEARCH_PORT:-9200}:9200"
     volumes:
       - opensearch-data:/usr/share/opensearch/data
+    restart: unless-stopped
     networks:
       - aria-net
     healthcheck:
@@ -136,6 +140,7 @@ services:
         condition: service_healthy
     networks:
       - aria-net
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
       interval: 10s
@@ -184,6 +189,7 @@ services:
       DATASET_STORAGE_BACKEND: ${DATASET_STORAGE_BACKEND:-minio}
       DATASET_STORAGE_BUCKET: ${DATASET_STORAGE_BUCKET:-datasets}
       MODEL_STORAGE_BUCKET: ${MODEL_STORAGE_BUCKET:-models}
+    restart: unless-stopped
     depends_on:
       dynamodb:
         condition: service_healthy
@@ -224,6 +230,7 @@ services:
       OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
       OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-dummy123}
       MODEL_STORAGE_BUCKET: ${MODEL_STORAGE_BUCKET:-models}
+    restart: unless-stopped
     depends_on:
       dynamodb:
         condition: service_healthy

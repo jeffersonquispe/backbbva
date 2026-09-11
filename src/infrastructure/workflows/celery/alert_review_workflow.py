@@ -58,6 +58,7 @@ from src.infrastructure.workflows.celery.factories import (
     get_analyst_review_alert_use_case,
     get_classify_alert_use_case,
     get_configuration_repository,
+    get_enrich_profiling_fields_use_case,
     get_post_process_alert_use_case,
     get_pre_process_alert_use_case,
     get_profile_alert_use_case,
@@ -72,6 +73,7 @@ from src.application.use_cases.test_runs.dataset_sampling import (
     TIPO_FIELD,
 )
 from src.domain.configurations.exceptions import ConfigurationNotFoundError
+from src.domain.models.prompt_template import substitute_variables
 from src.infrastructure.workflows.queued.queued_status_reporter import (
     QueuedWorkflowStatusReporter,
 )
@@ -417,6 +419,26 @@ def _segment_tool_kwargs(classification_cfg: ClassificationConfig) -> dict[str, 
     }
 
 
+def _profiling_variables_pool(
+    context: dict[str, Any], segment: SegmentSettings
+) -> dict[str, Any]:
+    # {variable} substitution pool for Perfilamiento's prompts only - base
+    # alert fields plus this segment's field-enrichment recipe outputs. Not
+    # PreProcessAlertOutput.enrichment (an unrelated dict of raw fetched
+    # context: aric_signals/customer_profile/transaction_history/
+    # personal_data_changes, consumed as-is by profile/classify/adversarial).
+    pre_process: PreProcessAlertOutput = context["pre_process"]
+    current = {**pre_process.mandatory_fields, **pre_process.optional_fields}
+    history = [
+        dataclasses.asdict(entry)
+        for entry in pre_process.enrichment.get("transaction_history", [])
+    ]
+    enrichment_values = get_enrich_profiling_fields_use_case().execute(
+        segment.agent.profiling.field_enrichment, current, history
+    )
+    return {**current, **enrichment_values}
+
+
 def _run_profiling(context: dict[str, Any]) -> ProfileAlertOutput:
     workflow_execution_id, step_id = _step_reporting_ids(context)
     overrides = _step_overrides(context, "profiling")
@@ -424,8 +446,11 @@ def _run_profiling(context: dict[str, Any]) -> ProfileAlertOutput:
     if not overrides.get("system_prompt"):
         segment = _active_segment(context)
         if segment is not None:
+            variables_pool = _profiling_variables_pool(context, segment)
             extra_instructions = {
-                _PROFILING_STRATEGY_OPERATION_MAP[s.key]: s.main_prompt
+                _PROFILING_STRATEGY_OPERATION_MAP[s.key]: substitute_variables(
+                    s.main_prompt, variables_pool
+                )
                 for s in segment.agent.profiling.strategies
                 if s.main_prompt and s.key in _PROFILING_STRATEGY_OPERATION_MAP
             }

@@ -19,7 +19,10 @@ from src.application.ports.model_port import (
     FieldTransform,
     FieldTransformKind,
     ModelStatus,
+    HistoricalFeature,
 )
+
+from src.infrastructure.workflows.celery.historical_features import build_history_frame
 
 SEED = 42
 
@@ -86,6 +89,9 @@ def build_feature_frame(
     rows: list[dict[str, Any]],
     transforms: list[FieldTransform],
     rule_vocab: dict[str, list[str]] | None = None,
+    historical_features: list[HistoricalFeature] | None = None,
+    timezone: str = "UTC",
+    feature_configuration: dict[str, Any] | None = None,
 ) -> tuple[pd.DataFrame, dict[str, list[str]]]:
     """Applies each FieldTransform to produce the training/scoring feature
     matrix. Generalizes the branch's hardcoded `construir_features` into a
@@ -109,7 +115,7 @@ def build_feature_frame(
             for field in requested_fields
         }
     )
-    feats = pd.DataFrame(index=df.index)
+    feats = pd.DataFrame(index=range(len(rows)))
     fitted_vocab: dict[str, list[str]] = dict(rule_vocab or {})
 
     for transform in transforms:
@@ -158,7 +164,32 @@ def build_feature_frame(
                 )
             feats[f"{col}__n_tokens"] = token_sets.map(len)
 
-    return feats.reset_index(drop=True), fitted_vocab
+    feats = pd.concat([feats.reset_index(drop=True), build_history_frame(rows, historical_features or [], timezone)], axis=1)
+    if feature_configuration is not None:
+        from src.domain.models.feature_recipe import evaluate_feature_definition, validate_feature_definition
+
+        definition = validate_feature_definition(feature_configuration)
+        evaluated = []
+        for index, row in enumerate(rows):
+            result = evaluate_feature_definition(definition, row, validated=True)
+            errors = [feature for feature in result["features"] if feature["status"] == "error"]
+            if errors:
+                raise ValueError(f"Fila {index + 1}, característica {errors[0]['name']}: {errors[0].get('error')}")
+            evaluated.append(result["values"])
+        recipe_frame = pd.DataFrame(index=range(len(rows)))
+        for recipe in definition["recipes"]:
+            if not recipe.get("enabled", True):
+                continue
+            name = recipe["name"]
+            values = pd.Series([result.get(name) for result in evaluated], index=recipe_frame.index, dtype=object)
+            if recipe.get("output_type", "number") == "string":
+                recipe_frame[name] = values.map(lambda value: str(value) if value is not None else np.nan).astype("category")
+            else:
+                recipe_frame[name] = pd.to_numeric(values, errors="coerce").astype(float)
+        feats = pd.concat([feats, recipe_frame], axis=1)
+    if feats.columns.duplicated().any():
+        raise ValueError("Las transformaciones generan nombres de columnas duplicados")
+    return feats, fitted_vocab
 
 
 def train_xgboost_model(
@@ -196,9 +227,14 @@ def train_xgboost_model(
 
 def target_vector(rows: list[dict[str, Any]], target_field: str, positive_labels: list[str]) -> np.ndarray:
     positive = set(positive_labels)
-    return np.array(
-        [1 if _field_value(row, target_field) in positive else 0 for row in rows]
-    )
+    values = [_field_value(row, target_field) for row in rows]
+    if not positive or any(v is None or str(v).strip() == "" for v in values):
+        raise ValueError("El objetivo contiene valores ausentes o faltan etiquetas positivas")
+    classes = {str(v).strip() for v in values}
+    if len(classes) < 2:
+        raise ValueError("El campo objetivo debe contener al menos dos clases distintas para entrenar")
+    return np.array([int(str(v) in positive) for v in values])
+
 
 
 def run_model_training(
@@ -238,29 +274,12 @@ def run_model_training(
         _progress("loading_dataset", 5)
         rows = dataset_repository.get_rows(model.dataset_name)
 
+        from src.infrastructure.workflows.celery.model_evaluation import train_model_bundle
+
         _progress("building_features", 25)
-        X, rule_vocab = build_feature_frame(rows, model.feature_transforms)
-        y = target_vector(rows, model.target_field, model.positive_labels)
-
-        _progress("training", 50)
-        xgb_model, isotonic, metrics = train_xgboost_model(X, y)
-
+        bundle = train_model_bundle(rows, model, progress=_progress)
+        metrics = bundle["metrics"]
         _progress("persisting", 85)
-        cat_categories = {
-            col: list(X[col].cat.categories)
-            for col in X.columns
-            if str(X[col].dtype) == "category"
-        }
-        bundle = {
-            "model": xgb_model,
-            "isotonic": isotonic,
-            "columns": list(X.columns),
-            "cat_categories": cat_categories,
-            "rule_vocab": rule_vocab,
-            "feature_transforms": model.feature_transforms,
-            "metrics": metrics,
-            "tag": model.tag,
-        }
         buffer = BytesIO()
         joblib.dump(bundle, buffer)
         storage_key = f"{model_id}/{model.tag}.joblib"
@@ -272,6 +291,7 @@ def run_model_training(
 
         model.status = ModelStatus.READY
         model.metrics = metrics
+        model.training_report = bundle["training_report"]
         model.storage_ref = storage_key
         model.error = None
         model_repository.update(model)

@@ -278,6 +278,14 @@ def train_model_task(model_id: str, async_operation_id: str) -> dict:
     )
 
 
+@app.task(name="models.preview_features")
+def preview_features_task(configuration: dict, rows: list[dict], target_field: str | None = None) -> dict:
+    """Run an untrusted feature preview away from the API process."""
+    from src.application.use_cases.models.feature_engineering import PreviewFeaturesUseCase
+
+    return PreviewFeaturesUseCase().execute(configuration, rows, target_field)
+
+
 # No autoretry (contrast with analyze_dataset_task above): a malformed
 # workbook is a deterministic user-input error, not a transient one -
 # retrying with backoff would only delay the FAILED result reaching the

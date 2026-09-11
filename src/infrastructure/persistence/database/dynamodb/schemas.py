@@ -262,11 +262,10 @@ CONFIGURATIONS_TABLE = {
 # a 2-level FK chain on top of that; everything else is a flat one-hop FK.
 def _fk_key_schema(hash_attribute: str, range_attribute: str = "id") -> dict:
     # range_attribute defaults to "id" (a real uuid) for entities with their
-    # own identity. A couple of entities have no id of their own and are
-    # naturally keyed by a fixed business field instead - ProfilingStrategy
-    # (by its `key` enum: usuario/transaccion/transaccional) and
-    # FieldCategorization (by the `field` name it categorizes) - those pass
-    # range_attribute explicitly.
+    # own identity. ProfilingStrategy has no id of its own and is naturally
+    # keyed by a fixed business field instead - its `key` enum
+    # (usuario/transaccion/transaccional) - so it passes range_attribute
+    # explicitly.
     return {
         "KeySchema": [
             {"AttributeName": hash_attribute, "KeyType": "HASH"},
@@ -346,14 +345,6 @@ CONFIGURATION_PROFILING_STRATEGIES_TABLE = {
     "TableName": "configuration_profiling_strategies",
     "BillingMode": "PAY_PER_REQUEST",
     **_fk_key_schema("segment_id", range_attribute="key"),
-}
-
-# Keyed by `field` (the field name it categorizes) - a field is categorized
-# at most once per segment, so that's already a natural unique key.
-CONFIGURATION_FIELD_CATEGORIZATIONS_TABLE = {
-    "TableName": "configuration_field_categorizations",
-    "BillingMode": "PAY_PER_REQUEST",
-    **_fk_key_schema("segment_id", range_attribute="field"),
 }
 
 CONFIGURATION_TAXONOMIES_TABLE = {
@@ -562,4 +553,11 @@ WATCHLIST_ELEMENTS_TABLE = {
         {"AttributeName": "watchlist_id", "AttributeType": "S"},
         {"AttributeName": "value", "AttributeType": "S"},
     ],
+}
+
+FEATURE_TEMPLATES_TABLE = {
+    "TableName": "feature_templates",
+    "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "id", "AttributeType": "S"}],
+    "BillingMode": "PAY_PER_REQUEST",
 }

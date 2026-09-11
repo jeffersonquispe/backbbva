@@ -17,8 +17,6 @@ from src.application.ports.configuration_port import (
     DistributionValue,
     DocumentationConfig,
     ExampleCase,
-    FieldCategorization,
-    FieldCriterion,
     FilterCondition,
     FilterGroup,
     Flag,
@@ -86,8 +84,6 @@ from src.infrastructure.entrypoint.api.schemas import (
     DistributionValueSchema,
     DocumentationConfigSchema,
     ExampleCaseSchema,
-    FieldCategorizationSchema,
-    FieldCriterionSchema,
     FilterConditionSchema,
     FilterGroupSchema,
     FlagSchema,
@@ -330,15 +326,7 @@ def _flag_to_schema(flag: Flag) -> FlagSchema:
 
 def _profiling_to_schema(profiling: ProfilingConfig) -> ProfilingConfigSchema:
     return ProfilingConfigSchema(
-        field_categorizations=[
-            FieldCategorizationSchema(
-                field=fc.field,
-                kind=fc.kind,
-                criteria=[FieldCriterionSchema(**c.__dict__) for c in fc.criteria],
-                output_variable=fc.output_variable,
-            )
-            for fc in profiling.field_categorizations
-        ],
+        field_enrichment=profiling.field_enrichment,
         strategies=[
             ProfilingStrategySchema(**s.__dict__) for s in profiling.strategies
         ],
@@ -464,15 +452,7 @@ def _flag_from_schema(schema: FlagSchema) -> Flag:
 
 def _profiling_from_schema(schema: ProfilingConfigSchema) -> ProfilingConfig:
     return ProfilingConfig(
-        field_categorizations=[
-            FieldCategorization(
-                field=fc.field,
-                kind=fc.kind,
-                criteria=[FieldCriterion(**c.model_dump()) for c in fc.criteria],
-                output_variable=fc.output_variable,
-            )
-            for fc in schema.field_categorizations
-        ],
+        field_enrichment=schema.field_enrichment,
         strategies=[
             ProfilingStrategy(**s.model_dump()) for s in schema.strategies
         ],

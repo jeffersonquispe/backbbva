@@ -71,3 +71,24 @@ def get_start_model_training_use_case() -> StartModelTrainingUseCase:
         async_operation_repository=get_model_async_operation_repository(),
         training_dispatcher=get_model_training_dispatcher(),
     )
+
+
+@lru_cache
+def get_feature_template_repository():
+    from src.infrastructure.persistence.database.dynamodb.repositories.feature_template_repository import DynamoFeatureTemplateRepository
+    return DynamoFeatureTemplateRepository()
+
+
+def get_feature_templates_use_case():
+    from src.application.use_cases.models.feature_engineering import FeatureTemplatesUseCase
+    return FeatureTemplatesUseCase(get_feature_template_repository())
+
+
+def get_preview_features_use_case():
+    from src.application.use_cases.models.feature_engineering import PreviewFeaturesUseCase
+    return PreviewFeaturesUseCase()
+
+
+def get_feature_capabilities_use_case():
+    from src.application.use_cases.models.feature_engineering import FeatureCapabilitiesUseCase
+    return FeatureCapabilitiesUseCase()

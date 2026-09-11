@@ -11,17 +11,12 @@ from src.application.ports.configuration_port import (
     AnalystPlaybook,
     BuiltInTool,
     ClassificationConfig,
-    ComparisonOperator,
     ConfigurationRecord,
-    CriteriaMode,
     DayProfile,
     DistributionValue,
     DocumentationConfig,
     DocumentationStrategy,
     ExampleCase,
-    FieldCategorization,
-    FieldCriterion,
-    FieldKind,
     FilterCondition,
     Flag,
     FlagType,
@@ -51,12 +46,10 @@ from src.application.ports.tag_catalog_port import TagCategory
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
     _config_key,
     _criterion_key,
-    _criterion_to_item,
     _day_profile_from_item,
     _distribution_value_from_item,
     _evaluation_from_item,
     _example_case_from_item,
-    _field_categorization_from_item,
     _filter_condition_from_item,
     _flag_from_item,
     _from_item,
@@ -141,9 +134,30 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
         ),
         agent=AgentSettings(
             profiling=ProfilingConfig(
-                field_categorizations=[
-                    FieldCategorization(field="Saldo", kind=FieldKind.CUANTIZABLE)
-                ],
+                # Unlike the other collections below, field_enrichment is a
+                # plain dict (a FeatureConfiguration - see feature_recipe.py)
+                # and travels inline on this item, not in its own table - a
+                # float in a recipe step exercises the to_dynamodb/
+                # from_dynamodb Decimal round-trip a real DynamoDB put_item
+                # would otherwise reject.
+                field_enrichment={
+                    "schema_version": 2,
+                    "mappings": {"timezone": "America/Bogota", "history": "history"},
+                    "recipes": [
+                        {
+                            "id": "r1",
+                            "name": "saldo_enriquecido",
+                            "enabled": True,
+                            "output_type": "number",
+                            "source": "current",
+                            "path": "saldo",
+                            "missing": {"policy": "missing"},
+                            "steps": [
+                                {"id": "s1", "operation": "add", "value": 1_000_000.5}
+                            ],
+                        }
+                    ],
+                },
                 strategies=[
                     ProfilingStrategy(
                         key=ProfilingStrategyKey.USUARIO,
@@ -185,9 +199,10 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     )
     # taxonomies/modus_operandi/flags/example_cases/playbooks/
     # voicebot.category_prompts/monitoring.sampling_criteria/filter/
-    # profiling.strategies/profiling.field_categorizations all live in their
-    # own tables (own FK = this row's uuid `id`) - exercised separately
-    # below and via the real tables in local/CI.
+    # profiling.strategies all live in their own tables (own FK = this row's
+    # uuid `id`) - exercised separately below and via the real tables in
+    # local/CI. profiling.field_enrichment is the one exception: it's a
+    # plain dict, not a dataclass list, so it travels inline on this item.
     item = {
         "config_key": _config_key("cfg-1", 1),
         "id": _SEGMENT_ID,
@@ -207,7 +222,7 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert restored.agent.profiling.strategies == [
         ProfilingStrategy(key=key) for key in ProfilingStrategyKey
     ]
-    assert restored.agent.profiling.field_categorizations == []
+    assert restored.agent.profiling.field_enrichment == segment.agent.profiling.field_enrichment
     assert restored.agent.taxonomies == []
     assert restored.agent.modus_operandi == []
     assert restored.agent.flags == []
@@ -359,74 +374,6 @@ def test_profiling_strategy_round_trips_through_its_own_table_item() -> None:
     item = {"segment_id": _SEGMENT_ID, **asdict(strategy)}
 
     assert _profiling_strategy_from_item(item) == strategy
-
-
-def test_field_categorization_round_trips_through_its_own_table_item() -> None:
-    categorization = FieldCategorization(
-        field="Saldo", kind=FieldKind.CUANTIZABLE, output_variable="saldo_riesgo"
-    )
-    # Keyed by `field`, not a uuid - a field is categorized once per segment.
-    item = {"segment_id": _SEGMENT_ID, **asdict(categorization)}
-
-    assert _field_categorization_from_item(item) == categorization
-
-
-def test_field_categorization_criteria_round_trip_with_decimal_amounts() -> None:
-    # Money-bearing (min_value/max_value) - must survive the float->Decimal
-    # conversion _criterion_to_item does before a real DynamoDB put_item
-    # (which rejects native floats).
-    categorization = FieldCategorization(
-        field="Monto",
-        kind=FieldKind.CUANTIZABLE,
-        criteria=[
-            FieldCriterion(
-                id="c1",
-                mode=CriteriaMode.INTERVALO,
-                output="bajo",
-                min_value=1.0,
-                max_value=1_000_000.5,
-            ),
-            FieldCriterion(
-                id="c2",
-                mode=CriteriaMode.COMPARATIVA,
-                output="altisimo",
-                operator=ComparisonOperator.GT,
-                numeric_value=7_000_000.0,
-            ),
-        ],
-    )
-    item = {
-        "segment_id": _SEGMENT_ID,
-        "field": categorization.field,
-        "kind": categorization.kind,
-        "criteria": [_criterion_to_item(c) for c in categorization.criteria],
-    }
-
-    assert _field_categorization_from_item(item) == categorization
-
-
-def test_field_categorization_criteria_round_trip_qualitative() -> None:
-    categorization = FieldCategorization(
-        field="Canal de ingreso",
-        kind=FieldKind.CATEGORICO,
-        criteria=[
-            FieldCriterion(
-                id="c1",
-                mode=CriteriaMode.PERTENENCIA,
-                output="medio",
-                values=["app", "web"],
-            ),
-            FieldCriterion(
-                id="c2",
-                mode=CriteriaMode.NO_IGUALDAD,
-                output="alto",
-                text_value="sucursal",
-            ),
-        ],
-    )
-    item = {"segment_id": _SEGMENT_ID, **asdict(categorization)}
-
-    assert _field_categorization_from_item(item) == categorization
 
 
 def test_taxonomy_round_trips_through_its_own_table_item() -> None:

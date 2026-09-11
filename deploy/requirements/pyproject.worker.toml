@@ -61,3 +61,10 @@ flake8 = "7.0.0"
 flake8-pyproject = "1.2.3"
 pyproject-autoflake = "1.0.2"
 ruff = "0.8.4"
+vulture = "2.16.0"
+
+[tool.vulture]
+paths = ["src"]
+exclude = ["*/__pycache__/*", "*/.venv/*"]
+min_confidence = 80
+sort_by_size = true

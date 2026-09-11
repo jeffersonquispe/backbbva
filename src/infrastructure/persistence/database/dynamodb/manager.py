@@ -66,7 +66,6 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     CONFIGURATION_ANALYST_PROFILES_TABLE,
     CONFIGURATION_EVALUATION_TABLE,
     CONFIGURATION_EXAMPLES_TABLE,
-    CONFIGURATION_FIELD_CATEGORIZATIONS_TABLE,
     CONFIGURATION_FILTER_CONDITIONS_TABLE,
     CONFIGURATION_FILTER_GROUPS_TABLE,
     CONFIGURATION_GENERAL_TABLE,
@@ -197,7 +196,8 @@ _DEFAULT_RESOLUTION_METHODS: list[tuple[str, ResolutionTag]] = [
 # Source-variable schema from Muestra_total_ARIA_Ver2_2.csv.  Names and casing
 # intentionally match the file headers exactly.  The leading unnamed pandas
 # index column is not alert data and is therefore omitted.  Derived variables
-# created by profiling are kept separately in FieldCategorization.output_variable.
+# created by profiling are kept separately, as recipe names in
+# ProfilingConfig.field_enrichment (see EnrichProfilingFieldsUseCase).
 _DEFAULT_VARIABLES: list[str] = [
     "reviewstatus_first",
     "marcacion_final",
@@ -324,6 +324,8 @@ def ensure_all_tables() -> None:
     create_table(FRAUD_PLAYBOOKS_TABLE)
     create_table(OPERATIONS_CAPACITY_TABLE)
     create_table(TEST_RUNS_TABLE)
+    from src.infrastructure.persistence.database.dynamodb.schemas import FEATURE_TEMPLATES_TABLE
+    create_table(FEATURE_TEMPLATES_TABLE)
     create_table(MODELS_TABLE)
     create_table(CONFIGURATIONS_TABLE)
     create_table(CONFIGURATION_GENERAL_TABLE)
@@ -333,7 +335,6 @@ def ensure_all_tables() -> None:
     create_table(CONFIGURATION_ANALYST_PROFILES_TABLE)
     create_table(CONFIGURATION_SEGMENTS_TABLE)
     create_table(CONFIGURATION_PROFILING_STRATEGIES_TABLE)
-    create_table(CONFIGURATION_FIELD_CATEGORIZATIONS_TABLE)
     create_table(CONFIGURATION_TAXONOMIES_TABLE)
     create_table(CONFIGURATION_MODUS_OPERANDI_TABLE)
     create_table(CONFIGURATION_RED_YELLOW_FLAGS_TABLE)

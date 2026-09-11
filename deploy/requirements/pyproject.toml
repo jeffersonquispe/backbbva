@@ -52,6 +52,7 @@ flake8 = "7.0.0"
 flake8-pyproject = "1.2.3"
 pyproject-autoflake = "1.0.2"
 ruff = "0.8.4"
+vulture = "2.16.0"
 
 [tool.black]
 target-version = ["py311"]
@@ -93,3 +94,13 @@ in-place = true
 recursive = true
 remove-all-unused-imports = true
 exclude = ["./config/**/*.py", "./src/infraestructure/core/*.*"]
+
+# Vulture complements Ruff: it identifies unreachable code and imports that
+# cannot be reached statically.  Keep the default at >=80% to make this target
+# actionable; use `make dead-code DEAD_CODE_MIN_CONFIDENCE=60` for the broader
+# (and noisier) review report.
+[tool.vulture]
+paths = ["src"]
+exclude = ["*/__pycache__/*", "*/.venv/*"]
+min_confidence = 80
+sort_by_size = true

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 
@@ -36,6 +36,36 @@ class FieldTransform:
 
 
 @dataclass
+class HistoricalFeature:
+    name: str
+    field: str = "transacciones_json"
+    reference_field: str = "fecha_transaccion"
+    time_field: str = "eventtime"
+    value_field: str = "amount_value"
+    operation: str = "count"
+    window_hours: int = 24
+    filter_field: str | None = None
+    filter_value: str | None = None
+    compare_field: str | None = None
+
+
+@dataclass
+class TrainingConfig:
+    n_estimators: int = 400
+    max_depth: int = 4
+    learning_rate: float = 0.03
+    subsample: float = 0.8
+    colsample_bytree: float = 0.8
+    reg_lambda: float = 1.0
+    min_child_weight: float = 3.0
+    scale_pos_weight: float | None = None
+    early_stopping_rounds: int | None = 30
+    split_strategy: str = "stratified"
+    time_field: str = "fecha_transaccion"
+    timezone: str = "UTC"
+
+
+@dataclass
 class ModelRecord:
     id: UUID
     tag: str
@@ -52,6 +82,10 @@ class ModelRecord:
     updated_at: datetime = field(default_factory=datetime.utcnow)
     created_by: str | None = None
     error: str | None = None
+    historical_features: list[HistoricalFeature] = field(default_factory=list)
+    feature_configuration: dict[str, Any] | None = None
+    training_config: TrainingConfig = field(default_factory=TrainingConfig)
+    training_report: dict[str, Any] | None = None
 
 
 class ModelRepository(Protocol):
