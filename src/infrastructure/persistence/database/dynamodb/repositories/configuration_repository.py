@@ -966,7 +966,12 @@ def _profiling_from_item(profiling_item: dict[str, Any]) -> ProfilingConfig:
 
 def _deterministic_from_item(item: dict[str, Any]) -> DeterministicConfig:
     return DeterministicConfig(
-        alert_filter=from_dynamodb(item.get("alert_filter") or {}),
+        # `or DeterministicConfig().alert_filter` also heals rows saved
+        # before _default_alert_filter existed, when the default was a bare
+        # `{}` - the frontend's FilterGroup mapper crashes on that shape, so
+        # missing/empty here must fall back to the well-formed default, not
+        # `{}` itself.
+        alert_filter=from_dynamodb(item.get("alert_filter") or DeterministicConfig().alert_filter),
         field_enrichment=from_dynamodb(item.get("field_enrichment") or DeterministicConfig().field_enrichment),
         rules=[DeterministicRule(**from_dynamodb(rule)) for rule in item.get("rules") or []],
     )

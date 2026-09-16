@@ -304,11 +304,21 @@ class Rubric:
     conditions: list[RuleCondition] = field(default_factory=list)
 
 
+def _default_alert_filter() -> dict[str, Any]:
+    # Same serialized shape as an empty FilterGroup(id="root") (see below) -
+    # the frontend always runs this through its FilterGroup <-> API mapper,
+    # which recurses into `conditions`/`groups` unconditionally, so a bare
+    # `{}` default crashes it on load. Kept as a plain dict here (not a real
+    # FilterGroup) only because AgentSettings is declared before FilterGroup
+    # in this file, and it stays unevaluated by the workflow either way.
+    return {"id": "root", "operator": "and", "conditions": [], "groups": []}
+
+
 @dataclass
 class DeterministicConfig:
     # Kept as the same serialized FilterGroup shape used by segment routing.
     # It is a dict here because AgentSettings is declared before FilterGroup.
-    alert_filter: dict[str, Any] = field(default_factory=dict)
+    alert_filter: dict[str, Any] = field(default_factory=_default_alert_filter)
     field_enrichment: dict[str, Any] = field(default_factory=_default_field_enrichment)
     rules: list[DeterministicRule] = field(default_factory=list)
 

@@ -657,6 +657,13 @@ def _default_field_enrichment_schema() -> dict[str, Any]:
     }
 
 
+def _default_alert_filter_schema() -> dict[str, Any]:
+    # Mirrors configuration_port.py's _default_alert_filter - the frontend's
+    # FilterGroup <-> API mapper always recurses into `conditions`/`groups`
+    # unconditionally, so a bare `{}` default crashes it on load.
+    return {"id": "root", "operator": "and", "conditions": [], "groups": []}
+
+
 class ProfilingConfigSchema(BaseModel):
     field_enrichment: dict[str, Any] = Field(
         default_factory=_default_field_enrichment_schema
@@ -695,7 +702,7 @@ class RubricSchema(BaseModel):
 
 
 class DeterministicConfigSchema(BaseModel):
-    alert_filter: dict[str, Any] = Field(default_factory=dict)
+    alert_filter: dict[str, Any] = Field(default_factory=_default_alert_filter_schema)
     field_enrichment: dict[str, Any] = Field(default_factory=_default_field_enrichment_schema)
     rules: list[DeterministicRuleSchema] = Field(default_factory=list)
 
