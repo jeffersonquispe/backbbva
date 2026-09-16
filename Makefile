@@ -101,6 +101,30 @@ create-local-user:  ## Interactively create a local-auth user; no credential is 
 	curl --fail-with-body --silent --show-error -K "$$auth_curl_config" -H 'Content-Type: application/json' --data-binary @- "$$auth_api_url/api/v0/auth/users"; \
 	printf '\nUsuario creado.\n'
 
+.PHONY: refresh-github-token
+refresh-github-token:  ## Replace the saved GitHub credential with a classic PAT.
+	@set -euo pipefail; \
+	branch="$$(git branch --show-current)"; \
+	remote="$$(git config --get "branch.$$branch.remote" || printf '%s' origin)"; \
+	remote_url="$$(git remote get-url "$$remote")"; \
+	case "$$remote_url" in \
+		https://*) ;; \
+		*) echo "Remote $$remote must use an HTTPS URL (found: $$remote_url)" >&2; exit 2;; \
+	esac; \
+	host="$${remote_url#https://}"; host="$${host%%/*}"; \
+	old_credential="$$(printf 'protocol=https\nhost=%s\n\n' "$$host" | GIT_TERMINAL_PROMPT=0 git credential fill 2>/dev/null || true)"; \
+	if [ -n "$$old_credential" ]; then \
+		printf '%s\n' "$$old_credential" | git credential reject; \
+		echo "Removed the existing credential for $$remote ($$host)."; \
+	fi; \
+	read -r -p "GitHub username: " username; \
+	[ -n "$$username" ] || { echo "Username cannot be empty." >&2; exit 2; }; \
+	read -r -s -p "New GitHub classic personal access token: " token; printf '\n'; \
+	[ -n "$$token" ] || { echo "Token cannot be empty." >&2; exit 2; }; \
+	printf 'protocol=https\nhost=%s\nusername=%s\npassword=%s\n\n' "$$host" "$$username" "$$token" | git credential approve; \
+	unset token; \
+	echo "Saved the new credential for $$username@$$host."
+
 .PHONY: install
 install:  ## Install the project in dev mode.
 	poetry install
