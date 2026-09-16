@@ -31,6 +31,14 @@ class Config(BaseSettings):
 
     CORS_ALLOWED_ORIGINS: str = "*"
 
+    # Local authentication.  Set a long, unique value per environment; the
+    # development default exists only to make the local stack usable.
+    AUTH_JWT_SECRET: str = "change-me-in-production"
+    AUTH_JWT_TTL_SECONDS: int = 3600
+    # Required only for POST /auth/users. Keep empty to disable provisioning
+    # through the API after the initial local users have been created.
+    AUTH_BOOTSTRAP_TOKEN: str = ""
+
     GENAI_PRODUCT: str = "aria"
 
     GENAI_NAME: str = "aria-api"

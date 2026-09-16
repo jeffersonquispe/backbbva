@@ -80,6 +80,27 @@ DOCKER_RUN_ENV = \
 
 .DEFAULT_GOAL := help
 
+.PHONY: create-local-user
+create-local-user:  ## Interactively create a local-auth user; no credential is stored by Make.
+	@set -euo pipefail; \
+	read -r -p "Nombre: " auth_name; \
+	read -r -p "Correo: " auth_email; \
+	printf '%s\n' "Roles: manager, channel_manager, release_manager, data_analyst, fraud_analyst, ops_analyst"; \
+	read -r -p "Rol: " auth_role; \
+	case "$$auth_role" in manager|channel_manager|release_manager|data_analyst|fraud_analyst|ops_analyst) ;; *) echo "Rol no válido." >&2; exit 1;; esac; \
+	read -r -s -p "Contraseña: " auth_password; printf '\n'; \
+	read -r -s -p "Repite la contraseña: " auth_password_confirm; printf '\n'; \
+	[ "$$auth_password" = "$$auth_password_confirm" ] || { echo "Las contraseñas no coinciden." >&2; exit 1; }; \
+	read -r -s -p "Token de aprovisionamiento: " auth_bootstrap_token; printf '\n'; \
+	read -r -p "URL de API [http://localhost:8000]: " auth_api_url; \
+	auth_api_url=$${auth_api_url:-http://localhost:8000}; \
+	auth_curl_config=$$(mktemp); trap 'rm -f "$$auth_curl_config"' EXIT; chmod 600 "$$auth_curl_config"; \
+	printf 'header = "X-Bootstrap-Token: %s"\n' "$$auth_bootstrap_token" > "$$auth_curl_config"; \
+	AUTH_NAME="$$auth_name" AUTH_EMAIL="$$auth_email" AUTH_ROLE="$$auth_role" AUTH_PASSWORD="$$auth_password" \
+	python3 -c 'import json, os; print(json.dumps({"name": os.environ["AUTH_NAME"], "email": os.environ["AUTH_EMAIL"], "role": os.environ["AUTH_ROLE"], "password": os.environ["AUTH_PASSWORD"]}))' | \
+	curl --fail-with-body --silent --show-error -K "$$auth_curl_config" -H 'Content-Type: application/json' --data-binary @- "$$auth_api_url/api/v0/auth/users"; \
+	printf '\nUsuario creado.\n'
+
 .PHONY: install
 install:  ## Install the project in dev mode.
 	poetry install
@@ -262,6 +283,18 @@ LOCAL_DOCKER_ENV_FLAGS = \
 	LOCAL_DYNAMODB_PORT=$(LOCAL_DYNAMODB_PORT) \
 	LOCAL_REDIS_PORT=$(LOCAL_REDIS_PORT) \
 	LOCAL_IMAGE_TAG=$(LOCAL_IMAGE_TAG)
+
+.PHONY: local-auth-up
+local-auth-up:  ## Start/rebuild only the local API with interactive auth secrets (not stored).
+	@set -euo pipefail; \
+	read -r -s -p "Secreto de firma JWT: " auth_jwt_secret; printf '\n'; \
+	read -r -s -p "Token de aprovisionamiento: " auth_bootstrap_token; printf '\n'; \
+	[ -n "$$auth_jwt_secret" ] && [ -n "$$auth_bootstrap_token" ] || { echo "Ambos valores son obligatorios." >&2; exit 1; }; \
+	AUTH_JWT_SECRET="$$auth_jwt_secret" AUTH_BOOTSTRAP_TOKEN="$$auth_bootstrap_token" \
+	$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		up -d --build api
 
 .PHONY: local-docker-build
 local-docker-build:  ## Build local Docker API stack. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
