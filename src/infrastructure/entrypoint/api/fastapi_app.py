@@ -43,6 +43,9 @@ from src.infrastructure.entrypoint.api.routers.models_router import (
 from src.infrastructure.entrypoint.api.routers.modus_operandi_library_router import (
     router as modus_operandi_library_router,
 )
+from src.infrastructure.entrypoint.api.routers.operational_settings_router import (
+    router as operational_settings_router,
+)
 from src.infrastructure.entrypoint.api.routers.resolution_method_catalog_router import (
     router as resolution_method_catalog_router,
 )
@@ -67,6 +70,9 @@ from src.infrastructure.entrypoint.api.routers.variable_catalog_router import (
 from src.infrastructure.entrypoint.api.routers.watchlists_router import (
     router as watchlists_router,
 )
+from src.infrastructure.entrypoint.api.routers.auth_router import (
+    router as auth_router,
+)
 
 
 @asynccontextmanager
@@ -84,6 +90,7 @@ def create_app() -> FastAPI:
     )
     configure_cors(app)
     app.include_router(health_router)
+    app.include_router(auth_router, prefix=genai_config.API_V0_STR)
     app.include_router(
         async_operations_router,
         prefix=genai_config.API_V0_STR,
@@ -102,6 +109,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         configuration_test_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        operational_settings_router,
         prefix=genai_config.API_V0_STR,
     )
     app.include_router(

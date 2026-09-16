@@ -676,6 +676,37 @@ class ProfilingConfigSchema(BaseModel):
         return self
 
 
+class RuleConditionSchema(BaseModel):
+    id: str = ""
+    variable: str = ""
+    comparison: Literal["gt", "gte", "lt", "lte", "eq", "neq", "between", "in"] = "eq"
+    values: list[str] = Field(default_factory=list)
+    score: float = 0
+
+
+class DeterministicRuleSchema(RuleConditionSchema):
+    decision: Literal["risk_suspected", "risk"] = "risk_suspected"
+
+
+class RubricSchema(BaseModel):
+    id: str = ""
+    name: str = ""
+    conditions: list[RuleConditionSchema] = Field(default_factory=list)
+
+
+class DeterministicConfigSchema(BaseModel):
+    alert_filter: dict[str, Any] = Field(default_factory=dict)
+    field_enrichment: dict[str, Any] = Field(default_factory=_default_field_enrichment_schema)
+    rules: list[DeterministicRuleSchema] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_field_enrichment(self):
+        if self.field_enrichment.get("recipes"):
+            from src.domain.models.feature_recipe import validate_feature_definition
+            self.field_enrichment = validate_feature_definition(self.field_enrichment)
+        return self
+
+
 class ClassificationConfigSchema(BaseModel):
     vector_store_tools: list[VectorStoreTool] = Field(default_factory=list)
     built_in_tools: list[BuiltInTool] = Field(default_factory=list)
@@ -726,7 +757,9 @@ class DocumentationConfigSchema(BaseModel):
 
 
 class AgentSettingsSchema(BaseModel):
+    deterministic: DeterministicConfigSchema = Field(default_factory=DeterministicConfigSchema)
     profiling: ProfilingConfigSchema = Field(default_factory=ProfilingConfigSchema)
+    rubrics: list[RubricSchema] = Field(default_factory=list)
     classification: ClassificationConfigSchema = Field(
         default_factory=ClassificationConfigSchema
     )
@@ -835,6 +868,56 @@ class ConfigurationDetailResponse(ConfigurationSummaryResponse):
     test: TestSettingsSchema
     segments: dict[str, SegmentSettingsSchema] = Field(default_factory=dict)
     created_by: str | None = None
+
+
+# --- Operational settings -------------------------------------------------
+# Admin-configured levers that take effect immediately, no version/activate
+# lifecycle - see operational_settings_port.py. Reuses AnalystCapacitySchema/
+# DayProfileSchema/ShortageBehaviorSchema/TestCleanupPolicy already defined
+# above for the versioned configuration schemas.
+
+
+class OperationalSettingsSchema(BaseModel):
+    agent_enabled: bool = True
+    analyst_escalation_enabled: bool = True
+    voicebot_escalation_enabled: bool = True
+    max_instances: int = 8
+    auto_scale: bool = True
+    voicebot_max_concurrent_calls: int = 40
+    voicebot_shortage_behavior: ShortageBehaviorSchema = Field(
+        default_factory=ShortageBehaviorSchema
+    )
+    analyst_capacity: AnalystCapacitySchema = Field(
+        default_factory=AnalystCapacitySchema
+    )
+    analyst_shortage_behavior: ShortageBehaviorSchema = Field(
+        default_factory=ShortageBehaviorSchema
+    )
+    max_test_instances: int = 4
+    max_concurrent_experiments: int = 3
+    experiment_timeout_minutes: int = 30
+    max_stored_test_runs: int = 20
+    test_cleanup_policy: TestCleanupPolicy = TestCleanupPolicy.OLDEST
+
+
+class UpdateOperationalSettingsRequest(BaseModel):
+    settings: OperationalSettingsSchema
+    # Free-text identifier captured for traceability only - not an enforced
+    # identity, this codebase has no auth/permission system wired anywhere.
+    changed_by: str | None = Field(default=None, max_length=120)
+
+
+class SettingChangeResponse(BaseModel):
+    path: str
+    previous: Any
+    new: Any
+
+
+class OperationalSettingsChangeResponse(BaseModel):
+    id: str
+    changed_by: str | None
+    changed_at: datetime
+    changes: list[SettingChangeResponse]
 
 
 # --- Tag catalog ---------------------------------------------------------

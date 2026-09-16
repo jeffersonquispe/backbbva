@@ -13,6 +13,8 @@ from src.application.ports.configuration_port import (
     AnalystPlaybook,
     ClassificationConfig,
     ConfigurationRecord,
+    DeterministicConfig,
+    DeterministicRule,
     DayProfile,
     DistributionValue,
     DocumentationConfig,
@@ -27,6 +29,8 @@ from src.application.ports.configuration_port import (
     OpsSettings,
     ProfilingConfig,
     ProfilingStrategy,
+    Rubric,
+    RuleCondition,
     SamplingCriterion,
     SegmentSettings,
     ShortageBehavior,
@@ -81,6 +85,8 @@ from src.infrastructure.entrypoint.api.schemas import (
     ConfigurationSummaryResponse,
     CreateConfigurationRequest,
     DayProfileSchema,
+    DeterministicConfigSchema,
+    DeterministicRuleSchema,
     DistributionValueSchema,
     DocumentationConfigSchema,
     ExampleCaseSchema,
@@ -94,6 +100,8 @@ from src.infrastructure.entrypoint.api.schemas import (
     OpsSettingsSchema,
     ProfilingConfigSchema,
     ProfilingStrategySchema,
+    RuleConditionSchema,
+    RubricSchema,
     SamplingCriterionSchema,
     SegmentSettingsSchema,
     ShortageBehaviorSchema,
@@ -369,7 +377,20 @@ def _documentation_to_schema(
 
 def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
     return AgentSettingsSchema(
+        deterministic=DeterministicConfigSchema(
+            alert_filter=agent.deterministic.alert_filter,
+            field_enrichment=agent.deterministic.field_enrichment,
+            rules=[DeterministicRuleSchema(**rule.__dict__) for rule in agent.deterministic.rules],
+        ),
         profiling=_profiling_to_schema(agent.profiling),
+        rubrics=[
+            RubricSchema(
+                id=rubric.id,
+                name=rubric.name,
+                conditions=[RuleConditionSchema(**condition.__dict__) for condition in rubric.conditions],
+            )
+            for rubric in agent.rubrics
+        ],
         classification=_classification_to_schema(agent.classification),
         adversarial=_adversarial_to_schema(agent.adversarial),
         analyst=_analyst_to_schema(agent.analyst),
@@ -494,7 +515,20 @@ def _documentation_from_schema(
 
 def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
     return AgentSettings(
+        deterministic=DeterministicConfig(
+            alert_filter=schema.deterministic.alert_filter,
+            field_enrichment=schema.deterministic.field_enrichment,
+            rules=[DeterministicRule(**rule.model_dump()) for rule in schema.deterministic.rules],
+        ),
         profiling=_profiling_from_schema(schema.profiling),
+        rubrics=[
+            Rubric(
+                id=rubric.id,
+                name=rubric.name,
+                conditions=[RuleCondition(**condition.model_dump()) for condition in rubric.conditions],
+            )
+            for rubric in schema.rubrics
+        ],
         classification=_classification_from_schema(schema.classification),
         adversarial=_adversarial_from_schema(schema.adversarial),
         analyst=_analyst_from_schema(schema.analyst),

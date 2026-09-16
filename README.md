@@ -2,6 +2,23 @@
 
 API for the novel massive fraud agent for BBVA company.
 
+## Local authentication
+
+`POST /api/v0/auth/login` returns an HS256 JWT; clients send it as a Bearer
+token and obtain the assigned role and fixed permissions from
+`GET /api/v0/auth/me`. To provision a local user, set `AUTH_BOOTSTRAP_TOKEN`
+and submit `POST /api/v0/auth/users` with that value in `X-Bootstrap-Token`.
+Set a unique `AUTH_JWT_SECRET` in every non-local environment.
+
+Use `make create-local-user` to provision a user interactively. It asks for
+all identity fields, the password, and the bootstrap token at runtime; neither
+password nor token is written to disk or echoed to the terminal.
+
+Before provisioning, run \`make local-auth-up\`; it prompts for the JWT signing
+secret and bootstrap token, starts the local API with them, and does not persist
+either value. Then run \`make create-local-user\` and enter the same bootstrap
+token. The API must be rebuilt after pulling authentication changes.
+
 ## Local Docker Stack
 
 Build and run the local API, DynamoDB, Redis, and Celery worker:
