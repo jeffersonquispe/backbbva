@@ -23,6 +23,24 @@ AUDIT_LOG_TABLE = {
 }
 
 
+# Local identities. A user deliberately carries exactly one role; permissions
+# are derived from that enum in application code and are never data-managed.
+USERS_TABLE = {
+    "TableName": "users",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "user_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [
+        {"AttributeName": "user_id", "AttributeType": "S"},
+        {"AttributeName": "email", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [{
+        "IndexName": "EmailIdx",
+        "KeySchema": [{"AttributeName": "email", "KeyType": "HASH"}],
+        "Projection": {"ProjectionType": "ALL"},
+    }],
+}
+
+
 ASYNC_OPERATIONS_TABLE = {
     "TableName": "async_operations",
     "BillingMode": "PAY_PER_REQUEST",
@@ -228,6 +246,39 @@ OPERATIONS_CAPACITY_TABLE = {
     ],
     "AttributeDefinitions": [
         {"AttributeName": "record_id", "AttributeType": "S"},
+    ],
+}
+
+
+# Admin-configured operational levers (agent on/off, escalation switches,
+# instance/voicebot/analyst capacity targets, test-platform limits) - see
+# operational_settings_port.py. Distinct from OPERATIONS_CAPACITY_TABLE
+# above, which holds a live current-availability snapshot, not admin-set
+# targets.
+OPERATIONAL_SETTINGS_TABLE = {
+    "TableName": "operational_settings",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "record_id", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "record_id", "AttributeType": "S"},
+    ],
+}
+
+# Append-only change log for OPERATIONAL_SETTINGS_TABLE - one row per
+# update() call, sorted by changed_at so list_changes() can Query with
+# ScanIndexForward=False instead of a scan+sort.
+OPERATIONAL_SETTINGS_HISTORY_TABLE = {
+    "TableName": "operational_settings_history",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "record_id", "KeyType": "HASH"},
+        {"AttributeName": "changed_at", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "record_id", "AttributeType": "S"},
+        {"AttributeName": "changed_at", "AttributeType": "S"},
     ],
 }
 

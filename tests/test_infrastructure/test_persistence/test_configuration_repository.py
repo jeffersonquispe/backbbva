@@ -12,6 +12,8 @@ from src.application.ports.configuration_port import (
     BuiltInTool,
     ClassificationConfig,
     ConfigurationRecord,
+    DeterministicConfig,
+    DeterministicRule,
     DayProfile,
     DistributionValue,
     DocumentationConfig,
@@ -30,6 +32,8 @@ from src.application.ports.configuration_port import (
     ProfilingStrategy,
     ProfilingStrategyKey,
     ResolutionTag,
+    Rubric,
+    RuleCondition,
     SamplingCriterion,
     SamplingIntervalUnit,
     SegmentSettings,
@@ -133,6 +137,11 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
             max_samples=42,
         ),
         agent=AgentSettings(
+            deterministic=DeterministicConfig(
+                alert_filter={"id": "scope", "operator": "and", "conditions": [], "groups": []},
+                field_enrichment={"schema_version": 2, "mappings": {"timezone": "America/Bogota"}, "recipes": []},
+                rules=[DeterministicRule(id="hard-rule", variable="amount", comparison="gt", values=["3000"], score=10.5, decision="risk")],
+            ),
             profiling=ProfilingConfig(
                 # Unlike the other collections below, field_enrichment is a
                 # plain dict (a FeatureConfiguration - see feature_recipe.py)
@@ -195,6 +204,7 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
                 agent_prompt="documenta esta alerta",
                 agent_prompt_vars=["Última transacción"],
             ),
+            rubrics=[Rubric(id="fraud-score", name="estafa_score", conditions=[RuleCondition(id="device", variable="device", comparison="neq", values=["iphone"], score=5.5)])],
         ),
     )
     # taxonomies/modus_operandi/flags/example_cases/playbooks/
@@ -223,6 +233,8 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
         ProfilingStrategy(key=key) for key in ProfilingStrategyKey
     ]
     assert restored.agent.profiling.field_enrichment == segment.agent.profiling.field_enrichment
+    assert restored.agent.deterministic == segment.agent.deterministic
+    assert restored.agent.rubrics == segment.agent.rubrics
     assert restored.agent.taxonomies == []
     assert restored.agent.modus_operandi == []
     assert restored.agent.flags == []

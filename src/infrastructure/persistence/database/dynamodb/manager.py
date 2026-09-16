@@ -92,6 +92,8 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     LIBRARY_TAXONOMIES_TABLE,
     MARCACION_CATALOG_TABLE,
     MODELS_TABLE,
+    OPERATIONAL_SETTINGS_HISTORY_TABLE,
+    OPERATIONAL_SETTINGS_TABLE,
     OPERATIONS_CAPACITY_TABLE,
     RESOLUTION_METHOD_CATALOG_TABLE,
     TAG_CATALOG_TABLE,
@@ -101,6 +103,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     WATCHLIST_TABLE,
     WORKFLOW_EXECUTIONS_TABLE,
     WORKFLOW_STEP_EXECUTIONS_TABLE,
+    USERS_TABLE,
 )
 
 # Seeded once, only if missing - reference/ops data, not per-alert state.
@@ -317,12 +320,15 @@ def create_table(schema: dict) -> None:
 def ensure_all_tables() -> None:
     """Ensure all DynamoDB tables used by the application exist."""
     create_table(AUDIT_LOG_TABLE)
+    create_table(USERS_TABLE)
     create_table(ASYNC_OPERATIONS_TABLE)
     create_table(ALERTS_TABLE)
     create_table(WORKFLOW_EXECUTIONS_TABLE)
     create_table(WORKFLOW_STEP_EXECUTIONS_TABLE)
     create_table(FRAUD_PLAYBOOKS_TABLE)
     create_table(OPERATIONS_CAPACITY_TABLE)
+    create_table(OPERATIONAL_SETTINGS_TABLE)
+    create_table(OPERATIONAL_SETTINGS_HISTORY_TABLE)
     create_table(TEST_RUNS_TABLE)
     from src.infrastructure.persistence.database.dynamodb.schemas import FEATURE_TEMPLATES_TABLE
     create_table(FEATURE_TEMPLATES_TABLE)

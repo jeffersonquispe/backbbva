@@ -18,6 +18,8 @@ from src.application.ports.configuration_port import (
     BuiltInTool,
     ClassificationConfig,
     ConfigurationRecord,
+    DeterministicConfig,
+    DeterministicRule,
     ConfigurationRepository,
     DayProfile,
     DistributionValue,
@@ -40,6 +42,8 @@ from src.application.ports.configuration_port import (
     ProfilingPromptMode,
     ProfilingStrategy,
     ProfilingStrategyKey,
+    Rubric,
+    RuleCondition,
     ResolutionTag,
     SamplingCriterion,
     SamplingIntervalUnit,
@@ -600,6 +604,14 @@ def _segment_to_item(segment: SegmentSettings) -> dict[str, Any]:
     item["agent"]["profiling"]["field_enrichment"] = to_dynamodb(
         segment.agent.profiling.field_enrichment
     )
+    # Deterministic rules and rubrics include user-entered numeric scores;
+    # normalize those floats recursively for DynamoDB just like feature data.
+    item["agent"]["deterministic"] = to_dynamodb(
+        asdict(segment.agent.deterministic)
+    )
+    item["agent"]["rubrics"] = to_dynamodb(
+        [asdict(rubric) for rubric in segment.agent.rubrics]
+    )
     for key in ("taxonomies", "modus_operandi", "flags", "example_cases"):
         del item["agent"][key]
     del item["agent"]["analyst"]["playbooks"]
@@ -873,7 +885,16 @@ def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
     # this item (their own tables, see DynamoConfigurationRepository._hydrate)
     # - default to [] here, the caller fills them in after querying.
     return AgentSettings(
+        deterministic=_deterministic_from_item(agent_item.get("deterministic") or {}),
         profiling=_profiling_from_item(agent_item.get("profiling") or {}),
+        rubrics=[
+            Rubric(
+                id=item.get("id") or "",
+                name=item.get("name") or "",
+                conditions=[RuleCondition(**from_dynamodb(condition)) for condition in item.get("conditions") or []],
+            )
+            for item in agent_item.get("rubrics") or []
+        ],
         classification=_classification_from_item(
             agent_item.get("classification") or {}
         ),
@@ -941,6 +962,14 @@ def _profiling_from_item(profiling_item: dict[str, Any]) -> ProfilingConfig:
     if field_enrichment_raw:
         profiling.field_enrichment = from_dynamodb(field_enrichment_raw)
     return profiling
+
+
+def _deterministic_from_item(item: dict[str, Any]) -> DeterministicConfig:
+    return DeterministicConfig(
+        alert_filter=from_dynamodb(item.get("alert_filter") or {}),
+        field_enrichment=from_dynamodb(item.get("field_enrichment") or DeterministicConfig().field_enrichment),
+        rules=[DeterministicRule(**from_dynamodb(rule)) for rule in item.get("rules") or []],
+    )
 
 
 def _profiling_strategy_from_item(item: dict[str, Any]) -> ProfilingStrategy:

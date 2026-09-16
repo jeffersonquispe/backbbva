@@ -281,6 +281,38 @@ class ProfilingConfig:
     )
 
 
+# Deterministic scoring is configuration data. Execution is deliberately
+# owned by the alert workflow, so these structures remain framework-neutral.
+@dataclass
+class RuleCondition:
+    id: str = ""
+    variable: str = ""
+    comparison: str = "eq"
+    values: list[str] = field(default_factory=list)
+    score: float = 0
+
+
+@dataclass
+class DeterministicRule(RuleCondition):
+    decision: str = "risk_suspected"
+
+
+@dataclass
+class Rubric:
+    id: str = ""
+    name: str = ""
+    conditions: list[RuleCondition] = field(default_factory=list)
+
+
+@dataclass
+class DeterministicConfig:
+    # Kept as the same serialized FilterGroup shape used by segment routing.
+    # It is a dict here because AgentSettings is declared before FilterGroup.
+    alert_filter: dict[str, Any] = field(default_factory=dict)
+    field_enrichment: dict[str, Any] = field(default_factory=_default_field_enrichment)
+    rules: list[DeterministicRule] = field(default_factory=list)
+
+
 class VectorStoreTool(StrEnum):
     # Which fraud-knowledge document types the classification agent may
     # retrieve from - deliberately a separate enum from fraud_knowledge_
@@ -374,7 +406,9 @@ class DocumentationConfig:
 
 @dataclass
 class AgentSettings:
+    deterministic: DeterministicConfig = field(default_factory=DeterministicConfig)
     profiling: ProfilingConfig = field(default_factory=ProfilingConfig)
+    rubrics: list[Rubric] = field(default_factory=list)
     classification: ClassificationConfig = field(default_factory=ClassificationConfig)
     adversarial: AdversarialConfig = field(default_factory=AdversarialConfig)
     analyst: AnalystConfig = field(default_factory=AnalystConfig)
