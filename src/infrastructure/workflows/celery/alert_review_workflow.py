@@ -18,6 +18,10 @@ from src.application.dtos.classify_alert_dtos import (
     ClassifyAlertInput,
     ClassifyAlertOutput,
 )
+from src.application.dtos.discard_alert_dtos import DiscardAlertInput
+from src.application.dtos.evaluate_deterministic_rules_dtos import (
+    DeterministicRuleMatch,
+)
 from src.application.dtos.generate_agent_text_dtos import GenerateAgentTextInput
 from src.application.dtos.post_process_alert_dtos import (
     PostProcessAlertInput,
@@ -60,7 +64,9 @@ from src.infrastructure.workflows.celery.factories import (
     get_analyst_review_alert_use_case,
     get_classify_alert_use_case,
     get_configuration_repository,
+    get_discard_alert_use_case,
     get_enrich_profiling_fields_use_case,
+    get_evaluate_deterministic_rules_use_case,
     get_generate_agent_text_use_case,
     get_post_process_alert_use_case,
     get_pre_process_alert_use_case,
@@ -83,6 +89,7 @@ from src.infrastructure.workflows.queued.queued_status_reporter import (
 
 LINEAR_STEPS = (
     "pre_process",
+    "deterministic",
     "profiling",
     "classification",
     "adversarial",
@@ -141,6 +148,7 @@ class AlertReviewWorkflowRunner:
         }
 
         try:
+            discarded = False
             for step_name in LINEAR_STEPS:
                 if step_name == "adversarial":
                     context = self._run_adversarial_review(workflow, context)
@@ -148,6 +156,26 @@ class AlertReviewWorkflowRunner:
                 context = self._run_step(workflow, step_name, context)
                 if step_name == "pre_process":
                     context = _resolve_segment(context)
+                if step_name == "deterministic":
+                    match: DeterministicRuleMatch = context["deterministic"]
+                    if match.matched:
+                        # Terminal for this run - skip profiling through
+                        # post_process entirely. See DiscardAlertUseCase's
+                        # own docstring for why this only logs today.
+                        get_discard_alert_use_case().execute(
+                            DiscardAlertInput(
+                                alert_id=workflow.alert_id,
+                                reason=(
+                                    f"Deterministic rule {match.rule_id!r} "
+                                    f"matched on {match.variable!r}."
+                                ),
+                                rule_id=match.rule_id,
+                                decision=match.decision,
+                                aric_action=match.aric_action,
+                            )
+                        )
+                        discarded = True
+                        break
                 if step_name == "analyst":
                     # Fire-and-forget: runs in its own Celery task,
                     # concurrently with the rest of this workflow, so a
@@ -159,20 +187,35 @@ class AlertReviewWorkflowRunner:
                         _context_steps_snapshot(context),
                     )
 
-            post_process: PostProcessAlertOutput = context["post_process"]
-            output = {
-                "message": "Alert review workflow completed",
-                "final_step": "post_process",
-                "status": post_process.status,
-                "resolution_path": post_process.resolution_path,
-                "total_duration_seconds": post_process.total_duration_seconds,
-            }
+            if discarded:
+                match = context["deterministic"]
+                duration = (
+                    datetime.now(timezone.utc) - workflow.created_at
+                ).total_seconds()
+                output = {
+                    "message": "Alert discarded by deterministic rule match",
+                    "final_step": "deterministic",
+                    "status": "discarded",
+                    "resolution_path": "discarded_deterministic",
+                    "total_duration_seconds": duration,
+                }
+                current_step = "deterministic"
+            else:
+                post_process: PostProcessAlertOutput = context["post_process"]
+                output = {
+                    "message": "Alert review workflow completed",
+                    "final_step": "post_process",
+                    "status": post_process.status,
+                    "resolution_path": post_process.resolution_path,
+                    "total_duration_seconds": post_process.total_duration_seconds,
+                }
+                current_step = "post_process"
             finished_at = datetime.now(timezone.utc)
             self._status.flush()
             self._workflows.update(
                 workflow.id,
                 status=WorkflowStatus.SUCCEEDED,
-                current_step="post_process",
+                current_step=current_step,
                 output=output,
                 finished_at=finished_at,
             )
@@ -378,6 +421,18 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
             alert_id=UUID(context["alert_id"]),
             payload=payload,
         )
+    )
+
+
+def _run_deterministic(context: dict[str, Any]) -> DeterministicRuleMatch:
+    segment = _active_segment(context)
+    if segment is None:
+        return DeterministicRuleMatch(matched=False)
+    deterministic_cfg = segment.agent.deterministic
+    pre_process: PreProcessAlertOutput = context["pre_process"]
+    fields = {**pre_process.mandatory_fields, **pre_process.optional_fields}
+    return get_evaluate_deterministic_rules_use_case().execute(
+        deterministic_cfg.rules, fields, alert_filter=deterministic_cfg.alert_filter
     )
 
 
@@ -794,6 +849,8 @@ def _execute_placeholder_step(
 ) -> Any:
     if step_name == "pre_process":
         return _run_pre_process(context)
+    if step_name == "deterministic":
+        return _run_deterministic(context)
     if step_name == "profiling":
         return _run_profiling(context)
     if step_name == "classification":

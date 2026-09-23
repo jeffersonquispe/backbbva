@@ -11,8 +11,12 @@ from src.application.use_cases.alerts.analyst_review_alert import (
     AnalystReviewAlertUseCase,
 )
 from src.application.use_cases.alerts.classify_alert import ClassifyAlertUseCase
+from src.application.use_cases.alerts.discard_alert import DiscardAlertUseCase
 from src.application.use_cases.alerts.enrich_profiling_fields import (
     EnrichProfilingFieldsUseCase,
+)
+from src.application.use_cases.alerts.evaluate_deterministic_rules import (
+    EvaluateDeterministicRulesUseCase,
 )
 from src.application.use_cases.alerts.generate_agent_text import (
     GenerateAgentTextUseCase,
@@ -226,6 +230,14 @@ def get_profile_alert_use_case(
 
 def get_enrich_profiling_fields_use_case() -> EnrichProfilingFieldsUseCase:
     return EnrichProfilingFieldsUseCase()
+
+
+def get_evaluate_deterministic_rules_use_case() -> EvaluateDeterministicRulesUseCase:
+    return EvaluateDeterministicRulesUseCase()
+
+
+def get_discard_alert_use_case() -> DiscardAlertUseCase:
+    return DiscardAlertUseCase(monitoring=get_monitoring())
 
 
 def get_classify_alert_use_case(
