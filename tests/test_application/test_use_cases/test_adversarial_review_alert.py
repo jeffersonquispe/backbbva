@@ -28,8 +28,14 @@ from src.application.ports.modus_operandi_port import (
 )
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
 from src.application.use_cases.alerts.adversarial_review_alert import (
-    _SYSTEM_PROMPT,
     AdversarialReviewAlertUseCase,
+    _build_system_prompt,
+)
+
+# Default tool set (no enabled_tools filter, no watchlist configured) - see
+# AdversarialReviewAlertUseCase.__init__.
+_DEFAULT_SYSTEM_PROMPT = _build_system_prompt(
+    ["get_similar_frauds", "get_similar_taxonomy", "get_similar_modus_operandi", "calculator"]
 )
 
 
@@ -237,7 +243,7 @@ def test_adversarial_review_sends_base_system_prompt_verbatim_by_default() -> No
     use_case.execute(_input())
 
     system_message = llm_factory.created[0].received_messages[0][0]
-    assert system_message.content == _SYSTEM_PROMPT
+    assert system_message.content == _DEFAULT_SYSTEM_PROMPT
 
 
 def test_adversarial_review_appends_segment_extra_instructions() -> None:
@@ -253,7 +259,7 @@ def test_adversarial_review_appends_segment_extra_instructions() -> None:
     use_case.execute(_input())
 
     system_message = llm_factory.created[0].received_messages[0][0]
-    assert system_message.content.startswith(_SYSTEM_PROMPT)
+    assert system_message.content.startswith(_DEFAULT_SYSTEM_PROMPT)
     assert "Presta especial atención a compras internacionales." in system_message.content
 
 
@@ -295,3 +301,88 @@ def test_adversarial_review_enabled_tools_restricts_tool_dict() -> None:
     assert fraud_port.queries == []
     observation = llm_factory.created[0].received_messages[1][-1].content
     assert "Unknown tool" in observation
+
+
+def test_adversarial_review_calculator_tool_computes_exact_result() -> None:
+    responses = [
+        "Thought: verify the ratio\nAction: calculator\nAction Input: 900 / 3",
+        'Thought: done\nFinal Answer: {"has_issues": false, "feedback": "", '
+        '"weak_points": [], "reasoning": "300.0 confirmed"}',
+    ]
+    use_case, llm_factory = _use_case(responses)
+
+    output = use_case.execute(_input())
+
+    assert output.reasoning == "300.0 confirmed"
+    observation = llm_factory.created[0].received_messages[1][-1].content
+    assert '"result": 300.0' in observation
+
+
+class InMemoryWatchlistRepository:
+    """Hand-written fake - see the equivalent one in test_classify_alert.py
+    for why only elements_containing/get need implementing."""
+
+    def __init__(self, matches: dict[str, set[str]], names: dict[str, str]) -> None:
+        self._matches = matches
+        self._names = names
+        self.elements_containing_calls: list[tuple[list[str], str]] = []
+
+    def elements_containing(self, watchlist_ids: list[str], value: str) -> set[str]:
+        self.elements_containing_calls.append((list(watchlist_ids), value))
+        return {wid for wid in watchlist_ids if value in self._matches.get(wid, set())}
+
+    def get(self, watchlist_id: str):
+        from datetime import datetime, timezone
+
+        from src.application.ports.watchlist_port import Watchlist, WatchlistType
+
+        if watchlist_id not in self._names:
+            return None
+        now = datetime.now(timezone.utc)
+        return Watchlist(
+            id=watchlist_id,
+            name=self._names[watchlist_id],
+            description="",
+            list_type=WatchlistType.BLACKLIST,
+            created_at=now,
+            updated_at=now,
+        )
+
+
+def test_adversarial_review_check_watchlist_tool_reports_matches() -> None:
+    watchlists = InMemoryWatchlistRepository(
+        matches={"wl-1": {"12345678"}},
+        names={"wl-1": "Documentos reportados"},
+    )
+    responses = [
+        "Thought: double-check the document\nAction: check_watchlist\nAction Input: -",
+        'Thought: done\nFinal Answer: {"has_issues": true, '
+        '"feedback": "revisar documento en lista", '
+        '"weak_points": ["documento listado"], "reasoning": "r"}',
+    ]
+    use_case, llm_factory = _use_case(
+        responses,
+        watchlist_repository=watchlists,
+        watchlist_ids=["wl-1"],
+        watchlist_compare_field="documento",
+    )
+    alert_input = _input()
+    alert_input.pre_process.mandatory_fields["documento"] = "12345678"
+
+    use_case.execute(alert_input)
+
+    assert watchlists.elements_containing_calls == [(["wl-1"], "12345678")]
+    observation = llm_factory.created[0].received_messages[1][-1].content
+    assert "Documentos reportados" in observation
+
+
+def test_adversarial_review_max_iterations_overrides_default() -> None:
+    responses = [
+        "Thought: keep digging\nAction: get_similar_frauds\nAction Input: q"
+    ] * 2
+    use_case, llm_factory = _use_case(responses, max_iterations=2)
+
+    output = use_case.execute(_input())
+
+    assert output.requires_classification_feedback is True
+    assert len(llm_factory.created[0].received_messages) == 2

@@ -75,6 +75,10 @@ class Config(BaseSettings):
 
     PROFILING_LLM_MODEL: str = ""
 
+    DETECTOR_LLM_MODEL: str = ""
+
+    DETECTOR_ADVERSARIAL_LLM_MODEL: str = ""
+
     CLASSIFICATION_LLM_MODEL: str = ""
 
     ADVERSARIAL_LLM_MODEL: str = ""

@@ -19,50 +19,95 @@ from src.application.ports.llm_unit_of_work_port import (
 )
 from src.application.ports.modus_operandi_port import ModusOperandiPort
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.watchlist_port import WatchlistRepository
 from src.application.ports.workflow_port import WorkflowStepStatus
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
 )
+from src.application.use_cases.watchlists.check_watchlist_membership import (
+    WatchlistMatch,
+)
+from src.domain.alerts.calculator import CalculatorError, safe_calculate
 
 # ReAct loop: model alternates Thought/Action/Action Input turns (each
 # fulfilled by us calling one of the three tools and appending an
-# Observation) until it emits a Final Answer. Bounded so a model that never
-# converges can't loop forever.
+# Observation) until it emits a Final Answer. Bounded (by
+# ClassificationConfig.max_thought_iterations, defaulting to this constant)
+# so a model that never converges can't loop forever.
 MAX_REACT_ITERATIONS = 6
 
 _VALID_DETERMINATIONS = {"fraud", "not_fraud", UNKNOWN}
 
-_SYSTEM_PROMPT = (
+_INTRO = (
     "Eres un analista de clasificación de fraude. Decide (1) si la alerta "
     "es fraude, y (2) su clasificación de fraude (etiqueta de "
     "tipología/taxonomía). Puedes investigar usando las siguientes "
     "herramientas, en cualquier orden, tantas o tan pocas veces como "
     "necesites - tú decides.\n\n"
-    "Herramientas:\n"
-    "- get_similar_frauds: dada una consulta corta de texto, devuelve "
-    "casos de fraude pasados similares (case_id, summary, outcome, "
-    "similarity_score).\n"
-    "- get_similar_taxonomy: dada una consulta corta de texto, devuelve "
-    "entradas de taxonomía de fraude similares (code, name, description, "
-    "similarity_score).\n"
-    "- get_similar_modus_operandi: dada una consulta corta de texto, "
-    "devuelve patrones de modus operandi similares (pattern_id, "
-    "description, similarity_score).\n\n"
+)
+
+# One description per tool this use case can offer, keyed the same as
+# ClassifyAlertUseCase._tools - the system prompt only lists (and only
+# allows as an Action) whichever subset ends up enabled, so a disabled
+# tool's description never leaks into a prompt where calling it would fail.
+_TOOL_DESCRIPTIONS = {
+    "get_similar_frauds": (
+        "get_similar_frauds: dada una consulta corta de texto, devuelve "
+        "casos de fraude pasados similares (case_id, summary, outcome, "
+        "similarity_score)."
+    ),
+    "get_similar_taxonomy": (
+        "get_similar_taxonomy: dada una consulta corta de texto, devuelve "
+        "entradas de taxonomía de fraude similares (code, name, "
+        "description, similarity_score)."
+    ),
+    "get_similar_modus_operandi": (
+        "get_similar_modus_operandi: dada una consulta corta de texto, "
+        "devuelve patrones de modus operandi similares (pattern_id, "
+        "description, similarity_score)."
+    ),
+    "calculator": (
+        "calculator: dada una expresión aritmética (ej. '1500000 / 3'), "
+        "devuelve su resultado numérico exacto."
+    ),
+    "check_watchlist": (
+        "check_watchlist: no necesita Action Input (deja un guion \"-\") - "
+        "revisa si el valor relevante de esta alerta pertenece a alguna de "
+        "las listas configuradas y devuelve las coincidencias."
+    ),
+}
+
+_RESPONSE_FORMAT = (
     "Responde usando SOLO uno de estos dos formatos, nada más:\n\n"
     "Thought: <tu razonamiento>\n"
-    "Action: <una de get_similar_frauds, get_similar_taxonomy, "
-    "get_similar_modus_operandi>\n"
+    "Action: <una de {tool_names}>\n"
     "Action Input: <una consulta corta de texto para esa herramienta>\n\n"
     "o, cuando estés listo para concluir:\n\n"
     "Thought: <tu razonamiento>\n"
-    'Final Answer: {"is_fraud": "fraud|not_fraud|unknown", '
+    'Final Answer: {{"is_fraud": "fraud|not_fraud|unknown", '
     '"fraud_classification": "<etiqueta de taxonomía o unknown>", '
-    '"reasoning": "<justificación breve>"}\n\n'
+    '"reasoning": "<justificación breve>"}}\n\n'
     "Si la evidencia es insuficiente o no concluyente, define tanto "
     'is_fraud como fraud_classification como "unknown" en lugar de '
     "adivinar."
 )
+
+
+def _build_system_prompt(tool_names: list[str], output_labels: list[str] | None) -> str:
+    tools_block = "Herramientas:\n" + "\n".join(
+        f"- {_TOOL_DESCRIPTIONS[name]}" for name in tool_names if name in _TOOL_DESCRIPTIONS
+    )
+    prompt = _INTRO + tools_block + "\n\n" + _RESPONSE_FORMAT.format(
+        tool_names=", ".join(tool_names) or "ninguna - concluye directamente"
+    )
+    if output_labels:
+        prompt += (
+            "\n\nfraud_classification debe ser exactamente una de estas "
+            f"etiquetas, o \"unknown\": {', '.join(output_labels)}."
+        )
+    return prompt
+
 
 _INITIAL_PROMPT = "Datos de la alerta y resultados del perfilamiento:\n{data}"
 
@@ -146,6 +191,18 @@ class ClassifyAlertUseCase:
         system_prompt: str | None = None,
         extra_instructions: str | None = None,
         enabled_tools: set[str] | None = None,
+        watchlist_repository: WatchlistRepository | None = None,
+        watchlist_ids: list[str] | None = None,
+        watchlist_compare_field: str | None = None,
+        output_labels: list[str] | None = None,
+        max_iterations: int | None = None,
+        # "classification" for the Clasificación step (the default, and
+        # the only caller until Detector started reusing this same class -
+        # same ReAct/is_fraud/fraud_classification shape, different
+        # prompt/tools/config). Drives both the WorkflowStatusUpdate
+        # step_name below and the LLM call's operation_name, so progress
+        # reporting/OTLP spans land under the right step either way.
+        step_name: str = "classification",
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
@@ -153,27 +210,27 @@ class ClassifyAlertUseCase:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
         self._model = model
-        if system_prompt is not None:
-            # Full replace - test-run admin override, expected to already
-            # include the ReAct protocol below. Wins outright over any
-            # segment-level extra_instructions.
-            self._system_prompt = system_prompt
-        elif extra_instructions:
-            self._system_prompt = (
-                _SYSTEM_PROMPT
-                + "\n\nInstrucciones adicionales para este segmento:\n"
-                + extra_instructions
-            )
-        else:
-            self._system_prompt = _SYSTEM_PROMPT
+        self._step_name = step_name
         self._status_reporter = status_reporter
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
-        self._tools: dict[str, Callable[[str], list[Any]]] = {
+        self._output_labels = list(output_labels) if output_labels else None
+        self._max_iterations = max_iterations or MAX_REACT_ITERATIONS
+        self._watchlist_repository = watchlist_repository
+        self._watchlist_ids = watchlist_ids
+        self._watchlist_compare_field = watchlist_compare_field
+        # Set fresh per execute() call - the value being checked depends on
+        # the alert being reviewed, not on how this use case was built.
+        self._watchlist_value: str | None = None
+
+        self._tools: dict[str, Callable[[str], list[Any] | str]] = {
             "get_similar_frauds": similar_fraud_case_port.find_similar,
             "get_similar_taxonomy": fraud_taxonomy_port.find_similar,
             "get_similar_modus_operandi": modus_operandi_port.find_similar,
+            "calculator": self._calculator_tool,
         }
+        if watchlist_repository is not None and watchlist_ids and watchlist_compare_field:
+            self._tools["check_watchlist"] = self._check_watchlist_tool
         if enabled_tools is not None:
             self._tools = {
                 name: tool
@@ -181,13 +238,53 @@ class ClassifyAlertUseCase:
                 if name in enabled_tools
             }
 
+        base_prompt = _build_system_prompt(list(self._tools), self._output_labels)
+        if system_prompt is not None:
+            # Full replace - test-run admin override, expected to already
+            # include the ReAct protocol below. Wins outright over any
+            # segment-level extra_instructions.
+            self._system_prompt = system_prompt
+        elif extra_instructions:
+            self._system_prompt = (
+                base_prompt
+                + "\n\nInstrucciones adicionales para este segmento:\n"
+                + extra_instructions
+            )
+        else:
+            self._system_prompt = base_prompt
+
+    def _calculator_tool(self, query: str) -> str:
+        try:
+            result = safe_calculate(query)
+        except CalculatorError as exc:
+            return f"Error: {exc}"
+        return json.dumps({"expression": query, "result": result})
+
+    def _check_watchlist_tool(self, _query: str) -> list[WatchlistMatch]:
+        if (
+            not self._watchlist_value
+            or not self._watchlist_ids
+            or self._watchlist_repository is None
+        ):
+            return []
+        matched_ids = self._watchlist_repository.elements_containing(
+            self._watchlist_ids, self._watchlist_value
+        )
+        if not matched_ids:
+            return []
+        return [
+            WatchlistMatch(watchlist_id=watchlist.id, watchlist_name=watchlist.name)
+            for watchlist_id in matched_ids
+            if (watchlist := self._watchlist_repository.get(watchlist_id)) is not None
+        ]
+
     def _report_progress(self, detail: str) -> None:
         if self._status_reporter is None or self._workflow_execution_id is None:
             return
         self._status_reporter.report(
             WorkflowStatusUpdate(
                 workflow_execution_id=self._workflow_execution_id,
-                step_name="classification",
+                step_name=self._step_name,
                 step_id=self._step_id,
                 status=WorkflowStepStatus.RUNNING,
                 detail={"output": {"progress": detail}},
@@ -198,10 +295,26 @@ class ClassifyAlertUseCase:
         tool = self._tools.get(name)
         if tool is None:
             return f"Unknown tool '{name}'. Available tools: {', '.join(self._tools)}"
-        results = tool(query)
-        return json.dumps([_serializable(r) for r in results], default=str)
+        result = tool(query)
+        if isinstance(result, str):
+            return result
+        return json.dumps([_serializable(r) for r in result], default=str)
+
+    def _invalid_label_observation(self, label: str) -> str:
+        return (
+            f'Observation: "{label}" no es una etiqueta de '
+            "fraud_classification válida. Etiquetas válidas: "
+            f"{', '.join(self._output_labels or [])} (o \"{UNKNOWN}\" si no "
+            "estás seguro). Responde de nuevo con un Final Answer usando "
+            "una etiqueta válida."
+        )
 
     def execute(self, input: ClassifyAlertInput) -> ClassifyAlertOutput:
+        if self._watchlist_compare_field:
+            fields = {**input.pre_process.mandatory_fields, **input.pre_process.optional_fields}
+            value = fields.get(self._watchlist_compare_field)
+            self._watchlist_value = str(value) if value is not None else None
+
         self._report_progress("react_reasoning_start")
         messages = [
             LLMMessage(role=LLMMessageRole.SYSTEM, content=self._system_prompt),
@@ -215,12 +328,12 @@ class ClassifyAlertUseCase:
         uow = self._llm_factory.create(
             model=self._model,
             monitoring=self._monitoring,
-            operation_name="classification",
+            operation_name=self._step_name,
         )
 
         input_tokens = 0
         output_tokens = 0
-        for _ in range(MAX_REACT_ITERATIONS):
+        for _ in range(self._max_iterations):
             result = uow.invoke(messages)
             input_tokens += result.input_tokens or 0
             output_tokens += result.output_tokens or 0
@@ -230,6 +343,24 @@ class ClassifyAlertUseCase:
             action, action_input, final_answer = _parse_react_step(result.content)
             if final_answer is not None:
                 output = _parse_final_answer(final_answer)
+                if (
+                    self._output_labels
+                    and output.fraud_classification not in self._output_labels
+                    and output.fraud_classification != UNKNOWN
+                ):
+                    # Invalid label and reasoning budget still open: feed
+                    # back a correction and let the model retry instead of
+                    # silently accepting or hard-failing on an out-of-
+                    # catalog classification.
+                    messages.append(
+                        LLMMessage(
+                            role=LLMMessageRole.USER,
+                            content=self._invalid_label_observation(
+                                output.fraud_classification
+                            ),
+                        )
+                    )
+                    continue
                 output.cot = _transcript(messages)
                 output.input_tokens = input_tokens
                 output.output_tokens = output_tokens

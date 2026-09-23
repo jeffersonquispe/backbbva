@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from uuid import UUID
 
+from src.application.ports.configuration_port import AnalystPlaybook
 from src.application.ports.workflow_status_port import WorkflowStatusReporter
 from src.application.use_cases.alerts.adversarial_review_alert import (
     AdversarialReviewAlertUseCase,
@@ -31,8 +32,15 @@ from src.application.use_cases.alerts.profile_alert import ProfileAlertUseCase
 from src.application.use_cases.alerts.profile_alert_deterministic import (
     DeterministicProfileAlertUseCase,
 )
+from src.application.use_cases.alerts.resolve_analyst_playbook import (
+    ResolveAnalystPlaybookUseCase,
+)
+from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
+    SearchFraudKnowledgeUseCase,
+)
 from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.embedding.langchain import get_embedding_unit_of_work_factory
 from src.infrastructure.fraud_intelligence.mock.fraud_taxonomy_adapter import (
     MockFraudTaxonomyAdapter,
 )
@@ -41,6 +49,15 @@ from src.infrastructure.fraud_intelligence.mock.modus_operandi_adapter import (
 )
 from src.infrastructure.fraud_intelligence.mock.similar_fraud_case_adapter import (
     MockSimilarFraudCaseAdapter,
+)
+from src.infrastructure.fraud_intelligence.opensearch.fraud_taxonomy_adapter import (
+    OpenSearchFraudTaxonomyAdapter,
+)
+from src.infrastructure.fraud_intelligence.opensearch.modus_operandi_adapter import (
+    OpenSearchModusOperandiAdapter,
+)
+from src.infrastructure.fraud_intelligence.opensearch.similar_fraud_case_adapter import (
+    OpenSearchSimilarFraudCaseAdapter,
 )
 from src.infrastructure.host_services.mock.customer_profile_adapter import (
     MockHostServiceCustomerProfileAdapter,
@@ -70,6 +87,18 @@ from src.infrastructure.persistence.database.dynamodb.repositories.operations_ca
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.test_run_repository import (
     DynamoTestRunRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import (
+    DynamoVectorStoreInstanceRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.watchlist_repository import (
+    DynamoWatchlistRepository,
+)
+from src.infrastructure.persistence.vector_store.opensearch.client import (
+    get_opensearch_client,
+)
+from src.infrastructure.persistence.vector_store.opensearch.search import (
+    OpenSearchFraudKnowledgeSearchAdapter,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
     DynamoWorkflowExecutionRepository,
@@ -129,6 +158,11 @@ def get_test_run_repository() -> DynamoTestRunRepository:
 
 
 @lru_cache
+def get_watchlist_repository() -> DynamoWatchlistRepository:
+    return DynamoWatchlistRepository()
+
+
+@lru_cache
 def get_aric_alert_port() -> MockAricAlertAdapter:
     return MockAricAlertAdapter()
 
@@ -149,18 +183,70 @@ def get_host_personal_data_changes_port() -> MockHostServicePersonalDataChangesA
 
 
 @lru_cache
-def get_similar_fraud_case_port() -> MockSimilarFraudCaseAdapter:
-    return MockSimilarFraudCaseAdapter()
+def get_vector_store_instance_repository() -> DynamoVectorStoreInstanceRepository:
+    return DynamoVectorStoreInstanceRepository()
 
 
 @lru_cache
-def get_fraud_taxonomy_port() -> MockFraudTaxonomyAdapter:
-    return MockFraudTaxonomyAdapter()
+def get_fraud_knowledge_search_port() -> OpenSearchFraudKnowledgeSearchAdapter:
+    return OpenSearchFraudKnowledgeSearchAdapter(
+        client=get_opensearch_client(),
+        embedding_unit_of_work_factory=get_embedding_unit_of_work_factory(),
+        monitoring=get_monitoring(),
+        embedding_model=genai_config.EMBEDDING_MODEL,
+    )
 
 
 @lru_cache
-def get_modus_operandi_port() -> MockModusOperandiAdapter:
-    return MockModusOperandiAdapter()
+def get_search_fraud_knowledge_use_case() -> SearchFraudKnowledgeUseCase:
+    return SearchFraudKnowledgeUseCase(
+        get_fraud_knowledge_search_port(), get_vector_store_instance_repository()
+    )
+
+
+@lru_cache
+def get_resolve_analyst_playbook_use_case() -> ResolveAnalystPlaybookUseCase:
+    return ResolveAnalystPlaybookUseCase(get_search_fraud_knowledge_use_case())
+
+
+# similar_fraud_case_port/fraud_taxonomy_port/modus_operandi_port fall back to
+# their Mocks when no vector store is selected for this segment/stage (mirrors
+# _segment_tool_kwargs's own gating in alert_review_workflow.py - the tool is
+# only enabled at all when vector_store_enabled AND an instance is picked, so
+# the Mock branch here is never actually exercised by a real tool call, only
+# by whatever passes no id at all). lru_cache still applies per
+# vector_store_instance_id value - cheap, and these adapters are stateless.
+@lru_cache
+def get_similar_fraud_case_port(
+    vector_store_instance_id: str | None = None,
+) -> MockSimilarFraudCaseAdapter | OpenSearchSimilarFraudCaseAdapter:
+    if vector_store_instance_id is None:
+        return MockSimilarFraudCaseAdapter()
+    return OpenSearchSimilarFraudCaseAdapter(
+        get_search_fraud_knowledge_use_case(), vector_store_instance_id
+    )
+
+
+@lru_cache
+def get_fraud_taxonomy_port(
+    vector_store_instance_id: str | None = None,
+) -> MockFraudTaxonomyAdapter | OpenSearchFraudTaxonomyAdapter:
+    if vector_store_instance_id is None:
+        return MockFraudTaxonomyAdapter()
+    return OpenSearchFraudTaxonomyAdapter(
+        get_search_fraud_knowledge_use_case(), vector_store_instance_id
+    )
+
+
+@lru_cache
+def get_modus_operandi_port(
+    vector_store_instance_id: str | None = None,
+) -> MockModusOperandiAdapter | OpenSearchModusOperandiAdapter:
+    if vector_store_instance_id is None:
+        return MockModusOperandiAdapter()
+    return OpenSearchModusOperandiAdapter(
+        get_search_fraud_knowledge_use_case(), vector_store_instance_id
+    )
 
 
 @lru_cache
@@ -249,17 +335,34 @@ def get_classify_alert_use_case(
     model: str | None = None,
     extra_instructions: str | None = None,
     enabled_tools: set[str] | None = None,
+    watchlist_ids: list[str] | None = None,
+    watchlist_compare_field: str | None = None,
+    output_labels: list[str] | None = None,
+    max_iterations: int | None = None,
+    step_name: str = "classification",
+    vector_store_instance_id: str | None = None,
 ) -> ClassifyAlertUseCase:
+    default_model = (
+        genai_config.DETECTOR_LLM_MODEL
+        if step_name == "detector"
+        else genai_config.CLASSIFICATION_LLM_MODEL
+    )
     return ClassifyAlertUseCase(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
         monitoring=get_monitoring(),
-        model=model or genai_config.CLASSIFICATION_LLM_MODEL,
-        similar_fraud_case_port=get_similar_fraud_case_port(),
-        fraud_taxonomy_port=get_fraud_taxonomy_port(),
-        modus_operandi_port=get_modus_operandi_port(),
+        model=model or default_model,
+        similar_fraud_case_port=get_similar_fraud_case_port(vector_store_instance_id),
+        fraud_taxonomy_port=get_fraud_taxonomy_port(vector_store_instance_id),
+        modus_operandi_port=get_modus_operandi_port(vector_store_instance_id),
         system_prompt=system_prompt,
         extra_instructions=extra_instructions,
         enabled_tools=enabled_tools,
+        watchlist_repository=get_watchlist_repository(),
+        watchlist_ids=watchlist_ids,
+        watchlist_compare_field=watchlist_compare_field,
+        output_labels=output_labels,
+        max_iterations=max_iterations,
+        step_name=step_name,
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
@@ -275,17 +378,32 @@ def get_adversarial_review_alert_use_case(
     model: str | None = None,
     extra_instructions: str | None = None,
     enabled_tools: set[str] | None = None,
+    watchlist_ids: list[str] | None = None,
+    watchlist_compare_field: str | None = None,
+    max_iterations: int | None = None,
+    step_name: str = "adversarial",
+    vector_store_instance_id: str | None = None,
 ) -> AdversarialReviewAlertUseCase:
+    default_model = (
+        genai_config.DETECTOR_ADVERSARIAL_LLM_MODEL
+        if step_name == "detector_adversarial"
+        else genai_config.ADVERSARIAL_LLM_MODEL
+    )
     return AdversarialReviewAlertUseCase(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
         monitoring=get_monitoring(),
-        model=model or genai_config.ADVERSARIAL_LLM_MODEL,
-        similar_fraud_case_port=get_similar_fraud_case_port(),
-        fraud_taxonomy_port=get_fraud_taxonomy_port(),
-        modus_operandi_port=get_modus_operandi_port(),
+        model=model or default_model,
+        similar_fraud_case_port=get_similar_fraud_case_port(vector_store_instance_id),
+        fraud_taxonomy_port=get_fraud_taxonomy_port(vector_store_instance_id),
+        modus_operandi_port=get_modus_operandi_port(vector_store_instance_id),
         system_prompt=system_prompt,
         extra_instructions=extra_instructions,
         enabled_tools=enabled_tools,
+        watchlist_repository=get_watchlist_repository(),
+        watchlist_ids=watchlist_ids,
+        watchlist_compare_field=watchlist_compare_field,
+        max_iterations=max_iterations,
+        step_name=step_name,
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
@@ -299,6 +417,8 @@ def get_analyst_review_alert_use_case(
     step_id: UUID | None,
     system_prompt: str | None = None,
     model: str | None = None,
+    playbooks: list[AnalystPlaybook] | None = None,
+    vector_store_instance_id: str | None = None,
 ) -> AnalystReviewAlertUseCase:
     return AnalystReviewAlertUseCase(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
@@ -306,10 +426,13 @@ def get_analyst_review_alert_use_case(
         model=model or genai_config.ANALYST_LLM_MODEL,
         fraud_playbook_port=get_fraud_playbook_repository(),
         operations_capacity_port=get_operations_capacity_repository(),
+        resolve_analyst_playbook=get_resolve_analyst_playbook_use_case(),
         system_prompt=system_prompt,
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
+        playbooks=playbooks,
+        vector_store_instance_id=vector_store_instance_id,
     )
 
 

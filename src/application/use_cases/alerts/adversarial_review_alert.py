@@ -18,17 +18,25 @@ from src.application.ports.llm_unit_of_work_port import (
 )
 from src.application.ports.modus_operandi_port import ModusOperandiPort
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.watchlist_port import WatchlistRepository
 from src.application.ports.workflow_port import WorkflowStepStatus
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
 )
+from src.application.use_cases.watchlists.check_watchlist_membership import (
+    WatchlistMatch,
+)
+from src.domain.alerts.calculator import CalculatorError, safe_calculate
 
 # Same bound as classification's ReAct loop, same reason: a model that never
-# converges can't loop forever.
+# converges can't loop forever. Overridable per call (max_iterations) -
+# AdversarialConfig itself has no such field today, only
+# DetectorAdversarialConfig does, but the param is here so both configs can
+# drive the same use case once Detector's own pipeline step exists.
 MAX_REACT_ITERATIONS = 6
 
-_SYSTEM_PROMPT = (
+_INTRO = (
     "Eres un auditor de clasificación de fraude que realiza una revisión "
     "adversarial. Se te entrega una alerta, sus datos de perfilamiento y "
     "la decisión de clasificación de un analista de fraude junto con su "
@@ -38,31 +46,62 @@ _SYSTEM_PROMPT = (
     "herramientas de investigación que usó el analista, en cualquier "
     "orden, tantas o tan pocas veces como necesites, para verificar sus "
     "afirmaciones de forma independiente.\n\n"
-    "Herramientas:\n"
-    "- get_similar_frauds: dada una consulta corta de texto, devuelve "
-    "casos de fraude pasados similares (case_id, summary, outcome, "
-    "similarity_score).\n"
-    "- get_similar_taxonomy: dada una consulta corta de texto, devuelve "
-    "entradas de taxonomía de fraude similares (code, name, description, "
-    "similarity_score).\n"
-    "- get_similar_modus_operandi: dada una consulta corta de texto, "
-    "devuelve patrones de modus operandi similares (pattern_id, "
-    "description, similarity_score).\n\n"
+)
+
+# Same tool catalog as classify_alert.py's _TOOL_DESCRIPTIONS - only the
+# subset actually enabled for this review ends up in the prompt.
+_TOOL_DESCRIPTIONS = {
+    "get_similar_frauds": (
+        "get_similar_frauds: dada una consulta corta de texto, devuelve "
+        "casos de fraude pasados similares (case_id, summary, outcome, "
+        "similarity_score)."
+    ),
+    "get_similar_taxonomy": (
+        "get_similar_taxonomy: dada una consulta corta de texto, devuelve "
+        "entradas de taxonomía de fraude similares (code, name, "
+        "description, similarity_score)."
+    ),
+    "get_similar_modus_operandi": (
+        "get_similar_modus_operandi: dada una consulta corta de texto, "
+        "devuelve patrones de modus operandi similares (pattern_id, "
+        "description, similarity_score)."
+    ),
+    "calculator": (
+        "calculator: dada una expresión aritmética (ej. '1500000 / 3'), "
+        "devuelve su resultado numérico exacto."
+    ),
+    "check_watchlist": (
+        "check_watchlist: no necesita Action Input (deja un guion \"-\") - "
+        "revisa si el valor relevante de esta alerta pertenece a alguna de "
+        "las listas configuradas y devuelve las coincidencias."
+    ),
+}
+
+_RESPONSE_FORMAT = (
     "Responde usando SOLO uno de estos dos formatos, nada más:\n\n"
     "Thought: <tu razonamiento>\n"
-    "Action: <una de get_similar_frauds, get_similar_taxonomy, "
-    "get_similar_modus_operandi>\n"
+    "Action: <una de {tool_names}>\n"
     "Action Input: <una consulta corta de texto para esa herramienta>\n\n"
     "o, cuando estés listo para concluir:\n\n"
     "Thought: <tu razonamiento>\n"
-    'Final Answer: {"has_issues": true|false, '
+    'Final Answer: {{"has_issues": true|false, '
     '"feedback": "<corrección específica para que el analista actúe, '
     'vacío si no hay problemas>", "weak_points": ["<problema breve>", '
-    '...], "reasoning": "<justificación breve>"}\n\n'
+    '...], "reasoning": "<justificación breve>"}}\n\n'
     "Solo define has_issues como true cuando encuentres un problema "
     "concreto y accionable - no señales la decisión solo porque esté "
     "cerca del límite."
 )
+
+
+def _build_system_prompt(tool_names: list[str]) -> str:
+    tools_block = "Herramientas:\n" + "\n".join(
+        f"- {_TOOL_DESCRIPTIONS[name]}" for name in tool_names if name in _TOOL_DESCRIPTIONS
+    )
+    return _INTRO + tools_block + "\n\n" + _RESPONSE_FORMAT.format(
+        tool_names=", ".join(tool_names) or "ninguna - concluye directamente"
+    )
+
 
 _INITIAL_PROMPT = (
     "Datos de la alerta, resultados del perfilamiento y la clasificación "
@@ -159,6 +198,15 @@ class AdversarialReviewAlertUseCase:
         system_prompt: str | None = None,
         extra_instructions: str | None = None,
         enabled_tools: set[str] | None = None,
+        watchlist_repository: WatchlistRepository | None = None,
+        watchlist_ids: list[str] | None = None,
+        watchlist_compare_field: str | None = None,
+        max_iterations: int | None = None,
+        # "adversarial" for Adversarial (clasificador) (the default, and
+        # the only caller until Adversarial (detector) started reusing
+        # this same class). See ClassifyAlertUseCase's step_name for the
+        # equivalent reasoning.
+        step_name: str = "adversarial",
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
@@ -166,27 +214,24 @@ class AdversarialReviewAlertUseCase:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
         self._model = model
-        if system_prompt is not None:
-            # Full replace - test-run admin override, expected to already
-            # include the ReAct protocol below. Wins outright over any
-            # segment-level extra_instructions.
-            self._system_prompt = system_prompt
-        elif extra_instructions:
-            self._system_prompt = (
-                _SYSTEM_PROMPT
-                + "\n\nInstrucciones adicionales para este segmento:\n"
-                + extra_instructions
-            )
-        else:
-            self._system_prompt = _SYSTEM_PROMPT
+        self._step_name = step_name
         self._status_reporter = status_reporter
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
-        self._tools: dict[str, Callable[[str], list[Any]]] = {
+        self._max_iterations = max_iterations or MAX_REACT_ITERATIONS
+        self._watchlist_repository = watchlist_repository
+        self._watchlist_ids = watchlist_ids
+        self._watchlist_compare_field = watchlist_compare_field
+        self._watchlist_value: str | None = None
+
+        self._tools: dict[str, Callable[[str], list[Any] | str]] = {
             "get_similar_frauds": similar_fraud_case_port.find_similar,
             "get_similar_taxonomy": fraud_taxonomy_port.find_similar,
             "get_similar_modus_operandi": modus_operandi_port.find_similar,
+            "calculator": self._calculator_tool,
         }
+        if watchlist_repository is not None and watchlist_ids and watchlist_compare_field:
+            self._tools["check_watchlist"] = self._check_watchlist_tool
         if enabled_tools is not None:
             self._tools = {
                 name: tool
@@ -194,13 +239,53 @@ class AdversarialReviewAlertUseCase:
                 if name in enabled_tools
             }
 
+        base_prompt = _build_system_prompt(list(self._tools))
+        if system_prompt is not None:
+            # Full replace - test-run admin override, expected to already
+            # include the ReAct protocol below. Wins outright over any
+            # segment-level extra_instructions.
+            self._system_prompt = system_prompt
+        elif extra_instructions:
+            self._system_prompt = (
+                base_prompt
+                + "\n\nInstrucciones adicionales para este segmento:\n"
+                + extra_instructions
+            )
+        else:
+            self._system_prompt = base_prompt
+
+    def _calculator_tool(self, query: str) -> str:
+        try:
+            result = safe_calculate(query)
+        except CalculatorError as exc:
+            return f"Error: {exc}"
+        return json.dumps({"expression": query, "result": result})
+
+    def _check_watchlist_tool(self, _query: str) -> list[WatchlistMatch]:
+        if (
+            not self._watchlist_value
+            or not self._watchlist_ids
+            or self._watchlist_repository is None
+        ):
+            return []
+        matched_ids = self._watchlist_repository.elements_containing(
+            self._watchlist_ids, self._watchlist_value
+        )
+        if not matched_ids:
+            return []
+        return [
+            WatchlistMatch(watchlist_id=watchlist.id, watchlist_name=watchlist.name)
+            for watchlist_id in matched_ids
+            if (watchlist := self._watchlist_repository.get(watchlist_id)) is not None
+        ]
+
     def _report_progress(self, detail: str) -> None:
         if self._status_reporter is None or self._workflow_execution_id is None:
             return
         self._status_reporter.report(
             WorkflowStatusUpdate(
                 workflow_execution_id=self._workflow_execution_id,
-                step_name="adversarial",
+                step_name=self._step_name,
                 step_id=self._step_id,
                 status=WorkflowStepStatus.RUNNING,
                 detail={"output": {"progress": detail}},
@@ -211,12 +296,19 @@ class AdversarialReviewAlertUseCase:
         tool = self._tools.get(name)
         if tool is None:
             return f"Unknown tool '{name}'. Available tools: {', '.join(self._tools)}"
-        results = tool(query)
-        return json.dumps([_serializable(r) for r in results], default=str)
+        result = tool(query)
+        if isinstance(result, str):
+            return result
+        return json.dumps([_serializable(r) for r in result], default=str)
 
     def execute(
         self, input: AdversarialReviewAlertInput
     ) -> AdversarialReviewAlertOutput:
+        if self._watchlist_compare_field:
+            fields = {**input.pre_process.mandatory_fields, **input.pre_process.optional_fields}
+            value = fields.get(self._watchlist_compare_field)
+            self._watchlist_value = str(value) if value is not None else None
+
         self._report_progress("react_reasoning_start")
         messages = [
             LLMMessage(role=LLMMessageRole.SYSTEM, content=self._system_prompt),
@@ -230,12 +322,12 @@ class AdversarialReviewAlertUseCase:
         uow = self._llm_factory.create(
             model=self._model,
             monitoring=self._monitoring,
-            operation_name="adversarial",
+            operation_name=self._step_name,
         )
 
         input_tokens = 0
         output_tokens = 0
-        for _ in range(MAX_REACT_ITERATIONS):
+        for _ in range(self._max_iterations):
             result = uow.invoke(messages)
             input_tokens += result.input_tokens or 0
             output_tokens += result.output_tokens or 0

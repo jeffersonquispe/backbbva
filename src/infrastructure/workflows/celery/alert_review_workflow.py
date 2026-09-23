@@ -91,6 +91,8 @@ LINEAR_STEPS = (
     "pre_process",
     "deterministic",
     "profiling",
+    "detector",
+    "detector_adversarial",
     "classification",
     "adversarial",
     "analyst",
@@ -143,15 +145,26 @@ class AlertReviewWorkflowRunner:
             "async_operation_id": str(workflow.async_operation_id),
             "input": workflow.input,
             "classification_attempt": 1,
+            "detector_attempt": 1,
             "workflow_started_at": workflow.created_at.isoformat(),
             "status_reporter": self._status,
         }
 
         try:
             discarded = False
+            # Populated when Detector gates the alert to "not_fraud" (see
+            # the "detector" handling below) - every step named here is
+            # skipped for the rest of this run, same effect as never
+            # having been in LINEAR_STEPS for this particular alert.
+            skip_steps: set[str] = set()
             for step_name in LINEAR_STEPS:
+                if step_name in skip_steps:
+                    continue
                 if step_name == "adversarial":
                     context = self._run_adversarial_review(workflow, context)
+                    continue
+                if step_name == "detector_adversarial":
+                    context = self._run_detector_adversarial_review(workflow, context)
                     continue
                 context = self._run_step(workflow, step_name, context)
                 if step_name == "pre_process":
@@ -176,6 +189,29 @@ class AlertReviewWorkflowRunner:
                         )
                         discarded = True
                         break
+                if step_name == "detector":
+                    detector_output: ClassifyAlertOutput = context["detector"]
+                    if detector_output.is_fraud == "not_fraud":
+                        # Not a discard (no DiscardAlertUseCase log) - this
+                        # is a normal "no action needed" conclusion, same
+                        # as an analyst deciding "pass" would be. Executor
+                        # and post_process still run normally below,
+                        # reading this synthetic AnalystReviewAlertOutput
+                        # exactly like a real one.
+                        context["analyst"] = AnalystReviewAlertOutput(
+                            decision="pass",
+                            reasoning=(
+                                "Detector determined this alert is not "
+                                f"fraud: {detector_output.reasoning}"
+                            ),
+                            playbook_title="",
+                        )
+                        skip_steps |= {
+                            "detector_adversarial",
+                            "classification",
+                            "adversarial",
+                            "analyst",
+                        }
                 if step_name == "analyst":
                     # Fire-and-forget: runs in its own Celery task,
                     # concurrently with the rest of this workflow, so a
@@ -390,11 +426,56 @@ class AlertReviewWorkflowRunner:
             )
         return context
 
+    def _run_detector_adversarial_review(
+        self,
+        workflow: WorkflowExecutionRecord,
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
+        # Twin of _run_adversarial_review, for the Detector/Adversarial
+        # (detector) pair instead of Clasificación/Adversarial
+        # (clasificador) - kept as a separate method rather than a
+        # generalized/parameterized one to avoid touching the existing,
+        # already-covered classification<->adversarial loop while adding
+        # this one. Deliberately does NOT persist its iteration count onto
+        # WorkflowExecutionRecord.feedback_iterations - that field already
+        # means "classification feedback loops" (see the other loop
+        # above); this loop's count only needs to exist for the duration
+        # of this run() call, to bound its own retries.
+        context = self._run_step(workflow, "detector_adversarial", context)
+        effective_max = _effective_max_detector_feedback_iterations(workflow, context)
+        while _needs_detector_feedback(context, effective_max):
+            context["detector_feedback_iterations"] = (
+                context.get("detector_feedback_iterations", 0) + 1
+            )
+            context["detector_attempt"] += 1
+            context = self._run_step(
+                workflow,
+                "detector",
+                context,
+                attempt=context["detector_attempt"],
+            )
+            context = self._run_step(workflow, "detector_adversarial", context)
+
+        detector_adversarial: AdversarialReviewAlertOutput = context[
+            "detector_adversarial"
+        ]
+        if (
+            detector_adversarial.requires_classification_feedback
+            and context.get("detector_feedback_iterations", 0) >= effective_max
+        ):
+            raise AdversarialFeedbackLimitExceededError(
+                f"Adversarial review (detector) still flagged issues after "
+                f"{context['detector_feedback_iterations']} feedback loop(s) "
+                f"back to detector: {detector_adversarial.feedback}"
+            )
+        return context
+
 
 class AdversarialFeedbackLimitExceededError(Exception):
-    """Raised when adversarial review keeps rejecting classification past
-    the workflow's allowed feedback loop-backs, so the alert must escalate
-    to a human analyst instead of looping forever."""
+    """Raised when an adversarial review step keeps rejecting its paired
+    primary step (classification, or detector) past the workflow's/
+    segment's allowed feedback loop-backs, so the alert must escalate to a
+    human analyst instead of looping forever."""
 
 
 def _step_reporting_ids(context: dict[str, Any]) -> tuple[UUID | None, UUID | None]:
@@ -470,16 +551,44 @@ _PROFILING_STRATEGY_OPERATION_MAP = {
 
 
 def _segment_tool_kwargs(classification_cfg: ClassificationConfig) -> dict[str, Any]:
-    if not classification_cfg.vector_store_enabled:
-        return {"enabled_tools": set()}
-    return {"enabled_tools": set(_FRAUD_KNOWLEDGE_TOOLS)}
+    # Builds the same kwargs shape for both Classification and Adversarial
+    # (the latter has no tool picker of its own by product design - it
+    # reuses Classification's selection, see _run_adversarial below).
+    # calculator needs no extra config beyond the switch; check_watchlist
+    # additionally needs which watchlists to check and which alert field's
+    # value to check against them - only registered when all three
+    # (enabled, ids, compare field) are actually set, same guard
+    # ClassifyAlertUseCase/AdversarialReviewAlertUseCase use to decide
+    # whether to expose the tool at all. The fraud-knowledge tools follow
+    # the same pattern: enabled + an actual vector store picked, both
+    # required - get_*_port(vector_store_instance_id) in factories.py falls
+    # back to a Mock otherwise, which would silently return fake results.
+    enabled_tools: set[str] = set()
+    if classification_cfg.vector_store_enabled and classification_cfg.vector_store_instance_id:
+        enabled_tools |= _FRAUD_KNOWLEDGE_TOOLS
+    if classification_cfg.calculator_enabled:
+        enabled_tools.add("calculator")
+    kwargs: dict[str, Any] = {"enabled_tools": enabled_tools}
+    if classification_cfg.vector_store_enabled and classification_cfg.vector_store_instance_id:
+        kwargs["vector_store_instance_id"] = classification_cfg.vector_store_instance_id
+    if (
+        classification_cfg.watchlist_enabled
+        and classification_cfg.watchlist_ids
+        and classification_cfg.watchlist_compare_field
+    ):
+        enabled_tools.add("check_watchlist")
+        kwargs["watchlist_ids"] = classification_cfg.watchlist_ids
+        kwargs["watchlist_compare_field"] = classification_cfg.watchlist_compare_field
+    return kwargs
 
 
-def _profiling_variables_pool(
-    context: dict[str, Any], segment: SegmentSettings
-) -> dict[str, Any]:
-    # {variable} substitution pool for Perfilamiento's prompts only - base
-    # alert fields plus this segment's field-enrichment recipe outputs. Not
+def _variables_pool(context: dict[str, Any], segment: SegmentSettings) -> dict[str, Any]:
+    # {variable} substitution pool shared by every prompt in this segment's
+    # pipeline (profiling's own main_prompt/categorization_prompt, plus
+    # classification/adversarial/analyst's extra_instructions) - base alert
+    # fields plus this segment's field-enrichment recipe outputs. There's
+    # only one field_enrichment recipe set per segment (profiling's - see
+    # ProfilingConfig), reused here rather than duplicated. Not
     # PreProcessAlertOutput.enrichment (an unrelated dict of raw fetched
     # context: aric_signals/customer_profile/transaction_history/
     # personal_data_changes, consumed as-is by profile/classify/adversarial).
@@ -502,7 +611,7 @@ def _run_profiling(context: dict[str, Any]) -> ProfileAlertOutput:
     if not overrides.get("system_prompt"):
         segment = _active_segment(context)
         if segment is not None:
-            variables_pool = _profiling_variables_pool(context, segment)
+            variables_pool = _variables_pool(context, segment)
             extra_instructions = {
                 _PROFILING_STRATEGY_OPERATION_MAP[s.key]: substitute_variables(
                     s.main_prompt, variables_pool
@@ -596,6 +705,94 @@ def _effective_max_feedback_iterations(
     return workflow.max_feedback_iterations
 
 
+def _effective_max_detector_feedback_iterations(
+    workflow: WorkflowExecutionRecord, context: dict[str, Any]
+) -> int:
+    segment = _active_segment(context)
+    if segment is not None:
+        return segment.agent.detector_adversarial.max_cycles
+    return workflow.max_feedback_iterations
+
+
+def _run_detector(context: dict[str, Any]) -> ClassifyAlertOutput:
+    # Reuses ClassifyAlertUseCase (same is_fraud/fraud_classification/
+    # reasoning ReAct shape - see its step_name param) rather than a
+    # separate DetectAlertUseCase class: Detector's job is the same binary
+    # "is this fraud" call, just gating whether Clasificación's more
+    # detailed taxonomy pass runs at all (see run()'s "detector" handling)
+    # instead of being the final answer.
+    workflow_execution_id, step_id = _step_reporting_ids(context)
+    overrides = _step_overrides(context, "detector")
+    segment_kwargs: dict[str, Any] = {}
+    if not overrides.get("system_prompt"):
+        segment = _active_segment(context)
+        if segment is not None:
+            detector_cfg = segment.agent.detector
+            if detector_cfg.prompt:
+                segment_kwargs["extra_instructions"] = substitute_variables(
+                    detector_cfg.prompt, _variables_pool(context, segment)
+                )
+            segment_kwargs.update(_segment_tool_kwargs(detector_cfg))
+            if detector_cfg.output_labels:
+                segment_kwargs["output_labels"] = detector_cfg.output_labels
+            if detector_cfg.max_thought_iterations:
+                segment_kwargs["max_iterations"] = detector_cfg.max_thought_iterations
+    use_case = get_classify_alert_use_case(
+        status_reporter=context.get("status_reporter"),
+        workflow_execution_id=workflow_execution_id,
+        step_id=step_id,
+        step_name="detector",
+        **overrides,
+        **segment_kwargs,
+    )
+    alert_payload = (context.get("input") or {}).get("alert_payload") or {}
+    return use_case.execute(
+        ClassifyAlertInput(
+            alert_id=UUID(context["alert_id"]),
+            pre_process=context["pre_process"],
+            profile=context["profiling"],
+            expected_classification=alert_payload.get(MARCACION_FIELD),
+            ground_truth_tipo=alert_payload.get(TIPO_FIELD),
+        )
+    )
+
+
+def _run_detector_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
+    workflow_execution_id, step_id = _step_reporting_ids(context)
+    overrides = _step_overrides(context, "detector_adversarial")
+    segment_kwargs: dict[str, Any] = {}
+    if not overrides.get("system_prompt"):
+        segment = _active_segment(context)
+        if segment is not None:
+            detector_adversarial_cfg = segment.agent.detector_adversarial
+            if detector_adversarial_cfg.prompt:
+                segment_kwargs["extra_instructions"] = substitute_variables(
+                    detector_adversarial_cfg.prompt, _variables_pool(context, segment)
+                )
+            # No tool picker of its own by product design, same as
+            # Adversarial (clasificador) - reuses Detector's selection.
+            segment_kwargs.update(_segment_tool_kwargs(segment.agent.detector))
+    use_case = get_adversarial_review_alert_use_case(
+        status_reporter=context.get("status_reporter"),
+        workflow_execution_id=workflow_execution_id,
+        step_id=step_id,
+        step_name="detector_adversarial",
+        **overrides,
+        **segment_kwargs,
+    )
+    return use_case.execute(
+        AdversarialReviewAlertInput(
+            alert_id=UUID(context["alert_id"]),
+            pre_process=context["pre_process"],
+            profile=context["profiling"],
+            # Reuses AdversarialReviewAlertInput's `classification` field
+            # for the detector's output - same ClassifyAlertOutput shape,
+            # see _run_detector's docstring.
+            classification=context["detector"],
+        )
+    )
+
+
 def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
     workflow_execution_id, step_id = _step_reporting_ids(context)
     overrides = _step_overrides(context, "classification")
@@ -605,8 +802,14 @@ def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
         if segment is not None:
             classification_cfg = segment.agent.classification
             if classification_cfg.prompt:
-                segment_kwargs["extra_instructions"] = classification_cfg.prompt
+                segment_kwargs["extra_instructions"] = substitute_variables(
+                    classification_cfg.prompt, _variables_pool(context, segment)
+                )
             segment_kwargs.update(_segment_tool_kwargs(classification_cfg))
+            if classification_cfg.output_labels:
+                segment_kwargs["output_labels"] = classification_cfg.output_labels
+            if classification_cfg.max_thought_iterations:
+                segment_kwargs["max_iterations"] = classification_cfg.max_thought_iterations
     use_case = get_classify_alert_use_case(
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
@@ -634,7 +837,9 @@ def _run_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
         segment = _active_segment(context)
         if segment is not None:
             if segment.agent.adversarial.prompt:
-                segment_kwargs["extra_instructions"] = segment.agent.adversarial.prompt
+                segment_kwargs["extra_instructions"] = substitute_variables(
+                    segment.agent.adversarial.prompt, _variables_pool(context, segment)
+                )
             # No tool picker of its own by product design - reuses
             # Classification's selection.
             segment_kwargs.update(_segment_tool_kwargs(segment.agent.classification))
@@ -657,11 +862,23 @@ def _run_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
 
 def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
     workflow_execution_id, step_id = _step_reporting_ids(context)
+    segment_kwargs: dict[str, Any] = {}
+    segment = _active_segment(context)
+    if segment is not None:
+        segment_kwargs["playbooks"] = segment.agent.analyst.playbooks
+        # Reuses Classification's selection - confirmed to be the same
+        # instance Detector/Clasificación already search (see
+        # ResolveAnalystPlaybookUseCase's docstring), Analyst has no vector
+        # store picker of its own, same reuse pattern as Adversarial's tools.
+        segment_kwargs["vector_store_instance_id"] = (
+            segment.agent.classification.vector_store_instance_id
+        )
     use_case = get_analyst_review_alert_use_case(
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
         **_step_overrides(context, "analyst"),
+        **segment_kwargs,
     )
     return use_case.execute(
         AnalystReviewAlertInput(
@@ -695,7 +912,7 @@ def _executor_variables_pool(
     # marking, voicebot script, documentador, escalation) are actually
     # about - neither exists yet when profiling/classification build
     # their own pool, so this stays a superset built fresh here.
-    pool = dict(_profiling_variables_pool(context, segment))
+    pool = dict(_variables_pool(context, segment))
     classification: ClassifyAlertOutput | None = context.get("classification")
     analyst: AnalystReviewAlertOutput | None = context.get("analyst")
     if classification is not None:
@@ -853,6 +1070,10 @@ def _execute_placeholder_step(
         return _run_deterministic(context)
     if step_name == "profiling":
         return _run_profiling(context)
+    if step_name == "detector":
+        return _run_detector(context)
+    if step_name == "detector_adversarial":
+        return _run_detector_adversarial(context)
     if step_name == "classification":
         return _run_classification(context)
     if step_name == "adversarial":
@@ -896,6 +1117,20 @@ def _needs_classification_feedback(
         adversarial is not None
         and adversarial.requires_classification_feedback
         and context.get("feedback_iterations", 0) < max_feedback_iterations
+    )
+
+
+def _needs_detector_feedback(
+    context: dict[str, Any],
+    max_feedback_iterations: int,
+) -> bool:
+    detector_adversarial: AdversarialReviewAlertOutput | None = context.get(
+        "detector_adversarial"
+    )
+    return bool(
+        detector_adversarial is not None
+        and detector_adversarial.requires_classification_feedback
+        and context.get("detector_feedback_iterations", 0) < max_feedback_iterations
     )
 
 

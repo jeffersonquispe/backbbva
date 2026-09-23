@@ -50,6 +50,13 @@ opentelemetry-api = "1.29.0"
 opentelemetry-sdk = "1.29.0"
 opentelemetry-exporter-otlp-proto-grpc = "1.29.0"
 
+# Fraud-knowledge similarity search (infrastructure/fraud_intelligence/
+# opensearch/, infrastructure/persistence/vector_store/opensearch/) - the
+# ReAct tool loop's real get_similar_* adapters run inside Celery tasks, so
+# this must match the API project's pyproject.toml version (see CLAUDE.md's
+# "Two (really three) separate poetry projects").
+opensearch-py = "2.8.0"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "8.2.0"
 pytest-asyncio = "0.23.6"

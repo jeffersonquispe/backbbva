@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -798,6 +798,7 @@ def _playbook_from_item(item: dict[str, Any]) -> AnalystPlaybook:
             item.get("resolution_tag", "scale_to_analyst")
         ),
         resolution_method_id=item.get("resolution_method_id"),
+        modus_operandi_id=item.get("modus_operandi_id"),
     )
 
 
@@ -878,6 +879,16 @@ def _monitoring_from_item(monitoring_item: dict[str, Any]) -> MonitoringSettings
     )
 
 
+def _kwargs_for(cls: type, item: dict[str, Any]) -> dict[str, Any]:
+    # Drops keys the item still carries under an old name after a dataclass
+    # field rename (e.g. vector_store_instance_ids -> vector_store_instance_id)
+    # so hydrating a pre-migration row never hard-fails with an unexpected
+    # keyword argument. Symmetric with the rest of this module's .get()-based
+    # tolerance for rows *missing* new fields.
+    known = {f.name for f in fields(cls)}
+    return {key: value for key, value in item.items() if key in known}
+
+
 def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
     # taxonomies/modus_operandi/flags/example_cases and
     # analyst.playbooks/executor.voicebot_call.category_prompts aren't
@@ -896,10 +907,10 @@ def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
             )
             for item in agent_item.get("rubrics") or []
         ],
-        detector=DetectorConfig(**from_dynamodb(agent_item.get("detector") or {})),
-        detector_adversarial=DetectorAdversarialConfig(**from_dynamodb(agent_item.get("detector_adversarial") or {})),
-        classification=ClassificationConfig(**from_dynamodb(agent_item.get("classification") or {})),
-        adversarial=AdversarialConfig(**from_dynamodb(agent_item.get("adversarial") or {})),
+        detector=DetectorConfig(**_kwargs_for(DetectorConfig, from_dynamodb(agent_item.get("detector") or {}))),
+        detector_adversarial=DetectorAdversarialConfig(**_kwargs_for(DetectorAdversarialConfig, from_dynamodb(agent_item.get("detector_adversarial") or {}))),
+        classification=ClassificationConfig(**_kwargs_for(ClassificationConfig, from_dynamodb(agent_item.get("classification") or {}))),
+        adversarial=AdversarialConfig(**_kwargs_for(AdversarialConfig, from_dynamodb(agent_item.get("adversarial") or {}))),
         analyst=AnalystConfig(),
         executor=_executor_from_item(agent_item.get("executor") or {}),
         active_fields=list(agent_item.get("active_fields") or []),

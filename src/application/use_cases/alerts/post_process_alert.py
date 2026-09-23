@@ -19,4 +19,5 @@ class PostProcessAlertUseCase:
             resolution_path=input.resolution_path,
             total_duration_seconds=total_duration_seconds,
             closed_at=closed_at.isoformat(),
+            documentation=input.documentation,
         )

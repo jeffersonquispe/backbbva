@@ -25,8 +25,15 @@ from src.application.ports.modus_operandi_port import (
 )
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
 from src.application.use_cases.alerts.classify_alert import (
-    _SYSTEM_PROMPT,
     ClassifyAlertUseCase,
+    _build_system_prompt,
+)
+
+# Default tool set (no enabled_tools filter, no watchlist configured) - see
+# ClassifyAlertUseCase.__init__.
+_DEFAULT_SYSTEM_PROMPT = _build_system_prompt(
+    ["get_similar_frauds", "get_similar_taxonomy", "get_similar_modus_operandi", "calculator"],
+    None,
 )
 
 
@@ -305,7 +312,7 @@ def test_classify_alert_sends_base_system_prompt_verbatim_by_default() -> None:
     use_case.execute(_input())
 
     system_message = llm_factory.created[0].received_messages[0][0]
-    assert system_message.content == _SYSTEM_PROMPT
+    assert system_message.content == _DEFAULT_SYSTEM_PROMPT
 
 
 def test_classify_alert_appends_segment_extra_instructions() -> None:
@@ -327,7 +334,7 @@ def test_classify_alert_appends_segment_extra_instructions() -> None:
     use_case.execute(_input())
 
     system_message = llm_factory.created[0].received_messages[0][0]
-    assert system_message.content.startswith(_SYSTEM_PROMPT)
+    assert system_message.content.startswith(_DEFAULT_SYSTEM_PROMPT)
     assert "Presta especial atención a compras internacionales." in system_message.content
 
 
@@ -382,3 +389,218 @@ def test_classify_alert_enabled_tools_restricts_tool_dict() -> None:
     # (filtered-out) tool call as its last message.
     observation = llm_factory.created[0].received_messages[1][-1].content
     assert "Unknown tool" in observation
+
+
+def test_classify_alert_calculator_tool_computes_exact_result() -> None:
+    responses = [
+        "Thought: need the exact ratio\n"
+        "Action: calculator\n"
+        "Action Input: 1500000 / 3",
+        "Thought: done\nFinal Answer: {\"is_fraud\": \"fraud\", "
+        '"fraud_classification": "unknown", "reasoning": "500000.0"}',
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+    )
+
+    output = use_case.execute(_input())
+
+    assert output.reasoning == "500000.0"
+    observation = llm_factory.created[0].received_messages[1][-1].content
+    assert '"result": 500000.0' in observation
+
+
+def test_classify_alert_calculator_disabled_when_not_in_enabled_tools() -> None:
+    responses = [
+        "Thought: need math\nAction: calculator\nAction Input: 1 + 1",
+        "Thought: done\nFinal Answer: {\"is_fraud\": \"unknown\", "
+        '"fraud_classification": "unknown", "reasoning": "no calculator"}',
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+        enabled_tools={"get_similar_frauds"},
+    )
+
+    use_case.execute(_input())
+
+    observation = llm_factory.created[0].received_messages[1][-1].content
+    assert "Unknown tool" in observation
+
+
+class InMemoryWatchlistRepository:
+    """Hand-written fake - implements only what
+    ClassifyAlertUseCase._check_watchlist_tool actually calls
+    (WatchlistRepository is a Protocol, so structural typing is enough)."""
+
+    def __init__(self, matches: dict[str, set[str]], names: dict[str, str]) -> None:
+        # matches: watchlist_id -> set of normalized values it contains.
+        self._matches = matches
+        self._names = names
+        self.elements_containing_calls: list[tuple[list[str], str]] = []
+
+    def elements_containing(self, watchlist_ids: list[str], value: str) -> set[str]:
+        self.elements_containing_calls.append((list(watchlist_ids), value))
+        return {
+            wid
+            for wid in watchlist_ids
+            if value in self._matches.get(wid, set())
+        }
+
+    def get(self, watchlist_id: str):
+        from datetime import datetime, timezone
+
+        from src.application.ports.watchlist_port import Watchlist, WatchlistType
+
+        if watchlist_id not in self._names:
+            return None
+        now = datetime.now(timezone.utc)
+        return Watchlist(
+            id=watchlist_id,
+            name=self._names[watchlist_id],
+            description="",
+            list_type=WatchlistType.BLACKLIST,
+            created_at=now,
+            updated_at=now,
+        )
+
+
+def test_classify_alert_check_watchlist_tool_reports_matches() -> None:
+    watchlists = InMemoryWatchlistRepository(
+        matches={"wl-1": {"12345678"}},
+        names={"wl-1": "Documentos reportados"},
+    )
+    responses = [
+        "Thought: check the document\nAction: check_watchlist\nAction Input: -",
+        "Thought: done\nFinal Answer: {\"is_fraud\": \"fraud\", "
+        '"fraud_classification": "unknown", "reasoning": "listed document"}',
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+        watchlist_repository=watchlists,
+        watchlist_ids=["wl-1"],
+        watchlist_compare_field="documento",
+    )
+    alert_input = _input()
+    alert_input.pre_process.mandatory_fields["documento"] = "12345678"
+
+    use_case.execute(alert_input)
+
+    assert watchlists.elements_containing_calls == [(["wl-1"], "12345678")]
+    observation = llm_factory.created[0].received_messages[1][-1].content
+    assert "Documentos reportados" in observation
+
+
+def test_classify_alert_without_watchlist_config_does_not_register_tool() -> None:
+    responses = [
+        "Thought: check the document\nAction: check_watchlist\nAction Input: -",
+        "Thought: done\nFinal Answer: {\"is_fraud\": \"unknown\", "
+        '"fraud_classification": "unknown", "reasoning": "no watchlist"}',
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+    )
+
+    use_case.execute(_input())
+
+    observation = llm_factory.created[0].received_messages[1][-1].content
+    assert "Unknown tool" in observation
+
+
+def test_classify_alert_retries_on_invalid_output_label() -> None:
+    responses = [
+        'Thought: first guess\nFinal Answer: {"is_fraud": "fraud", '
+        '"fraud_classification": "NOT_A_REAL_LABEL", "reasoning": "r1"}',
+        'Thought: corrected\nFinal Answer: {"is_fraud": "fraud", '
+        '"fraud_classification": "ACCOUNT_TAKEOVER", "reasoning": "r2"}',
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+        output_labels=["ACCOUNT_TAKEOVER", "CARD_NOT_PRESENT"],
+    )
+
+    output = use_case.execute(_input())
+
+    assert output.fraud_classification == "ACCOUNT_TAKEOVER"
+    assert output.reasoning == "r2"
+    # received_messages[1] is the message list sent on the *second*
+    # invoke() call - its last entry is the correction Observation appended
+    # after the first (invalid-label) Final Answer.
+    correction = llm_factory.created[0].received_messages[1][-1].content
+    assert "no es una etiqueta" in correction
+
+
+def test_classify_alert_falls_back_to_unknown_when_labels_never_validate() -> None:
+    responses = [
+        'Thought: guess\nFinal Answer: {"is_fraud": "fraud", '
+        '"fraud_classification": "NOT_A_REAL_LABEL", "reasoning": "r"}'
+    ] * 6
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+        output_labels=["ACCOUNT_TAKEOVER"],
+    )
+
+    output = use_case.execute(_input())
+
+    assert output.is_fraud == "unknown"
+    assert output.fraud_classification == "unknown"
+
+
+def test_classify_alert_max_iterations_overrides_default() -> None:
+    # Keeps calling a valid tool without ever emitting a Final Answer, so
+    # the loop only stops when max_iterations (not the hardcoded
+    # MAX_REACT_ITERATIONS=6 default) is exhausted.
+    responses = [
+        "Thought: keep digging\nAction: get_similar_frauds\nAction Input: q"
+    ] * 2
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+        max_iterations=2,
+    )
+
+    output = use_case.execute(_input())
+
+    assert output.is_fraud == "unknown"
+    # One invoke() call per iteration - exactly max_iterations of them.
+    assert len(llm_factory.created[0].received_messages) == 2
