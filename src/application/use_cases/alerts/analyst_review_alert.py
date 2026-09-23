@@ -9,6 +9,7 @@ from src.application.dtos.analyst_review_alert_dtos import (
     AnalystReviewAlertInput,
     AnalystReviewAlertOutput,
 )
+from src.application.ports.configuration_port import AnalystPlaybook
 from src.application.ports.fraud_playbook_port import (
     FraudPlaybookRecord,
     FraudPlaybookRepository,
@@ -27,6 +28,9 @@ from src.application.ports.workflow_port import WorkflowStepStatus
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
+)
+from src.application.use_cases.alerts.resolve_analyst_playbook import (
+    ResolveAnalystPlaybookUseCase,
 )
 
 _FALLBACK_CLASSIFICATION = "unknown"
@@ -48,8 +52,12 @@ _SYSTEM_PROMPT = (
     "Eres un agente de decisión de operaciones de fraude. Se te entrega el "
     "playbook de fraude para la clasificación de esta alerta y la "
     "capacidad operativa actual (analistas disponibles, cupos de "
-    "voicebot, cupos de bidi y el estado de cada canal). Decide la única "
-    "siguiente acción para esta alerta.\n\n"
+    "voicebot, cupos de bidi y el estado de cada canal). Si se incluye "
+    "\"modus_operandi_playbook\", es un playbook más específico - "
+    "escrito para el patrón de fraude concreto que más se parece a esta "
+    "alerta - y debe pesar más que el playbook genérico de clasificación "
+    "en caso de conflicto entre ambos. Decide la única siguiente acción "
+    "para esta alerta.\n\n"
     "Significado de las decisiones:\n"
     "- block: el playbook indica fraude claro y confirmado - detener la "
     "transacción/canal ahora.\n"
@@ -115,10 +123,16 @@ class AnalystReviewAlertUseCase:
         model: str,
         fraud_playbook_port: FraudPlaybookRepository,
         operations_capacity_port: OperationsCapacityPort,
+        resolve_analyst_playbook: ResolveAnalystPlaybookUseCase,
         system_prompt: str | None = None,
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
+        # Segment-derived, like ClassifyAlertUseCase's enabled_tools/
+        # watchlist_ids - built per call by get_analyst_review_alert_use_case
+        # from the active segment, not stable adapter state.
+        playbooks: list[AnalystPlaybook] | None = None,
+        vector_store_instance_id: str | None = None,
     ) -> None:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
@@ -126,9 +140,12 @@ class AnalystReviewAlertUseCase:
         self._system_prompt = system_prompt or _SYSTEM_PROMPT
         self._fraud_playbook_port = fraud_playbook_port
         self._operations_capacity_port = operations_capacity_port
+        self._resolve_analyst_playbook = resolve_analyst_playbook
         self._status_reporter = status_reporter
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
+        self._playbooks = playbooks or []
+        self._vector_store_instance_id = vector_store_instance_id
 
     def _report_progress(self, detail: str) -> None:
         if self._status_reporter is None or self._workflow_execution_id is None:
@@ -153,6 +170,13 @@ class AnalystReviewAlertUseCase:
     def execute(self, input: AnalystReviewAlertInput) -> AnalystReviewAlertOutput:
         self._report_progress("fetching_playbook")
         playbook = self._get_playbook(input.classification.fraud_classification)
+        self._report_progress("resolving_modus_operandi_playbook")
+        modus_operandi_playbook = self._resolve_analyst_playbook.execute(
+            f"{input.classification.fraud_classification}. "
+            f"{input.classification.reasoning}".strip(),
+            vector_store_instance_id=self._vector_store_instance_id,
+            playbooks=self._playbooks,
+        )
         self._report_progress("fetching_operations_capacity")
         capacity = self._operations_capacity_port.get_capacity()
 
@@ -174,6 +198,11 @@ class AnalystReviewAlertUseCase:
             },
             "operations_capacity": _channel_data(capacity),
         }
+        if modus_operandi_playbook is not None:
+            data["modus_operandi_playbook"] = {
+                "name": modus_operandi_playbook.name,
+                "strategy": modus_operandi_playbook.strategy,
+            }
         result = uow.invoke(
             [
                 LLMMessage(role=LLMMessageRole.SYSTEM, content=self._system_prompt),
@@ -192,6 +221,11 @@ class AnalystReviewAlertUseCase:
             playbook_title=playbook.title,
             playbook_steps=playbook.steps,
             operations_capacity=_channel_data(capacity),
+            modus_operandi_playbook_name=(
+                modus_operandi_playbook.name
+                if modus_operandi_playbook is not None
+                else None
+            ),
             input_tokens=result.input_tokens or 0,
             output_tokens=result.output_tokens or 0,
         )

@@ -7,6 +7,7 @@ from src.application.dtos.analyst_review_alert_dtos import AnalystReviewAlertInp
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
+from src.application.ports.configuration_port import AnalystPlaybook
 from src.application.ports.fraud_playbook_port import (
     FraudPlaybookRecord,
     FraudPlaybookRepository,
@@ -111,6 +112,30 @@ class InMemoryOperationsCapacityPort(OperationsCapacityPort):
         return self._record
 
 
+class NullResolveAnalystPlaybookUseCase:
+    """No modus-operandi playbook ever resolves - the segment has none
+    configured, or the test doesn't care about this path."""
+
+    def execute(self, query, *, vector_store_instance_id, playbooks):
+        return None
+
+
+class RecordingResolveAnalystPlaybookUseCase:
+    def __init__(self, playbook: AnalystPlaybook | None) -> None:
+        self._playbook = playbook
+        self.calls: list[dict] = []
+
+    def execute(self, query, *, vector_store_instance_id, playbooks):
+        self.calls.append(
+            {
+                "query": query,
+                "vector_store_instance_id": vector_store_instance_id,
+                "playbooks": playbooks,
+            }
+        )
+        return self._playbook
+
+
 def _playbook(classification: str = "ACCOUNT_TAKEOVER") -> FraudPlaybookRecord:
     now = datetime.now(timezone.utc)
     return FraudPlaybookRecord(
@@ -171,6 +196,7 @@ def test_analyst_review_uses_matching_playbook_and_returns_decision() -> None:
         model="fake-deployment",
         fraud_playbook_port=playbooks,
         operations_capacity_port=InMemoryOperationsCapacityPort(capacity),
+        resolve_analyst_playbook=NullResolveAnalystPlaybookUseCase(),
     )
 
     output = use_case.execute(_input())
@@ -180,6 +206,49 @@ def test_analyst_review_uses_matching_playbook_and_returns_decision() -> None:
     assert output.playbook_title == "Account takeover response playbook"
     assert output.operations_capacity["analysts"]["available"] == 5
     assert llm_factory.operation_names == ["analyst"]
+    assert output.modus_operandi_playbook_name is None
+
+
+def test_analyst_review_feeds_resolved_modus_operandi_playbook_as_extra_context() -> None:
+    # "Solo contexto para el LLM" - a resolved AnalystPlaybook must reach the
+    # model's prompt and the output for observability, but must NOT change
+    # decision-making on its own (the model still decides, per
+    # ResolveAnalystPlaybookUseCase's docstring).
+    responses = ['{"decision": "block", "reasoning": "matches vishing playbook"}']
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    resolved = AnalystPlaybook(
+        id="pb-mo-1",
+        name="Vishing - bloqueo inmediato",
+        strategy="Bloquear si hay cambio de dispositivo reciente.",
+        modus_operandi_id="mo-1",
+    )
+    resolver = RecordingResolveAnalystPlaybookUseCase(resolved)
+    use_case = AnalystReviewAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        fraud_playbook_port=InMemoryFraudPlaybookRepository([_playbook()]),
+        operations_capacity_port=InMemoryOperationsCapacityPort(_capacity()),
+        resolve_analyst_playbook=resolver,
+        playbooks=[resolved],
+        vector_store_instance_id="vs-1",
+    )
+
+    output = use_case.execute(_input())
+
+    assert resolver.calls == [
+        {
+            "query": "ACCOUNT_TAKEOVER. matches known pattern",
+            "vector_store_instance_id": "vs-1",
+            "playbooks": [resolved],
+        }
+    ]
+    sent_data = llm_factory.created[0].received_messages[0][1].content
+    assert '"modus_operandi_playbook"' in sent_data
+    assert "Vishing - bloqueo inmediato" in sent_data
+    assert output.modus_operandi_playbook_name == "Vishing - bloqueo inmediato"
+    # Still the model's own decision, unchanged by the resolved playbook.
+    assert output.decision == "block"
 
 
 def test_analyst_review_falls_back_to_unknown_playbook_when_no_match() -> None:
@@ -192,6 +261,7 @@ def test_analyst_review_falls_back_to_unknown_playbook_when_no_match() -> None:
         model="fake-deployment",
         fraud_playbook_port=playbooks,
         operations_capacity_port=InMemoryOperationsCapacityPort(_capacity()),
+        resolve_analyst_playbook=NullResolveAnalystPlaybookUseCase(),
     )
     input_ = _input()
     input_.classification.fraud_classification = "SOME_OTHER_CLASSIFICATION"
@@ -210,6 +280,7 @@ def test_analyst_review_defaults_to_scale_to_analyst_on_malformed_output() -> No
         model="fake-deployment",
         fraud_playbook_port=InMemoryFraudPlaybookRepository([_playbook()]),
         operations_capacity_port=InMemoryOperationsCapacityPort(_capacity()),
+        resolve_analyst_playbook=NullResolveAnalystPlaybookUseCase(),
     )
 
     output = use_case.execute(_input())
@@ -226,6 +297,7 @@ def test_analyst_review_defaults_to_scale_to_analyst_on_invalid_decision() -> No
         model="fake-deployment",
         fraud_playbook_port=InMemoryFraudPlaybookRepository([_playbook()]),
         operations_capacity_port=InMemoryOperationsCapacityPort(_capacity()),
+        resolve_analyst_playbook=NullResolveAnalystPlaybookUseCase(),
     )
 
     output = use_case.execute(_input())

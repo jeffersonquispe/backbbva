@@ -31,6 +31,12 @@ class AnalystReviewAlertOutput:
     reasoning: str
     playbook_title: str
     playbook_steps: list[str] = field(default_factory=list)
+    # Name of the AnalystPlaybook resolved via ResolveAnalystPlaybookUseCase
+    # (None if no segment playbook's modus_operandi_id matched, or the
+    # segment has no vector store configured) - advisory context fed to the
+    # analyst LLM alongside playbook_title/playbook_steps, surfaced here for
+    # observability into which one (if any) actually matched.
+    modus_operandi_playbook_name: str | None = None
     # channel -> {"available": int, "status": str}, no datetimes - this
     # DTO gets dataclasses.asdict()'d straight into a DynamoDB step record
     # and into a Celery task's JSON args, both of which reject raw

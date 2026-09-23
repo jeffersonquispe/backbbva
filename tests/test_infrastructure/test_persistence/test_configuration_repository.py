@@ -178,7 +178,7 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
             ),
             classification=ClassificationConfig(
                 vector_store_enabled=True,
-                vector_store_instance_ids=["vs-1", "vs-2"],
+                vector_store_instance_id="vs-1",
                 watchlist_enabled=True,
                 watchlist_ids=["wl-1"],
                 watchlist_compare_field="documento",
@@ -250,7 +250,7 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert restored.agent.analyst.playbooks == []
     assert restored.agent.executor.voicebot_call.category_prompts == []
     assert restored.agent.classification.vector_store_enabled is True
-    assert restored.agent.classification.vector_store_instance_ids == ["vs-1", "vs-2"]
+    assert restored.agent.classification.vector_store_instance_id == "vs-1"
     assert restored.agent.classification.watchlist_enabled is True
     assert restored.agent.classification.watchlist_ids == ["wl-1"]
     assert restored.agent.classification.watchlist_compare_field == "documento"
@@ -262,6 +262,38 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert restored.agent.executor.documentador.strategy == DocumentationStrategy.AGENT
     assert restored.agent.executor.documentador.agent_prompt == "documenta esta alerta"
     assert restored.agent.executor.analyst_escalation.prompt == "escala esta alerta"
+
+
+def test_segment_hydration_tolerates_pre_migration_agent_field_names() -> None:
+    # Regression: ClassificationConfig/DetectorConfig/AdversarialConfig's
+    # vector_store_instance_ids (list) was renamed to vector_store_instance_id
+    # (str | None). _agent_from_item splats each stored sub-dict as kwargs
+    # (DetectorConfig(**...)), so a row written before the rename still
+    # carries the old key and would otherwise raise
+    # "unexpected keyword argument" on every hydration - this took down
+    # aria-api's startup seeding locally.
+    segment = SegmentSettings(
+        agent=AgentSettings(
+            classification=ClassificationConfig(vector_store_instance_id="vs-1"),
+        ),
+    )
+    item = {
+        "config_key": _config_key("cfg-1", 1),
+        "id": _SEGMENT_ID,
+        "segment_code": "tarjetas",
+        **_segment_to_item(segment),
+    }
+    item["agent"]["detector"]["vector_store_instance_ids"] = ["stale-a", "stale-b"]
+    item["agent"]["classification"]["vector_store_instance_ids"] = ["stale-a"]
+    item["agent"]["adversarial"]["vector_store_instance_ids"] = ["stale-a"]
+    item["agent"]["detector_adversarial"]["vector_store_instance_ids"] = ["stale-a"]
+
+    restored = _segment_settings_from_item(item)
+
+    assert restored.agent.classification.vector_store_instance_id == "vs-1"
+    assert restored.agent.detector.vector_store_instance_id is None
+    assert restored.agent.adversarial.vector_store_instance_id is None
+    assert restored.agent.detector_adversarial.vector_store_instance_id is None
 
 
 def test_default_segment_round_trips_through_its_own_table_item() -> None:
@@ -463,6 +495,7 @@ def test_playbook_round_trips_through_its_own_table_item() -> None:
         name="Escalar a analista",
         strategy="revisar historial",
         resolution_tag=ResolutionTag.SCALE_TO_ANALYST,
+        modus_operandi_id="mo-1",
     )
     item = {"segment_id": _SEGMENT_ID, **asdict(playbook)}
 
