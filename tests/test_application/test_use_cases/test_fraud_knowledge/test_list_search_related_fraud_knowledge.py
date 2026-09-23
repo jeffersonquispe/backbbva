@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
@@ -14,6 +15,7 @@ from src.application.ports.fraud_knowledge_relations_port import (
     FraudKnowledgeRelationsPort,
     RelatedDocumentsResult,
 )
+from src.application.ports.vector_store_instance_port import VectorStoreInstance
 from src.application.use_cases.fraud_knowledge.get_related_fraud_knowledge import (
     GetRelatedFraudKnowledgeUseCase,
 )
@@ -22,6 +24,7 @@ from src.application.use_cases.fraud_knowledge.list_fraud_knowledge_documents im
 )
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
+    VectorStoreNotPromotedError,
 )
 
 
@@ -45,14 +48,53 @@ class InMemoryFraudKnowledgeRepository:
         self,
         document_type: DocumentType | None = None,
         *,
-        channel: str | None = None,
+        vector_store_id: str | None = None,
+        vector_store_version: int | None = None,
     ) -> list[FraudKnowledgeDocument]:
         results = self._documents
         if document_type is not None:
             results = [d for d in results if d.type == document_type]
-        if channel is not None:
-            results = [d for d in results if d.segmento == channel]
+        if vector_store_id is not None:
+            results = [d for d in results if d.vector_store_id == vector_store_id]
         return results
+
+
+class InMemoryVectorStoreInstanceRepository:
+    def __init__(self, instances: list[VectorStoreInstance]) -> None:
+        self._instances = {instance.id: instance for instance in instances}
+
+    def create(self, instance, assets):
+        raise NotImplementedError
+
+    def list(self):
+        return list(self._instances.values())
+
+    def get(self, instance_id: str) -> VectorStoreInstance | None:
+        return self._instances.get(instance_id)
+
+    def update(self, instance):
+        raise NotImplementedError
+
+    def list_assets(self, instance_id: str):
+        raise NotImplementedError
+
+    def add_asset(self, asset):
+        raise NotImplementedError
+
+    def remove_asset(self, instance_id, relation_id) -> None:
+        raise NotImplementedError
+
+
+def _promoted_instance(instance_id: str = "vs-1", version: int = 1) -> VectorStoreInstance:
+    return VectorStoreInstance(
+        id=instance_id,
+        version=1,
+        name="Instancia",
+        description="",
+        created_at=datetime.now(timezone.utc),
+        created_by="tester",
+        promoted_version=version,
+    )
 
 
 class RecordingFraudKnowledgeSearchPort(FraudKnowledgeSearchPort):
@@ -65,7 +107,8 @@ class RecordingFraudKnowledgeSearchPort(FraudKnowledgeSearchPort):
         query: str,
         *,
         pipeline: SearchPipeline,
-        channel: str,
+        vector_store_id: str,
+        vector_store_version: int,
         document_type: DocumentType,
         top_k: int = 5,
     ) -> list[FraudKnowledgeSearchResult]:
@@ -73,7 +116,8 @@ class RecordingFraudKnowledgeSearchPort(FraudKnowledgeSearchPort):
             {
                 "query": query,
                 "pipeline": pipeline,
-                "channel": channel,
+                "vector_store_id": vector_store_id,
+                "vector_store_version": vector_store_version,
                 "document_type": document_type,
                 "top_k": top_k,
             }
@@ -98,9 +142,8 @@ def _taxonomia() -> TaxonomiaDocument:
         id=uuid.uuid4(),
         text="taxonomia",
         text_embedded=[0.1],
-        segmento="tarjetas",
-        configuration="default",
-        version=1,
+        vector_store_id="vs-1",
+        vector_store_version=1,
     )
 
 
@@ -109,22 +152,23 @@ def test_list_fraud_knowledge_documents_delegates_to_repository() -> None:
     repository = InMemoryFraudKnowledgeRepository([taxonomia])
 
     results = ListFraudKnowledgeDocumentsUseCase(repository).execute(
-        DocumentType.TAXONOMIA, channel="tarjetas"
+        DocumentType.TAXONOMIA, vector_store_id="vs-1"
     )
 
     assert results == [taxonomia]
 
 
-def test_search_fraud_knowledge_delegates_to_search_port() -> None:
+def test_search_fraud_knowledge_resolves_current_version_and_delegates_to_search_port() -> None:
     taxonomia = _taxonomia()
     search_port = RecordingFraudKnowledgeSearchPort(
         FraudKnowledgeSearchResult(document=taxonomia, score=0.87)
     )
+    instances = InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=3)])
 
-    results = SearchFraudKnowledgeUseCase(search_port).execute(
+    results = SearchFraudKnowledgeUseCase(search_port, instances).execute(
         "suplantacion de identidad",
         pipeline=SearchPipeline.BALANCED,
-        channel="tarjetas",
+        vector_store_id="vs-1",
         document_type=DocumentType.TAXONOMIA,
         top_k=3,
     )
@@ -134,11 +178,32 @@ def test_search_fraud_knowledge_delegates_to_search_port() -> None:
         {
             "query": "suplantacion de identidad",
             "pipeline": SearchPipeline.BALANCED,
-            "channel": "tarjetas",
+            "vector_store_id": "vs-1",
+            "vector_store_version": 3,
             "document_type": DocumentType.TAXONOMIA,
             "top_k": 3,
         }
     ]
+
+
+def test_search_fraud_knowledge_rejects_unpromoted_vector_store() -> None:
+    search_port = RecordingFraudKnowledgeSearchPort(
+        FraudKnowledgeSearchResult(document=_taxonomia(), score=0.5)
+    )
+    instances = InMemoryVectorStoreInstanceRepository([])
+
+    try:
+        SearchFraudKnowledgeUseCase(search_port, instances).execute(
+            "query",
+            pipeline=SearchPipeline.BALANCED,
+            vector_store_id="vs-missing",
+            document_type=DocumentType.TAXONOMIA,
+        )
+    except VectorStoreNotPromotedError:
+        pass
+    else:
+        raise AssertionError("expected VectorStoreNotPromotedError")
+    assert search_port.calls == []
 
 
 def test_get_related_fraud_knowledge_delegates_to_relations_port() -> None:

@@ -14,10 +14,14 @@ from src.application.ports.monitoring_port import MonitoringPort
 @dataclass(frozen=True)
 class IngestTaxonomiaInput:
     text: str
-    segmento: str
-    configuration: str
-    version: int
-    activate: bool = True
+    vector_store_id: str
+    vector_store_version: int
+    # Recycled from the source TaxonomyLibraryEntry.embedding when the
+    # caller (PromoteVectorStoreInstanceUseCase) already has one cached for
+    # this exact text - skips the embedding call entirely. None forces a
+    # fresh embed, only expected as a fallback for a stray asset that
+    # somehow reached promotion without a cached embedding.
+    text_embedded: list[float] | None = None
 
 
 class IngestTaxonomiaUseCase:
@@ -36,19 +40,19 @@ class IngestTaxonomiaUseCase:
         self._embedding_model = embedding_model
 
     def execute(self, data: IngestTaxonomiaInput) -> TaxonomiaDocument:
-        uow = self._embedding_unit_of_work_factory.create(
-            model=self._embedding_model,
-            monitoring=self._monitoring,
-            operation_name="ingest_taxonomia",
-        )
-        embedding = uow.embed([data.text])
+        text_embedded = data.text_embedded
+        if text_embedded is None:
+            uow = self._embedding_unit_of_work_factory.create(
+                model=self._embedding_model,
+                monitoring=self._monitoring,
+                operation_name="ingest_taxonomia",
+            )
+            text_embedded = uow.embed([data.text]).vectors[0]
         document = TaxonomiaDocument(
             id=uuid4(),
             text=data.text,
-            text_embedded=embedding.vectors[0],
-            segmento=data.segmento,
-            configuration=data.configuration,
-            version=data.version,
-            activate=data.activate,
+            text_embedded=text_embedded,
+            vector_store_id=data.vector_store_id,
+            vector_store_version=data.vector_store_version,
         )
         return self._repository.create(document)

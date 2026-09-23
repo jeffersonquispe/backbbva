@@ -33,10 +33,8 @@ def document_to_source(document: FraudKnowledgeDocument) -> dict[str, Any]:
         "id": str(document.id),
         "text": document.text,
         "text_embedded": document.text_embedded,
-        "segmento": document.segmento,
-        "configuration": document.configuration,
-        "version": document.version,
-        "activate": document.activate,
+        "vector_store_id": document.vector_store_id,
+        "vector_store_version": document.vector_store_version,
     }
     if isinstance(document, ModusOperandiDocument):
         source.update(
@@ -44,6 +42,7 @@ def document_to_source(document: FraudKnowledgeDocument) -> dict[str, Any]:
             taxonomia=document.taxonomia,
             similar_cases=[str(i) for i in document.similar_cases],
             flags=[str(i) for i in document.flags],
+            library_id=document.library_id,
         )
     elif isinstance(document, SimilarCaseDocument):
         source.update(
@@ -64,10 +63,8 @@ def document_from_source(source: dict[str, Any]) -> FraudKnowledgeDocument:
         "id": UUID(source["id"]),
         "text": source["text"],
         "text_embedded": source["text_embedded"],
-        "segmento": source["segmento"],
-        "configuration": source["configuration"],
-        "version": source["version"],
-        "activate": source["activate"],
+        "vector_store_id": source["vector_store_id"],
+        "vector_store_version": source["vector_store_version"],
         "type": document_type,
     }
     if document_type == DocumentType.MODUS_OPERANDI:
@@ -76,6 +73,12 @@ def document_from_source(source: dict[str, Any]) -> FraudKnowledgeDocument:
             taxonomia=source["taxonomia"],
             similar_cases=[UUID(i) for i in source.get("similar_cases", [])],
             flags=[UUID(i) for i in source.get("flags", [])],
+            # .get() default, not source["library_id"] - documents indexed
+            # before this field existed lack it (see ModusOperandiDocument's
+            # docstring); this path also runs during a promotion's own
+            # delete-previous-generation list() call, which must not crash
+            # on an old-generation document.
+            library_id=source.get("library_id", ""),
         )
     elif document_type == DocumentType.SIMILAR_CASE:
         fields.update(
@@ -134,19 +137,16 @@ class OpenSearchFraudKnowledgeRepository:
         self,
         document_type: DocumentType | None = None,
         *,
-        channel: str | None = None,
-        configuration: str | None = None,
-        version: int | None = None,
+        vector_store_id: str | None = None,
+        vector_store_version: int | None = None,
     ) -> list[FraudKnowledgeDocument]:
         filters: list[dict[str, Any]] = []
         if document_type is not None:
             filters.append({"term": {"type": document_type.value}})
-        if channel is not None:
-            filters.append({"term": {"segmento": channel}})
-        if configuration is not None:
-            filters.append({"term": {"configuration": configuration}})
-        if version is not None:
-            filters.append({"term": {"version": version}})
+        if vector_store_id is not None:
+            filters.append({"term": {"vector_store_id": vector_store_id}})
+        if vector_store_version is not None:
+            filters.append({"term": {"vector_store_version": vector_store_version}})
         query = {"bool": {"filter": filters}} if filters else {"match_all": {}}
 
         response = self._client.search(

@@ -55,13 +55,16 @@ class InMemoryFraudKnowledgeRepository:
         self,
         document_type: DocumentType | None = None,
         *,
-        channel: str | None = None,
+        vector_store_id: str | None = None,
+        vector_store_version: int | None = None,
     ) -> list[FraudKnowledgeDocument]:
         results = list(self._documents.values())
         if document_type is not None:
             results = [d for d in results if d.type == document_type]
-        if channel is not None:
-            results = [d for d in results if d.segmento == channel]
+        if vector_store_id is not None:
+            results = [d for d in results if d.vector_store_id == vector_store_id]
+        if vector_store_version is not None:
+            results = [d for d in results if d.vector_store_version == vector_store_version]
         return results
 
 
@@ -117,9 +120,8 @@ class NullMonitoringPort(MonitoringPort):
 def _taxonomia_input() -> IngestTaxonomiaInput:
     return IngestTaxonomiaInput(
         text="fraude por suplantacion de identidad",
-        segmento="tarjetas",
-        configuration="default",
-        version=1,
+        vector_store_id="vs-1",
+        vector_store_version=1,
     )
 
 
@@ -154,11 +156,11 @@ def test_ingest_modus_operandi_requires_existing_taxonomia() -> None:
         use_case.execute(
             IngestModusOperandiInput(
                 text="patron de fraude",
-                segmento="tarjetas",
-                configuration="default",
-                version=1,
+                vector_store_id="vs-1",
+                vector_store_version=1,
                 taxonomia_id=uuid.uuid4(),
                 taxonomia="Suplantacion de identidad",
+                library_id="mo-1",
             )
         )
 
@@ -181,11 +183,11 @@ def test_ingest_modus_operandi_succeeds_with_existing_taxonomia() -> None:
     created = use_case.execute(
         IngestModusOperandiInput(
             text="patron de fraude",
-            segmento="tarjetas",
-            configuration="default",
-            version=1,
+            vector_store_id="vs-1",
+            vector_store_version=1,
             taxonomia_id=taxonomia.id,
             taxonomia="Suplantacion de identidad",
+            library_id="mo-1",
         )
     )
 
@@ -193,6 +195,7 @@ def test_ingest_modus_operandi_succeeds_with_existing_taxonomia() -> None:
     assert created.taxonomia_id == taxonomia.id
     assert created.similar_cases == []
     assert created.flags == []
+    assert created.library_id == "mo-1"
 
 
 def _seed_taxonomia_and_modus_operandi(
@@ -213,11 +216,11 @@ def _seed_taxonomia_and_modus_operandi(
     ).execute(
         IngestModusOperandiInput(
             text="patron de fraude",
-            segmento="tarjetas",
-            configuration="default",
-            version=1,
+            vector_store_id="vs-1",
+            vector_store_version=1,
             taxonomia_id=taxonomia.id,
             taxonomia="Suplantacion de identidad",
+            library_id="mo-1",
         )
     )
 
@@ -236,9 +239,8 @@ def test_ingest_similar_case_rejects_mismatched_taxonomia() -> None:
         use_case.execute(
             IngestSimilarCaseInput(
                 text="caso similar",
-                segmento="tarjetas",
-                configuration="default",
-                version=1,
+                vector_store_id="vs-1",
+                vector_store_version=1,
                 modus_operandi_id=modus_operandi.id,
                 taxonomia_id=uuid.uuid4(),
             )
@@ -258,9 +260,8 @@ def test_ingest_similar_case_appends_id_to_parent() -> None:
     created = use_case.execute(
         IngestSimilarCaseInput(
             text="caso similar",
-            segmento="tarjetas",
-            configuration="default",
-            version=1,
+            vector_store_id="vs-1",
+            vector_store_version=1,
             modus_operandi_id=modus_operandi.id,
             taxonomia_id=modus_operandi.taxonomia_id,
         )
@@ -285,9 +286,8 @@ def test_ingest_flag_appends_id_to_parent() -> None:
         IngestFlagInput(
             text="senal de alerta roja",
             flag_type=DocumentType.RED_FLAG,
-            segmento="tarjetas",
-            configuration="default",
-            version=1,
+            vector_store_id="vs-1",
+            vector_store_version=1,
             modus_operandi_ids=[modus_operandi.id],
         )
     )
@@ -316,21 +316,21 @@ def test_ingest_flag_appends_id_to_all_parents_when_many_to_many() -> None:
     mo_a = ingest_mo.execute(
         IngestModusOperandiInput(
             text="patron A",
-            segmento="tarjetas",
-            configuration="default",
-            version=1,
+            vector_store_id="vs-1",
+            vector_store_version=1,
             taxonomia_id=taxonomia.id,
             taxonomia=taxonomia.text,
+            library_id="mo-a",
         )
     )
     mo_b = ingest_mo.execute(
         IngestModusOperandiInput(
             text="patron B",
-            segmento="tarjetas",
-            configuration="default",
-            version=1,
+            vector_store_id="vs-1",
+            vector_store_version=1,
             taxonomia_id=taxonomia.id,
             taxonomia=taxonomia.text,
+            library_id="mo-b",
         )
     )
 
@@ -344,9 +344,8 @@ def test_ingest_flag_appends_id_to_all_parents_when_many_to_many() -> None:
         IngestFlagInput(
             text="senal compartida",
             flag_type=DocumentType.YELLOW_FLAG,
-            segmento="tarjetas",
-            configuration="default",
-            version=1,
+            vector_store_id="vs-1",
+            vector_store_version=1,
             modus_operandi_ids=[mo_a.id, mo_b.id],
         )
     )

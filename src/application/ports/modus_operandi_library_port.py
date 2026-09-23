@@ -18,6 +18,10 @@ class ModusOperandiLibraryEntry:
     updated_at: datetime
     evolved_variables: list[str] = field(default_factory=list)
     active: bool = True
+    # Cached embedding of this entry's text representation (title +
+    # narrative) - see taxonomy_library_port.py's `embedding` field for the
+    # recycle-on-promote rationale.
+    embedding: list[float] | None = None
 
 
 class ModusOperandiLibraryRepository(Protocol):
@@ -39,6 +43,7 @@ class ModusOperandiLibraryRepository(Protocol):
         taxonomy_library_id: str | None = None,
         evolved_variables: list[str] | None = None,
         active: bool | None = None,
+        embedding: list[float] | None = None,
     ) -> ModusOperandiLibraryEntry | None:
         ...
 

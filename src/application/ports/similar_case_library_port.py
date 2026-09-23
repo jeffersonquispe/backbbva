@@ -18,6 +18,10 @@ class SimilarCaseLibraryEntry:
     created_at: datetime
     updated_at: datetime
     active: bool = True
+    # Cached embedding of this entry's text (used as-is, no composition) -
+    # see taxonomy_library_port.py's `embedding` field for the
+    # recycle-on-promote rationale.
+    embedding: list[float] | None = None
 
 
 class SimilarCaseLibraryRepository(Protocol):
@@ -38,6 +42,7 @@ class SimilarCaseLibraryRepository(Protocol):
         modus_operandi_library_id: str | None = None,
         taxonomy_library_id: str | None = None,
         active: bool | None = None,
+        embedding: list[float] | None = None,
     ) -> SimilarCaseLibraryEntry | None:
         ...
 

@@ -727,7 +727,7 @@ class DeterministicConfigSchema(BaseModel):
 
 class ClassificationConfigSchema(BaseModel):
     vector_store_enabled: bool = False
-    vector_store_instance_ids: list[str] = Field(default_factory=list)
+    vector_store_instance_id: str | None = None
     watchlist_enabled: bool = False
     watchlist_ids: list[str] = Field(default_factory=list)
     watchlist_compare_field: str | None = None
@@ -749,7 +749,7 @@ class DetectorConfigSchema(ClassificationConfigSchema):
 
 class AdversarialConfigSchema(BaseModel):
     vector_store_enabled: bool = False
-    vector_store_instance_ids: list[str] = Field(default_factory=list)
+    vector_store_instance_id: str | None = None
     watchlist_enabled: bool = False
     watchlist_ids: list[str] = Field(default_factory=list)
     watchlist_compare_field: str | None = None
@@ -1204,6 +1204,9 @@ class VectorStoreInstanceSchema(BaseModel):
     created_by: str
     updated_at: datetime | None
     updated_by: str | None
+    promoted_version: int | None = None
+    promoted_at: datetime | None = None
+    promoted_by: str | None = None
 
 
 class CreateVectorStoreInstanceRequest(BaseModel):

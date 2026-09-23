@@ -6,13 +6,13 @@ from src.application.use_cases.vector_store_instances.knowledge_graph import Kno
 
 
 @dataclass
-class Taxonomy: id: str
+class Taxonomy: id: str; embedding: list[float] | None = None
 @dataclass
-class MO: id: str; taxonomy_library_id: str
+class MO: id: str; taxonomy_library_id: str; embedding: list[float] | None = None
 @dataclass
-class Case: id: str; modus_operandi_library_id: str
+class Case: id: str; modus_operandi_library_id: str; embedding: list[float] | None = None
 @dataclass
-class Flag: id: str; flag_type: FlagType; modus_operandi_library_ids: list[str]
+class Flag: id: str; flag_type: FlagType; modus_operandi_library_ids: list[str]; embedding: list[float] | None = None
 
 
 class Catalog:
@@ -52,6 +52,25 @@ def test_taxonomy_expansion_adds_modus_cases_and_both_flag_types() -> None:
         (KnowledgeAssetType.RED_FLAG, "red-1"),
     }
     assert graph.preview_add("instance-1", KnowledgeAssetType.TAXONOMY, "tax-1") == []
+
+
+def test_attaching_modus_operandi_directly_also_pulls_in_its_taxonomy() -> None:
+    # A modus operandi belongs to exactly one taxonomy, and promotion hard-
+    # requires that parent to already be indexed - attaching the MO alone
+    # (not via its taxonomy) must still bring the taxonomy in.
+    relations = Relations()
+    graph = KnowledgeGraphService(
+        instances=relations, taxonomies=Catalog([Taxonomy("tax-1")]),
+        modus_operandi=Catalog([MO("mo-1", "tax-1")]),
+        similar_cases=Catalog([]), flags=Catalog([]),
+    )
+
+    created = graph.attach("instance-1", KnowledgeAssetType.MODUS_OPERANDI, "mo-1")
+
+    assert {(item.asset_type, item.asset_id) for item in created} == {
+        (KnowledgeAssetType.TAXONOMY, "tax-1"),
+        (KnowledgeAssetType.MODUS_OPERANDI, "mo-1"),
+    }
 
 
 def test_new_taxonomy_is_propagated_to_every_managed_instance() -> None:

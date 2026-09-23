@@ -17,12 +17,16 @@ from src.application.ports.monitoring_port import MonitoringPort
 @dataclass(frozen=True)
 class IngestModusOperandiInput:
     text: str
-    segmento: str
-    configuration: str
-    version: int
+    vector_store_id: str
+    vector_store_version: int
     taxonomia_id: UUID
     taxonomia: str
-    activate: bool = True
+    # The source ModusOperandiLibraryEntry.id - see
+    # ModusOperandiDocument.library_id's docstring for why this is carried
+    # separately from the document's own generated id.
+    library_id: str
+    # See IngestTaxonomiaInput.text_embedded - same recycle-if-possible rule.
+    text_embedded: list[float] | None = None
 
 
 class IngestModusOperandiUseCase:
@@ -43,23 +47,24 @@ class IngestModusOperandiUseCase:
         if taxonomia is None or taxonomia.type != DocumentType.TAXONOMIA:
             raise ValueError(f"taxonomia {data.taxonomia_id} does not exist")
 
-        uow = self._embedding_unit_of_work_factory.create(
-            model=self._embedding_model,
-            monitoring=self._monitoring,
-            operation_name="ingest_modus_operandi",
-        )
-        embedding = uow.embed([data.text])
+        text_embedded = data.text_embedded
+        if text_embedded is None:
+            uow = self._embedding_unit_of_work_factory.create(
+                model=self._embedding_model,
+                monitoring=self._monitoring,
+                operation_name="ingest_modus_operandi",
+            )
+            text_embedded = uow.embed([data.text]).vectors[0]
         document = ModusOperandiDocument(
             id=uuid4(),
             text=data.text,
-            text_embedded=embedding.vectors[0],
-            segmento=data.segmento,
-            configuration=data.configuration,
-            version=data.version,
+            text_embedded=text_embedded,
+            vector_store_id=data.vector_store_id,
+            vector_store_version=data.vector_store_version,
             taxonomia_id=data.taxonomia_id,
             taxonomia=data.taxonomia,
             similar_cases=[],
             flags=[],
-            activate=data.activate,
+            library_id=data.library_id,
         )
         return self._repository.create(document)

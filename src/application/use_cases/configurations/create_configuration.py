@@ -11,9 +11,6 @@ from src.application.ports.configuration_port import (
     ConfigurationRecord,
     ConfigurationRepository,
 )
-from src.application.use_cases.configurations.index_configuration_knowledge import (
-    IndexConfigurationKnowledgeUseCase,
-)
 
 
 class ConfigurationVersionConflictError(Exception):
@@ -24,12 +21,10 @@ class CreateConfigurationUseCase:
     def __init__(
         self,
         configuration_repository: ConfigurationRepository,
-        index_configuration_knowledge: IndexConfigurationKnowledgeUseCase,
         test_run_repository: TestRunRepository,
     ) -> None:
         self._test_runs = test_run_repository
         self._configurations = configuration_repository
-        self._index_configuration_knowledge = index_configuration_knowledge
 
     def execute(self, input: CreateConfigurationInput) -> ConfigurationRecord:
         now = datetime.now(timezone.utc)
@@ -96,5 +91,4 @@ class CreateConfigurationUseCase:
             if overwrite
             else self._configurations.create(record)
         )
-        self._index_configuration_knowledge.execute(created)
         return created

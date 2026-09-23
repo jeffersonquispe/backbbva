@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.monitoring_port import MonitoringPort
 from src.application.use_cases.flag_library.create_flag_library_entry import (
     CreateFlagLibraryEntryUseCase,
 )
@@ -14,6 +16,9 @@ from src.application.use_cases.flag_library.list_flag_library_entries import (
 from src.application.use_cases.flag_library.update_flag_library_entry import (
     UpdateFlagLibraryEntryUseCase,
 )
+from src.infrastructure.core.config import genai_config
+from src.infrastructure.embedding.langchain import get_embedding_unit_of_work_factory
+from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.flag_library_repository import (
     DynamoFlagLibraryRepository,
 )
@@ -24,8 +29,22 @@ def get_flag_library_repository() -> DynamoFlagLibraryRepository:
     return DynamoFlagLibraryRepository()
 
 
+def _embedding_deps() -> tuple[EmbeddingUnitOfWorkFactory, MonitoringPort, str]:
+    return (
+        get_embedding_unit_of_work_factory(),
+        get_monitoring(),
+        genai_config.EMBEDDING_MODEL,
+    )
+
+
 def get_create_flag_library_entry_use_case() -> CreateFlagLibraryEntryUseCase:
-    return CreateFlagLibraryEntryUseCase(get_flag_library_repository())
+    embedding_factory, monitoring, model = _embedding_deps()
+    return CreateFlagLibraryEntryUseCase(
+        get_flag_library_repository(),
+        embedding_unit_of_work_factory=embedding_factory,
+        monitoring=monitoring,
+        embedding_model=model,
+    )
 
 
 def get_list_flag_library_entries_use_case() -> ListFlagLibraryEntriesUseCase:
@@ -33,7 +52,13 @@ def get_list_flag_library_entries_use_case() -> ListFlagLibraryEntriesUseCase:
 
 
 def get_update_flag_library_entry_use_case() -> UpdateFlagLibraryEntryUseCase:
-    return UpdateFlagLibraryEntryUseCase(get_flag_library_repository())
+    embedding_factory, monitoring, model = _embedding_deps()
+    return UpdateFlagLibraryEntryUseCase(
+        get_flag_library_repository(),
+        embedding_unit_of_work_factory=embedding_factory,
+        monitoring=monitoring,
+        embedding_model=model,
+    )
 
 
 def get_delete_flag_library_entry_use_case() -> DeleteFlagLibraryEntryUseCase:

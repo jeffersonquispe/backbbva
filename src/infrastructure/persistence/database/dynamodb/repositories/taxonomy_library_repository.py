@@ -44,6 +44,7 @@ class DynamoTaxonomyLibraryRepository(TaxonomyLibraryRepository):
         variables: list[str] | None = None,
         examples: list[str] | None = None,
         active: bool | None = None,
+        embedding: list[float] | None = None,
     ) -> TaxonomyLibraryEntry | None:
         current = self.get(entry_id)
         if current is None:
@@ -58,6 +59,7 @@ class DynamoTaxonomyLibraryRepository(TaxonomyLibraryRepository):
             active=active if active is not None else current.active,
             created_at=current.created_at,
             updated_at=datetime.now(timezone.utc),
+            embedding=embedding if embedding is not None else current.embedding,
         )
         self._table.put_item(Item=_to_item(updated))
         return updated
@@ -77,6 +79,7 @@ def _to_item(entry: TaxonomyLibraryEntry) -> dict[str, Any]:
         "active": entry.active,
         "created_at": entry.created_at.isoformat(),
         "updated_at": entry.updated_at.isoformat(),
+        "embedding": entry.embedding,
     }
 
 
@@ -91,4 +94,5 @@ def _from_item(item: dict[str, Any]) -> TaxonomyLibraryEntry:
         active=bool(item.get("active", True)),
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
+        embedding=[float(v) for v in item["embedding"]] if item.get("embedding") is not None else None,
     )

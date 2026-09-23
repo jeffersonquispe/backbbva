@@ -46,8 +46,15 @@ class KnowledgeGraphService:
                 if mo.taxonomy_library_id == asset_id:
                     self._add_modus_operandi_tree(add, mo.id, "inherited_from_taxonomy")
         elif asset_type == KnowledgeAssetType.MODUS_OPERANDI:
-            if self._modus_operandi.get(asset_id) is None:
+            mo = self._modus_operandi.get(asset_id)
+            if mo is None:
                 raise ValueError(f"modus_operandi {asset_id} does not exist")
+            # A modus operandi belongs to exactly one taxonomy - promotion
+            # (IngestModusOperandiUseCase) hard-requires that parent to
+            # already be indexed, so attaching a MO directly must also pull
+            # its taxonomy in, not just its own children.
+            if self._taxonomies.get(mo.taxonomy_library_id) is not None:
+                add(KnowledgeAssetType.TAXONOMY, mo.taxonomy_library_id, "required_by_modus_operandi")
             self._add_modus_operandi_tree(add, asset_id, "manual")
         elif asset_type in (KnowledgeAssetType.RED_FLAG, KnowledgeAssetType.YELLOW_FLAG):
             flag = self._flags.get(asset_id)
@@ -75,6 +82,7 @@ class KnowledgeGraphService:
                 vector_store_instance_id=instance_id, asset_type=item.asset_type,
                 asset_id=item.asset_id, asset_version=1, origin=item.origin,
                 root_asset_type=root_type, root_asset_id=root_id,
+                embedding=self._cached_embedding(item.asset_type, item.asset_id),
             )
             self._instances.add_asset(relation)
             created.append(relation)
@@ -147,3 +155,18 @@ class KnowledgeGraphService:
             if modus_operandi_id in flag.modus_operandi_library_ids:
                 kind = KnowledgeAssetType.RED_FLAG if flag.flag_type.value == "red" else KnowledgeAssetType.YELLOW_FLAG
                 add(kind, flag.id, "inherited_from_modus_operandi")
+
+    def _cached_embedding(self, asset_type: KnowledgeAssetType, asset_id: str) -> list[float] | None:
+        # Recycles whatever the Library entry already has cached (computed
+        # on its own create/update) instead of embedding again here -
+        # PromoteVectorStoreInstanceUseCase reads this straight off the
+        # relation row.
+        if asset_type == KnowledgeAssetType.TAXONOMY:
+            entry = self._taxonomies.get(asset_id)
+        elif asset_type == KnowledgeAssetType.MODUS_OPERANDI:
+            entry = self._modus_operandi.get(asset_id)
+        elif asset_type in (KnowledgeAssetType.RED_FLAG, KnowledgeAssetType.YELLOW_FLAG):
+            entry = self._flags.get(asset_id)
+        else:
+            entry = self._similar_cases.get(asset_id)
+        return entry.embedding if entry is not None else None

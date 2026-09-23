@@ -27,16 +27,7 @@ class DynamoVectorStoreInstanceRepository(VectorStoreInstanceRepository):
         # A deterministic vN id plus this condition prevents a duplicate
         # version from being persisted when two admins create a snapshot.
         self._instances.put_item(
-            Item={
-                "id": instance.id,
-                "version": instance.version,
-                "name": instance.name,
-                "description": instance.description,
-                "created_at": instance.created_at.isoformat(),
-                "created_by": instance.created_by,
-                "updated_at": instance.updated_at.isoformat() if instance.updated_at else None,
-                "updated_by": instance.updated_by,
-            },
+            Item=_instance_to_item(instance),
             ConditionExpression="attribute_not_exists(id)",
         )
         for asset in assets:
@@ -54,15 +45,7 @@ class DynamoVectorStoreInstanceRepository(VectorStoreInstanceRepository):
         return _instance_from_item(item) if item else None
 
     def update(self, instance: VectorStoreInstance) -> VectorStoreInstance:
-        self._instances.put_item(
-            Item={
-                "id": instance.id, "version": instance.version, "name": instance.name,
-                "description": instance.description, "created_at": instance.created_at.isoformat(),
-                "created_by": instance.created_by,
-                "updated_at": instance.updated_at.isoformat() if instance.updated_at else None,
-                "updated_by": instance.updated_by,
-            }
-        )
+        self._instances.put_item(Item=_instance_to_item(instance))
         return instance
 
     def list_assets(self, instance_id: str) -> list[VectorStoreInstanceAsset]:
@@ -84,6 +67,19 @@ class DynamoVectorStoreInstanceRepository(VectorStoreInstanceRepository):
         self._assets.delete_item(Key={"vector_store_instance_id": instance_id, "relation_id": relation_id})
 
 
+def _instance_to_item(instance: VectorStoreInstance) -> dict[str, Any]:
+    return {
+        "id": instance.id, "version": instance.version, "name": instance.name,
+        "description": instance.description, "created_at": instance.created_at.isoformat(),
+        "created_by": instance.created_by,
+        "updated_at": instance.updated_at.isoformat() if instance.updated_at else None,
+        "updated_by": instance.updated_by,
+        "promoted_version": instance.promoted_version,
+        "promoted_at": instance.promoted_at.isoformat() if instance.promoted_at else None,
+        "promoted_by": instance.promoted_by,
+    }
+
+
 def _instance_from_item(item: dict[str, Any]) -> VectorStoreInstance:
     return VectorStoreInstance(
         id=item["id"], version=int(item["version"]), name=item.get("name", f"v{item['version']}"),
@@ -91,6 +87,9 @@ def _instance_from_item(item: dict[str, Any]) -> VectorStoreInstance:
         created_by=item.get("created_by", "Sistema"),
         updated_at=datetime.fromisoformat(item["updated_at"]) if item.get("updated_at") else None,
         updated_by=item.get("updated_by"),
+        promoted_version=int(item["promoted_version"]) if item.get("promoted_version") is not None else None,
+        promoted_at=datetime.fromisoformat(item["promoted_at"]) if item.get("promoted_at") else None,
+        promoted_by=item.get("promoted_by"),
     )
 
 

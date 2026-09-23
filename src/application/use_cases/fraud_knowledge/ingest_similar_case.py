@@ -18,12 +18,12 @@ from src.application.ports.monitoring_port import MonitoringPort
 @dataclass(frozen=True)
 class IngestSimilarCaseInput:
     text: str
-    segmento: str
-    configuration: str
-    version: int
+    vector_store_id: str
+    vector_store_version: int
     modus_operandi_id: UUID
     taxonomia_id: UUID
-    activate: bool = True
+    # See IngestTaxonomiaInput.text_embedded - same recycle-if-possible rule.
+    text_embedded: list[float] | None = None
 
 
 class IngestSimilarCaseUseCase:
@@ -51,22 +51,22 @@ class IngestSimilarCaseUseCase:
                 f"taxonomia {modus_operandi.taxonomia_id}"
             )
 
-        uow = self._embedding_unit_of_work_factory.create(
-            model=self._embedding_model,
-            monitoring=self._monitoring,
-            operation_name="ingest_similar_case",
-        )
-        embedding = uow.embed([data.text])
+        text_embedded = data.text_embedded
+        if text_embedded is None:
+            uow = self._embedding_unit_of_work_factory.create(
+                model=self._embedding_model,
+                monitoring=self._monitoring,
+                operation_name="ingest_similar_case",
+            )
+            text_embedded = uow.embed([data.text]).vectors[0]
         document = SimilarCaseDocument(
             id=uuid4(),
             text=data.text,
-            text_embedded=embedding.vectors[0],
-            segmento=data.segmento,
-            configuration=data.configuration,
-            version=data.version,
+            text_embedded=text_embedded,
+            vector_store_id=data.vector_store_id,
+            vector_store_version=data.vector_store_version,
             modus_operandi_id=data.modus_operandi_id,
             taxonomia_id=data.taxonomia_id,
-            activate=data.activate,
         )
         created = self._repository.create(document)
 

@@ -10,6 +10,12 @@ if not os.getenv("DYNAMO_ENDPOINT"):
     pytest.skip("Requires DynamoDB Local; run through make test-integration-docker-vector-store", allow_module_level=True)
 
 from src.application.ports.configuration_port import FlagType
+from src.application.ports.embedding_port import (
+    EmbeddingResult,
+    EmbeddingUnitOfWork,
+    EmbeddingUnitOfWorkFactory,
+)
+from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
 from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 from src.application.use_cases.flag_library.create_flag_library_entry import CreateFlagLibraryEntryUseCase
 from src.application.use_cases.modus_operandi_library.create_modus_operandi_library_entry import CreateModusOperandiLibraryEntryUseCase
@@ -25,6 +31,38 @@ from src.infrastructure.persistence.database.dynamodb.repositories.taxonomy_libr
 from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import DynamoVectorStoreInstanceRepository
 
 pytestmark = pytest.mark.docker_integration
+
+
+class _ScriptedEmbeddingUnitOfWork(EmbeddingUnitOfWork):
+    def embed(self, texts: list[str]) -> EmbeddingResult:
+        return EmbeddingResult(vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3)
+
+
+class _ScriptedEmbeddingUnitOfWorkFactory(EmbeddingUnitOfWorkFactory):
+    def create(self, *, model: str, monitoring: MonitoringPort, operation_name: str) -> EmbeddingUnitOfWork:
+        return _ScriptedEmbeddingUnitOfWork()
+
+
+class _NullSpan(MonitoringSpan):
+    def write_input(self, data) -> None: pass
+    def write_result(self, data) -> None: pass
+    def write_inner_logs(self, entries) -> None: pass
+    def write_operation_metas(self, metadata) -> None: pass
+    def record_dependency(self, name, kind, metadata=None) -> None: pass
+    def finish(self, error=None) -> None: pass
+
+
+class _NullMonitoringPort(MonitoringPort):
+    def start(self, operation_name, operation_type, metadata=None) -> MonitoringSpan:
+        return _NullSpan()
+
+
+def _embedding_kwargs() -> dict:
+    return dict(
+        embedding_unit_of_work_factory=_ScriptedEmbeddingUnitOfWorkFactory(),
+        monitoring=_NullMonitoringPort(),
+        embedding_model="fake-deployment",
+    )
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -48,11 +86,11 @@ def _seed_tree():
     modus = DynamoModusOperandiLibraryRepository()
     flags = DynamoFlagLibraryRepository()
     cases = DynamoSimilarCaseLibraryRepository()
-    tax = CreateTaxonomyLibraryEntryUseCase(taxonomies).execute(f"T-{suffix[:8]}", f"Taxonomía {suffix}")
-    mo = CreateModusOperandiLibraryEntryUseCase(modus).execute(f"MO {suffix}", "Narrativa de prueba", tax.id)
-    case = CreateSimilarCaseLibraryEntryUseCase(cases).execute(f"Caso {suffix}", mo.id, tax.id)
-    yellow = CreateFlagLibraryEntryUseCase(flags).execute(FlagType.YELLOW, f"Yellow {suffix}", modus_operandi_library_ids=[mo.id])
-    red = CreateFlagLibraryEntryUseCase(flags).execute(FlagType.RED, f"Red {suffix}", modus_operandi_library_ids=[mo.id])
+    tax = CreateTaxonomyLibraryEntryUseCase(taxonomies, **_embedding_kwargs()).execute(f"T-{suffix[:8]}", f"Taxonomía {suffix}")
+    mo = CreateModusOperandiLibraryEntryUseCase(modus, **_embedding_kwargs()).execute(f"MO {suffix}", "Narrativa de prueba", tax.id)
+    case = CreateSimilarCaseLibraryEntryUseCase(cases, **_embedding_kwargs()).execute(f"Caso {suffix}", mo.id, tax.id)
+    yellow = CreateFlagLibraryEntryUseCase(flags, **_embedding_kwargs()).execute(FlagType.YELLOW, f"Yellow {suffix}", modus_operandi_library_ids=[mo.id])
+    red = CreateFlagLibraryEntryUseCase(flags, **_embedding_kwargs()).execute(FlagType.RED, f"Red {suffix}", modus_operandi_library_ids=[mo.id])
     return tax, mo, case, yellow, red
 
 
@@ -86,7 +124,7 @@ def test_dynamodb_propagates_new_descendant_and_removes_recursive_tree() -> None
     graph = _graph()
     graph.attach(instance.id, KnowledgeAssetType.TAXONOMY, tax.id)
 
-    new_case = CreateSimilarCaseLibraryEntryUseCase(DynamoSimilarCaseLibraryRepository()).execute(
+    new_case = CreateSimilarCaseLibraryEntryUseCase(DynamoSimilarCaseLibraryRepository(), **_embedding_kwargs()).execute(
         f"Caso posterior {uuid.uuid4().hex}", mo.id, tax.id
     )
     assert graph.synchronize_new_asset(KnowledgeAssetType.SIMILAR_CASE, new_case.id) == [instance.id]

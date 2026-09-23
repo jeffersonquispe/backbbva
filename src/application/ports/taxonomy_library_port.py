@@ -21,6 +21,13 @@ class TaxonomyLibraryEntry:
     variables: list[str] = field(default_factory=list)
     examples: list[str] = field(default_factory=list)
     active: bool = True
+    # Cached embedding of this entry's text representation (name +
+    # description + examples), computed on create and refreshed on update
+    # only when one of those fields actually changes - see
+    # create_taxonomy_library_entry.py / update_taxonomy_library_entry.py.
+    # Promotion (PromoteVectorStoreInstanceUseCase) reads this instead of
+    # calling the embedding API again.
+    embedding: list[float] | None = None
 
 
 class TaxonomyLibraryRepository(Protocol):
@@ -43,6 +50,7 @@ class TaxonomyLibraryRepository(Protocol):
         variables: list[str] | None = None,
         examples: list[str] | None = None,
         active: bool | None = None,
+        embedding: list[float] | None = None,
     ) -> TaxonomyLibraryEntry | None:
         ...
 

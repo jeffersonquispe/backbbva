@@ -23,6 +23,10 @@ class FlagLibraryEntry:
     evolved_variables: list[str] = field(default_factory=list)
     modus_operandi_library_ids: list[str] = field(default_factory=list)
     active: bool = True
+    # Cached embedding of this entry's text representation (name +
+    # description) - see taxonomy_library_port.py's `embedding` field for
+    # the recycle-on-promote rationale.
+    embedding: list[float] | None = None
 
 
 class FlagLibraryRepository(Protocol):
@@ -45,6 +49,7 @@ class FlagLibraryRepository(Protocol):
         evolved_variables: list[str] | None = None,
         modus_operandi_library_ids: list[str] | None = None,
         active: bool | None = None,
+        embedding: list[float] | None = None,
     ) -> FlagLibraryEntry | None:
         ...
 

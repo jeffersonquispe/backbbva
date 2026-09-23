@@ -40,9 +40,6 @@ from src.application.use_cases.fraud_knowledge.list_fraud_knowledge_documents im
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
 )
-from src.application.use_cases.fraud_knowledge.update_fraud_knowledge_document import (
-    UpdateFraudKnowledgeDocumentUseCase,
-)
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.embedding.langchain import get_embedding_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
@@ -128,18 +125,6 @@ def get_ingest_flag_use_case() -> IngestFlagUseCase:
     )
 
 
-def get_update_fraud_knowledge_document_use_case() -> (
-    UpdateFraudKnowledgeDocumentUseCase
-):
-    embedding_factory, monitoring, model = _embedding_deps()
-    return UpdateFraudKnowledgeDocumentUseCase(
-        repository=get_fraud_knowledge_repository(),
-        embedding_unit_of_work_factory=embedding_factory,
-        monitoring=monitoring,
-        embedding_model=model,
-    )
-
-
 def get_delete_taxonomia_use_case() -> DeleteTaxonomiaUseCase:
     return DeleteTaxonomiaUseCase(get_fraud_knowledge_repository())
 
@@ -161,7 +146,16 @@ def get_list_fraud_knowledge_documents_use_case() -> ListFraudKnowledgeDocuments
 
 
 def get_search_fraud_knowledge_use_case() -> SearchFraudKnowledgeUseCase:
-    return SearchFraudKnowledgeUseCase(get_fraud_knowledge_search_port())
+    # Local import: vector_store_instance_factory imports this module at
+    # top level (for the ingest use cases PromoteVectorStoreInstanceUseCase
+    # needs) - importing it back at module level here would cycle.
+    from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+        get_vector_store_instance_repository,
+    )
+
+    return SearchFraudKnowledgeUseCase(
+        get_fraud_knowledge_search_port(), get_vector_store_instance_repository()
+    )
 
 
 def get_get_related_fraud_knowledge_use_case() -> GetRelatedFraudKnowledgeUseCase:

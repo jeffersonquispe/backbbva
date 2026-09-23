@@ -17,6 +17,11 @@ class ListFraudKnowledgeDocumentsUseCase:
         self,
         document_type: DocumentType | None = None,
         *,
-        channel: str | None = None,
+        vector_store_id: str | None = None,
+        vector_store_version: int | None = None,
     ) -> list[FraudKnowledgeDocument]:
-        return self._repository.list(document_type, channel=channel)
+        return self._repository.list(
+            document_type,
+            vector_store_id=vector_store_id,
+            vector_store_version=vector_store_version,
+        )

@@ -10,33 +10,18 @@ from src.application.ports.configuration_port import (
     AgentSettings,
     ConfigurationRecord,
     ConfigurationRef,
-    ExampleCase,
     FilterCondition,
     FilterGroup,
-    Flag,
-    FlagType,
     GeneralSettings,
     InfraSettings,
     LogicalOperator,
-    ModusOperandi,
     MonitoringSettings,
     OpsSettings,
     SegmentSettings,
-    Taxonomy,
     TestSettings,
     default_segments,
 )
 from src.application.ports.tag_catalog_port import TagCategory
-from src.application.ports.embedding_port import (
-    EmbeddingResult,
-    EmbeddingUnitOfWork,
-    EmbeddingUnitOfWorkFactory,
-)
-from src.application.ports.fraud_knowledge_port import (
-    DocumentType,
-    FraudKnowledgeDocument,
-)
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
 from src.application.ports.test_run_port import (
     TestRunConfig,
     TestRunRecord,
@@ -57,24 +42,11 @@ from src.application.use_cases.configurations.get_active_configuration import (
 from src.application.use_cases.configurations.get_configuration import (
     GetConfigurationUseCase,
 )
-from src.application.use_cases.configurations.index_configuration_knowledge import (
-    IndexConfigurationKnowledgeUseCase,
-)
 from src.application.use_cases.configurations.list_configuration_versions import (
     ListConfigurationVersionsUseCase,
 )
 from src.application.use_cases.configurations.list_configurations import (
     ListConfigurationsUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_flag import IngestFlagUseCase
-from src.application.use_cases.fraud_knowledge.ingest_modus_operandi import (
-    IngestModusOperandiUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_similar_case import (
-    IngestSimilarCaseUseCase,
-)
-from src.application.use_cases.fraud_knowledge.ingest_taxonomia import (
-    IngestTaxonomiaUseCase,
 )
 
 
@@ -158,49 +130,6 @@ def _with_active(
     )
 
 
-# --- Fraud-knowledge fakes, same pattern as
-# tests/test_application/test_use_cases/test_fraud_knowledge/test_ingest_fraud_knowledge.py
-# (this codebase has no shared conftest - local fakes per test file).
-
-
-class InMemoryFraudKnowledgeRepository:
-    def __init__(self) -> None:
-        self._documents: dict[uuid.UUID, FraudKnowledgeDocument] = {}
-
-    def create(self, document: FraudKnowledgeDocument) -> FraudKnowledgeDocument:
-        self._documents[document.id] = document
-        return document
-
-    def get(self, document_id: uuid.UUID) -> FraudKnowledgeDocument | None:
-        return self._documents.get(document_id)
-
-    def update(self, document: FraudKnowledgeDocument) -> FraudKnowledgeDocument:
-        self._documents[document.id] = document
-        return document
-
-    def delete(self, document_id: uuid.UUID) -> None:
-        self._documents.pop(document_id, None)
-
-    def list(
-        self,
-        document_type: DocumentType | None = None,
-        *,
-        channel: str | None = None,
-        configuration: str | None = None,
-        version: int | None = None,
-    ) -> list[FraudKnowledgeDocument]:
-        results = list(self._documents.values())
-        if document_type is not None:
-            results = [d for d in results if d.type == document_type]
-        if channel is not None:
-            results = [d for d in results if d.segmento == channel]
-        if configuration is not None:
-            results = [d for d in results if d.configuration == configuration]
-        if version is not None:
-            results = [d for d in results if d.version == version]
-        return results
-
-
 class InMemoryTestRunRepository:
     def __init__(self) -> None:
         self._runs: list[TestRunRecord] = []
@@ -238,86 +167,17 @@ class InMemoryTestRunRepository:
         self._runs = [r for r in self._runs if r.id != run_id]
 
 
-class ScriptedEmbeddingUnitOfWork(EmbeddingUnitOfWork):
-    def embed(self, texts: list[str]) -> EmbeddingResult:
-        return EmbeddingResult(
-            vectors=[[0.1, 0.2, 0.3] for _ in texts],
-            model="fake-embedding-model",
-            dimensions=3,
-        )
-
-
-class ScriptedEmbeddingUnitOfWorkFactory(EmbeddingUnitOfWorkFactory):
-    def create(
-        self, *, model: str, monitoring: MonitoringPort, operation_name: str
-    ) -> EmbeddingUnitOfWork:
-        return ScriptedEmbeddingUnitOfWork()
-
-
-class NullSpan(MonitoringSpan):
-    def write_input(self, data) -> None:
-        pass
-
-    def write_result(self, data) -> None:
-        pass
-
-    def write_inner_logs(self, entries) -> None:
-        pass
-
-    def write_operation_metas(self, metadata) -> None:
-        pass
-
-    def record_dependency(self, name, kind, metadata=None) -> None:
-        pass
-
-    def finish(self, error=None) -> None:
-        pass
-
-
-class NullMonitoringPort(MonitoringPort):
-    def start(self, operation_name, operation_type, metadata=None) -> MonitoringSpan:
-        return NullSpan()
-
-
-def _index_use_case(
-    fraud_repo: InMemoryFraudKnowledgeRepository,
-) -> IndexConfigurationKnowledgeUseCase:
-    embedding_factory = ScriptedEmbeddingUnitOfWorkFactory()
-    monitoring = NullMonitoringPort()
-    kwargs = dict(
-        repository=fraud_repo,
-        embedding_unit_of_work_factory=embedding_factory,
-        monitoring=monitoring,
-        embedding_model="fake-deployment",
-    )
-    return IndexConfigurationKnowledgeUseCase(
-        ingest_taxonomia=IngestTaxonomiaUseCase(**kwargs),
-        ingest_modus_operandi=IngestModusOperandiUseCase(**kwargs),
-        ingest_flag=IngestFlagUseCase(**kwargs),
-        ingest_similar_case=IngestSimilarCaseUseCase(**kwargs),
-    )
-
-
 def _create_use_case(
     repo: InMemoryConfigurationRepository,
-    fraud_repo: InMemoryFraudKnowledgeRepository | None = None,
 ) -> CreateConfigurationUseCase:
-    return CreateConfigurationUseCase(
-        repo, _index_use_case(fraud_repo or InMemoryFraudKnowledgeRepository()),
-        InMemoryTestRunRepository(),
-    )
+    return CreateConfigurationUseCase(repo, InMemoryTestRunRepository())
 
 
 def _activate_use_case(
     repo: InMemoryConfigurationRepository,
-    fraud_repo: InMemoryFraudKnowledgeRepository | None = None,
     test_run_repo: InMemoryTestRunRepository | None = None,
 ) -> ActivateConfigurationUseCase:
-    return ActivateConfigurationUseCase(
-        repo,
-        fraud_repo or InMemoryFraudKnowledgeRepository(),
-        test_run_repo or InMemoryTestRunRepository(),
-    )
+    return ActivateConfigurationUseCase(repo, test_run_repo or InMemoryTestRunRepository())
 
 
 def test_create_configuration_starts_new_lineage_at_version_1_inactive() -> None:
@@ -604,186 +464,6 @@ def test_get_configuration_by_id_and_version() -> None:
     assert get_config.execute(record.configuration_id, 999) is None
 
 
-# --- OpenSearch knowledge indexing ------------------------------------
-
-
-def _agent_with_full_knowledge() -> AgentSettings:
-    taxonomy = Taxonomy(
-        id="tx-1",
-        code="PHISH",
-        name="Phishing",
-        description="Suplantación de identidad.",
-    )
-    modus_operandi = ModusOperandi(
-        id="mo-1",
-        title="Vishing",
-        narrative="Llamada suplantando soporte.",
-        taxonomy_id="tx-1",
-    )
-    red_flag = Flag(
-        id="rf-1",
-        flag_type=FlagType.RED,
-        name="Llamada sospechosa",
-        description="Llamada de número desconocido.",
-        modus_operandi_ids=["mo-1"],
-    )
-    yellow_flag = Flag(
-        id="yf-1",
-        flag_type=FlagType.YELLOW,
-        name="Cambio reciente de datos",
-        description="Cambio de celular en los últimos 7 días.",
-        modus_operandi_ids=["mo-1"],
-    )
-    example_case = ExampleCase(
-        id="ec-1",
-        text="Cliente reporta llamada de 'soporte' pidiendo el OTP.",
-        modus_operandi_id="mo-1",
-        taxonomy_id="tx-1",
-    )
-    return AgentSettings(
-        taxonomies=[taxonomy],
-        modus_operandi=[modus_operandi],
-        flags=[red_flag, yellow_flag],
-        example_cases=[example_case],
-    )
-
-
-def test_create_configuration_indexes_full_knowledge_graph_into_opensearch() -> None:
-    repo = InMemoryConfigurationRepository()
-    fraud_repo = InMemoryFraudKnowledgeRepository()
-    use_case = _create_use_case(repo, fraud_repo)
-
-    record = use_case.execute(
-        CreateConfigurationInput(
-            name="Producción",
-            segments={
-                "canales_digitales": SegmentSettings(
-                    agent=_agent_with_full_knowledge()
-                )
-            },
-        )
-    )
-
-    documents = fraud_repo.list()
-    assert len(documents) == 5
-    assert all(doc.configuration == record.configuration_id for doc in documents)
-    assert all(doc.version == record.version for doc in documents)
-    # Never active on creation, matches the DynamoDB record's own active=False.
-    assert all(doc.activate is False for doc in documents)
-
-    by_type = {doc.type: doc for doc in documents}
-    modus_operandi_doc = by_type[DocumentType.MODUS_OPERANDI]
-    assert modus_operandi_doc.taxonomia_id == by_type[DocumentType.TAXONOMIA].id
-    assert len(modus_operandi_doc.flags) == 2
-    assert len(modus_operandi_doc.similar_cases) == 1
-
-
-def test_create_configuration_indexes_knowledge_per_segment_with_correct_segmento_code() -> (
-    None
-):
-    repo = InMemoryConfigurationRepository()
-    fraud_repo = InMemoryFraudKnowledgeRepository()
-    use_case = _create_use_case(repo, fraud_repo)
-
-    use_case.execute(
-        CreateConfigurationInput(
-            name="Producción",
-            segments={
-                "canales_digitales": SegmentSettings(
-                    agent=_agent_with_full_knowledge()
-                ),
-                "tarjetas": SegmentSettings(
-                    agent=_agent_with_full_knowledge()
-                ),
-            },
-        )
-    )
-
-    documents = fraud_repo.list()
-    assert len(documents) == 10
-
-    canales_docs = fraud_repo.list(channel="canales_digitales")
-    tarjetas_docs = fraud_repo.list(channel="tarjetas")
-    assert len(canales_docs) == 5
-    assert len(tarjetas_docs) == 5
-    assert all(doc.segmento == "canales_digitales" for doc in canales_docs)
-    assert all(doc.segmento == "tarjetas" for doc in tarjetas_docs)
-    # Each segment's ingest gets its own fresh OpenSearch document ids, even
-    # though both segments reuse the same domain-level taxonomy/MO ids.
-    assert {doc.id for doc in canales_docs}.isdisjoint({doc.id for doc in tarjetas_docs})
-
-
-def test_create_configuration_with_dangling_taxonomy_reference_raises() -> None:
-    repo = InMemoryConfigurationRepository()
-    use_case = _create_use_case(repo)
-    agent = AgentSettings(
-        modus_operandi=[
-            ModusOperandi(
-                id="mo-1", title="x", narrative="y", taxonomy_id="missing-tx"
-            )
-        ]
-    )
-
-    with pytest.raises(ValueError):
-        use_case.execute(
-            CreateConfigurationInput(
-                name="Producción",
-                segments={
-                    "canales_digitales": SegmentSettings(agent=agent)
-                },
-            )
-        )
-
-
-def test_activate_flips_opensearch_documents_activate_flag() -> None:
-    repo = InMemoryConfigurationRepository()
-    fraud_repo = InMemoryFraudKnowledgeRepository()
-    test_run_repo = InMemoryTestRunRepository()
-    create = _create_use_case(repo, fraud_repo)
-    activate = _activate_use_case(repo, fraud_repo, test_run_repo)
-
-    v1 = create.execute(
-        CreateConfigurationInput(
-            name="Producción",
-            segments={
-                "canales_digitales": SegmentSettings(
-                    agent=_agent_with_full_knowledge()
-                )
-            },
-        )
-    )
-    v2 = create.execute(
-        CreateConfigurationInput(
-            name="Producción",
-            configuration_id=v1.configuration_id,
-            segments={
-                "canales_digitales": SegmentSettings(
-                    agent=_agent_with_full_knowledge()
-                )
-            },
-        )
-    )
-    test_run_repo.add_succeeded(v1.configuration_id, 1)
-    test_run_repo.add_succeeded(v2.configuration_id, 2)
-
-    activate.execute(v1.configuration_id, 1)
-    assert all(
-        doc.activate
-        for doc in fraud_repo.list(configuration=v1.configuration_id, version=1)
-    )
-
-    activate.execute(v2.configuration_id, 2)
-    assert all(
-        doc.activate
-        for doc in fraud_repo.list(configuration=v2.configuration_id, version=2)
-    )
-    # v1's documents must flip back to inactive when v2 is activated.
-    assert not any(
-        doc.activate
-        for doc in fraud_repo.list(configuration=v1.configuration_id, version=1)
-    )
-
-
 def test_tested_latest_configuration_is_preserved_after_test_history_deleted() -> None:
     repo = InMemoryConfigurationRepository()
     create = _create_use_case(repo)
@@ -800,7 +480,7 @@ def test_tested_latest_configuration_is_preserved_after_test_history_deleted() -
 def test_legacy_test_run_protects_only_its_configuration_version() -> None:
     repo = InMemoryConfigurationRepository()
     runs = InMemoryTestRunRepository()
-    create = CreateConfigurationUseCase(repo, _index_use_case(InMemoryFraudKnowledgeRepository()), runs)
+    create = CreateConfigurationUseCase(repo, runs)
     original = create.execute(CreateConfigurationInput(name="Protected"))
     runs.add_succeeded(original.configuration_id, 1)
     runs._runs[0].status = TestRunStatus.FAILED

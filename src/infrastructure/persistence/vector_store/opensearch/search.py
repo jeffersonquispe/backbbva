@@ -36,7 +36,8 @@ class OpenSearchFraudKnowledgeSearchAdapter(FraudKnowledgeSearchPort):
         query: str,
         *,
         pipeline: SearchPipeline,
-        channel: str,
+        vector_store_id: str,
+        vector_store_version: int,
         document_type: DocumentType,
         top_k: int = 5,
     ) -> list[FraudKnowledgeSearchResult]:
@@ -48,7 +49,8 @@ class OpenSearchFraudKnowledgeSearchAdapter(FraudKnowledgeSearchPort):
         vector = uow.embed([query]).vectors[0]
 
         filter_clauses = [
-            {"term": {"segmento": channel}},
+            {"term": {"vector_store_id": vector_store_id}},
+            {"term": {"vector_store_version": vector_store_version}},
             {"term": {"type": document_type.value}},
         ]
 
