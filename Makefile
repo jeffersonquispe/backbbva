@@ -137,7 +137,29 @@ shell:  ## Open a virtual environment.
 .PHONY: test
 test:  ## Run tests and generate coverage report.
 	@echo "--- Running tests... ---"
-	poetry run pytest
+	python -m pytest
+
+
+.PHONY: test-unit-vector-store
+test-unit-vector-store:  ## Run isolated Vector Store use-case tests (no Docker required).
+	GENAI_ENVIRONMENT=test API_V0_STR=/api/v0 python -m pytest \
+		tests/test_application/test_use_cases/test_vector_store_instances.py \
+		tests/test_application/test_use_cases/test_vector_store_knowledge_graph.py
+
+.PHONY: test-api-vector-store
+test-api-vector-store:  ## Run Vector Store HTTP API contract tests (no Docker required).
+	GENAI_ENVIRONMENT=test API_V0_STR=/api/v0 python -m pytest \
+		tests/test_infrastructure/test_entrypoint/test_vector_store_instances_router.py
+
+.PHONY: test-integration-docker-vector-store
+test-integration-docker-vector-store: docker-test-build  ## Run Vector Store tests against Docker DynamoDB Local.
+	@$(MAKE) GENAI_ENVIRONMENT=local docker-run
+	@$(DOCKER) run --rm --network lupita-data_aria-net \
+		-e GENAI_ENVIRONMENT=local -e API_V0_STR=/api/v0 \
+		-e DYNAMO_ENDPOINT=http://dynamodb:8000 -e DYNAMO_REGION_NAME=us-east-1 \
+		-e DYNAMO_ACCESS_KEY=dummy -e DYNAMO_SECRET_KEY=dummy \
+		aria-api-test:$(TEST_IMAGE_TAG) pytest -m docker_integration \
+		tests/test_integration/test_vector_store
 
 TEST_IMAGE_TAG ?= test
 

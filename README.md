@@ -2,6 +2,11 @@
 
 API for the novel massive fraud agent for BBVA company.
 
+## Tests
+
+The testing guide, including the Vector Store unit, API, and Docker integration
+commands, is available in [tests/README.md](tests/README.md).
+
 ## Local authentication
 
 `POST /api/v0/auth/login` returns an HS256 JWT; clients send it as a Bearer
