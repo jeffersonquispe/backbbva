@@ -12,6 +12,14 @@ class PostProcessAlertInput:
     # The analyst's decision: block/pass/bidi/voicebot/scale_to_analyst -
     # this is what the executor step acted on, and what closes the alert.
     resolution_path: str
+    # Already-generated final documentation (AgentSettings.executor
+    # .documentador - template substitution or an agent LLM call,
+    # depending on strategy) - built by the workflow (same pattern as
+    # classification/adversarial's extra_instructions) before this use
+    # case runs, so it stays a plain "package it into the output" step
+    # with no LLM/config dependency of its own. Empty when there's no
+    # active configuration/segment to generate it from.
+    documentation: str = ""
 
 
 @dataclass
@@ -22,3 +30,4 @@ class PostProcessAlertOutput:
     # ISO 8601, not datetime: this DTO gets dataclasses.asdict()'d
     # straight into a DynamoDB step record, which rejects raw datetimes.
     closed_at: str
+    documentation: str = ""

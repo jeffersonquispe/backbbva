@@ -13,6 +13,11 @@ VALID_EXECUTOR_ACTIONS = ("block", "bidi", "voicebot")
 class ExecuteAlertActionInput:
     action: str
     alert_id: UUID
+    # Generated content for this action (ARIC marking comment for
+    # block/bidi, voicebot script for voicebot) - see
+    # AlertChannelActionPort. None when there's no active configuration/
+    # segment to generate it from.
+    content: str | None = None
 
 
 @dataclass

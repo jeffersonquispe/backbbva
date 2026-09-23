@@ -81,6 +81,12 @@ class Config(BaseSettings):
 
     ANALYST_LLM_MODEL: str = ""
 
+    # Executor step's free-text generators (ARIC marking comment,
+    # Documentador's "agent" strategy - see GenerateAgentTextUseCase). Not
+    # REPORT_LLM_MODEL, a different consumer (DocumentAnalystDecisionUseCase,
+    # the fire-and-forget audit-trail report written to object storage).
+    EXECUTOR_LLM_MODEL: str = ""
+
     REPORT_LLM_MODEL: str = ""
 
     # DYNAMODB

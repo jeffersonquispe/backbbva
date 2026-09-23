@@ -29,11 +29,17 @@ class ExecuteAlertActionUseCase:
         ) as span:
             span.write_input({"action": input.action})
             if input.action == "block":
-                result = self._alert_action_port.block(input.alert_id)
+                result = self._alert_action_port.block(
+                    input.alert_id, comment=input.content
+                )
             elif input.action == "bidi":
-                result = self._alert_action_port.route_to_bidi(input.alert_id)
+                result = self._alert_action_port.route_to_bidi(
+                    input.alert_id, comment=input.content
+                )
             else:
-                result = self._alert_action_port.route_to_voicebot(input.alert_id)
+                result = self._alert_action_port.route_to_voicebot(
+                    input.alert_id, script=input.content
+                )
             span.write_result({"action": result.action, "detail": result.detail})
             return ExecuteAlertActionOutput(
                 action=result.action, detail=result.detail

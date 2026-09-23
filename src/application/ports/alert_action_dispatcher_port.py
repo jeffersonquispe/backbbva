@@ -11,5 +11,7 @@ class AlertActionDispatchRef:
 
 
 class AlertActionDispatcher:
-    def dispatch(self, action: str, alert_id: UUID) -> AlertActionDispatchRef:
+    def dispatch(
+        self, action: str, alert_id: UUID, content: str | None = None
+    ) -> AlertActionDispatchRef:
         raise NotImplementedError

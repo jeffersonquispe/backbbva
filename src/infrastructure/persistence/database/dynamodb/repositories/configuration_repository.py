@@ -29,6 +29,7 @@ from src.application.ports.configuration_port import (
     DocumentationConfig,
     DocumentationStrategy,
     ExampleCase,
+    ExecutorConfig,
     FilterCondition,
     FilterConditionOperator,
     FilterGroup,
@@ -45,6 +46,7 @@ from src.application.ports.configuration_port import (
     ProfilingPromptMode,
     ProfilingStrategy,
     ProfilingStrategyKey,
+    PromptField,
     Rubric,
     RuleCondition,
     ResolutionTag,
@@ -213,7 +215,7 @@ class DynamoConfigurationRepository(ConfigurationRepository):
                 self._voicebot_prompts,
                 "segment_id",
                 segment_id,
-                agent.analyst.voicebot.category_prompts,
+                agent.executor.voicebot_call.category_prompts,
             )
             self._put_sampling_criteria(
                 segment_id, segment.monitoring.sampling_criteria
@@ -366,7 +368,7 @@ class DynamoConfigurationRepository(ConfigurationRepository):
             agent.analyst.playbooks = self._query_entities(
                 self._playbooks, "segment_id", segment_id, _playbook_from_item
             )
-            agent.analyst.voicebot.category_prompts = self._query_entities(
+            agent.executor.voicebot_call.category_prompts = self._query_entities(
                 self._voicebot_prompts,
                 "segment_id",
                 segment_id,
@@ -609,7 +611,7 @@ def _segment_to_item(segment: SegmentSettings) -> dict[str, Any]:
     for key in ("taxonomies", "modus_operandi", "flags", "example_cases"):
         del item["agent"][key]
     del item["agent"]["analyst"]["playbooks"]
-    del item["agent"]["analyst"]["voicebot"]["category_prompts"]
+    del item["agent"]["executor"]["voicebot_call"]["category_prompts"]
     # boto3's resource layer rejects native float anywhere in the item
     # (detector xgboost thresholds, rule scores, field_enrichment, ...), so
     # convert the whole tree to Decimal in one pass instead of per-field.
@@ -878,9 +880,10 @@ def _monitoring_from_item(monitoring_item: dict[str, Any]) -> MonitoringSettings
 
 def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
     # taxonomies/modus_operandi/flags/example_cases and
-    # analyst.playbooks/analyst.voicebot.category_prompts aren't stored on
-    # this item (their own tables, see DynamoConfigurationRepository._hydrate)
-    # - default to [] here, the caller fills them in after querying.
+    # analyst.playbooks/executor.voicebot_call.category_prompts aren't
+    # stored on this item (their own tables, see
+    # DynamoConfigurationRepository._hydrate) - default to [] here, the
+    # caller fills them in after querying.
     return AgentSettings(
         parser=AlertParserConfig(fields=[AlertParserField(**from_dynamodb(field)) for field in agent_item.get("parser", {}).get("fields") or []]),
         deterministic=_deterministic_from_item(agent_item.get("deterministic") or {}),
@@ -897,15 +900,11 @@ def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
         detector_adversarial=DetectorAdversarialConfig(**from_dynamodb(agent_item.get("detector_adversarial") or {})),
         classification=ClassificationConfig(**from_dynamodb(agent_item.get("classification") or {})),
         adversarial=AdversarialConfig(**from_dynamodb(agent_item.get("adversarial") or {})),
-        analyst=_analyst_from_item(agent_item.get("analyst") or {}),
-        documentation=_documentation_from_item(agent_item.get("documentation") or {}),
+        analyst=AnalystConfig(),
+        executor=_executor_from_item(agent_item.get("executor") or {}),
         active_fields=list(agent_item.get("active_fields") or []),
         active_model_id=agent_item.get("active_model_id"),
     )
-
-
-def _analyst_from_item(item: dict[str, Any]) -> AnalystConfig:
-    return AnalystConfig(voicebot=_voicebot_from_item(item.get("voicebot") or {}))
 
 
 def _voicebot_from_item(item: dict[str, Any]) -> VoicebotConfig:
@@ -922,6 +921,22 @@ def _documentation_from_item(item: dict[str, Any]) -> DocumentationConfig:
         template_vars=list(item.get("template_vars") or []),
         agent_prompt=item.get("agent_prompt") or "",
         agent_prompt_vars=list(item.get("agent_prompt_vars") or []),
+    )
+
+
+def _prompt_field_from_item(item: dict[str, Any]) -> PromptField:
+    return PromptField(
+        prompt=item.get("prompt") or "",
+        prompt_vars=list(item.get("prompt_vars") or []),
+    )
+
+
+def _executor_from_item(item: dict[str, Any]) -> ExecutorConfig:
+    return ExecutorConfig(
+        aric_marking=_prompt_field_from_item(item.get("aric_marking") or {}),
+        voicebot_call=_voicebot_from_item(item.get("voicebot_call") or {}),
+        documentador=_documentation_from_item(item.get("documentador") or {}),
+        analyst_escalation=_prompt_field_from_item(item.get("analyst_escalation") or {}),
     )
 
 

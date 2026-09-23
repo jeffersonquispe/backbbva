@@ -23,6 +23,7 @@ from src.application.ports.configuration_port import (
     DistributionValue,
     DocumentationConfig,
     ExampleCase,
+    ExecutorConfig,
     FilterCondition,
     FilterGroup,
     Flag,
@@ -33,6 +34,7 @@ from src.application.ports.configuration_port import (
     OpsSettings,
     ProfilingConfig,
     ProfilingStrategy,
+    PromptField,
     Rubric,
     RuleCondition,
     SamplingCriterion,
@@ -98,6 +100,7 @@ from src.infrastructure.entrypoint.api.schemas import (
     DistributionValueSchema,
     DocumentationConfigSchema,
     ExampleCaseSchema,
+    ExecutorConfigSchema,
     FilterConditionSchema,
     FilterGroupSchema,
     FlagSchema,
@@ -108,6 +111,7 @@ from src.infrastructure.entrypoint.api.schemas import (
     OpsSettingsSchema,
     ProfilingConfigSchema,
     ProfilingStrategySchema,
+    PromptFieldSchema,
     RuleConditionSchema,
     RubricSchema,
     SamplingCriterionSchema,
@@ -373,7 +377,6 @@ def _voicebot_to_schema(voicebot: VoicebotConfig) -> VoicebotConfigSchema:
 def _analyst_to_schema(analyst: AnalystConfig) -> AnalystConfigSchema:
     return AnalystConfigSchema(
         playbooks=[AnalystPlaybookSchema(**p.__dict__) for p in analyst.playbooks],
-        voicebot=_voicebot_to_schema(analyst.voicebot),
     )
 
 
@@ -381,6 +384,15 @@ def _documentation_to_schema(
     documentation: DocumentationConfig,
 ) -> DocumentationConfigSchema:
     return DocumentationConfigSchema(**documentation.__dict__)
+
+
+def _executor_to_schema(executor: ExecutorConfig) -> ExecutorConfigSchema:
+    return ExecutorConfigSchema(
+        aric_marking=PromptFieldSchema(**executor.aric_marking.__dict__),
+        voicebot_call=_voicebot_to_schema(executor.voicebot_call),
+        documentador=_documentation_to_schema(executor.documentador),
+        analyst_escalation=PromptFieldSchema(**executor.analyst_escalation.__dict__),
+    )
 
 
 def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
@@ -405,7 +417,7 @@ def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
         classification=_classification_to_schema(agent.classification),
         adversarial=_adversarial_to_schema(agent.adversarial),
         analyst=_analyst_to_schema(agent.analyst),
-        documentation=_documentation_to_schema(agent.documentation),
+        executor=_executor_to_schema(agent.executor),
         taxonomies=[TaxonomySchema(**t.__dict__) for t in agent.taxonomies],
         modus_operandi=[
             ModusOperandiSchema(**m.__dict__) for m in agent.modus_operandi
@@ -514,7 +526,6 @@ def _voicebot_from_schema(schema: VoicebotConfigSchema) -> VoicebotConfig:
 def _analyst_from_schema(schema: AnalystConfigSchema) -> AnalystConfig:
     return AnalystConfig(
         playbooks=[AnalystPlaybook(**p.model_dump()) for p in schema.playbooks],
-        voicebot=_voicebot_from_schema(schema.voicebot),
     )
 
 
@@ -522,6 +533,15 @@ def _documentation_from_schema(
     schema: DocumentationConfigSchema,
 ) -> DocumentationConfig:
     return DocumentationConfig(**schema.model_dump())
+
+
+def _executor_from_schema(schema: ExecutorConfigSchema) -> ExecutorConfig:
+    return ExecutorConfig(
+        aric_marking=PromptField(**schema.aric_marking.model_dump()),
+        voicebot_call=_voicebot_from_schema(schema.voicebot_call),
+        documentador=_documentation_from_schema(schema.documentador),
+        analyst_escalation=PromptField(**schema.analyst_escalation.model_dump()),
+    )
 
 
 def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
@@ -546,7 +566,7 @@ def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
         classification=_classification_from_schema(schema.classification),
         adversarial=_adversarial_from_schema(schema.adversarial),
         analyst=_analyst_from_schema(schema.analyst),
-        documentation=_documentation_from_schema(schema.documentation),
+        executor=_executor_from_schema(schema.executor),
         taxonomies=[Taxonomy(**t.model_dump()) for t in schema.taxonomies],
         modus_operandi=[
             ModusOperandi(**m.model_dump()) for m in schema.modus_operandi

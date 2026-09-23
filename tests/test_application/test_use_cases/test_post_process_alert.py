@@ -25,3 +25,19 @@ def test_post_process_computes_duration_status_and_resolution_path() -> None:
     assert output.resolution_path == "bidi"
     assert output.total_duration_seconds >= 5
     assert datetime.fromisoformat(output.closed_at) > started_at
+    assert output.documentation == ""
+
+
+def test_post_process_echoes_generated_documentation() -> None:
+    use_case = PostProcessAlertUseCase()
+
+    output = use_case.execute(
+        PostProcessAlertInput(
+            alert_id=uuid.uuid4(),
+            workflow_started_at=datetime.now(timezone.utc),
+            resolution_path="block",
+            documentation="Alerta documentada: cliente cust-1, bloqueado por ...",
+        )
+    )
+
+    assert output.documentation == "Alerta documentada: cliente cust-1, bloqueado por ..."

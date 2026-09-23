@@ -14,6 +14,9 @@ from src.application.use_cases.alerts.classify_alert import ClassifyAlertUseCase
 from src.application.use_cases.alerts.enrich_profiling_fields import (
     EnrichProfilingFieldsUseCase,
 )
+from src.application.use_cases.alerts.generate_agent_text import (
+    GenerateAgentTextUseCase,
+)
 from src.application.use_cases.alerts.post_process_alert import (
     PostProcessAlertUseCase,
 )
@@ -300,3 +303,18 @@ def get_analyst_review_alert_use_case(
 
 def get_post_process_alert_use_case() -> PostProcessAlertUseCase:
     return PostProcessAlertUseCase()
+
+
+def get_generate_agent_text_use_case(
+    *,
+    system_prompt: str,
+    operation_name: str,
+    model: str | None = None,
+) -> GenerateAgentTextUseCase:
+    return GenerateAgentTextUseCase(
+        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        monitoring=get_monitoring(),
+        model=model or genai_config.EXECUTOR_LLM_MODEL,
+        system_prompt=system_prompt,
+        operation_name=operation_name,
+    )

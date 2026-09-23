@@ -18,18 +18,18 @@ from src.application.use_cases.alerts.execute_alert_action import (
 
 class RecordingAlertChannelActionPort(AlertChannelActionPort):
     def __init__(self) -> None:
-        self.calls: list[tuple[str, uuid.UUID]] = []
+        self.calls: list[tuple[str, uuid.UUID, str | None]] = []
 
-    def block(self, alert_id):
-        self.calls.append(("block", alert_id))
+    def block(self, alert_id, comment=None):
+        self.calls.append(("block", alert_id, comment))
         return AlertActionResult(action="block", detail="blocked")
 
-    def route_to_bidi(self, alert_id):
-        self.calls.append(("bidi", alert_id))
+    def route_to_bidi(self, alert_id, comment=None):
+        self.calls.append(("bidi", alert_id, comment))
         return AlertActionResult(action="bidi", detail="routed to bidi")
 
-    def route_to_voicebot(self, alert_id):
-        self.calls.append(("voicebot", alert_id))
+    def route_to_voicebot(self, alert_id, script=None):
+        self.calls.append(("voicebot", alert_id, script))
         return AlertActionResult(action="voicebot", detail="routed to voicebot")
 
 
@@ -88,9 +88,23 @@ def test_execute_alert_action_dispatches_to_matching_port_method(
 
     assert output.action == action
     assert output.detail == expected_detail
-    assert port.calls == [(action, alert_id)]
+    assert port.calls == [(action, alert_id, None)]
     assert monitoring.started == [("execute_alert_action", "workflow.execution")]
     assert "finish:None" in monitoring.events
+
+
+def test_execute_alert_action_forwards_generated_content_to_the_port() -> None:
+    port = RecordingAlertChannelActionPort()
+    use_case = ExecuteAlertActionUseCase(
+        alert_action_port=port, monitoring=RecordingMonitoringPort()
+    )
+    alert_id = uuid.uuid4()
+
+    use_case.execute(
+        ExecuteAlertActionInput(action="voicebot", alert_id=alert_id, content="hola")
+    )
+
+    assert port.calls == [("voicebot", alert_id, "hola")]
 
 
 def test_execute_alert_action_rejects_unsupported_action() -> None:

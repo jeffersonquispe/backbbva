@@ -788,7 +788,6 @@ class VoicebotConfigSchema(BaseModel):
 
 class AnalystConfigSchema(BaseModel):
     playbooks: list[AnalystPlaybookSchema] = Field(default_factory=list)
-    voicebot: VoicebotConfigSchema = Field(default_factory=VoicebotConfigSchema)
 
 
 class DocumentationConfigSchema(BaseModel):
@@ -797,6 +796,20 @@ class DocumentationConfigSchema(BaseModel):
     template_vars: list[str] = Field(default_factory=list)
     agent_prompt: str = ""
     agent_prompt_vars: list[str] = Field(default_factory=list)
+
+
+class PromptFieldSchema(BaseModel):
+    prompt: str = ""
+    prompt_vars: list[str] = Field(default_factory=list)
+
+
+class ExecutorConfigSchema(BaseModel):
+    aric_marking: PromptFieldSchema = Field(default_factory=PromptFieldSchema)
+    voicebot_call: VoicebotConfigSchema = Field(default_factory=VoicebotConfigSchema)
+    documentador: DocumentationConfigSchema = Field(
+        default_factory=DocumentationConfigSchema
+    )
+    analyst_escalation: PromptFieldSchema = Field(default_factory=PromptFieldSchema)
 
 
 class AgentSettingsSchema(BaseModel):
@@ -813,9 +826,7 @@ class AgentSettingsSchema(BaseModel):
         default_factory=AdversarialConfigSchema
     )
     analyst: AnalystConfigSchema = Field(default_factory=AnalystConfigSchema)
-    documentation: DocumentationConfigSchema = Field(
-        default_factory=DocumentationConfigSchema
-    )
+    executor: ExecutorConfigSchema = Field(default_factory=ExecutorConfigSchema)
     taxonomies: list[TaxonomySchema] = Field(default_factory=list)
     modus_operandi: list[ModusOperandiSchema] = Field(default_factory=list)
     flags: list[FlagSchema] = Field(default_factory=list)

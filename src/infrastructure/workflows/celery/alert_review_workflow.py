@@ -18,6 +18,7 @@ from src.application.dtos.classify_alert_dtos import (
     ClassifyAlertInput,
     ClassifyAlertOutput,
 )
+from src.application.dtos.generate_agent_text_dtos import GenerateAgentTextInput
 from src.application.dtos.post_process_alert_dtos import (
     PostProcessAlertInput,
     PostProcessAlertOutput,
@@ -34,6 +35,8 @@ from src.application.ports.alert_port import AlertStatus
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.ports.configuration_port import (
     ClassificationConfig,
+    DocumentationStrategy,
+    ExecutorConfig,
     ProfilingStrategyKey,
     SegmentSettings,
 )
@@ -58,6 +61,7 @@ from src.infrastructure.workflows.celery.factories import (
     get_classify_alert_use_case,
     get_configuration_repository,
     get_enrich_profiling_fields_use_case,
+    get_generate_agent_text_use_case,
     get_post_process_alert_use_case,
     get_pre_process_alert_use_case,
     get_profile_alert_use_case,
@@ -614,10 +618,91 @@ def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
     )
 
 
+_ARIC_MARKING_SYSTEM_PROMPT = (
+    "Eres un agente que redacta el comentario de marcación ARIC para una "
+    "alerta de fraude, a partir de la instrucción y los datos entregados. "
+    "Escribe un comentario breve, claro y accionable para quien revise la "
+    "marcación después."
+)
+
+_DOCUMENTADOR_SYSTEM_PROMPT = (
+    "Eres un agente que redacta la documentación final de una alerta de "
+    "fraude para el historial del caso, a partir de la instrucción y los "
+    "datos entregados. Sé claro, objetivo y conciso."
+)
+
+
+def _executor_variables_pool(
+    context: dict[str, Any], segment: SegmentSettings
+) -> dict[str, Any]:
+    # Same pool as classification/adversarial (_variables_pool), extended
+    # with the decision data the executor step's own prompts (ARIC
+    # marking, voicebot script, documentador, escalation) are actually
+    # about - neither exists yet when profiling/classification build
+    # their own pool, so this stays a superset built fresh here.
+    pool = dict(_profiling_variables_pool(context, segment))
+    classification: ClassifyAlertOutput | None = context.get("classification")
+    analyst: AnalystReviewAlertOutput | None = context.get("analyst")
+    if classification is not None:
+        pool.setdefault("fraud_classification", classification.fraud_classification)
+        pool.setdefault("is_fraud", classification.is_fraud)
+        pool.setdefault("classification_reasoning", classification.reasoning)
+    if analyst is not None:
+        pool.setdefault("analyst_decision", analyst.decision)
+        pool.setdefault("analyst_reasoning", analyst.reasoning)
+    return pool
+
+
+def _generate_agent_text(
+    prompt: str, pool: dict[str, Any], system_prompt: str, operation_name: str
+) -> str:
+    if not prompt:
+        return ""
+    use_case = get_generate_agent_text_use_case(
+        system_prompt=system_prompt, operation_name=operation_name
+    )
+    output = use_case.execute(
+        GenerateAgentTextInput(prompt=substitute_variables(prompt, pool))
+    )
+    return output.text
+
+
+def _voicebot_script(
+    executor_cfg: ExecutorConfig, context: dict[str, Any], pool: dict[str, Any]
+) -> str:
+    # Plain template concatenation (base + matching category prompt), no
+    # LLM call - unlike aric_marking/documentador's "agent" strategy, the
+    # UI describes this field as prompts that "se concatenan
+    # dinámicamente", not text for an agent to draft.
+    voicebot_cfg = executor_cfg.voicebot_call
+    parts = [
+        substitute_variables(voicebot_cfg.base_prompt, pool)
+    ] if voicebot_cfg.base_prompt else []
+    classification: ClassifyAlertOutput | None = context.get("classification")
+    fraud_classification = (
+        classification.fraud_classification if classification is not None else None
+    )
+    # taxonomy_id is matched directly against the classification's
+    # fraud_classification label - both are meant to name the same
+    # taxonomy entry (see Taxonomy/VoicebotCategoryPrompt in
+    # configuration_port.py). If that ever needs to become an explicit
+    # id lookup instead of a string match, this is the one place to change.
+    for category_prompt in voicebot_cfg.category_prompts:
+        if (
+            category_prompt.prompt
+            and fraud_classification is not None
+            and category_prompt.taxonomy_id == fraud_classification
+        ):
+            parts.append(substitute_variables(category_prompt.prompt, pool))
+    return "\n\n".join(parts)
+
+
 def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
     analyst: AnalystReviewAlertOutput = context["analyst"]
     decision = analyst.decision
     alert_id = UUID(context["alert_id"])
+    segment = _active_segment(context)
+    executor_cfg = segment.agent.executor if segment is not None else None
 
     if decision == "pass":
         return {
@@ -628,12 +713,18 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
     if decision == "scale_to_analyst":
         alert = get_alert_repository().get(alert_id)
         event_id = alert.event_id if alert is not None else str(alert_id)
+        reason = analyst.reasoning
+        if executor_cfg is not None and executor_cfg.analyst_escalation.prompt:
+            pool = _executor_variables_pool(context, segment)
+            reason = substitute_variables(
+                executor_cfg.analyst_escalation.prompt, pool
+            )
         ref = get_analyst_escalation_dispatcher().dispatch(
             alert_id=alert_id,
             workflow_execution_id=UUID(context["workflow_execution_id"]),
             event_id=event_id,
             session_id=None,
-            reason=analyst.reasoning,
+            reason=reason,
         )
         return {
             "executed_action": decision,
@@ -642,7 +733,22 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
         }
 
     if decision in ("block", "bidi", "voicebot"):
-        ref = get_alert_action_dispatcher().dispatch(decision, alert_id)
+        content: str | None = None
+        if executor_cfg is not None:
+            pool = _executor_variables_pool(context, segment)
+            if decision == "voicebot":
+                content = _voicebot_script(executor_cfg, context, pool) or None
+            else:
+                content = (
+                    _generate_agent_text(
+                        executor_cfg.aric_marking.prompt,
+                        pool,
+                        _ARIC_MARKING_SYSTEM_PROMPT,
+                        "aric_marking",
+                    )
+                    or None
+                )
+        ref = get_alert_action_dispatcher().dispatch(decision, alert_id, content=content)
         return {
             "executed_action": decision,
             "dispatch_backend": ref.backend,
@@ -654,6 +760,21 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
 
 def _run_post_process(context: dict[str, Any]) -> PostProcessAlertOutput:
     analyst: AnalystReviewAlertOutput = context["analyst"]
+    documentation = ""
+    segment = _active_segment(context)
+    if segment is not None:
+        documentador = segment.agent.executor.documentador
+        pool = _executor_variables_pool(context, segment)
+        if documentador.strategy == DocumentationStrategy.TEMPLATE:
+            if documentador.template:
+                documentation = substitute_variables(documentador.template, pool)
+        elif documentador.strategy == DocumentationStrategy.AGENT:
+            documentation = _generate_agent_text(
+                documentador.agent_prompt,
+                pool,
+                _DOCUMENTADOR_SYSTEM_PROMPT,
+                "documentador",
+            )
     use_case = get_post_process_alert_use_case()
     return use_case.execute(
         PostProcessAlertInput(
@@ -662,6 +783,7 @@ def _run_post_process(context: dict[str, Any]) -> PostProcessAlertOutput:
                 context["workflow_started_at"]
             ),
             resolution_path=analyst.decision,
+            documentation=documentation,
         )
     )
 

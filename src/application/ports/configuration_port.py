@@ -354,7 +354,11 @@ class DeterministicConfig:
 @dataclass
 class ClassificationConfig:
     vector_store_enabled: bool = False
-    vector_store_instance_ids: list[str] = field(default_factory=list)
+    # One vector store per stage, not a list - a stage's tool loop issues a
+    # single search scoped to a single vector_store_id (see
+    # vector_store_instance_port.py). Several stages may point at the same
+    # id; that's sharing, not multi-selection.
+    vector_store_instance_id: str | None = None
     watchlist_enabled: bool = False
     watchlist_ids: list[str] = field(default_factory=list)
     # Which alert field's value is looked up against the selected
@@ -379,8 +383,13 @@ class DetectorConfig(ClassificationConfig):
 
 @dataclass
 class AdversarialConfig:
+    # Dead by product design, not an oversight: _segment_tool_kwargs() in
+    # alert_review_workflow.py always builds tool kwargs from the sibling
+    # ClassificationConfig, never from this one - Adversarial has no tool
+    # picker of its own. Kept here only because the shape must mirror
+    # ClassificationConfig's for the frontend contract.
     vector_store_enabled: bool = False
-    vector_store_instance_ids: list[str] = field(default_factory=list)
+    vector_store_instance_id: str | None = None
     watchlist_enabled: bool = False
     watchlist_ids: list[str] = field(default_factory=list)
     watchlist_compare_field: str | None = None
@@ -413,6 +422,14 @@ class AnalystPlaybook:
     # mapped tag, copied at save time) so this field stays optional and
     # anything reading resolution_tag today keeps working unchanged.
     resolution_method_id: str | None = None
+    # ModusOperandiLibraryEntry.id this playbook is written for - resolved
+    # at analyst-review time by matching the alert against the segment's
+    # vector_store_instance_id (same one Detector/Clasificación search,
+    # see resolve_analyst_playbook.py) and joining on
+    # ModusOperandiDocument.library_id. Advisory only: a resolved playbook
+    # is extra context for the analyst LLM call (AnalystReviewAlertUseCase),
+    # not a deterministic override - the model still decides.
+    modus_operandi_id: str | None = None
 
 
 @dataclass
@@ -432,7 +449,6 @@ class VoicebotConfig:
 @dataclass
 class AnalystConfig:
     playbooks: list[AnalystPlaybook] = field(default_factory=list)
-    voicebot: VoicebotConfig = field(default_factory=VoicebotConfig)
 
 
 class DocumentationStrategy(StrEnum):
@@ -453,6 +469,34 @@ class DocumentationConfig:
 
 
 @dataclass
+class PromptField:
+    # A single free-text prompt plus the {variable} names it references -
+    # same shape repeated verbatim across several one-off executor prompts
+    # (ARIC marking comment, analyst escalation concept) that don't warrant
+    # their own named dataclass each.
+    prompt: str = ""
+    prompt_vars: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ExecutorConfig:
+    # The four "Ejecutor" subtab sections (Wave 6): the comment the agent
+    # leaves at ARIC marking time, the voicebot call (base + per-taxonomy
+    # prompts), the final alert documentation, and the concept handed to
+    # the analyst on escalation. Mirrors the frontend's SegmentAgentConfig
+    # .executor 1:1 (configurations.functions.ts's ApiExecutorConfig) -
+    # this replaces the old top-level AgentSettings.documentation and
+    # AnalystConfig.voicebot fields, which the frontend never actually
+    # wrote to (it always sent this same shape nested under "executor",
+    # which had no matching field here - FastAPI/Pydantic's default
+    # extra="ignore" silently dropped the whole thing on every save).
+    aric_marking: PromptField = field(default_factory=PromptField)
+    voicebot_call: VoicebotConfig = field(default_factory=VoicebotConfig)
+    documentador: DocumentationConfig = field(default_factory=DocumentationConfig)
+    analyst_escalation: PromptField = field(default_factory=PromptField)
+
+
+@dataclass
 class AgentSettings:
     parser: AlertParserConfig = field(default_factory=AlertParserConfig)
     deterministic: DeterministicConfig = field(default_factory=DeterministicConfig)
@@ -463,7 +507,7 @@ class AgentSettings:
     classification: ClassificationConfig = field(default_factory=ClassificationConfig)
     adversarial: AdversarialConfig = field(default_factory=AdversarialConfig)
     analyst: AnalystConfig = field(default_factory=AnalystConfig)
-    documentation: DocumentationConfig = field(default_factory=DocumentationConfig)
+    executor: ExecutorConfig = field(default_factory=ExecutorConfig)
     taxonomies: list[Taxonomy] = field(default_factory=list)
     modus_operandi: list[ModusOperandi] = field(default_factory=list)
     flags: list[Flag] = field(default_factory=list)

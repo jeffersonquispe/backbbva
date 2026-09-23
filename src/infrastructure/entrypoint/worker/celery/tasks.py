@@ -218,13 +218,15 @@ def document_analyst_decision(
     retry_backoff=True,
     retry_kwargs={"max_retries": 3},
 )
-def execute_alert_action(self, action: str, alert_id: str) -> dict:
+def execute_alert_action(
+    self, action: str, alert_id: str, content: str | None = None
+) -> dict:
     use_case = ExecuteAlertActionUseCase(
         alert_action_port=MockAlertChannelActionAdapter(),
         monitoring=get_monitoring(),
     )
     output = use_case.execute(
-        ExecuteAlertActionInput(action=action, alert_id=UUID(alert_id))
+        ExecuteAlertActionInput(action=action, alert_id=UUID(alert_id), content=content)
     )
     return {
         "status": "ok",

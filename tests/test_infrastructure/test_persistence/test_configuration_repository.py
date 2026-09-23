@@ -18,6 +18,7 @@ from src.application.ports.configuration_port import (
     DocumentationConfig,
     DocumentationStrategy,
     ExampleCase,
+    ExecutorConfig,
     FilterCondition,
     Flag,
     FlagType,
@@ -30,6 +31,7 @@ from src.application.ports.configuration_port import (
     ProfilingPromptMode,
     ProfilingStrategy,
     ProfilingStrategyKey,
+    PromptField,
     ResolutionTag,
     Rubric,
     RuleCondition,
@@ -189,18 +191,26 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
                 max_cycles=3,
                 feed_feedback_to_classification=False,
             ),
-            analyst=AnalystConfig(
-                voicebot=VoicebotConfig(
+            executor=ExecutorConfig(
+                aric_marking=PromptField(
+                    prompt="marca esta alerta",
+                    prompt_vars=["Saldo"],
+                ),
+                voicebot_call=VoicebotConfig(
                     base_prompt="hola, soy el asistente",
                     base_prompt_vars=["Saldo"],
                 ),
-            ),
-            documentation=DocumentationConfig(
-                strategy=DocumentationStrategy.AGENT,
-                template="plantilla",
-                template_vars=["Saldo"],
-                agent_prompt="documenta esta alerta",
-                agent_prompt_vars=["Última transacción"],
+                documentador=DocumentationConfig(
+                    strategy=DocumentationStrategy.AGENT,
+                    template="plantilla",
+                    template_vars=["Saldo"],
+                    agent_prompt="documenta esta alerta",
+                    agent_prompt_vars=["Última transacción"],
+                ),
+                analyst_escalation=PromptField(
+                    prompt="escala esta alerta",
+                    prompt_vars=["Última transacción"],
+                ),
             ),
             rubrics=[Rubric(id="fraud-score", name="estafa_score", conditions=[RuleCondition(id="device", variable="device", comparison="neq", values=["iphone"], score=5.5)])],
         ),
@@ -238,7 +248,7 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert restored.agent.flags == []
     assert restored.agent.example_cases == []
     assert restored.agent.analyst.playbooks == []
-    assert restored.agent.analyst.voicebot.category_prompts == []
+    assert restored.agent.executor.voicebot_call.category_prompts == []
     assert restored.agent.classification.vector_store_enabled is True
     assert restored.agent.classification.vector_store_instance_ids == ["vs-1", "vs-2"]
     assert restored.agent.classification.watchlist_enabled is True
@@ -247,9 +257,11 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert restored.agent.classification.prompt == "clasifica esta alerta"
     assert restored.agent.adversarial.max_cycles == 3
     assert restored.agent.adversarial.feed_feedback_to_classification is False
-    assert restored.agent.analyst.voicebot.base_prompt == "hola, soy el asistente"
-    assert restored.agent.documentation.strategy == DocumentationStrategy.AGENT
-    assert restored.agent.documentation.agent_prompt == "documenta esta alerta"
+    assert restored.agent.executor.aric_marking.prompt == "marca esta alerta"
+    assert restored.agent.executor.voicebot_call.base_prompt == "hola, soy el asistente"
+    assert restored.agent.executor.documentador.strategy == DocumentationStrategy.AGENT
+    assert restored.agent.executor.documentador.agent_prompt == "documenta esta alerta"
+    assert restored.agent.executor.analyst_escalation.prompt == "escala esta alerta"
 
 
 def test_default_segment_round_trips_through_its_own_table_item() -> None:

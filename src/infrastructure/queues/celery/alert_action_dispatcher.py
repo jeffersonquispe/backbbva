@@ -16,6 +16,8 @@ _TASK_NAME = "workflows.alert_review.execute_alert_action"
 
 
 class CeleryAlertActionDispatcher(AlertActionDispatcher):
-    def dispatch(self, action: str, alert_id: UUID) -> AlertActionDispatchRef:
-        result = app.send_task(_TASK_NAME, args=[action, str(alert_id)])
+    def dispatch(
+        self, action: str, alert_id: UUID, content: str | None = None
+    ) -> AlertActionDispatchRef:
+        result = app.send_task(_TASK_NAME, args=[action, str(alert_id), content])
         return AlertActionDispatchRef(backend="celery", external_id=result.id)

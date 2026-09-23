@@ -230,10 +230,12 @@ class InMemoryOperationsCapacityRepository:
 
 class RecordingAlertActionDispatcher(AlertActionDispatcher):
     def __init__(self) -> None:
-        self.calls: list[tuple[str, UUID]] = []
+        self.calls: list[tuple[str, UUID, str | None]] = []
 
-    def dispatch(self, action: str, alert_id: UUID) -> AlertActionDispatchRef:
-        self.calls.append((action, alert_id))
+    def dispatch(
+        self, action: str, alert_id: UUID, content: str | None = None
+    ) -> AlertActionDispatchRef:
+        self.calls.append((action, alert_id, content))
         return AlertActionDispatchRef(backend="celery", external_id="fake-action-1")
 
 
@@ -511,7 +513,10 @@ def test_alert_review_workflow_runs_full_pipeline_on_synthetic_alert(monkeypatch
     )
     assert recorded_steps["analyst"].output["decision"] == "bidi"
 
-    assert action_dispatcher.calls == [("bidi", alert_id)]
+    # No active configuration/segment in this synthetic run, so there's no
+    # executor.aric_marking prompt to generate a comment from - content
+    # stays None (see alert_review_workflow.py's _run_executor).
+    assert action_dispatcher.calls == [("bidi", alert_id, None)]
     assert escalation_dispatcher.calls == []
     assert len(documenter_dispatcher.calls) == 1
     assert set(documenter_dispatcher.calls[0]["steps"]) == {
