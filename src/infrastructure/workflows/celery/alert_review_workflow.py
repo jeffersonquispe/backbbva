@@ -36,7 +36,6 @@ from src.application.ports.configuration_port import (
     ClassificationConfig,
     ProfilingStrategyKey,
     SegmentSettings,
-    VectorStoreTool,
 )
 from src.application.ports.workflow_port import (
     WorkflowExecutionRecord,
@@ -393,11 +392,15 @@ def _step_overrides(
     }
 
 
-_VECTOR_TOOL_MAP = {
-    VectorStoreTool.SIMILAR_CASE: "get_similar_frauds",
-    VectorStoreTool.TAXONOMIA: "get_similar_taxonomy",
-    VectorStoreTool.MODUS_OPERANDI: "get_similar_modus_operandi",
-    # RED_FLAG / YELLOW_FLAG: no backing tool yet, silently dropped.
+# Fraud-knowledge retrieval tools gated by ClassificationConfig/
+# AdversarialConfig.vector_store_enabled - no more per-category picking
+# (see configuration_port.py's ClassificationConfig docstring), the switch
+# is all-or-nothing; which vector_store_instance_port.py instances get
+# searched is a retrieval-time detail, not a per-tool-function toggle.
+_FRAUD_KNOWLEDGE_TOOLS = {
+    "get_similar_frauds",
+    "get_similar_taxonomy",
+    "get_similar_modus_operandi",
 }
 
 _PROFILING_STRATEGY_OPERATION_MAP = {
@@ -408,15 +411,9 @@ _PROFILING_STRATEGY_OPERATION_MAP = {
 
 
 def _segment_tool_kwargs(classification_cfg: ClassificationConfig) -> dict[str, Any]:
-    if not classification_cfg.vector_store_tools:  # empty == no restriction
-        return {}
-    return {
-        "enabled_tools": {
-            _VECTOR_TOOL_MAP[t]
-            for t in classification_cfg.vector_store_tools
-            if t in _VECTOR_TOOL_MAP
-        }
-    }
+    if not classification_cfg.vector_store_enabled:
+        return {"enabled_tools": set()}
+    return {"enabled_tools": set(_FRAUD_KNOWLEDGE_TOOLS)}
 
 
 def _profiling_variables_pool(

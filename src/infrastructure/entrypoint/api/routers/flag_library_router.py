@@ -21,16 +21,20 @@ from src.application.use_cases.flag_library.update_flag_library_entry import (
 from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
     get_create_flag_library_entry_use_case,
     get_delete_flag_library_entry_use_case,
+    get_flag_library_repository,
     get_list_flag_library_entries_use_case,
     get_update_flag_library_entry_use_case,
 )
+from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import get_knowledge_graph_service
+from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 from src.infrastructure.entrypoint.api.schemas import (
     CreateFlagLibraryEntryRequest,
     FlagLibraryEntrySchema,
     UpdateFlagLibraryEntryRequest,
 )
+from src.infrastructure.entrypoint.api.authorization import require_library_access
 
-router = APIRouter(prefix="/library/flags", tags=["knowledge-library"])
+router = APIRouter(prefix="/library/flags", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
 
 
 @router.get("", response_model=list[FlagLibraryEntrySchema])
@@ -50,15 +54,16 @@ def create_flag_library_entry(
         CreateFlagLibraryEntryUseCase, Depends(get_create_flag_library_entry_use_case)
     ],
 ):
-    return _to_schema(
-        use_case.execute(
+    entry = use_case.execute(
             request.flag_type,
             request.name,
             request.description,
             request.evolved_variables,
             request.modus_operandi_library_ids,
         )
-    )
+    asset_type = KnowledgeAssetType.RED_FLAG if entry.flag_type.value == "red" else KnowledgeAssetType.YELLOW_FLAG
+    get_knowledge_graph_service().synchronize_new_asset(asset_type, entry.id)
+    return _to_schema(entry)
 
 
 @router.patch("/{entry_id}", response_model=FlagLibraryEntrySchema)
@@ -69,6 +74,12 @@ def update_flag_library_entry(
         UpdateFlagLibraryEntryUseCase, Depends(get_update_flag_library_entry_use_case)
     ],
 ):
+    current = get_flag_library_repository().get(entry_id)
+    if current and request.modus_operandi_library_ids is not None and set(request.modus_operandi_library_ids) != set(current.modus_operandi_library_ids):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Changing a flag's modus-operandi links would break instance lineage; create an independent copy instead.",
+        )
     try:
         entry = use_case.execute(
             entry_id,
@@ -91,7 +102,10 @@ def delete_flag_library_entry(
         DeleteFlagLibraryEntryUseCase, Depends(get_delete_flag_library_entry_use_case)
     ],
 ):
-    use_case.execute(entry_id)
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="Flags cannot be deleted directly; remove their taxonomy root through the cascade.",
+    )
 
 
 def _to_schema(entry: FlagLibraryEntry) -> FlagLibraryEntrySchema:

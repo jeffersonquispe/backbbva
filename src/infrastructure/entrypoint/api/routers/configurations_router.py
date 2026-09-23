@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
 from src.application.ports.configuration_port import (
     AdversarialConfig,
+    AlertParserConfig,
+    AlertParserField,
     AgentSettings,
     AnalystCapacity,
     AnalystConfig,
@@ -14,6 +16,8 @@ from src.application.ports.configuration_port import (
     ClassificationConfig,
     ConfigurationRecord,
     DeterministicConfig,
+    DetectorConfig,
+    DetectorAdversarialConfig,
     DeterministicRule,
     DayProfile,
     DistributionValue,
@@ -77,6 +81,8 @@ from src.infrastructure.entrypoint.api.schemas import (
     AdversarialConfigSchema,
     AgentSettingsSchema,
     AnalystCapacitySchema,
+    AlertParserConfigSchema,
+    AlertParserFieldSchema,
     AnalystConfigSchema,
     AnalystPlaybookSchema,
     ClassificationConfigSchema,
@@ -86,6 +92,8 @@ from src.infrastructure.entrypoint.api.schemas import (
     CreateConfigurationRequest,
     DayProfileSchema,
     DeterministicConfigSchema,
+    DetectorConfigSchema,
+    DetectorAdversarialConfigSchema,
     DeterministicRuleSchema,
     DistributionValueSchema,
     DocumentationConfigSchema,
@@ -377,6 +385,7 @@ def _documentation_to_schema(
 
 def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
     return AgentSettingsSchema(
+        parser=AlertParserConfigSchema(fields=[AlertParserFieldSchema(**field.__dict__) for field in agent.parser.fields]),
         deterministic=DeterministicConfigSchema(
             alert_filter=agent.deterministic.alert_filter,
             field_enrichment=agent.deterministic.field_enrichment,
@@ -391,6 +400,8 @@ def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
             )
             for rubric in agent.rubrics
         ],
+        detector=DetectorConfigSchema(**agent.detector.__dict__),
+        detector_adversarial=DetectorAdversarialConfigSchema(**agent.detector_adversarial.__dict__),
         classification=_classification_to_schema(agent.classification),
         adversarial=_adversarial_to_schema(agent.adversarial),
         analyst=_analyst_to_schema(agent.analyst),
@@ -515,6 +526,7 @@ def _documentation_from_schema(
 
 def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
     return AgentSettings(
+        parser=AlertParserConfig(fields=[AlertParserField(**field.model_dump()) for field in schema.parser.fields]),
         deterministic=DeterministicConfig(
             alert_filter=schema.deterministic.alert_filter,
             field_enrichment=schema.deterministic.field_enrichment,
@@ -529,6 +541,8 @@ def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
             )
             for rubric in schema.rubrics
         ],
+        detector=DetectorConfig(**schema.detector.model_dump()),
+        detector_adversarial=DetectorAdversarialConfig(**schema.detector_adversarial.model_dump()),
         classification=_classification_from_schema(schema.classification),
         adversarial=_adversarial_from_schema(schema.adversarial),
         analyst=_analyst_from_schema(schema.analyst),

@@ -22,15 +22,19 @@ from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory 
     get_create_modus_operandi_library_entry_use_case,
     get_delete_modus_operandi_library_entry_use_case,
     get_list_modus_operandi_library_entries_use_case,
+    get_modus_operandi_library_repository,
     get_update_modus_operandi_library_entry_use_case,
 )
+from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import get_knowledge_graph_service
+from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 from src.infrastructure.entrypoint.api.schemas import (
     CreateModusOperandiLibraryEntryRequest,
     ModusOperandiLibraryEntrySchema,
     UpdateModusOperandiLibraryEntryRequest,
 )
+from src.infrastructure.entrypoint.api.authorization import require_library_access
 
-router = APIRouter(prefix="/library/modus-operandi", tags=["knowledge-library"])
+router = APIRouter(prefix="/library/modus-operandi", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
 
 
 @router.get("", response_model=list[ModusOperandiLibraryEntrySchema])
@@ -54,14 +58,14 @@ def create_modus_operandi_library_entry(
         Depends(get_create_modus_operandi_library_entry_use_case),
     ],
 ):
-    return _to_schema(
-        use_case.execute(
+    entry = use_case.execute(
             request.title,
             request.narrative,
             request.taxonomy_library_id,
             request.evolved_variables,
         )
-    )
+    get_knowledge_graph_service().synchronize_new_asset(KnowledgeAssetType.MODUS_OPERANDI, entry.id)
+    return _to_schema(entry)
 
 
 @router.patch("/{entry_id}", response_model=ModusOperandiLibraryEntrySchema)
@@ -73,6 +77,12 @@ def update_modus_operandi_library_entry(
         Depends(get_update_modus_operandi_library_entry_use_case),
     ],
 ):
+    current = get_modus_operandi_library_repository().get(entry_id)
+    if current and request.taxonomy_library_id and request.taxonomy_library_id != current.taxonomy_library_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Changing a modus operandi's taxonomy would break instance lineage; create an independent copy instead.",
+        )
     try:
         entry = use_case.execute(
             entry_id,
@@ -95,7 +105,10 @@ def delete_modus_operandi_library_entry(
         Depends(get_delete_modus_operandi_library_entry_use_case),
     ],
 ):
-    use_case.execute(entry_id)
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="Modus operandi cannot be deleted directly; remove its taxonomy to run the audited cascade.",
+    )
 
 
 def _to_schema(entry: ModusOperandiLibraryEntry) -> ModusOperandiLibraryEntrySchema:

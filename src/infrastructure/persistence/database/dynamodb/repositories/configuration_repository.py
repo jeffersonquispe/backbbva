@@ -12,13 +12,16 @@ from boto3.dynamodb.conditions import Attr, Key
 from src.application.ports.configuration_port import (
     AdversarialConfig,
     AgentSettings,
+    AlertParserConfig,
+    AlertParserField,
     AnalystCapacity,
     AnalystConfig,
     AnalystPlaybook,
-    BuiltInTool,
     ClassificationConfig,
     ConfigurationRecord,
     DeterministicConfig,
+    DetectorConfig,
+    DetectorAdversarialConfig,
     DeterministicRule,
     ConfigurationRepository,
     DayProfile,
@@ -52,7 +55,6 @@ from src.application.ports.configuration_port import (
     Taxonomy,
     TestCleanupPolicy,
     TestSettings,
-    VectorStoreTool,
     VoicebotCategoryPrompt,
     VoicebotConfig,
     default_segments,
@@ -600,23 +602,18 @@ def _segment_to_item(segment: SegmentSettings) -> dict[str, Any]:
     # field_enrichment is a plain dict (a FeatureConfiguration - see
     # feature_recipe.py), not a dataclass list like the other extracted
     # collections here, so it stays inline on this item rather than in its
-    # own table - to_dynamodb converts any nested floats to Decimal first.
-    item["agent"]["profiling"]["field_enrichment"] = to_dynamodb(
+    # own table.
+    item["agent"]["profiling"]["field_enrichment"] = (
         segment.agent.profiling.field_enrichment
-    )
-    # Deterministic rules and rubrics include user-entered numeric scores;
-    # normalize those floats recursively for DynamoDB just like feature data.
-    item["agent"]["deterministic"] = to_dynamodb(
-        asdict(segment.agent.deterministic)
-    )
-    item["agent"]["rubrics"] = to_dynamodb(
-        [asdict(rubric) for rubric in segment.agent.rubrics]
     )
     for key in ("taxonomies", "modus_operandi", "flags", "example_cases"):
         del item["agent"][key]
     del item["agent"]["analyst"]["playbooks"]
     del item["agent"]["analyst"]["voicebot"]["category_prompts"]
-    return item
+    # boto3's resource layer rejects native float anywhere in the item
+    # (detector xgboost thresholds, rule scores, field_enrichment, ...), so
+    # convert the whole tree to Decimal in one pass instead of per-field.
+    return to_dynamodb(item)
 
 
 def _from_item(item: dict[str, Any]) -> ConfigurationRecord:
@@ -885,6 +882,7 @@ def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
     # this item (their own tables, see DynamoConfigurationRepository._hydrate)
     # - default to [] here, the caller fills them in after querying.
     return AgentSettings(
+        parser=AlertParserConfig(fields=[AlertParserField(**from_dynamodb(field)) for field in agent_item.get("parser", {}).get("fields") or []]),
         deterministic=_deterministic_from_item(agent_item.get("deterministic") or {}),
         profiling=_profiling_from_item(agent_item.get("profiling") or {}),
         rubrics=[
@@ -895,36 +893,14 @@ def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
             )
             for item in agent_item.get("rubrics") or []
         ],
-        classification=_classification_from_item(
-            agent_item.get("classification") or {}
-        ),
-        adversarial=_adversarial_from_item(agent_item.get("adversarial") or {}),
+        detector=DetectorConfig(**from_dynamodb(agent_item.get("detector") or {})),
+        detector_adversarial=DetectorAdversarialConfig(**from_dynamodb(agent_item.get("detector_adversarial") or {})),
+        classification=ClassificationConfig(**from_dynamodb(agent_item.get("classification") or {})),
+        adversarial=AdversarialConfig(**from_dynamodb(agent_item.get("adversarial") or {})),
         analyst=_analyst_from_item(agent_item.get("analyst") or {}),
         documentation=_documentation_from_item(agent_item.get("documentation") or {}),
         active_fields=list(agent_item.get("active_fields") or []),
         active_model_id=agent_item.get("active_model_id"),
-    )
-
-
-def _classification_from_item(item: dict[str, Any]) -> ClassificationConfig:
-    return ClassificationConfig(
-        vector_store_tools=[
-            VectorStoreTool(t) for t in item.get("vector_store_tools") or []
-        ],
-        built_in_tools=[BuiltInTool(t) for t in item.get("built_in_tools") or []],
-        prompt=item.get("prompt") or "",
-        prompt_vars=list(item.get("prompt_vars") or []),
-    )
-
-
-def _adversarial_from_item(item: dict[str, Any]) -> AdversarialConfig:
-    return AdversarialConfig(
-        prompt=item.get("prompt") or "",
-        prompt_vars=list(item.get("prompt_vars") or []),
-        max_cycles=int(item.get("max_cycles", 1)),
-        feed_feedback_to_classification=bool(
-            item.get("feed_feedback_to_classification", True)
-        ),
     )
 
 

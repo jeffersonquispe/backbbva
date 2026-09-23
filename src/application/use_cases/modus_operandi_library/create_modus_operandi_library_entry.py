@@ -22,6 +22,10 @@ class CreateModusOperandiLibraryEntryUseCase:
         taxonomy_library_id: str,
         evolved_variables: list[str] | None = None,
     ) -> ModusOperandiLibraryEntry:
+        normalized_title = " ".join(title.split()).casefold()
+        for existing in self._entries.list():
+            if " ".join(existing.title.split()).casefold() == normalized_title:
+                return existing
         now = datetime.now(timezone.utc)
         return self._entries.create(
             ModusOperandiLibraryEntry(

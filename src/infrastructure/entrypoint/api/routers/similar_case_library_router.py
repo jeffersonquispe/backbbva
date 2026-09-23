@@ -21,16 +21,20 @@ from src.application.use_cases.similar_case_library.update_similar_case_library_
 from src.infrastructure.entrypoint.api.factories.similar_case_library_factory import (
     get_create_similar_case_library_entry_use_case,
     get_delete_similar_case_library_entry_use_case,
+    get_similar_case_library_repository,
     get_list_similar_case_library_entries_use_case,
     get_update_similar_case_library_entry_use_case,
 )
+from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import get_knowledge_graph_service
+from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 from src.infrastructure.entrypoint.api.schemas import (
     CreateSimilarCaseLibraryEntryRequest,
     SimilarCaseLibraryEntrySchema,
     UpdateSimilarCaseLibraryEntryRequest,
 )
+from src.infrastructure.entrypoint.api.authorization import require_library_access
 
-router = APIRouter(prefix="/library/similar-cases", tags=["knowledge-library"])
+router = APIRouter(prefix="/library/similar-cases", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
 
 
 @router.get("", response_model=list[SimilarCaseLibraryEntrySchema])
@@ -54,11 +58,11 @@ def create_similar_case_library_entry(
         Depends(get_create_similar_case_library_entry_use_case),
     ],
 ):
-    return _to_schema(
-        use_case.execute(
+    entry = use_case.execute(
             request.text, request.modus_operandi_library_id, request.taxonomy_library_id
         )
-    )
+    get_knowledge_graph_service().synchronize_new_asset(KnowledgeAssetType.SIMILAR_CASE, entry.id)
+    return _to_schema(entry)
 
 
 @router.patch("/{entry_id}", response_model=SimilarCaseLibraryEntrySchema)
@@ -70,6 +74,15 @@ def update_similar_case_library_entry(
         Depends(get_update_similar_case_library_entry_use_case),
     ],
 ):
+    current = get_similar_case_library_repository().get(entry_id)
+    if current and (
+        (request.modus_operandi_library_id and request.modus_operandi_library_id != current.modus_operandi_library_id)
+        or (request.taxonomy_library_id and request.taxonomy_library_id != current.taxonomy_library_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Changing a similar case's parent would break instance lineage; create an independent copy instead.",
+        )
     try:
         entry = use_case.execute(
             entry_id,
@@ -91,7 +104,10 @@ def delete_similar_case_library_entry(
         Depends(get_delete_similar_case_library_entry_use_case),
     ],
 ):
-    use_case.execute(entry_id)
+    raise HTTPException(
+        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+        detail="Similar cases cannot be deleted directly; remove their taxonomy root through the cascade.",
+    )
 
 
 def _to_schema(entry: SimilarCaseLibraryEntry) -> SimilarCaseLibraryEntrySchema:

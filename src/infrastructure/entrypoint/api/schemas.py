@@ -14,7 +14,6 @@ from src.application.ports.async_execution_inspector_port import (
 )
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.ports.configuration_port import (
-    BuiltInTool,
     DocumentationStrategy,
     FilterConditionOperator,
     FlagType,
@@ -25,7 +24,6 @@ from src.application.ports.configuration_port import (
     ResolutionTag,
     SamplingIntervalUnit,
     TestCleanupPolicy,
-    VectorStoreTool,
 )
 from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
@@ -40,6 +38,7 @@ from src.application.ports.watchlist_port import WatchlistType
 from src.application.ports.tag_catalog_port import TagCategory
 from src.application.ports.test_run_port import TestRunStatus
 from src.application.ports.workflow_port import WorkflowStatus, WorkflowStepStatus
+from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 
 
 class CreateAsyncOperationRequest(BaseModel):
@@ -693,6 +692,18 @@ class RuleConditionSchema(BaseModel):
 
 class DeterministicRuleSchema(RuleConditionSchema):
     decision: Literal["risk_suspected", "risk"] = "risk_suspected"
+    aric_action: Literal["soft_block", "hard_block"] = "soft_block"
+
+
+class AlertParserFieldSchema(BaseModel):
+    id: str = ""
+    source_field: str = ""
+    alias: str = ""
+    type: Literal["string", "number", "boolean", "date", "datetime"] = "string"
+
+
+class AlertParserConfigSchema(BaseModel):
+    fields: list[AlertParserFieldSchema] = Field(default_factory=list)
 
 
 class RubricSchema(BaseModel):
@@ -715,17 +726,42 @@ class DeterministicConfigSchema(BaseModel):
 
 
 class ClassificationConfigSchema(BaseModel):
-    vector_store_tools: list[VectorStoreTool] = Field(default_factory=list)
-    built_in_tools: list[BuiltInTool] = Field(default_factory=list)
+    vector_store_enabled: bool = False
+    vector_store_instance_ids: list[str] = Field(default_factory=list)
+    watchlist_enabled: bool = False
+    watchlist_ids: list[str] = Field(default_factory=list)
+    watchlist_compare_field: str | None = None
+    calculator_enabled: bool = False
     prompt: str = ""
     prompt_vars: list[str] = Field(default_factory=list)
+    output_labels: list[str] = Field(default_factory=list)
+    max_thought_iterations: int = 5
+
+
+class DetectorConfigSchema(ClassificationConfigSchema):
+    enable_pandas_history_tool: bool = False
+    use_xgboost_model: bool = False
+    xgboost_model_id: str | None = None
+    xgboost_fraud_threshold: float = 0.8
+    xgboost_uncertainty_threshold: float = 0.4
+    xgboost_shap_enabled: bool = False
 
 
 class AdversarialConfigSchema(BaseModel):
+    vector_store_enabled: bool = False
+    vector_store_instance_ids: list[str] = Field(default_factory=list)
+    watchlist_enabled: bool = False
+    watchlist_ids: list[str] = Field(default_factory=list)
+    watchlist_compare_field: str | None = None
+    calculator_enabled: bool = False
     prompt: str = ""
     prompt_vars: list[str] = Field(default_factory=list)
     max_cycles: int = 1
     feed_feedback_to_classification: bool = True
+
+
+class DetectorAdversarialConfigSchema(AdversarialConfigSchema):
+    max_thought_iterations: int = 5
 
 
 class AnalystPlaybookSchema(BaseModel):
@@ -764,9 +800,12 @@ class DocumentationConfigSchema(BaseModel):
 
 
 class AgentSettingsSchema(BaseModel):
+    parser: AlertParserConfigSchema = Field(default_factory=AlertParserConfigSchema)
     deterministic: DeterministicConfigSchema = Field(default_factory=DeterministicConfigSchema)
     profiling: ProfilingConfigSchema = Field(default_factory=ProfilingConfigSchema)
     rubrics: list[RubricSchema] = Field(default_factory=list)
+    detector: DetectorConfigSchema = Field(default_factory=DetectorConfigSchema)
+    detector_adversarial: DetectorAdversarialConfigSchema = Field(default_factory=DetectorAdversarialConfigSchema)
     classification: ClassificationConfigSchema = Field(
         default_factory=ClassificationConfigSchema
     )
@@ -850,6 +889,37 @@ class TestConfigurationResponse(BaseModel):
     valid: bool
     changes: list[ConfigurationChangeResponse]
     warnings: list[str]
+
+
+class CreateConfigurationDeployRequest(BaseModel):
+    target_configuration_id: str = Field(min_length=1)
+    target_version: int = Field(ge=1)
+    title: str = Field(min_length=1, max_length=200)
+    message: str = Field(min_length=1, max_length=4000)
+
+
+class ConfigurationDeployRequestResponse(BaseModel):
+    id: str
+    target_configuration_id: str
+    target_version: int
+    current_configuration_id: str | None
+    current_version: int | None
+    title: str
+    message: str
+    changes: list[ConfigurationChangeResponse]
+    requested_by: str
+    requested_at: datetime
+    status: str
+    approved_by: str | None = None
+    approved_at: datetime | None = None
+
+
+class ConfigurationDeployRequestPreviewResponse(BaseModel):
+    target_configuration_id: str
+    target_version: int
+    current_configuration_id: str | None
+    current_version: int | None
+    changes: list[ConfigurationChangeResponse]
 
 
 class ConfigurationSummaryResponse(BaseModel):
@@ -1109,6 +1179,45 @@ class UpdateSimilarCaseLibraryEntryRequest(BaseModel):
     modus_operandi_library_id: str | None = None
     taxonomy_library_id: str | None = None
     active: bool | None = None
+
+
+# --- Vector-store instances -------------------------------------------------
+
+
+class VectorStoreInstanceSchema(BaseModel):
+    id: str
+    version: int
+    name: str
+    description: str
+    created_at: datetime
+    created_by: str
+    updated_at: datetime | None
+    updated_by: str | None
+
+
+class CreateVectorStoreInstanceRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+
+
+class UpdateVectorStoreInstanceRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class VectorStoreDocumentSchema(BaseModel):
+    relation_id: str
+    asset_type: KnowledgeAssetType
+    asset_id: str
+    asset_version: int
+
+
+class AddVectorStoreDocumentRequest(BaseModel):
+    asset_type: KnowledgeAssetType
+    asset_id: str = Field(..., min_length=1)
+    # The asset version is explicit so a later edit can add a new immutable
+    # revision alongside the original relation.
+    asset_version: int = Field(default=1, ge=1)
 
 
 # --- Resolution method catalog ------------------------------------------

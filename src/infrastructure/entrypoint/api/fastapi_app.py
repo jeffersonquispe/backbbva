@@ -25,6 +25,9 @@ from src.infrastructure.entrypoint.api.routers.configurations_router import (
     configuration_test_router,
     router as configurations_router,
 )
+from src.infrastructure.entrypoint.api.routers.configuration_deploy_requests_router import (
+    router as configuration_deploy_requests_router,
+)
 from src.infrastructure.entrypoint.api.routers.datasets_router import (
     router as datasets_router,
 )
@@ -66,6 +69,9 @@ from src.infrastructure.entrypoint.api.routers.test_runs_router import (
 )
 from src.infrastructure.entrypoint.api.routers.variable_catalog_router import (
     router as variable_catalog_router,
+)
+from src.infrastructure.entrypoint.api.routers.vector_store_instances_router import (
+    router as vector_store_instances_router,
 )
 from src.infrastructure.entrypoint.api.routers.watchlists_router import (
     router as watchlists_router,
@@ -112,6 +118,10 @@ def create_app() -> FastAPI:
         prefix=genai_config.API_V0_STR,
     )
     app.include_router(
+        configuration_deploy_requests_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
         operational_settings_router,
         prefix=genai_config.API_V0_STR,
     )
@@ -153,6 +163,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         similar_case_library_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        vector_store_instances_router,
         prefix=genai_config.API_V0_STR,
     )
     app.include_router(

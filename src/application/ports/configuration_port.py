@@ -295,6 +295,20 @@ class RuleCondition:
 @dataclass
 class DeterministicRule(RuleCondition):
     decision: str = "risk_suspected"
+    aric_action: str = "soft_block"
+
+
+@dataclass
+class AlertParserField:
+    id: str = ""
+    source_field: str = ""
+    alias: str = ""
+    type: str = "string"
+
+
+@dataclass
+class AlertParserConfig:
+    fields: list[AlertParserField] = field(default_factory=list)
 
 
 @dataclass
@@ -323,39 +337,63 @@ class DeterministicConfig:
     rules: list[DeterministicRule] = field(default_factory=list)
 
 
-class VectorStoreTool(StrEnum):
-    # Which fraud-knowledge document types the classification agent may
-    # retrieve from - deliberately a separate enum from fraud_knowledge_
-    # port.py's DocumentType (same values, different concept: "what can
-    # this agent search" vs. "what type is this OpenSearch document") so
-    # this domain-layer port doesn't import the vector-store layer.
-    TAXONOMIA = "taxonomia"
-    MODUS_OPERANDI = "modus_operandi"
-    SIMILAR_CASE = "similar_case"
-    RED_FLAG = "red_flag"
-    YELLOW_FLAG = "yellow_flag"
-
-
-class BuiltInTool(StrEnum):
-    BLACKLIST = "blacklist"
-    WHITELIST = "whitelist"
-    CALCULATOR = "calculator"
+# Both ClassificationConfig and AdversarialConfig share this same
+# tool-picker shape (item 1/2/3 of the "reemplaza base de conocimiento
+# vector store" request): a plain enable switch per tool family, replacing
+# the old fixed VectorStoreTool/BuiltInTool category enums. Vector-store
+# search is now scoped to specific vector_store_instance_port.py instances
+# (picked by id, not by document-type category) and blacklist/whitelist are
+# now their own switch (watchlist_port.py instances, picked by id) instead
+# of being lumped into "built-in tools" alongside the calculator - which is
+# now just its own switch, nothing else was ever a built-in tool worth
+# grouping. Membership direction (watch for presence vs. absence) isn't
+# stored here - it's intrinsic to each Watchlist's own list_type (see
+# ListMembershipMode / watchlist_port.py), read off the watchlist itself.
 
 
 @dataclass
 class ClassificationConfig:
-    vector_store_tools: list[VectorStoreTool] = field(default_factory=list)
-    built_in_tools: list[BuiltInTool] = field(default_factory=list)
+    vector_store_enabled: bool = False
+    vector_store_instance_ids: list[str] = field(default_factory=list)
+    watchlist_enabled: bool = False
+    watchlist_ids: list[str] = field(default_factory=list)
+    # Which alert field's value is looked up against the selected
+    # watchlists' elements (e.g. "documento", "correo").
+    watchlist_compare_field: str | None = None
+    calculator_enabled: bool = False
     prompt: str = ""
     prompt_vars: list[str] = field(default_factory=list)
+    max_thought_iterations: int = 5
+    output_labels: list[str] = field(default_factory=list)
+
+
+@dataclass
+class DetectorConfig(ClassificationConfig):
+    enable_pandas_history_tool: bool = False
+    use_xgboost_model: bool = False
+    xgboost_model_id: str | None = None
+    xgboost_fraud_threshold: float = 0.8
+    xgboost_uncertainty_threshold: float = 0.4
+    xgboost_shap_enabled: bool = False
 
 
 @dataclass
 class AdversarialConfig:
+    vector_store_enabled: bool = False
+    vector_store_instance_ids: list[str] = field(default_factory=list)
+    watchlist_enabled: bool = False
+    watchlist_ids: list[str] = field(default_factory=list)
+    watchlist_compare_field: str | None = None
+    calculator_enabled: bool = False
     prompt: str = ""
     prompt_vars: list[str] = field(default_factory=list)
     max_cycles: int = 1
     feed_feedback_to_classification: bool = True
+
+
+@dataclass
+class DetectorAdversarialConfig(AdversarialConfig):
+    max_thought_iterations: int = 5
 
 
 @dataclass
@@ -416,9 +454,12 @@ class DocumentationConfig:
 
 @dataclass
 class AgentSettings:
+    parser: AlertParserConfig = field(default_factory=AlertParserConfig)
     deterministic: DeterministicConfig = field(default_factory=DeterministicConfig)
     profiling: ProfilingConfig = field(default_factory=ProfilingConfig)
     rubrics: list[Rubric] = field(default_factory=list)
+    detector: DetectorConfig = field(default_factory=DetectorConfig)
+    detector_adversarial: DetectorAdversarialConfig = field(default_factory=DetectorAdversarialConfig)
     classification: ClassificationConfig = field(default_factory=ClassificationConfig)
     adversarial: AdversarialConfig = field(default_factory=AdversarialConfig)
     analyst: AnalystConfig = field(default_factory=AnalystConfig)

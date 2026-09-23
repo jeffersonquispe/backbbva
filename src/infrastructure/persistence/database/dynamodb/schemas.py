@@ -296,6 +296,13 @@ CONFIGURATIONS_TABLE = {
     ],
 }
 
+CONFIGURATION_DEPLOY_REQUESTS_TABLE = {
+    "TableName": "configuration_deploy_requests",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "id", "AttributeType": "S"}],
+}
+
 
 # Every table below holds either a 1:1 configuration sub-section (its own
 # row per configuration_id+version, exactly like `configurations` itself) or
@@ -548,6 +555,30 @@ LIBRARY_SIMILAR_CASES_TABLE = {
     ],
     "AttributeDefinitions": [
         {"AttributeName": "id", "AttributeType": "S"},
+    ],
+}
+
+
+# Immutable vector-store manifests. The second table is deliberately a
+# relation table: one instance/version may contain every individual library
+# asset, and stores the exact asset revision and embedding selected.
+VECTOR_STORE_INSTANCES_TABLE = {
+    "TableName": "vector_store_instances",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "id", "AttributeType": "S"}],
+}
+
+VECTOR_STORE_INSTANCE_ASSETS_TABLE = {
+    "TableName": "vector_store_instance_assets",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "vector_store_instance_id", "KeyType": "HASH"},
+        {"AttributeName": "relation_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "vector_store_instance_id", "AttributeType": "S"},
+        {"AttributeName": "relation_id", "AttributeType": "S"},
     ],
 }
 

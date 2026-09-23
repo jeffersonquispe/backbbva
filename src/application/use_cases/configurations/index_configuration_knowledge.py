@@ -63,7 +63,10 @@ class IndexConfigurationKnowledgeUseCase:
 
         taxonomia_os_id: dict[str, UUID] = {}
         for taxonomy in agent.taxonomies:
-            text = f"{taxonomy.code} — {taxonomy.name}: {taxonomy.description}"
+            # taxonomy.code is a system-generated relational identifier, not a
+            # human-authored mnemonic - only name/description are meaningful
+            # to index for search.
+            text = f"{taxonomy.name}: {taxonomy.description}"
             if taxonomy.examples:
                 text += ". Ejemplos: " + "; ".join(taxonomy.examples)
             created = self._ingest_taxonomia.execute(

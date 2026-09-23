@@ -21,6 +21,10 @@ class CreateTaxonomyLibraryEntryUseCase:
         variables: list[str] | None = None,
         examples: list[str] | None = None,
     ) -> TaxonomyLibraryEntry:
+        normalized_name = " ".join(name.split()).casefold()
+        for existing in self._entries.list():
+            if " ".join(existing.name.split()).casefold() == normalized_name:
+                return existing
         now = datetime.now(timezone.utc)
         return self._entries.create(
             TaxonomyLibraryEntry(

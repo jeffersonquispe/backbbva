@@ -9,7 +9,6 @@ from src.application.ports.configuration_port import (
     AnalystCapacity,
     AnalystConfig,
     AnalystPlaybook,
-    BuiltInTool,
     ClassificationConfig,
     ConfigurationRecord,
     DeterministicConfig,
@@ -41,7 +40,6 @@ from src.application.ports.configuration_port import (
     Taxonomy,
     TestCleanupPolicy,
     TestSettings,
-    VectorStoreTool,
     VoicebotCategoryPrompt,
     VoicebotConfig,
     default_segments,
@@ -177,11 +175,11 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
                 ],
             ),
             classification=ClassificationConfig(
-                vector_store_tools=[
-                    VectorStoreTool.TAXONOMIA,
-                    VectorStoreTool.RED_FLAG,
-                ],
-                built_in_tools=[BuiltInTool.BLACKLIST],
+                vector_store_enabled=True,
+                vector_store_instance_ids=["vs-1", "vs-2"],
+                watchlist_enabled=True,
+                watchlist_ids=["wl-1"],
+                watchlist_compare_field="documento",
                 prompt="clasifica esta alerta",
                 prompt_vars=["Saldo"],
             ),
@@ -241,11 +239,11 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert restored.agent.example_cases == []
     assert restored.agent.analyst.playbooks == []
     assert restored.agent.analyst.voicebot.category_prompts == []
-    assert restored.agent.classification.vector_store_tools == [
-        VectorStoreTool.TAXONOMIA,
-        VectorStoreTool.RED_FLAG,
-    ]
-    assert restored.agent.classification.built_in_tools == [BuiltInTool.BLACKLIST]
+    assert restored.agent.classification.vector_store_enabled is True
+    assert restored.agent.classification.vector_store_instance_ids == ["vs-1", "vs-2"]
+    assert restored.agent.classification.watchlist_enabled is True
+    assert restored.agent.classification.watchlist_ids == ["wl-1"]
+    assert restored.agent.classification.watchlist_compare_field == "documento"
     assert restored.agent.classification.prompt == "clasifica esta alerta"
     assert restored.agent.adversarial.max_cycles == 3
     assert restored.agent.adversarial.feed_feedback_to_classification is False

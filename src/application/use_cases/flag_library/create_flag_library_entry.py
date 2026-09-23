@@ -19,6 +19,10 @@ class CreateFlagLibraryEntryUseCase:
         evolved_variables: list[str] | None = None,
         modus_operandi_library_ids: list[str] | None = None,
     ) -> FlagLibraryEntry:
+        normalized_name = " ".join(name.split()).casefold()
+        for existing in self._entries.list():
+            if " ".join(existing.name.split()).casefold() == normalized_name and existing.flag_type == flag_type:
+                return existing
         now = datetime.now(timezone.utc)
         return self._entries.create(
             FlagLibraryEntry(

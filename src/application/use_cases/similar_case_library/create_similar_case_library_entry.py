@@ -16,6 +16,13 @@ class CreateSimilarCaseLibraryEntryUseCase:
     def execute(
         self, text: str, modus_operandi_library_id: str, taxonomy_library_id: str
     ) -> SimilarCaseLibraryEntry:
+        normalized_text = " ".join(text.split()).casefold()
+        for existing in self._entries.list():
+            if (
+                " ".join(existing.text.split()).casefold() == normalized_text
+                and existing.modus_operandi_library_id == modus_operandi_library_id
+            ):
+                return existing
         now = datetime.now(timezone.utc)
         return self._entries.create(
             SimilarCaseLibraryEntry(
