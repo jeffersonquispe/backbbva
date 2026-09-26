@@ -60,6 +60,8 @@ class DatasetSummaryRecord:
     # Populated only when origin is EXTRACTED — the field=value filters the
     # source rows were narrowed by before sampling.
     extraction_filter: dict[str, str] | None = None
+    fraud_marking_analysis: dict | None = None
+    fraud_marking_analysis_config: dict | None = None
 
 
 class DatasetSampleRepository(Protocol):

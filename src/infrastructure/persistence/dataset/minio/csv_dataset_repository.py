@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from typing import Any
+from typing import Any, BinaryIO
 
 from botocore.exceptions import ClientError
 
@@ -16,35 +16,68 @@ class MinioCsvDatasetRepository(DatasetRepository):
         self._object_storage = object_storage
 
     def list(self) -> list[DatasetRecord]:
-        records = []
-        for key in self._object_storage.list_keys(".csv"):
-            name = key[: -len(".csv")]
-            row_count = sum(1 for _ in csv.reader(self._lines(key))) - 1
-            records.append(DatasetRecord(name=name, row_count=max(row_count, 0)))
-        return records
+        # Listing must not download every object. A single uploaded dataset
+        # can be gigabytes large; decoding it merely to count rows can kill
+        # the API process before it can send the library response. Exact row
+        # totals are persisted by the asynchronous analysis summary instead.
+        return [
+            DatasetRecord(name=key[: -len(".csv")], row_count=0)
+            for key in self._object_storage.list_keys(".csv")
+        ]
 
     def get_rows(self, name: str) -> list[dict[str, Any]]:
         return [unflatten_row(row) for row in csv.DictReader(self._lines(f"{name}.csv"))]
 
+    def iter_rows(self, name: str):
+        """Yield rows directly from MinIO without materializing the CSV."""
+        try:
+            stream = self._object_storage.get_stream(f"{name}.csv")
+        except (ClientError, KeyError) as exc:
+            raise FileNotFoundError(name) from exc
+        with io.TextIOWrapper(stream, encoding="utf-8", newline="") as text:
+            for row in csv.DictReader(text):
+                yield unflatten_row(row)
+
     def get_fields(self, name: str) -> list[str]:
-        reader = csv.DictReader(self._lines(f"{name}.csv"))
-        return [field for field in (reader.fieldnames or []) if field]
+        try:
+            stream = self._object_storage.get_stream(f"{name}.csv")
+        except (ClientError, KeyError) as exc:
+            raise FileNotFoundError(name) from exc
+        with io.TextIOWrapper(stream, encoding="utf-8", newline="") as text:
+            reader = csv.DictReader(text)
+            return [field for field in (reader.fieldnames or []) if field]
+
+    def get_size(self, name: str) -> int:
+        return self._object_storage.get_size(f"{name}.csv")
 
     def get_rows_page(self, name: str, offset: int, limit: int) -> tuple[list[dict[str, Any]], int]:
-        rows = self.get_rows(name)
-        return rows[offset : offset + limit], len(rows)
+        # Preview paths must not materialize or scan a multi-GB CSV merely to
+        # show 25 rows. The API enriches the total from the persisted summary.
+        page: list[dict[str, Any]] = []
+        for index, row in enumerate(self.iter_rows(name)):
+            if index < offset:
+                continue
+            if len(page) >= limit:
+                break
+            page.append(row)
+        return page, 0
 
     def create(self, name: str, fields: list[str]) -> None:
-        if f"{name}.csv" in self._object_storage.list_keys(".csv"):
+        if self._name_exists(name):
             raise FileExistsError(f"Dataset '{name}' already exists")
         buffer = io.StringIO()
         csv.writer(buffer).writerow(fields)
         self._object_storage.put_text(f"{name}.csv", buffer.getvalue(), content_type="text/csv")
 
     def create_from_csv_bytes(self, name: str, content: bytes) -> None:
-        if f"{name}.csv" in self._object_storage.list_keys(".csv"):
+        if self._name_exists(name):
             raise FileExistsError(f"Dataset '{name}' already exists")
         self._object_storage.put_bytes(f"{name}.csv", content, content_type="text/csv")
+
+    def create_from_csv_file(self, name: str, file: BinaryIO) -> None:
+        if self._name_exists(name):
+            raise FileExistsError(f"Dataset '{name}' already exists")
+        self._object_storage.put_file(f"{name}.csv", file, content_type="text/csv")
 
     def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:
         key = f"{name}.csv"
@@ -80,3 +113,9 @@ class MinioCsvDatasetRepository(DatasetRepository):
         except (ClientError, KeyError) as exc:
             raise FileNotFoundError(key) from exc
         return io.StringIO(content.decode("utf-8"))
+
+    def _name_exists(self, name: str) -> bool:
+        return any(
+            key[: -len(".csv")].casefold() == name.casefold()
+            for key in self._object_storage.list_keys(".csv")
+        )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import boto3
 from botocore.exceptions import ClientError
+from typing import BinaryIO
 
 from src.application.ports.object_storage_port import (
     ObjectStoragePort,
@@ -54,9 +55,37 @@ class MinioObjectStorageAdapter(ObjectStoragePort):
             uri=f"s3://{self._bucket}/{key}",
         )
 
+    def put_file(
+        self,
+        key: str,
+        file: BinaryIO,
+        content_type: str = "application/octet-stream",
+    ) -> ObjectStorageRef:
+        # upload_fileobj uses S3 multipart uploads for large files, keeping
+        # only a bounded transfer chunk in memory rather than the whole CSV.
+        self._client.upload_fileobj(
+            Fileobj=file,
+            Bucket=self._bucket,
+            Key=key,
+            ExtraArgs={"ContentType": content_type},
+        )
+        return ObjectStorageRef(
+            bucket=self._bucket,
+            key=key,
+            uri=f"s3://{self._bucket}/{key}",
+        )
+
     def get_bytes(self, key: str) -> bytes:
         response = self._client.get_object(Bucket=self._bucket, Key=key)
         return response["Body"].read()
+
+    def get_stream(self, key: str) -> BinaryIO:
+        response = self._client.get_object(Bucket=self._bucket, Key=key)
+        return response["Body"]
+
+    def get_size(self, key: str) -> int:
+        response = self._client.head_object(Bucket=self._bucket, Key=key)
+        return int(response["ContentLength"])
 
     def list_keys(self, suffix: str = "") -> list[str]:
         keys: list[str] = []

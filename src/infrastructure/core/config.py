@@ -132,6 +132,10 @@ class Config(BaseSettings):
     # upload button targets). See dataset_factory.py's get_dataset_repository().
     DATASET_STORAGE_BACKEND: str = "filesystem"
     DATASET_STORAGE_BUCKET: str = "datasets"
+    # Analysis currently builds row/sample collections in memory. Larger
+    # uploads remain stored safely, but are not automatically profiled until
+    # the analysis pipeline is made fully streaming.
+    DATASET_ANALYSIS_MAX_BYTES: int = 268435456
 
     # MODELS - versioned XGBoost training artifacts (joblib bundles), see
     # infrastructure/persistence/object_storage/minio/__init__.py's

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import pytest
 
 from src.application.ports.object_storage_port import ObjectStoragePort, ObjectStorageRef
@@ -32,6 +33,9 @@ class InMemoryObjectStoragePort(ObjectStoragePort):
     def get_bytes(self, key: str) -> bytes:
         return self._objects[key]
 
+    def get_stream(self, key: str):
+        return io.BytesIO(self._objects[key])
+
     def list_keys(self, suffix: str = "") -> list[str]:
         return [key for key in self._objects if key.endswith(suffix)]
 
@@ -51,7 +55,9 @@ def test_list_and_get_rows_round_trip() -> None:
     records = repo.list()
     assert len(records) == 1
     assert records[0].name == "customers"
-    assert records[0].row_count == 2
+    # Listing object storage must not download each CSV just to count rows.
+    # The API enriches this value from the persisted dataset summary.
+    assert records[0].row_count == 0
 
     rows = repo.get_rows("customers")
     assert rows == [
@@ -135,9 +141,11 @@ def test_get_rows_page_slices_and_reports_total() -> None:
     repo.append_rows("paged", [{"name": f"row{i}"} for i in range(5)])
 
     page, total = repo.get_rows_page("paged", offset=1, limit=2)
-    assert total == 5
+    # The repository deliberately avoids scanning the remaining object just
+    # to count rows; the API obtains the exact total from dataset summaries.
+    assert total == 0
     assert page == [{"name": "row1"}, {"name": "row2"}]
 
     page, total = repo.get_rows_page("paged", offset=10, limit=2)
-    assert total == 5
+    assert total == 0
     assert page == []

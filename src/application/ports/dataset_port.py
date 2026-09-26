@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, BinaryIO, Protocol
 
 
 @dataclass
@@ -21,6 +21,10 @@ class DatasetRepository(Protocol):
         """Return dataset columns without loading all rows when possible."""
         ...
 
+    def get_size(self, name: str) -> int:
+        """Return the stored CSV size without loading its contents."""
+        ...
+
     def get_rows_page(self, name: str, offset: int, limit: int) -> tuple[list[dict[str, Any]], int]:
         """Return one page of rows plus the dataset's total row count."""
         ...
@@ -34,6 +38,10 @@ class DatasetRepository(Protocol):
         browser upload) - no parsing/validation, unlike create()+append_rows()
         which take already-shaped rows. Raises FileExistsError if the name
         is taken, same as create()."""
+        ...
+
+    def create_from_csv_file(self, name: str, file: BinaryIO) -> None:
+        """Create a dataset by streaming an already-spooled CSV file."""
         ...
 
     def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:

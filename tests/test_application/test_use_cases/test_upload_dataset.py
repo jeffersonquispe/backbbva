@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from typing import Any
 
 import pytest
@@ -21,6 +22,7 @@ class RecordingDatasetRepository(DatasetRepository):
     def __init__(self, existing_names: set[str] | None = None) -> None:
         self._existing_names = existing_names or set()
         self.created_from_csv: list[tuple[str, bytes]] = []
+        self.created_from_csv_files: list[tuple[str, bytes]] = []
 
     def list(self):
         return []
@@ -41,6 +43,11 @@ class RecordingDatasetRepository(DatasetRepository):
         if name in self._existing_names:
             raise FileExistsError(name)
         self.created_from_csv.append((name, content))
+
+    def create_from_csv_file(self, name: str, file) -> None:
+        if name in self._existing_names:
+            raise FileExistsError(name)
+        self.created_from_csv_files.append((name, file.read()))
 
     def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:
         return 0
@@ -115,3 +122,22 @@ def test_upload_dataset_propagates_file_exists_error_when_name_taken() -> None:
 
     assert summaries.get("taken") is None
     assert dispatcher.dispatched == []
+
+
+def test_upload_dataset_streams_spooled_file_to_dataset_repository() -> None:
+    datasets = RecordingDatasetRepository()
+    summaries = InMemoryDatasetSummaryRepository()
+    dispatcher = RecordingDatasetAnalysisDispatcher()
+    use_case = UploadDatasetUseCase(datasets, summaries, dispatcher)
+
+    use_case.execute(
+        UploadDatasetInput(
+            name="streamed_dataset",
+            file=io.BytesIO(b"eventId\\ne-1\\n"),
+        )
+    )
+
+    assert datasets.created_from_csv == []
+    assert datasets.created_from_csv_files == [
+        ("streamed_dataset", b"eventId\\ne-1\\n")
+    ]

@@ -31,6 +31,11 @@ from src.application.use_cases.async_operations.reconcile_async_operations impor
     ReconcileAsyncOperationsUseCase,
 )
 from src.application.use_cases.datasets.analyze_dataset import AnalyzeDatasetUseCase
+from src.application.use_cases.datasets.delete_dataset import DeleteDatasetUseCase
+from src.application.use_cases.datasets.analyze_fraud_marking import (
+    AnalyzeFraudMarkingUseCase,
+)
+from src.application.dtos.dataset_dtos import FraudMarkingAnalysisInput
 from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
     MockAlertChannelActionAdapter,
 )
@@ -243,14 +248,115 @@ def execute_alert_action(
     retry_backoff=True,
     retry_kwargs={"max_retries": 3},
 )
-def analyze_dataset_task(self, dataset_name: str) -> dict:
+def analyze_dataset_task(self, dataset_name: str, operation_id: str | None = None) -> dict:
+    operation_repository = DynamoAsyncOperationRepository()
+    if operation_id:
+        operation_repository.update(
+            UUID(operation_id),
+            status=AsyncOperationStatus.RUNNING,
+            result={"stage": "starting", "progress_pct": 1},
+        )
     use_case = AnalyzeDatasetUseCase(
         dataset_repository=MinioCsvDatasetRepository(get_dataset_object_storage()),
         sample_repository=DynamoDatasetSampleRepository(),
         summary_repository=DynamoDatasetSummaryRepository(),
+        max_input_bytes=genai_config.DATASET_ANALYSIS_MAX_BYTES,
     )
-    use_case.execute(dataset_name)
+    try:
+        use_case.execute(
+            dataset_name,
+            progress=(
+                lambda result: operation_repository.update(UUID(operation_id), result=result)
+                if operation_id else None
+            ),
+        )
+    except Exception as exc:
+        if operation_id:
+            operation_repository.update(
+                UUID(operation_id), status=AsyncOperationStatus.FAILED, error=str(exc)
+            )
+        raise
+    if operation_id:
+        operation_repository.update(
+            UUID(operation_id), status=AsyncOperationStatus.SUCCEEDED,
+            result={"stage": "done", "progress_pct": 100, "dataset_name": dataset_name},
+        )
     return {"status": "ok", "dataset_name": dataset_name}
+
+
+@app.task(name="datasets.delete")
+def delete_dataset_task(dataset_name: str, operation_id: str) -> dict:
+    """Remove a dataset outside the API process and report every stage."""
+    operations = DynamoAsyncOperationRepository()
+    operation_uuid = UUID(operation_id)
+    operations.update(
+        operation_uuid,
+        status=AsyncOperationStatus.RUNNING,
+        result={"stage": "removing_dataset", "progress_pct": 5},
+    )
+    use_case = DeleteDatasetUseCase(
+        dataset_repository=MinioCsvDatasetRepository(get_dataset_object_storage()),
+        sample_repository=DynamoDatasetSampleRepository(),
+        summary_repository=DynamoDatasetSummaryRepository(),
+    )
+    try:
+        # The use case's repository calls are idempotent; a retry or a delete
+        # requested twice is safe.
+        use_case.execute(dataset_name)
+    except Exception as exc:
+        operations.update(operation_uuid, status=AsyncOperationStatus.FAILED, error=str(exc))
+        raise
+    operations.update(
+        operation_uuid,
+        status=AsyncOperationStatus.SUCCEEDED,
+        result={"stage": "done", "progress_pct": 100, "dataset_name": dataset_name},
+    )
+    return {"status": "ok", "dataset_name": dataset_name}
+
+
+@app.task(name="datasets.analyze_fraud_marking")
+def analyze_fraud_marking_task(
+    dataset_name: str,
+    first_mark_field: str,
+    second_mark_field: str,
+    first_mark_time_field: str,
+    second_mark_time_field: str,
+    positive_values: list[str],
+    operation_id: str,
+) -> dict:
+    """Compute a marking analysis outside the API request lifecycle."""
+    operations = DynamoAsyncOperationRepository()
+    operation_uuid = UUID(operation_id)
+    operations.update(
+        operation_uuid,
+        status=AsyncOperationStatus.RUNNING,
+        result={"stage": "analyzing", "progress_pct": 1},
+    )
+    try:
+        output = AnalyzeFraudMarkingUseCase(
+            MinioCsvDatasetRepository(get_dataset_object_storage()),
+            DynamoDatasetSummaryRepository(),
+        ).execute(
+            FraudMarkingAnalysisInput(
+                dataset_name=dataset_name,
+                first_mark_field=first_mark_field,
+                second_mark_field=second_mark_field,
+                first_mark_time_field=first_mark_time_field,
+                second_mark_time_field=second_mark_time_field,
+                positive_values=positive_values,
+            ),
+            progress=lambda result: operations.update(operation_uuid, result=result),
+        )
+    except Exception as exc:
+        operations.update(operation_uuid, status=AsyncOperationStatus.FAILED, error=str(exc))
+        raise
+    result = asdict(output)
+    operations.update(
+        operation_uuid,
+        status=AsyncOperationStatus.SUCCEEDED,
+        result={"stage": "done", "progress_pct": 100, "analysis": result},
+    )
+    return result
 
 
 # No autoretry (unlike analyze_dataset_task above): a training run is

@@ -63,4 +63,6 @@ class GetDatasetSummaryUseCase:
             origin=summary.origin,
             source_dataset_names=summary.source_dataset_names,
             extraction_filter=summary.extraction_filter,
+            fraud_marking_analysis=summary.fraud_marking_analysis,
+            fraud_marking_analysis_config=summary.fraud_marking_analysis_config,
         )

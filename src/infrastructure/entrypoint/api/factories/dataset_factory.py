@@ -11,6 +11,9 @@ from src.application.ports.dataset_port import DatasetRepository
 from src.application.use_cases.datasets.analyze_dataset_on_demand import (
     AnalyzeDatasetOnDemandUseCase,
 )
+from src.application.use_cases.datasets.analyze_fraud_marking import (
+    AnalyzeFraudMarkingUseCase,
+)
 from src.application.use_cases.datasets.append_dataset_rows import (
     AppendDatasetRowsUseCase,
 )
@@ -43,6 +46,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sampl
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_summary_repository import (
     DynamoDatasetSummaryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
+    DynamoAsyncOperationRepository,
 )
 from src.infrastructure.persistence.dataset.filesystem.csv_dataset_repository import (
     FilesystemCsvDatasetRepository,
@@ -86,7 +92,9 @@ def get_dataset_analysis_dispatcher() -> DatasetAnalysisDispatcher:
 
 
 def get_list_datasets_use_case() -> ListDatasetsUseCase:
-    return ListDatasetsUseCase(get_dataset_repository())
+    return ListDatasetsUseCase(
+        get_dataset_repository(), get_dataset_summary_repository()
+    )
 
 
 def get_upload_dataset_use_case() -> UploadDatasetUseCase:
@@ -94,6 +102,7 @@ def get_upload_dataset_use_case() -> UploadDatasetUseCase:
         dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
+        async_operation_repository=DynamoAsyncOperationRepository(),
     )
 
 
@@ -103,11 +112,20 @@ def get_get_dataset_summary_use_case() -> GetDatasetSummaryUseCase:
     )
 
 
+def get_analyze_fraud_marking_use_case() -> AnalyzeFraudMarkingUseCase:
+    return AnalyzeFraudMarkingUseCase(
+        get_dataset_repository(),
+        get_dataset_summary_repository(),
+        DynamoAsyncOperationRepository(),
+    )
+
+
 def get_delete_dataset_use_case() -> DeleteDatasetUseCase:
     return DeleteDatasetUseCase(
         dataset_repository=get_dataset_repository(),
         sample_repository=get_dataset_sample_repository(),
         summary_repository=get_dataset_summary_repository(),
+        async_operation_repository=DynamoAsyncOperationRepository(),
     )
 
 
@@ -139,11 +157,14 @@ def get_analyze_dataset_on_demand_use_case() -> AnalyzeDatasetOnDemandUseCase:
         dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
+        async_operation_repository=DynamoAsyncOperationRepository(),
     )
 
 
 def get_get_dataset_rows_use_case() -> GetDatasetRowsUseCase:
-    return GetDatasetRowsUseCase(get_dataset_repository())
+    return GetDatasetRowsUseCase(
+        get_dataset_repository(), get_dataset_summary_repository()
+    )
 
 
 def get_get_dataset_template_use_case() -> GetDatasetTemplateUseCase:

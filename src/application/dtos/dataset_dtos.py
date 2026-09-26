@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, BinaryIO
+from uuid import UUID
 
 from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
@@ -13,13 +14,15 @@ from src.application.ports.dataset_analysis_port import (
 @dataclass
 class UploadDatasetInput:
     name: str
-    content: bytes
+    content: bytes | None = None
+    file: BinaryIO | None = None
 
 
 @dataclass
 class UploadDatasetOutput:
     name: str
     status: DatasetAnalysisStatus
+    async_operation_id: UUID | None = None
 
 
 @dataclass
@@ -93,6 +96,58 @@ class FieldValueCount:
 
 
 @dataclass
+class FraudMaturationProfile:
+    """Distribution of the time elapsed between a row's first and second
+    fraud mark, across every row where both timestamp fields parsed and the
+    second mark did not precede the first. All durations in days."""
+
+    sample_size: int
+    avg_days: float | None = None
+    min_days: float | None = None
+    max_days: float | None = None
+    p95_days: float | None = None
+
+
+@dataclass
+class FraudMarkingAnalysisInput:
+    dataset_name: str
+    # Field holding the initial fraud mark, e.g. "razon_marcacion".
+    first_mark_field: str
+    # Field holding the final/confirmed fraud mark, e.g. "marcacion_final".
+    second_mark_field: str
+    # Field holding the timestamp of the first mark.
+    first_mark_time_field: str
+    # Field holding the timestamp of the second mark.
+    second_mark_time_field: str
+    # Values that mean "flagged as fraud" in either mark field, e.g.
+    # ["risk", "risk-suspected"] - a mark counts as positive if it matches
+    # ANY of these. A row moving between two of these (e.g.
+    # "risk-suspected" -> "risk") is not a remark - see
+    # FraudMarkingAnalysisOutput.properly_marked.
+    positive_values: list[str]
+
+
+@dataclass
+class FraudMarkingAnalysisOutput:
+    dataset_name: str
+    # Rows where both first_mark_field and second_mark_field were present -
+    # the population the counts below are drawn from.
+    evaluated_rows: int
+    # Rows missing either mark field, excluded from evaluated_rows.
+    skipped_rows: int
+    # first mark positive, second mark negative.
+    false_positives: int
+    # first mark negative, second mark positive.
+    false_negatives: int
+    # first and second mark agree they're positive, agree they're negative,
+    # or both land in positive_values but under different specific labels
+    # (e.g. "risk-suspected" -> "risk") - not a real remark, just the case
+    # escalating within the positive class, so it isn't a false anything.
+    properly_marked: int
+    maturation: FraudMaturationProfile
+
+
+@dataclass
 class DatasetSummaryOutput:
     dataset_name: str
     status: DatasetAnalysisStatus
@@ -105,3 +160,5 @@ class DatasetSummaryOutput:
     origin: DatasetOrigin = DatasetOrigin.UPLOADED
     source_dataset_names: list[str] = field(default_factory=list)
     extraction_filter: dict[str, str] | None = None
+    fraud_marking_analysis: dict | None = None
+    fraud_marking_analysis_config: dict | None = None

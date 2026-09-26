@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import csv
+import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from src.application.ports.dataset_port import DatasetRecord, DatasetRepository
 from src.infrastructure.persistence.dataset.csv_utils import flatten_row, unflatten_row
@@ -36,13 +37,16 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
                 if field
             ]
 
+    def get_size(self, name: str) -> int:
+        return (self._dir / f"{name}.csv").stat().st_size
+
     def get_rows_page(self, name: str, offset: int, limit: int) -> tuple[list[dict[str, Any]], int]:
         rows = self.get_rows(name)
         return rows[offset:offset + limit], len(rows)
 
     def create(self, name: str, fields: list[str]) -> None:
         path = self._dir / f"{name}.csv"
-        if path.exists():
+        if self._name_exists(name):
             raise FileExistsError(f"Dataset '{name}' already exists")
         self._dir.mkdir(parents=True, exist_ok=True)
         with path.open("w", newline="", encoding="utf-8") as f:
@@ -50,10 +54,18 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
 
     def create_from_csv_bytes(self, name: str, content: bytes) -> None:
         path = self._dir / f"{name}.csv"
-        if path.exists():
+        if self._name_exists(name):
             raise FileExistsError(f"Dataset '{name}' already exists")
         self._dir.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
+
+    def create_from_csv_file(self, name: str, file: BinaryIO) -> None:
+        path = self._dir / f"{name}.csv"
+        if self._name_exists(name):
+            raise FileExistsError(f"Dataset '{name}' already exists")
+        self._dir.mkdir(parents=True, exist_ok=True)
+        with path.open("xb") as destination:
+            shutil.copyfileobj(file, destination, length=1024 * 1024)
 
     def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:
         path = self._dir / f"{name}.csv"
@@ -75,3 +87,6 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
 
     def delete(self, name: str) -> None:
         (self._dir / f"{name}.csv").unlink(missing_ok=True)
+
+    def _name_exists(self, name: str) -> bool:
+        return any(path.stem.casefold() == name.casefold() for path in self._dir.glob("*.csv"))

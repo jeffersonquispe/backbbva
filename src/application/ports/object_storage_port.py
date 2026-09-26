@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import BinaryIO
 
 
 @dataclass(frozen=True)
@@ -27,7 +28,23 @@ class ObjectStoragePort:
     ) -> ObjectStorageRef:
         raise NotImplementedError
 
+    def put_file(
+        self,
+        key: str,
+        file: BinaryIO,
+        content_type: str = "application/octet-stream",
+    ) -> ObjectStorageRef:
+        """Upload an already-open file without loading it into memory."""
+        raise NotImplementedError
+
     def get_bytes(self, key: str) -> bytes:
+        raise NotImplementedError
+
+    def get_stream(self, key: str) -> BinaryIO:
+        """Return a readable object stream. The caller closes it."""
+        raise NotImplementedError
+
+    def get_size(self, key: str) -> int:
         raise NotImplementedError
 
     def list_keys(self, suffix: str = "") -> list[str]:

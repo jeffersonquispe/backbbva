@@ -12,6 +12,10 @@ from src.application.ports.dataset_analysis_port import (
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
+from src.infrastructure.persistence.database.dynamodb.serialization import (
+    from_dynamodb,
+    to_dynamodb,
+)
 
 DATASET_SUMMARIES_TABLE_NAME = "dataset_summaries"
 
@@ -48,12 +52,19 @@ def _to_item(summary: DatasetSummaryRecord) -> dict[str, Any]:
         "origin": summary.origin.value,
         "source_dataset_names": summary.source_dataset_names,
         "extraction_filter": summary.extraction_filter,
+        # Maturation metrics include floats. boto3 rejects native floats, so
+        # recursively convert them to Decimal before persisting.
+        "fraud_marking_analysis": to_dynamodb(summary.fraud_marking_analysis),
+        "fraud_marking_analysis_config": to_dynamodb(summary.fraud_marking_analysis_config),
     }
 
 
 def _from_item(item: dict[str, Any]) -> DatasetSummaryRecord:
     uploaded_at = item.get("uploaded_at")
     updated_at = item.get("updated_at")
+    fraud_marking_analysis = _from_fraud_marking_analysis(
+        item.get("fraud_marking_analysis")
+    )
     return DatasetSummaryRecord(
         dataset_name=item["dataset_name"],
         status=DatasetAnalysisStatus(item["status"]),
@@ -69,4 +80,31 @@ def _from_item(item: dict[str, Any]) -> DatasetSummaryRecord:
         origin=DatasetOrigin(item["origin"]) if item.get("origin") else DatasetOrigin.UPLOADED,
         source_dataset_names=list(item.get("source_dataset_names") or []),
         extraction_filter=dict(item["extraction_filter"]) if item.get("extraction_filter") else None,
+        fraud_marking_analysis=fraud_marking_analysis,
+        fraud_marking_analysis_config=(
+            from_dynamodb(item["fraud_marking_analysis_config"])
+            if item.get("fraud_marking_analysis_config")
+            else None
+        ),
     )
+
+
+def _from_fraud_marking_analysis(value: Any) -> dict[str, Any] | None:
+    """Read pre-days records without making cached analyses unusable.
+
+    Earlier versions stored maturation values as ``*_hours``. New records
+    persist ``*_days``; this read-time migration keeps the API consistent
+    until an older analysis is recomputed.
+    """
+    if not value:
+        return None
+    analysis = from_dynamodb(value)
+    maturation = analysis.get("maturation") if isinstance(analysis, dict) else None
+    if not isinstance(maturation, dict) or "avg_hours" not in maturation:
+        return analysis
+    for metric in ("avg", "min", "max", "p95"):
+        hours = maturation.pop(f"{metric}_hours", None)
+        maturation[f"{metric}_days"] = (
+            round(hours / 24, 2) if isinstance(hours, (int, float)) else None
+        )
+    return analysis

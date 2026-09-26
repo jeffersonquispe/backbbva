@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -15,6 +16,7 @@ from src.application.ports.dataset_analysis_port import (
     DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.use_cases.datasets.analyze_dataset_on_demand import (
     AnalyzeDatasetOnDemandUseCase,
 )
@@ -72,6 +74,43 @@ class RecordingDatasetAnalysisDispatcher(DatasetAnalysisDispatcher):
 
     def dispatch(self, dataset_name: str) -> None:
         self.dispatched.append(dataset_name)
+
+
+class OperationAwareDispatcher(DatasetAnalysisDispatcher):
+    def __init__(self) -> None:
+        self.dispatched: list[tuple[str, Any]] = []
+
+    def dispatch(self, dataset_name: str, operation_id=None) -> None:
+        self.dispatched.append((dataset_name, operation_id))
+
+
+class InMemoryAsyncOperationRepository:
+    def __init__(self) -> None:
+        self.operations = {}
+
+    def create(self, operation):
+        self.operations[operation.id] = operation
+        return operation
+
+    def get(self, operation_id):
+        return self.operations.get(operation_id)
+
+    def update(self, operation_id, **changes):
+        operation = self.operations.get(operation_id)
+        if operation is None:
+            return None
+        updated = replace(operation, **changes)
+        self.operations[operation_id] = updated
+        return updated
+
+    def list(self, status=None, limit=100):
+        return list(self.operations.values())[:limit]
+
+    def list_active(self, limit=100):
+        return []
+
+    def delete(self, operation_id):
+        self.operations.pop(operation_id, None)
 
 
 def test_analyze_dataset_on_demand_preserves_existing_summary_fields() -> None:
@@ -149,6 +188,26 @@ def test_analyze_dataset_on_demand_with_no_existing_summary_creates_minimal_pend
     assert summary.extraction_filter is None
 
     assert dispatcher.dispatched == ["brand_new"]
+
+
+def test_analyze_dataset_on_demand_returns_the_operation_it_dispatched() -> None:
+    operations = InMemoryAsyncOperationRepository()
+    dispatcher = OperationAwareDispatcher()
+    use_case = AnalyzeDatasetOnDemandUseCase(
+        dataset_repository=FakeDatasetRepository(existing_names={"ds"}),
+        summary_repository=InMemoryDatasetSummaryRepository(),
+        dispatcher=dispatcher,
+        async_operation_repository=operations,
+    )
+
+    output = use_case.execute("ds")
+
+    assert output.async_operation_id is not None
+    assert dispatcher.dispatched == [("ds", output.async_operation_id)]
+    operation = operations.get(output.async_operation_id)
+    assert operation is not None
+    assert operation.operation_type == "dataset.analyze"
+    assert operation.status == AsyncOperationStatus.DISPATCHED
 
 
 def test_analyze_dataset_on_demand_raises_file_not_found_for_nonexistent_dataset() -> None:

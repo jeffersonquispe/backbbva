@@ -242,17 +242,43 @@ class DatasetResponse(BaseModel):
 class UploadDatasetResponse(BaseModel):
     name: str
     status: DatasetAnalysisStatus
+    async_operation_id: UUID | None = None
 
 
 class DeleteDatasetResponse(BaseModel):
     name: str
     deleted: bool
+    async_operation_id: UUID | None = None
 
 
 class FieldDistributionResponse(BaseModel):
     value: str
     count: int
     percentage: float
+
+
+class FraudMaturationProfileResponse(BaseModel):
+    sample_size: int
+    avg_days: float | None
+    min_days: float | None
+    max_days: float | None
+    p95_days: float | None
+
+
+class FraudMarkingAnalysisResponse(BaseModel):
+    dataset_name: str
+    evaluated_rows: int
+    skipped_rows: int
+    false_positives: int
+    false_negatives: int
+    properly_marked: int
+    maturation: FraudMaturationProfileResponse
+
+
+class FraudMarkingAnalysisQueuedResponse(BaseModel):
+    dataset_name: str
+    status: Literal["PENDING"] = "PENDING"
+    async_operation_id: UUID
 
 
 class DatasetSummaryResponse(BaseModel):
@@ -267,6 +293,7 @@ class DatasetSummaryResponse(BaseModel):
     origin: DatasetOrigin
     source_dataset_names: list[str]
     extraction_filter: dict[str, str] | None
+    fraud_marking_analysis: FraudMarkingAnalysisResponse | None = None
 
 
 class CreateEmptyDatasetRequest(BaseModel):

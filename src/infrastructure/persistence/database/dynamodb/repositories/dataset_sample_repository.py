@@ -38,15 +38,27 @@ class DynamoDatasetSampleRepository(DatasetSampleRepository):
         return [_from_item(item) for item in items]
 
     def delete_by_dataset(self, dataset_name: str) -> None:
-        existing = self.list_by_dataset(dataset_name)
         with self._table.batch_writer() as batch:
-            for sample in existing:
-                batch.delete_item(
-                    Key={
-                        "dataset_name": sample.dataset_name,
-                        "sample_id": sample.sample_id,
-                    }
-                )
+            kwargs: dict[str, Any] = {
+                "KeyConditionExpression": "dataset_name = :dataset_name",
+                "ExpressionAttributeValues": {":dataset_name": dataset_name},
+                # Deleting does not need the sample payload.  Projecting just
+                # the keys keeps legacy datasets with many samples bounded.
+                "ProjectionExpression": "dataset_name, sample_id",
+            }
+            while True:
+                response = self._table.query(**kwargs)
+                for item in response.get("Items", []):
+                    batch.delete_item(
+                        Key={
+                            "dataset_name": item["dataset_name"],
+                            "sample_id": item["sample_id"],
+                        }
+                    )
+                last_key = response.get("LastEvaluatedKey")
+                if not last_key:
+                    break
+                kwargs["ExclusiveStartKey"] = last_key
 
 
 def _to_item(sample: DatasetSampleRecord) -> dict[str, Any]:
