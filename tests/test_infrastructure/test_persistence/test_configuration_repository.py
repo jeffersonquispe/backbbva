@@ -12,6 +12,7 @@ from src.application.ports.configuration_port import (
     ClassificationConfig,
     ConfigurationRecord,
     DeterministicConfig,
+    DelegatedResearchSettings,
     DeterministicRule,
     DayProfile,
     DistributionValue,
@@ -24,6 +25,7 @@ from src.application.ports.configuration_port import (
     FlagType,
     GeneralSettings,
     InfraSettings,
+    HistoryPandasResearchConfig,
     ModusOperandi,
     MonitoringSettings,
     OpsSettings,
@@ -42,6 +44,7 @@ from src.application.ports.configuration_port import (
     Taxonomy,
     TestCleanupPolicy,
     TestSettings,
+    VectorStoreResearchConfig,
     VoicebotCategoryPrompt,
     VoicebotConfig,
     default_segments,
@@ -184,6 +187,19 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
                 watchlist_compare_field="documento",
                 prompt="clasifica esta alerta",
                 prompt_vars=["Saldo"],
+                delegated_research=DelegatedResearchSettings(
+                    priority="pandas_first",
+                    vector_store=VectorStoreResearchConfig(
+                        enabled=True,
+                        vector_store_instance_id="research-vs-1",
+                        similarity_threshold=0.82,
+                    ),
+                    history_pandas=HistoryPandasResearchConfig(
+                        enabled=True,
+                        allowed_columns=["amount", "channel"],
+                        max_history_rows=250,
+                    ),
+                ),
             ),
             adversarial=AdversarialConfig(
                 prompt="ataca esta clasificación",
@@ -255,6 +271,12 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert restored.agent.classification.watchlist_ids == ["wl-1"]
     assert restored.agent.classification.watchlist_compare_field == "documento"
     assert restored.agent.classification.prompt == "clasifica esta alerta"
+    assert restored.agent.classification.delegated_research.priority == "pandas_first"
+    assert restored.agent.classification.delegated_research.vector_store.enabled is True
+    assert restored.agent.classification.delegated_research.vector_store.vector_store_instance_id == "research-vs-1"
+    assert restored.agent.classification.delegated_research.vector_store.similarity_threshold == 0.82
+    assert restored.agent.classification.delegated_research.history_pandas.allowed_columns == ["amount", "channel"]
+    assert restored.agent.classification.delegated_research.history_pandas.max_history_rows == 250
     assert restored.agent.adversarial.max_cycles == 3
     assert restored.agent.adversarial.feed_feedback_to_classification is False
     assert restored.agent.executor.aric_marking.prompt == "marca esta alerta"

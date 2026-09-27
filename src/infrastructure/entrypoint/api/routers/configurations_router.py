@@ -12,10 +12,10 @@ from src.application.ports.configuration_port import (
     AgentSettings,
     AnalystCapacity,
     AnalystConfig,
-    AnalystPlaybook,
     ClassificationConfig,
     ConfigurationRecord,
     DeterministicConfig,
+    DelegatedResearchSettings,
     DetectorConfig,
     DetectorAdversarialConfig,
     DeterministicRule,
@@ -29,6 +29,7 @@ from src.application.ports.configuration_port import (
     Flag,
     GeneralSettings,
     InfraSettings,
+    HistoryPandasResearchConfig,
     ModusOperandi,
     MonitoringSettings,
     OpsSettings,
@@ -41,6 +42,7 @@ from src.application.ports.configuration_port import (
     SegmentSettings,
     ShortageBehavior,
     Taxonomy,
+    VectorStoreResearchConfig,
     TestSettings,
     VoicebotCategoryPrompt,
     VoicebotConfig,
@@ -86,7 +88,6 @@ from src.infrastructure.entrypoint.api.schemas import (
     AlertParserConfigSchema,
     AlertParserFieldSchema,
     AnalystConfigSchema,
-    AnalystPlaybookSchema,
     ClassificationConfigSchema,
     ConfigurationChangeResponse,
     ConfigurationDetailResponse,
@@ -95,6 +96,7 @@ from src.infrastructure.entrypoint.api.schemas import (
     DayProfileSchema,
     DeterministicConfigSchema,
     DetectorConfigSchema,
+    DelegatedResearchSettingsSchema,
     DetectorAdversarialConfigSchema,
     DeterministicRuleSchema,
     DistributionValueSchema,
@@ -356,7 +358,16 @@ def _profiling_to_schema(profiling: ProfilingConfig) -> ProfilingConfigSchema:
 def _classification_to_schema(
     classification: ClassificationConfig,
 ) -> ClassificationConfigSchema:
-    return ClassificationConfigSchema(**classification.__dict__)
+    return ClassificationConfigSchema(
+        **{
+            **classification.__dict__,
+            "delegated_research": DelegatedResearchSettingsSchema(
+                vector_store=classification.delegated_research.vector_store.__dict__,
+                history_pandas=classification.delegated_research.history_pandas.__dict__,
+                priority=classification.delegated_research.priority,
+            ),
+        }
+    )
 
 
 def _adversarial_to_schema(adversarial: AdversarialConfig) -> AdversarialConfigSchema:
@@ -376,7 +387,8 @@ def _voicebot_to_schema(voicebot: VoicebotConfig) -> VoicebotConfigSchema:
 
 def _analyst_to_schema(analyst: AnalystConfig) -> AnalystConfigSchema:
     return AnalystConfigSchema(
-        playbooks=[AnalystPlaybookSchema(**p.__dict__) for p in analyst.playbooks],
+        prompt=analyst.prompt,
+        prompt_vars=analyst.prompt_vars,
     )
 
 
@@ -412,7 +424,16 @@ def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
             )
             for rubric in agent.rubrics
         ],
-        detector=DetectorConfigSchema(**agent.detector.__dict__),
+        detector=DetectorConfigSchema(
+            **{
+                **agent.detector.__dict__,
+                "delegated_research": DelegatedResearchSettingsSchema(
+                    vector_store=agent.detector.delegated_research.vector_store.__dict__,
+                    history_pandas=agent.detector.delegated_research.history_pandas.__dict__,
+                    priority=agent.detector.delegated_research.priority,
+                ),
+            }
+        ),
         detector_adversarial=DetectorAdversarialConfigSchema(**agent.detector_adversarial.__dict__),
         classification=_classification_to_schema(agent.classification),
         adversarial=_adversarial_to_schema(agent.adversarial),
@@ -506,7 +527,29 @@ def _profiling_from_schema(schema: ProfilingConfigSchema) -> ProfilingConfig:
 def _classification_from_schema(
     schema: ClassificationConfigSchema,
 ) -> ClassificationConfig:
-    return ClassificationConfig(**schema.model_dump())
+    payload = schema.model_dump()
+    research = payload.pop("delegated_research")
+    return ClassificationConfig(
+        **payload,
+        delegated_research=DelegatedResearchSettings(
+            priority=research["priority"],
+            vector_store=VectorStoreResearchConfig(**research["vector_store"]),
+            history_pandas=HistoryPandasResearchConfig(**research["history_pandas"]),
+        ),
+    )
+
+
+def _detector_from_schema(schema: DetectorConfigSchema) -> DetectorConfig:
+    payload = schema.model_dump()
+    research = payload.pop("delegated_research")
+    return DetectorConfig(
+        **payload,
+        delegated_research=DelegatedResearchSettings(
+            priority=research["priority"],
+            vector_store=VectorStoreResearchConfig(**research["vector_store"]),
+            history_pandas=HistoryPandasResearchConfig(**research["history_pandas"]),
+        ),
+    )
 
 
 def _adversarial_from_schema(schema: AdversarialConfigSchema) -> AdversarialConfig:
@@ -525,7 +568,8 @@ def _voicebot_from_schema(schema: VoicebotConfigSchema) -> VoicebotConfig:
 
 def _analyst_from_schema(schema: AnalystConfigSchema) -> AnalystConfig:
     return AnalystConfig(
-        playbooks=[AnalystPlaybook(**p.model_dump()) for p in schema.playbooks],
+        prompt=schema.prompt,
+        prompt_vars=schema.prompt_vars,
     )
 
 
@@ -561,7 +605,7 @@ def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
             )
             for rubric in schema.rubrics
         ],
-        detector=DetectorConfig(**schema.detector.model_dump()),
+        detector=_detector_from_schema(schema.detector),
         detector_adversarial=DetectorAdversarialConfig(**schema.detector_adversarial.model_dump()),
         classification=_classification_from_schema(schema.classification),
         adversarial=_adversarial_from_schema(schema.adversarial),

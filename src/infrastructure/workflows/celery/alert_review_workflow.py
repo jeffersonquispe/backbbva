@@ -35,6 +35,8 @@ from src.application.dtos.profile_alert_dtos import (
     ProfileAlertInput,
     ProfileAlertOutput,
 )
+from src.application.dtos.research_dtos import ResearchRequest, ResearchSource
+from src.application.ports.configuration_port import DelegatedResearchSettings
 from src.application.ports.alert_port import AlertStatus
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.ports.configuration_port import (
@@ -68,12 +70,15 @@ from src.infrastructure.workflows.celery.factories import (
     get_enrich_profiling_fields_use_case,
     get_evaluate_deterministic_rules_use_case,
     get_generate_agent_text_use_case,
+    get_model_repository,
+    get_model_storage,
     get_post_process_alert_use_case,
     get_pre_process_alert_use_case,
     get_profile_alert_use_case,
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
 )
+from src.domain.alerts.rule_conditions import evaluate_condition
 from src.application.use_cases.alerts.resolve_alert_segment import (
     ResolveAlertSegmentUseCase,
 )
@@ -85,6 +90,15 @@ from src.domain.configurations.exceptions import ConfigurationNotFoundError
 from src.domain.models.prompt_template import substitute_variables
 from src.infrastructure.workflows.queued.queued_status_reporter import (
     QueuedWorkflowStatusReporter,
+)
+from src.infrastructure.workflows.celery.research_adapters import (
+    HeuristicHistoryResearchPlanner,
+    WorkflowVectorStoreRetriever,
+)
+from src.application.use_cases.research.delegated_research import (
+    HistoryPandasResearchAgent,
+    ResearchDelegationCoordinator,
+    VectorStoreResearchAgent,
 )
 
 LINEAR_STEPS = (
@@ -169,6 +183,12 @@ class AlertReviewWorkflowRunner:
                 context = self._run_step(workflow, step_name, context)
                 if step_name == "pre_process":
                     context = _resolve_segment(context)
+                if step_name == "profiling":
+                    # Rubrics are part of profiling context, rather than a
+                    # public workflow stage.  This preserves the workflow
+                    # contract while making their evidence available to the
+                    # Detector immediately afterwards.
+                    context["rubrics"] = _run_rubrics(context)
                 if step_name == "deterministic":
                     match: DeterministicRuleMatch = context["deterministic"]
                     if match.matched:
@@ -724,14 +744,17 @@ def _run_detector(context: dict[str, Any]) -> ClassifyAlertOutput:
     workflow_execution_id, step_id = _step_reporting_ids(context)
     overrides = _step_overrides(context, "detector")
     segment_kwargs: dict[str, Any] = {}
+    segment = _active_segment(context)
     if not overrides.get("system_prompt"):
-        segment = _active_segment(context)
         if segment is not None:
             detector_cfg = segment.agent.detector
+            rubric_context = _rubric_prompt_context(context)
             if detector_cfg.prompt:
                 segment_kwargs["extra_instructions"] = substitute_variables(
                     detector_cfg.prompt, _variables_pool(context, segment)
-                )
+                ) + rubric_context
+            elif rubric_context:
+                segment_kwargs["extra_instructions"] = rubric_context
             segment_kwargs.update(_segment_tool_kwargs(detector_cfg))
             if detector_cfg.output_labels:
                 segment_kwargs["output_labels"] = detector_cfg.output_labels
@@ -746,7 +769,7 @@ def _run_detector(context: dict[str, Any]) -> ClassifyAlertOutput:
         **segment_kwargs,
     )
     alert_payload = (context.get("input") or {}).get("alert_payload") or {}
-    return use_case.execute(
+    llm_output = use_case.execute(
         ClassifyAlertInput(
             alert_id=UUID(context["alert_id"]),
             pre_process=context["pre_process"],
@@ -754,6 +777,174 @@ def _run_detector(context: dict[str, Any]) -> ClassifyAlertOutput:
             expected_classification=alert_payload.get(MARCACION_FIELD),
             ground_truth_tipo=alert_payload.get(TIPO_FIELD),
         )
+    )
+    if (
+        segment is not None
+        and llm_output.is_fraud == "unknown"
+        and (segment.agent.detector.delegated_research.vector_store.enabled
+             or segment.agent.detector.delegated_research.history_pandas.enabled)
+    ):
+        research = _delegated_research(
+            context, segment.agent.detector.delegated_research, llm_output.reasoning
+        )
+        if research:
+            final_kwargs = dict(segment_kwargs)
+            final_kwargs["extra_instructions"] = (
+                str(final_kwargs.get("extra_instructions") or "")
+                + _research_instructions(research)
+            )
+            final_output = get_classify_alert_use_case(
+                status_reporter=context.get("status_reporter"),
+                workflow_execution_id=workflow_execution_id,
+                step_id=step_id,
+                step_name="detector",
+                **overrides,
+                **final_kwargs,
+            ).execute(
+                ClassifyAlertInput(
+                    alert_id=UUID(context["alert_id"]),
+                    pre_process=context["pre_process"],
+                    profile=context["profiling"],
+                    expected_classification=alert_payload.get(MARCACION_FIELD),
+                    ground_truth_tipo=alert_payload.get(TIPO_FIELD),
+                )
+            )
+            llm_output = dataclasses.replace(
+                final_output, research_delegations=research
+            )
+    if segment is None or not segment.agent.detector.use_xgboost_model:
+        return llm_output
+    return _apply_xgboost_detector_decision(
+        llm_output, context, segment.agent.detector
+    )
+
+
+def _run_rubrics(context: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate all segment rubrics against enriched alert fields."""
+    segment = _active_segment(context)
+    if segment is None:
+        return {"matched": [], "total_score": 0.0, "evaluated": 0}
+    fields = _variables_pool(context, segment)
+    matched: list[dict[str, Any]] = []
+    for rubric in segment.agent.rubrics:
+        conditions = rubric.conditions
+        if conditions and all(evaluate_condition(condition, fields) for condition in conditions):
+            matched.append({
+                "id": rubric.id,
+                "name": rubric.name,
+                "score": sum(condition.score for condition in conditions),
+                "condition_ids": [condition.id for condition in conditions],
+            })
+    return {
+        "matched": matched,
+        "total_score": sum(item["score"] for item in matched),
+        "evaluated": len(segment.agent.rubrics),
+    }
+
+
+def _rubric_prompt_context(context: dict[str, Any]) -> str:
+    rubric_result = context.get("rubrics")
+    if not rubric_result:
+        return ""
+    return (
+        "\n\nResultado de rúbricas configuradas (evidencia adicional; "
+        "evalúala junto con las demás señales): "
+        f"{rubric_result}"
+    )
+
+
+def _delegated_research(
+    context: dict[str, Any], settings: DelegatedResearchSettings, reasoning: str
+) -> list[dict[str, Any]]:
+    """Run bounded investigators only after the primary agent is unknown."""
+    requests: list[ResearchRequest] = []
+    agents: dict[Any, Any] = {}
+    question = (
+        "Investiga evidencia adicional para esta alerta inconclusa. "
+        f"Razonamiento previo: {reasoning}"
+    )
+    if settings.vector_store.enabled and settings.vector_store.vector_store_instance_id:
+        from src.infrastructure.workflows.celery.factories import (
+            get_search_fraud_knowledge_use_case,
+        )
+
+        agents[ResearchSource.VECTOR_STORE] = VectorStoreResearchAgent(
+            WorkflowVectorStoreRetriever(
+                get_search_fraud_knowledge_use_case(),
+                settings.vector_store.vector_store_instance_id,
+            ),
+            settings.vector_store,
+        )
+        requests.append(ResearchRequest(ResearchSource.VECTOR_STORE, question))
+
+    history = context["pre_process"].enrichment.get("transaction_history") or []
+    if settings.history_pandas.enabled and history:
+        current_amount = context["pre_process"].mandatory_fields.get("amount")
+        agents[ResearchSource.HISTORY_PANDAS] = HistoryPandasResearchAgent(
+            HeuristicHistoryResearchPlanner(current_amount), settings.history_pandas
+        )
+        requests.append(ResearchRequest(ResearchSource.HISTORY_PANDAS, question))
+
+    if settings.priority == "pandas_first":
+        requests.reverse()
+    # Each configuration is its own bounded investigator.  A stage can never
+    # execute more than its configured number of requests per source.
+    requests = [
+        request for request in requests
+        if (settings.vector_store if request.source == ResearchSource.VECTOR_STORE else settings.history_pandas).max_delegations > 0
+    ]
+    accepted: list[Any] = []
+    results = ResearchDelegationCoordinator(agents).delegate(
+        requests,
+        is_inconclusive=lambda: True,
+        accept=accepted.append,
+    )
+    return [dataclasses.asdict(result) for result in results]
+
+
+def _research_instructions(results: list[dict[str, Any]]) -> str:
+    return (
+        "\n\nInvestigación delegada disponible. Úsala como evidencia adicional "
+        "y responde ahora con la decisión final:\n"
+        f"{results}"
+    )
+
+
+def _apply_xgboost_detector_decision(
+    llm_output: ClassifyAlertOutput, context: dict[str, Any], detector_cfg: Any
+) -> ClassifyAlertOutput:
+    """Use the configured trained bundle for the detector's binary gate."""
+    from io import BytesIO
+
+    import joblib
+
+    from src.infrastructure.entrypoint.mcp.scoring import score_row
+
+    model_id = detector_cfg.xgboost_model_id
+    repository = get_model_repository()
+    model = repository.get(UUID(model_id)) if model_id else repository.get_active()
+    if model is None or model.storage_ref is None:
+        raise ValueError("Configured XGBoost model is not trained or does not exist.")
+    bundle = joblib.load(BytesIO(get_model_storage().get_bytes(model.storage_ref)))
+    payload = (context.get("input") or {}).get("alert_payload") or {}
+    result = score_row(bundle, payload)
+    score = float(result["score"])
+    if score >= detector_cfg.xgboost_fraud_threshold:
+        is_fraud, verdict = "fraud", "superó el umbral de fraude"
+    elif score < detector_cfg.xgboost_uncertainty_threshold:
+        is_fraud, verdict = "not_fraud", "quedó por debajo del umbral de incertidumbre"
+    else:
+        is_fraud, verdict = "unknown", "quedó entre los umbrales; requiere revisión posterior"
+    return dataclasses.replace(
+        llm_output,
+        is_fraud=is_fraud,
+        reasoning=(
+            f"XGBoost ({model.tag}) obtuvo {score:.4f} y {verdict}. "
+            f"Evaluación LLM: {llm_output.reasoning}"
+        ),
+        model_score=score,
+        model_id=str(model.id),
+        model_top_features=result.get("top_features") if detector_cfg.xgboost_shap_enabled else None,
     )
 
 
@@ -818,7 +1009,7 @@ def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
         **segment_kwargs,
     )
     alert_payload = (context.get("input") or {}).get("alert_payload") or {}
-    return use_case.execute(
+    output = use_case.execute(
         ClassifyAlertInput(
             alert_id=UUID(context["alert_id"]),
             pre_process=context["pre_process"],
@@ -827,6 +1018,42 @@ def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
             ground_truth_tipo=alert_payload.get(TIPO_FIELD),
         )
     )
+    segment = _active_segment(context)
+    if (
+        segment is None
+        or output.is_fraud != "unknown"
+        or not (
+            segment.agent.classification.delegated_research.vector_store.enabled
+            or segment.agent.classification.delegated_research.history_pandas.enabled
+        )
+    ):
+        return output
+    research = _delegated_research(
+        context, segment.agent.classification.delegated_research, output.reasoning
+    )
+    if not research:
+        return output
+    final_kwargs = dict(segment_kwargs)
+    final_kwargs["extra_instructions"] = (
+        str(final_kwargs.get("extra_instructions") or "")
+        + _research_instructions(research)
+    )
+    final = get_classify_alert_use_case(
+        status_reporter=context.get("status_reporter"),
+        workflow_execution_id=workflow_execution_id,
+        step_id=step_id,
+        **overrides,
+        **final_kwargs,
+    ).execute(
+        ClassifyAlertInput(
+            alert_id=UUID(context["alert_id"]),
+            pre_process=context["pre_process"],
+            profile=context["profiling"],
+            expected_classification=alert_payload.get(MARCACION_FIELD),
+            ground_truth_tipo=alert_payload.get(TIPO_FIELD),
+        )
+    )
+    return dataclasses.replace(final, research_delegations=research)
 
 
 def _run_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
@@ -865,7 +1092,7 @@ def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
     segment_kwargs: dict[str, Any] = {}
     segment = _active_segment(context)
     if segment is not None:
-        segment_kwargs["playbooks"] = segment.agent.analyst.playbooks
+        segment_kwargs["handling_prompt"] = segment.agent.analyst.prompt
         # Reuses Classification's selection - confirmed to be the same
         # instance Detector/Clasificación already search (see
         # ResolveAnalystPlaybookUseCase's docstring), Analyst has no vector

@@ -32,6 +32,7 @@ from src.application.ports.workflow_status_port import (
 from src.application.use_cases.alerts.resolve_analyst_playbook import (
     ResolveAnalystPlaybookUseCase,
 )
+from src.domain.models.prompt_template import substitute_variables
 
 _FALLBACK_CLASSIFICATION = "unknown"
 
@@ -133,6 +134,7 @@ class AnalystReviewAlertUseCase:
         # from the active segment, not stable adapter state.
         playbooks: list[AnalystPlaybook] | None = None,
         vector_store_instance_id: str | None = None,
+        handling_prompt: str = "",
     ) -> None:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
@@ -146,6 +148,7 @@ class AnalystReviewAlertUseCase:
         self._step_id = step_id
         self._playbooks = playbooks or []
         self._vector_store_instance_id = vector_store_instance_id
+        self._handling_prompt = handling_prompt
 
     def _report_progress(self, detail: str) -> None:
         if self._status_reporter is None or self._workflow_execution_id is None:
@@ -203,6 +206,18 @@ class AnalystReviewAlertUseCase:
                 "name": modus_operandi_playbook.name,
                 "strategy": modus_operandi_playbook.strategy,
             }
+        if self._handling_prompt:
+            data["handling_instructions"] = substitute_variables(
+                self._handling_prompt,
+                {
+                    # The classification label is the selected modus
+                    # operandi available at this stage.
+                    "modus_operandi": input.classification.fraud_classification,
+                    "playbook": {"title": playbook.title, "steps": playbook.steps},
+                    "voicebot_resources": _channel_data(capacity)["voicebot"],
+                    "analyst_resources": _channel_data(capacity)["analysts"],
+                },
+            )
         result = uow.invoke(
             [
                 LLMMessage(role=LLMMessageRole.SYSTEM, content=self._system_prompt),

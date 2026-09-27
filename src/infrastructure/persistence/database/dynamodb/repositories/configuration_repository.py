@@ -20,6 +20,7 @@ from src.application.ports.configuration_port import (
     ClassificationConfig,
     ConfigurationRecord,
     DeterministicConfig,
+    DelegatedResearchSettings,
     DetectorConfig,
     DetectorAdversarialConfig,
     DeterministicRule,
@@ -37,6 +38,7 @@ from src.application.ports.configuration_port import (
     FlagType,
     GeneralSettings,
     InfraSettings,
+    HistoryPandasResearchConfig,
     ListMembershipMode,
     LogicalOperator,
     ModusOperandi,
@@ -57,6 +59,7 @@ from src.application.ports.configuration_port import (
     Taxonomy,
     TestCleanupPolicy,
     TestSettings,
+    VectorStoreResearchConfig,
     VoicebotCategoryPrompt,
     VoicebotConfig,
     default_segments,
@@ -889,6 +892,40 @@ def _kwargs_for(cls: type, item: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in item.items() if key in known}
 
 
+def _delegated_research_from_item(item: dict[str, Any] | None) -> DelegatedResearchSettings:
+    """Hydrate nested research config while accepting pre-feature rows."""
+    item = item or {}
+    vector_store = item.get("vector_store") or {}
+    history_pandas = item.get("history_pandas") or {}
+    return DelegatedResearchSettings(
+        priority=item.get("priority") or "vector_first",
+        vector_store=VectorStoreResearchConfig(
+            **_kwargs_for(VectorStoreResearchConfig, vector_store)
+        ),
+        history_pandas=HistoryPandasResearchConfig(
+            **_kwargs_for(HistoryPandasResearchConfig, history_pandas)
+        ),
+    )
+
+
+def _classification_from_item(item: dict[str, Any]) -> ClassificationConfig:
+    item = from_dynamodb(item)
+    payload = _kwargs_for(ClassificationConfig, item)
+    payload["delegated_research"] = _delegated_research_from_item(
+        item.get("delegated_research")
+    )
+    return ClassificationConfig(**payload)
+
+
+def _detector_from_item(item: dict[str, Any]) -> DetectorConfig:
+    item = from_dynamodb(item)
+    payload = _kwargs_for(DetectorConfig, item)
+    payload["delegated_research"] = _delegated_research_from_item(
+        item.get("delegated_research")
+    )
+    return DetectorConfig(**payload)
+
+
 def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
     # taxonomies/modus_operandi/flags/example_cases and
     # analyst.playbooks/executor.voicebot_call.category_prompts aren't
@@ -907,9 +944,9 @@ def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
             )
             for item in agent_item.get("rubrics") or []
         ],
-        detector=DetectorConfig(**_kwargs_for(DetectorConfig, from_dynamodb(agent_item.get("detector") or {}))),
+        detector=_detector_from_item(agent_item.get("detector") or {}),
         detector_adversarial=DetectorAdversarialConfig(**_kwargs_for(DetectorAdversarialConfig, from_dynamodb(agent_item.get("detector_adversarial") or {}))),
-        classification=ClassificationConfig(**_kwargs_for(ClassificationConfig, from_dynamodb(agent_item.get("classification") or {}))),
+        classification=_classification_from_item(agent_item.get("classification") or {}),
         adversarial=AdversarialConfig(**_kwargs_for(AdversarialConfig, from_dynamodb(agent_item.get("adversarial") or {}))),
         analyst=AnalystConfig(),
         executor=_executor_from_item(agent_item.get("executor") or {}),

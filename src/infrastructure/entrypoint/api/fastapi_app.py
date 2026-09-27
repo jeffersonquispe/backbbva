@@ -46,6 +46,9 @@ from src.infrastructure.entrypoint.api.routers.models_router import (
 from src.infrastructure.entrypoint.api.routers.modus_operandi_library_router import (
     router as modus_operandi_library_router,
 )
+from src.infrastructure.entrypoint.api.routers.playbook_library_router import (
+    router as playbook_library_router,
+)
 from src.infrastructure.entrypoint.api.routers.operational_settings_router import (
     router as operational_settings_router,
 )
@@ -155,6 +158,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         modus_operandi_library_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        playbook_library_router,
         prefix=genai_config.API_V0_STR,
     )
     app.include_router(

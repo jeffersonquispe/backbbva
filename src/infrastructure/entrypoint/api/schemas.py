@@ -739,6 +739,19 @@ class RubricSchema(BaseModel):
     conditions: list[RuleConditionSchema] = Field(default_factory=list)
 
 
+class FraudPlaybookSchema(BaseModel):
+    classification: str
+    title: str
+    steps: list[str] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class UpsertFraudPlaybookRequest(BaseModel):
+    title: str
+    steps: list[str] = Field(default_factory=list)
+
+
 class DeterministicConfigSchema(BaseModel):
     alert_filter: dict[str, Any] = Field(default_factory=_default_alert_filter_schema)
     field_enrichment: dict[str, Any] = Field(default_factory=_default_field_enrichment_schema)
@@ -749,6 +762,54 @@ class DeterministicConfigSchema(BaseModel):
         if self.field_enrichment.get("recipes"):
             from src.domain.models.feature_recipe import validate_feature_definition
             self.field_enrichment = validate_feature_definition(self.field_enrichment)
+        return self
+
+
+class ResearchAgentConfigSchema(BaseModel):
+    enabled: bool = False
+    only_when_inconclusive: bool = True
+    max_delegations: int = Field(default=1, ge=1, le=5)
+    max_iterations: int = Field(default=3, ge=1, le=10)
+    timeout_seconds: int = Field(default=8, ge=1, le=60)
+    max_result_items: int = Field(default=10, ge=1, le=100)
+    include_trace: bool = True
+
+
+class VectorStoreResearchConfigSchema(ResearchAgentConfigSchema):
+    vector_store_instance_id: str | None = None
+    similarity_threshold: float = Field(default=0.7, ge=0, le=1)
+    max_documents_per_query: int = Field(default=8, ge=1, le=100)
+    allowed_asset_types: list[Literal["taxonomy", "modus_operandi", "similar_case", "flag"]] = Field(
+        default_factory=lambda: ["taxonomy", "modus_operandi", "similar_case", "flag"]
+    )
+
+
+class HistoryPandasResearchConfigSchema(ResearchAgentConfigSchema):
+    max_history_rows: int = Field(default=5_000, ge=1, le=100_000)
+    max_analysis_operations: int = Field(default=4, ge=1, le=20)
+    allowed_columns: list[str] = Field(default_factory=list)
+    allowed_operations: list[Literal[
+        "filter", "group_by", "aggregate", "distribution", "trend", "outlier", "comparison"
+    ]] = Field(default_factory=lambda: [
+        "filter", "group_by", "aggregate", "distribution", "trend", "outlier", "comparison"
+    ])
+
+
+class DelegatedResearchSettingsSchema(BaseModel):
+    priority: Literal["vector_first", "pandas_first"] = "vector_first"
+    vector_store: VectorStoreResearchConfigSchema = Field(
+        default_factory=VectorStoreResearchConfigSchema
+    )
+    history_pandas: HistoryPandasResearchConfigSchema = Field(
+        default_factory=HistoryPandasResearchConfigSchema
+    )
+
+    @model_validator(mode="after")
+    def validate_vector_store_selection(self):
+        if self.vector_store.enabled and not self.vector_store.vector_store_instance_id:
+            raise ValueError(
+                "vector_store.vector_store_instance_id is required when delegated vector store research is enabled"
+            )
         return self
 
 
@@ -763,6 +824,9 @@ class ClassificationConfigSchema(BaseModel):
     prompt_vars: list[str] = Field(default_factory=list)
     output_labels: list[str] = Field(default_factory=list)
     max_thought_iterations: int = 5
+    delegated_research: DelegatedResearchSettingsSchema = Field(
+        default_factory=DelegatedResearchSettingsSchema
+    )
 
 
 class DetectorConfigSchema(ClassificationConfigSchema):
@@ -814,7 +878,8 @@ class VoicebotConfigSchema(BaseModel):
 
 
 class AnalystConfigSchema(BaseModel):
-    playbooks: list[AnalystPlaybookSchema] = Field(default_factory=list)
+    prompt: str = ""
+    prompt_vars: list[str] = Field(default_factory=list)
 
 
 class DocumentationConfigSchema(BaseModel):

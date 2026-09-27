@@ -94,6 +94,10 @@ from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_
 from src.infrastructure.persistence.database.dynamodb.repositories.watchlist_repository import (
     DynamoWatchlistRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.model_repository import (
+    DynamoModelRepository,
+)
+from src.infrastructure.persistence.object_storage.minio import get_model_object_storage
 from src.infrastructure.persistence.vector_store.opensearch.client import (
     get_opensearch_client,
 )
@@ -160,6 +164,16 @@ def get_test_run_repository() -> DynamoTestRunRepository:
 @lru_cache
 def get_watchlist_repository() -> DynamoWatchlistRepository:
     return DynamoWatchlistRepository()
+
+
+@lru_cache
+def get_model_repository() -> DynamoModelRepository:
+    return DynamoModelRepository()
+
+
+@lru_cache
+def get_model_storage():
+    return get_model_object_storage()
 
 
 @lru_cache
@@ -419,6 +433,7 @@ def get_analyst_review_alert_use_case(
     model: str | None = None,
     playbooks: list[AnalystPlaybook] | None = None,
     vector_store_instance_id: str | None = None,
+    handling_prompt: str = "",
 ) -> AnalystReviewAlertUseCase:
     return AnalystReviewAlertUseCase(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
@@ -433,6 +448,7 @@ def get_analyst_review_alert_use_case(
         step_id=step_id,
         playbooks=playbooks,
         vector_store_instance_id=vector_store_instance_id,
+        handling_prompt=handling_prompt,
     )
 
 

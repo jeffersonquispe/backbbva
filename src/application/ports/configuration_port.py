@@ -352,6 +352,57 @@ class DeterministicConfig:
 
 
 @dataclass
+class ResearchAgentConfig:
+    """Execution budget shared by delegated evidence-gathering agents."""
+
+    enabled: bool = False
+    only_when_inconclusive: bool = True
+    max_delegations: int = 1
+    max_iterations: int = 3
+    timeout_seconds: int = 8
+    max_result_items: int = 10
+    include_trace: bool = True
+
+
+@dataclass
+class VectorStoreResearchConfig(ResearchAgentConfig):
+    # Kept separate from the legacy direct-tool selection so the delegated
+    # agent can be rolled out independently.
+    vector_store_instance_id: str | None = None
+    similarity_threshold: float = 0.7
+    max_documents_per_query: int = 8
+    allowed_asset_types: list[str] = field(
+        default_factory=lambda: [
+            "taxonomy", "modus_operandi", "similar_case", "flag"
+        ]
+    )
+
+
+@dataclass
+class HistoryPandasResearchConfig(ResearchAgentConfig):
+    max_history_rows: int = 5_000
+    max_analysis_operations: int = 4
+    allowed_columns: list[str] = field(default_factory=list)
+    allowed_operations: list[str] = field(
+        default_factory=lambda: [
+            "filter", "group_by", "aggregate", "distribution", "trend",
+            "outlier", "comparison",
+        ]
+    )
+
+
+@dataclass
+class DelegatedResearchSettings:
+    priority: str = "vector_first"
+    vector_store: VectorStoreResearchConfig = field(
+        default_factory=VectorStoreResearchConfig
+    )
+    history_pandas: HistoryPandasResearchConfig = field(
+        default_factory=HistoryPandasResearchConfig
+    )
+
+
+@dataclass
 class ClassificationConfig:
     vector_store_enabled: bool = False
     # One vector store per stage, not a list - a stage's tool loop issues a
@@ -369,6 +420,11 @@ class ClassificationConfig:
     prompt_vars: list[str] = field(default_factory=list)
     max_thought_iterations: int = 5
     output_labels: list[str] = field(default_factory=list)
+    # Delegated research is intentionally distinct from the legacy direct
+    # tools above. The worker decides when it is allowed to run.
+    delegated_research: DelegatedResearchSettings = field(
+        default_factory=DelegatedResearchSettings
+    )
 
 
 @dataclass
@@ -448,6 +504,14 @@ class VoicebotConfig:
 
 @dataclass
 class AnalystConfig:
+    # Instructions authored by the analyst for handling the alert.  The
+    # playbook itself is library knowledge, not a per-segment list to select
+    # at runtime.  At execution time this prompt can use {modus_operandi},
+    # {playbook}, {voicebot_resources} and {analyst_resources}.
+    prompt: str = ""
+    prompt_vars: list[str] = field(default_factory=list)
+    # Kept only to hydrate historical configuration versions.  New clients
+    # use the library playbook and the prompt above instead.
     playbooks: list[AnalystPlaybook] = field(default_factory=list)
 
 

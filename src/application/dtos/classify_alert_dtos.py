@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
@@ -26,6 +27,15 @@ class ClassifyAlertInput:
     # to score the model against reality, separately from agreement with
     # the analyst.
     ground_truth_tipo: str | None = None
+    # Present when the Detector had a configured XGBoost model. Keeping the
+    # evidence beside the detector result makes thresholds and optional SHAP
+    # explanations visible in workflow history without changing the LLM API.
+    model_score: float | None = None
+    model_id: str | None = None
+    model_top_features: list[dict[str, Any]] | None = None
+    # Audit trail of bounded vector-store/history investigations performed
+    # before the final detector/classification answer.
+    research_delegations: list[dict[str, Any]] | None = None
 
 
 @dataclass
