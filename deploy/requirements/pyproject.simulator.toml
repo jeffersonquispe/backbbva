@@ -1,0 +1,87 @@
+# Poetry pyproject.toml for the event-simulator's Celery worker.
+#
+# Deliberately a FOURTH independent Poetry project, alongside pyproject.toml
+# (API), pyproject.worker.toml (Celery worker) and pyproject.mcp.toml (FastMCP
+# model-serving service) - an agreed exception to the root CLAUDE.md's "two
+# (really three) separate poetry projects" section, same status as
+# pyproject.mcp.toml. This project is now Celery-only: it has no FastAPI
+# process of its own - scenario CRUD/lifecycle lives in aria-api
+# (entrypoint/api/routers/scenarios_router.py) instead. What remains here
+# (src/infrastructure/entrypoint/simulator/celery/) is the self-rescheduling
+# tick loop that generates synthetic fraud-alert events 24/7: it either
+# writes them into an aria-api Dataset or dispatches them into aria-api's
+# real alert-review pipeline, but it talks to aria-api only over plain HTTP -
+# it never imports aria-api's or aria-worker's application/infrastructure
+# code - and it deliberately runs its own Celery broker/queue (see
+# EVENT_SIMULATOR_* in src/infrastructure/core/config.py) so a runaway
+# simulation can never starve real alert processing. It stays deliberately
+# light: no xgboost/pandas/scikit-learn/opensearch-py - this service never
+# touches model training, scoring or fraud-knowledge vector search.
+
+[build-system]
+requires = ["poetry_core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "aria-event-simulator"
+version = "0.1.0"
+description = "Synthetic fraud-alert event simulator for the novel massive fraud agent for BBVA company"
+readme = "README.md"
+authors = [
+  "BBVA: <carlosdavid.rojas@bbva.com>"
+]
+license = ""
+packages = [
+    { include = "src" }
+]
+
+[tool.poetry.dependencies]
+python = ">=3.11.0,<3.12"
+setuptools = "78.1.1"
+
+celery = "5.6.2"
+redis = "7.2.1"
+httpx = "0.28.1"
+pydantic = "2.11.9"
+pydantic-settings = "2.11.0"
+
+# This service owns its own small DynamoDB table (scenario config + progress
+# as fields on the same record - no separate progress table) via
+# src/infrastructure/persistence/database/dynamodb/client.py, imported
+# directly - not the full API/worker DynamoDB repository surface.
+boto3 = "1.40.38"
+botocore = "1.40.38"
+
+# Backs the LLM adapter it imports directly from
+# src/infrastructure/llm/langchain/ (some simulated fields are LLM-
+# generated) - same versions as pyproject.worker.toml.
+langchain-openai = "0.3.3"
+# 0.2.x line targets langchain-core ^0.3, matching langchain-openai above -
+# do not jump to langchain-aws >=1.0 without also moving langchain-openai
+# off 0.3.3, they pin incompatible langchain-core majors.
+langchain-aws = ">=0.2.0,<0.3.0"
+
+# Backs src/infrastructure/monitoring/opentelemetry/, imported directly -
+# same versions as pyproject.worker.toml.
+opentelemetry-api = "1.29.0"
+opentelemetry-sdk = "1.29.0"
+opentelemetry-exporter-otlp-proto-grpc = "1.29.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "8.2.0"
+pytest-asyncio = "0.23.6"
+pytest-cov = "4.1.0"
+pytest-env = "1.0.1"
+black = "24.4.2"
+isort = "5.13.2"
+flake8 = "7.0.0"
+flake8-pyproject = "1.2.3"
+pyproject-autoflake = "1.0.2"
+ruff = "0.8.4"
+vulture = "2.16.0"
+
+[tool.vulture]
+paths = ["src"]
+exclude = ["*/__pycache__/*", "*/.venv/*"]
+min_confidence = 80
+sort_by_size = true

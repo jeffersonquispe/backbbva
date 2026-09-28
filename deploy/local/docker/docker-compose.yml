@@ -206,6 +206,63 @@ services:
     networks:
       - aria-net
 
+  simulator-worker:
+    build:
+      context: ../../..
+      dockerfile: deploy/local/docker/Dockerfile.simulator.worker
+      args:
+        GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+    image: aria-event-simulator-worker:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-simulator-worker
+    volumes:
+      # LLM backend/credentials live here, not in environment: below - see
+      # config/local/config.cfg, read directly by Config._env_file.
+      - ../../../config:/code/config:ro
+    environment:
+      GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      # Required by the shared Config class (infrastructure/core/config.py)
+      # even though this worker has no FastAPI router of its own - same
+      # pre-existing gap as mcp's block below.
+      API_V0_STR: ${API_V0_STR:-/api/v0}
+      COMPONENT_NAME: ${COMPONENT_NAME:-aria-event-simulator-worker}
+      COMPONENT_VERSION: ${COMPONENT_VERSION:-0.1.0}
+      GENAI_PRODUCT: ${GENAI_PRODUCT:-aria}
+      GENAI_APPLICATION: ${GENAI_APPLICATION:-aria}
+      DEFAULT_LOGGING_LEVEL: ${DEFAULT_LOGGING_LEVEL:-INFO}
+      EVENT_SIMULATOR_TICK_SECONDS: ${EVENT_SIMULATOR_TICK_SECONDS:-10}
+      EVENT_SIMULATOR_MAX_EVENTS_PER_TICK: ${EVENT_SIMULATOR_MAX_EVENTS_PER_TICK:-200}
+      EVENT_SIMULATOR_CELERY_BROKER_URL: redis://redis:6379/2
+      EVENT_SIMULATOR_CELERY_RESULT_BACKEND: redis://redis:6379/3
+      EVENT_SIMULATOR_CELERY_QUEUE: ${EVENT_SIMULATOR_CELERY_QUEUE:-event_simulation}
+      EVENT_SIMULATOR_ARIA_API_BASE_URL: http://api:8000
+      EVENT_SIMULATOR_ARIA_API_TOKEN: ${EVENT_SIMULATOR_ARIA_API_TOKEN:-}
+      AWS_REGION_NAME: ${AWS_REGION_NAME:-us-east-1}
+      DYNAMO_ENDPOINT: http://dynamodb:8000
+      DYNAMO_REGION_NAME: ${DYNAMO_REGION_NAME:-us-east-1}
+      DYNAMO_ACCESS_KEY: ${DYNAMO_ACCESS_KEY:-dummy}
+      DYNAMO_SECRET_KEY: ${DYNAMO_SECRET_KEY:-dummy}
+      # Not wired in the api block above either as of this writing - OTLP
+      # Collector lives on the separate aria-observability-net (see
+      # deploy/local/docker/observability/), so this only resolves once that
+      # stack is up and reachable; falls back to config.py's own default
+      # otherwise. See CLAUDE.md's "Observability - OTLP is the only
+      # contract".
+      OTEL_ENDPOINT: ${OTEL_ENDPOINT:-http://localhost:4317}
+      OTEL_CAPTURE_LLM_CONTENT: ${OTEL_CAPTURE_LLM_CONTENT:-false}
+    depends_on:
+      dynamodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # aria-api owns scenario CRUD/lifecycle (scenarios_router.py) and
+      # creates the shared event_simulation_scenarios table on its own
+      # startup - this worker only ever reads/updates rows in it.
+      api:
+        condition: service_healthy
+    networks:
+      - aria-net
+    restart: unless-stopped
+
   mcp:
     build:
       context: ../../..

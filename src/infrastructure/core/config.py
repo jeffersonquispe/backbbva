@@ -142,6 +142,35 @@ class Config(BaseSettings):
     # get_model_object_storage().
     MODEL_STORAGE_BUCKET: str = "models"
 
+    # EVENT SIMULATOR - independent microservice
+    # (src/infrastructure/entrypoint/simulator/), never imported by aria-api
+    # or aria-worker. Gated off by default: generation can hammer the LLM
+    # backend and, in LIVE_PIPELINE mode, aria-worker's Celery queue, so it
+    # must be turned on deliberately per environment.
+    EVENT_SIMULATOR_ENABLED: bool = False
+    # How often the self-rescheduling tick task wakes up per RUNNING
+    # scenario - trades rate-curve precision against Celery/LLM load.
+    EVENT_SIMULATOR_TICK_SECONDS: int = 10
+    # Hard ceiling per tick regardless of what a scenario's rate curve
+    # computes - guards against a misconfigured curve fork-bombing the
+    # simulator's own Celery queue or the LLM backend.
+    EVENT_SIMULATOR_MAX_EVENTS_PER_TICK: int = 200
+    # Reuses the same Redis container as aria-worker (see CELERY_BROKER_URL
+    # above) but a distinct logical DB + queue name, so the simulator's own
+    # worker pool never competes with aria-worker's for capacity.
+    EVENT_SIMULATOR_CELERY_BROKER_URL: str = "redis://redis:6379/2"
+    EVENT_SIMULATOR_CELERY_RESULT_BACKEND: str = "redis://redis:6379/3"
+    EVENT_SIMULATOR_CELERY_QUEUE: str = "event_simulation"
+    # Where the simulator's HTTP gateways (AlertDispatchGateway/EventSink/
+    # DatasetReaderGateway) reach aria-api - POST /alerts/test and
+    # POST|GET /datasets/{name}/rows. No auth token today: neither endpoint
+    # is behind an auth dependency in aria-api as of this writing (see
+    # HttpAlertDispatchGateway's docstring) - EVENT_SIMULATOR_ARIA_API_TOKEN
+    # is read and sent as a Bearer header only if non-empty, ready for
+    # whenever that changes.
+    EVENT_SIMULATOR_ARIA_API_BASE_URL: str = "http://api:8000"
+    EVENT_SIMULATOR_ARIA_API_TOKEN: str = ""
+
     model_config = ConfigDict(extra="ignore")
 
     def model_post_init(self, __context):

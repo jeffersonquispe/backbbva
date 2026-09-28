@@ -55,6 +55,9 @@ from src.infrastructure.entrypoint.api.routers.operational_settings_router impor
 from src.infrastructure.entrypoint.api.routers.resolution_method_catalog_router import (
     router as resolution_method_catalog_router,
 )
+from src.infrastructure.entrypoint.api.routers.scenarios_router import (
+    router as scenarios_router,
+)
 from src.infrastructure.entrypoint.api.routers.channel_library_router import (
     router as channel_library_router,
 )
@@ -186,6 +189,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         models_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        scenarios_router,
         prefix=genai_config.API_V0_STR,
     )
     return app
