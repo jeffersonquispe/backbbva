@@ -94,7 +94,10 @@
       "Bash(git log *)",
       "Bash(git fetch *)",
       "Bash(git filter-repo *)",
-      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --msg-filter \"python3 /private/tmp/claude-501/-Users-Usuario-Documents-bbva-aux-nosync-ARIA-backend/f9599472-62a4-40c7-9a59-0d572b896618/scratchpad/msg_filter.py\" -- main feat/add_vs_base_implementation)"
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --msg-filter \"python3 /private/tmp/claude-501/-Users-Usuario-Documents-bbva-aux-nosync-ARIA-backend/f9599472-62a4-40c7-9a59-0d572b896618/scratchpad/msg_filter.py\" -- main feat/add_vs_base_implementation)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"tsc exit $?\")",
+      "Bash(make build *)"
     ]
   }
 }
