@@ -123,6 +123,12 @@ selected backend inspector for execution state, and updates DB status when the
 backend can prove `RUNNING`, `SUCCEEDED`, or `FAILED`. Unknown backend state is
 reported as `UNKNOWN` and left unchanged.
 
+In Docker Compose, the separate `scheduler` service runs Celery Beat and
+enqueues this reconciliation every 60 seconds by default. Keep exactly one
+scheduler replica per environment. Configure the interval and batch size with
+`CELERY_RECONCILE_INTERVAL_SECONDS` (minimum 10) and `CELERY_RECONCILE_LIMIT`
+(1–1000).
+
 ## LLM Unit of Work & Monitoring
 
 Two application-layer abstractions back every step that talks to an LLM:

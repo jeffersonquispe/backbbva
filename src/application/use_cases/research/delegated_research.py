@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import contextvars
 from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
@@ -78,6 +81,16 @@ class HistoryPandasResearchAgent:
             for operation in operations:
                 if operation.name not in self._config.allowed_operations:
                     raise ValueError(f"operation is not allowed: {operation.name}")
+                missing = [
+                    column for column in (operation.column, operation.group_by)
+                    if column and column not in working.columns
+                ]
+                if missing:
+                    # Column outside the configured selection (or absent
+                    # from this history): skip just this operation rather
+                    # than failing the whole investigation.
+                    trace.append({"operation": asdict(operation), "skipped": f"columns not available: {missing}"})
+                    continue
                 working, finding = self._execute(working, operation)
                 trace.append({"operation": asdict(operation)})
                 if finding is not None:
@@ -223,6 +236,38 @@ class VectorStoreResearchAgent:
             return ResearchResult(ResearchSource.VECTOR_STORE, ResearchStatus.EXECUTED, findings, trace)
         except Exception as exc:
             return ResearchResult(ResearchSource.VECTOR_STORE, ResearchStatus.FAILED, error=str(exc))
+
+
+class TimeBoundedResearchAgent:
+    """Caps one research call at ``timeout_seconds`` (``<= 0`` = no cap).
+
+    A call that overruns comes back as ``FAILED`` so the caller carries on
+    with the evidence it already has. Python can't kill a thread, so the
+    overrunning call keeps going in the background until it returns; its
+    result is discarded.
+    """
+
+    def __init__(self, agent: ResearchAgent, source: ResearchSource, timeout_seconds: float) -> None:
+        self._agent = agent
+        self._source = source
+        self._timeout_seconds = timeout_seconds
+
+    def research(self, request: ResearchRequest) -> ResearchResult:
+        if self._timeout_seconds <= 0:
+            return self._agent.research(request)
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research-tool")
+        # copy_context: the thread keeps the caller's OpenTelemetry span.
+        future = executor.submit(contextvars.copy_context().run, self._agent.research, request)
+        try:
+            return future.result(timeout=self._timeout_seconds)
+        except FutureTimeoutError:
+            return ResearchResult(
+                self._source,
+                ResearchStatus.FAILED,
+                error=f"timeout: la investigación no respondió en {self._timeout_seconds:g} s",
+            )
+        finally:
+            executor.shutdown(wait=False)
 
 
 class ResearchDelegationCoordinator:

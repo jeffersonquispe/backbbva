@@ -27,6 +27,7 @@ from src.application.ports.workflow_status_port import (
 from src.application.use_cases.watchlists.check_watchlist_membership import (
     WatchlistMatch,
 )
+from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.domain.alerts.calculator import CalculatorError, safe_calculate
 
 # Same bound as classification's ReAct loop, same reason: a model that never
@@ -69,6 +70,14 @@ _TOOL_DESCRIPTIONS = {
     "calculator": (
         "calculator: dada una expresión aritmética (ej. '1500000 / 3'), "
         "devuelve su resultado numérico exacto."
+    ),
+    "search_vector_store": (
+        "search_vector_store: busca en la base de conocimiento (vector "
+        "store) los insights o la pregunta concreta que "
+        "quieres investigar; devuelve hallazgos (taxonomías, modus operandi, "
+        "casos similares, banderas) con su similitud. Puedes llamarlo varias "
+        "veces con preguntas distintas, hasta agotar su límite de "
+        "interacciones."
     ),
     "check_watchlist": (
         "check_watchlist: no necesita Action Input (deja un guion \"-\") - "
@@ -201,6 +210,9 @@ class AdversarialReviewAlertUseCase:
         watchlist_repository: WatchlistRepository | None = None,
         watchlist_ids: list[str] | None = None,
         watchlist_compare_field: str | None = None,
+        # Vector-store research tool, callable by the agent as a tool
+        # (search_vector_store) up to its own interaction budget.
+        vector_store_research: BoundedResearchTool | None = None,
         max_iterations: int | None = None,
         # "adversarial" for Adversarial (clasificador) (the default, and
         # the only caller until Adversarial (detector) started reusing
@@ -232,11 +244,14 @@ class AdversarialReviewAlertUseCase:
         }
         if watchlist_repository is not None and watchlist_ids and watchlist_compare_field:
             self._tools["check_watchlist"] = self._check_watchlist_tool
+        self._vector_store_research = vector_store_research
+        if vector_store_research is not None:
+            self._tools["search_vector_store"] = vector_store_research
         if enabled_tools is not None:
             self._tools = {
                 name: tool
                 for name, tool in self._tools.items()
-                if name in enabled_tools
+                if name in enabled_tools or name == "search_vector_store"
             }
 
         base_prompt = _build_system_prompt(list(self._tools))
@@ -301,9 +316,15 @@ class AdversarialReviewAlertUseCase:
             return result
         return json.dumps([_serializable(r) for r in result], default=str)
 
-    def execute(
-        self, input: AdversarialReviewAlertInput
-    ) -> AdversarialReviewAlertOutput:
+    def execute(self, input: AdversarialReviewAlertInput) -> AdversarialReviewAlertOutput:
+        output = self._execute(input)
+        if self._vector_store_research is not None:
+            output.vector_store_interactions = list(
+                self._vector_store_research.interactions
+            )
+        return output
+
+    def _execute(self, input: AdversarialReviewAlertInput) -> AdversarialReviewAlertOutput:
         if self._watchlist_compare_field:
             fields = {**input.pre_process.mandatory_fields, **input.pre_process.optional_fields}
             value = fields.get(self._watchlist_compare_field)

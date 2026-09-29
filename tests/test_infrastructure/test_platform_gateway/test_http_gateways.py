@@ -55,6 +55,8 @@ def test_dispatch_returns_result_and_sends_expected_body_and_auth_header():
     assert json.loads(requests[0].content) == {
         "event": {"amount": 10},
         "created_by": "simulator",
+        # Simulator traffic stops while the agent is switched off.
+        "origin": "simulator",
     }
 
 

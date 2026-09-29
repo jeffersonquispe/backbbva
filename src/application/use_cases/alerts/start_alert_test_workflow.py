@@ -82,6 +82,7 @@ class StartAlertTestWorkflowUseCase:
                     "event_id": alert.event_id,
                     "event_type": alert.event_type,
                     "created_by": input.created_by,
+                    "origin": input.origin.value,
                 },
                 result=None,
                 error=None,
@@ -105,6 +106,7 @@ class StartAlertTestWorkflowUseCase:
                         if input.configuration_ref is not None
                         else None
                     ),
+                    "origin": input.origin.value,
                 },
                 output=None,
                 error=None,

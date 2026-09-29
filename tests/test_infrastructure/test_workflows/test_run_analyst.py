@@ -11,12 +11,12 @@ from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
 from src.application.ports.configuration_port import (
     AgentSettings,
     AnalystConfig,
-    AnalystPlaybook,
     ClassificationConfig,
+    DelegatedResearchSettings,
+    VectorStoreResearchConfig,
     ConfigurationRecord,
     GeneralSettings,
     InfraSettings,
-    OpsSettings,
     SegmentSettings,
     TestSettings,
 )
@@ -32,7 +32,6 @@ def _config_with_segment(segment: SegmentSettings) -> ConfigurationRecord:
         active=True,
         general=GeneralSettings(),
         infra=InfraSettings(),
-        ops=OpsSettings(),
         test=TestSettings(),
         created_at=now,
         updated_at=now,
@@ -68,7 +67,7 @@ def _context(segment: SegmentSettings) -> dict[str, Any]:
 
 class RecordingAnalystReviewAlertUseCase:
     def execute(self, input):
-        return AnalystReviewAlertOutput(decision="scale_to_analyst", reasoning="", playbook_title="")
+        return AnalystReviewAlertOutput(decision="scale_to_analyst", reasoning="")
 
 
 def _patched(monkeypatch) -> list[dict[str, Any]]:
@@ -86,24 +85,27 @@ def _patched(monkeypatch) -> list[dict[str, Any]]:
     return calls
 
 
-def test_run_analyst_passes_segment_playbooks_and_classification_vector_store(
+def test_run_analyst_passes_handling_prompt_and_classification_vector_store(
     monkeypatch,
 ) -> None:
     calls = _patched(monkeypatch)
-    playbook = AnalystPlaybook(id="pb-1", name="Vishing", modus_operandi_id="mo-1")
     segment = SegmentSettings(
         enabled=True,
         agent=AgentSettings(
             classification=ClassificationConfig(
-                vector_store_enabled=True, vector_store_instance_id="vs-1"
+                delegated_research=DelegatedResearchSettings(
+                    vector_store=VectorStoreResearchConfig(
+                        enabled=True, vector_store_instance_id="vs-1"
+                    )
+                )
             ),
-            analyst=AnalystConfig(playbooks=[playbook]),
+            analyst=AnalystConfig(prompt="sigue {playbook}"),
         ),
     )
 
     workflow_module._run_analyst(_context(segment))
 
-    assert calls[0]["playbooks"] == [playbook]
+    assert calls[0]["handling_prompt"] == "sigue {playbook}"
     assert calls[0]["vector_store_instance_id"] == "vs-1"
 
 
@@ -115,7 +117,6 @@ def test_run_analyst_passes_none_vector_store_when_classification_has_none(
 
     workflow_module._run_analyst(_context(segment))
 
-    assert calls[0]["playbooks"] == []
     assert calls[0]["vector_store_instance_id"] is None
 
 
@@ -126,5 +127,5 @@ def test_run_analyst_omits_segment_kwargs_without_an_active_segment(monkeypatch)
 
     workflow_module._run_analyst(context)
 
-    assert "playbooks" not in calls[0]
+    assert "handling_prompt" not in calls[0]
     assert "vector_store_instance_id" not in calls[0]

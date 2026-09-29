@@ -4,7 +4,6 @@ import uuid
 from collections import defaultdict
 from dataclasses import asdict, fields
 from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Any
 
 from boto3.dynamodb.conditions import Attr, Key
@@ -14,9 +13,7 @@ from src.application.ports.configuration_port import (
     AgentSettings,
     AlertParserConfig,
     AlertParserField,
-    AnalystCapacity,
     AnalystConfig,
-    AnalystPlaybook,
     ClassificationConfig,
     ConfigurationRecord,
     DeterministicConfig,
@@ -39,11 +36,9 @@ from src.application.ports.configuration_port import (
     GeneralSettings,
     InfraSettings,
     HistoryPandasResearchConfig,
-    ListMembershipMode,
     LogicalOperator,
     ModusOperandi,
     MonitoringSettings,
-    OpsSettings,
     ProfilingConfig,
     ProfilingPromptMode,
     ProfilingStrategy,
@@ -76,16 +71,13 @@ from src.infrastructure.persistence.database.dynamodb.serialization import (
 CONFIGURATIONS_TABLE_NAME = "configurations"
 GENERAL_TABLE_NAME = "configuration_general"
 INFRASTRUCTURE_TABLE_NAME = "configuration_infrastructure"
-OPERATIONS_TABLE_NAME = "configuration_operations"
 EVALUATION_TABLE_NAME = "configuration_evaluation"
-ANALYST_PROFILES_TABLE_NAME = "configuration_analyst_profiles"
 SEGMENTS_TABLE_NAME = "configuration_segments"
 PROFILING_STRATEGIES_TABLE_NAME = "configuration_profiling_strategies"
 TAXONOMIES_TABLE_NAME = "configuration_taxonomies"
 MODUS_OPERANDI_TABLE_NAME = "configuration_modus_operandi"
 FLAGS_TABLE_NAME = "configuration_red_yellow_flags"
 EXAMPLES_TABLE_NAME = "configuration_examples"
-PLAYBOOKS_TABLE_NAME = "configuration_playbooks"
 VOICEBOT_PROMPTS_TABLE_NAME = "configuration_voicebot_prompts"
 SAMPLING_CRITERIA_TABLE_NAME = "configuration_sampling_criteria"
 SAMPLING_CRITERIA_VALUES_TABLE_NAME = "configuration_sampling_criteria_values"
@@ -95,8 +87,7 @@ FILTER_CONDITIONS_TABLE_NAME = "configuration_filter_conditions"
 
 def _config_key(configuration_id: str, version: int) -> str:
     """FK used by tables scoped to a whole configuration version (not a
-    single segment) - e.g. configuration_analyst_profiles and
-    configuration_segments itself."""
+    single segment) - e.g. configuration_segments itself."""
     return f"{configuration_id}#{version:06d}"
 
 
@@ -118,16 +109,13 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         self._table = resource.Table(CONFIGURATIONS_TABLE_NAME)
         self._general = resource.Table(GENERAL_TABLE_NAME)
         self._infrastructure = resource.Table(INFRASTRUCTURE_TABLE_NAME)
-        self._operations = resource.Table(OPERATIONS_TABLE_NAME)
         self._evaluation = resource.Table(EVALUATION_TABLE_NAME)
-        self._analyst_profiles = resource.Table(ANALYST_PROFILES_TABLE_NAME)
         self._segments = resource.Table(SEGMENTS_TABLE_NAME)
         self._profiling_strategies = resource.Table(PROFILING_STRATEGIES_TABLE_NAME)
         self._taxonomies = resource.Table(TAXONOMIES_TABLE_NAME)
         self._modus_operandi = resource.Table(MODUS_OPERANDI_TABLE_NAME)
         self._flags = resource.Table(FLAGS_TABLE_NAME)
         self._examples = resource.Table(EXAMPLES_TABLE_NAME)
-        self._playbooks = resource.Table(PLAYBOOKS_TABLE_NAME)
         self._voicebot_prompts = resource.Table(VOICEBOT_PROMPTS_TABLE_NAME)
         self._sampling_criteria = resource.Table(SAMPLING_CRITERIA_TABLE_NAME)
         self._sampling_criteria_values = resource.Table(
@@ -167,17 +155,8 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         self._infrastructure.put_item(
             Item=_owned_item(configuration_id, version, asdict(config.infra))
         )
-        self._operations.put_item(
-            Item=_owned_item(configuration_id, version, _operations_payload(config.ops))
-        )
         self._evaluation.put_item(
             Item=_owned_item(configuration_id, version, asdict(config.test))
-        )
-        self._put_entities(
-            self._analyst_profiles,
-            "config_key",
-            config_key,
-            config.ops.analyst_capacity.profiles,
         )
 
         # The two segment objects (digital channels / cards) are born here,
@@ -210,9 +189,6 @@ class DynamoConfigurationRepository(ConfigurationRepository):
             self._put_entities(self._flags, "segment_id", segment_id, agent.flags)
             self._put_entities(
                 self._examples, "segment_id", segment_id, agent.example_cases
-            )
-            self._put_entities(
-                self._playbooks, "segment_id", segment_id, agent.analyst.playbooks
             )
             self._put_entities(
                 self._voicebot_prompts,
@@ -328,19 +304,12 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         infra_item = self._infrastructure.get_item(
             Key={"configuration_id": configuration_id, "version": version}
         ).get("Item")
-        operations_item = self._operations.get_item(
-            Key={"configuration_id": configuration_id, "version": version}
-        ).get("Item")
         evaluation_item = self._evaluation.get_item(
             Key={"configuration_id": configuration_id, "version": version}
         ).get("Item")
 
         config.general = _general_from_item(general_item or {})
         config.infra = _infra_from_item(infra_item or {})
-        config.ops = _ops_from_item(operations_item or {})
-        config.ops.analyst_capacity.profiles = self._query_entities(
-            self._analyst_profiles, "config_key", config_key, _day_profile_from_item
-        )
         config.test = _evaluation_from_item(evaluation_item or {})
 
         segment_rows = self._segments.query(
@@ -367,9 +336,6 @@ class DynamoConfigurationRepository(ConfigurationRepository):
             )
             agent.example_cases = self._query_entities(
                 self._examples, "segment_id", segment_id, _example_case_from_item
-            )
-            agent.analyst.playbooks = self._query_entities(
-                self._playbooks, "segment_id", segment_id, _playbook_from_item
             )
             agent.executor.voicebot_call.category_prompts = self._query_entities(
                 self._voicebot_prompts,
@@ -512,7 +478,6 @@ class DynamoConfigurationRepository(ConfigurationRepository):
 
     def _delete_version_children(self, configuration_id: str, version: int) -> None:
         config_key = _config_key(configuration_id, version)
-        self._delete_query(self._analyst_profiles, "config_key", config_key)
         segment_rows = self._delete_query(self._segments, "config_key", config_key)
         for row in segment_rows:
             self._delete_segment_children(row["id"])
@@ -523,7 +488,6 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         self._delete_query(self._modus_operandi, "segment_id", segment_id)
         self._delete_query(self._flags, "segment_id", segment_id)
         self._delete_query(self._examples, "segment_id", segment_id)
-        self._delete_query(self._playbooks, "segment_id", segment_id)
         self._delete_query(self._voicebot_prompts, "segment_id", segment_id)
 
         criteria_rows = self._delete_query(self._sampling_criteria, "segment_id", segment_id)
@@ -562,23 +526,6 @@ def _owned_item(
     return {"configuration_id": configuration_id, "version": version, **payload}
 
 
-def _operations_payload(ops: OpsSettings) -> dict[str, Any]:
-    payload = asdict(ops)
-    del payload["analyst_capacity"]["profiles"]  # own table now
-    # DynamoDB map keys must be strings - AnalystCapacity.day_overrides is
-    # keyed by int (day of month) on the domain type.
-    payload["analyst_capacity"]["day_overrides"] = {
-        str(day): profile_id
-        for day, profile_id in payload["analyst_capacity"]["day_overrides"].items()
-    }
-    # DynamoDB's boto3 resource rejects native float - queue_discard_amount_threshold
-    # is the only float field on OpsSettings.
-    payload["queue_discard_amount_threshold"] = Decimal(
-        str(payload["queue_discard_amount_threshold"])
-    )
-    return payload
-
-
 def _to_item(config: ConfigurationRecord) -> dict[str, Any]:
     # No "segments" here - the two segment objects are their own table
     # (configuration_segments), born alongside this item in create().
@@ -613,7 +560,6 @@ def _segment_to_item(segment: SegmentSettings) -> dict[str, Any]:
     )
     for key in ("taxonomies", "modus_operandi", "flags", "example_cases"):
         del item["agent"][key]
-    del item["agent"]["analyst"]["playbooks"]
     del item["agent"]["executor"]["voicebot_call"]["category_prompts"]
     # boto3's resource layer rejects native float anywhere in the item
     # (detector xgboost thresholds, rule scores, field_enrichment, ...), so
@@ -636,7 +582,6 @@ def _from_item(item: dict[str, Any]) -> ConfigurationRecord:
         ever_tested=bool(item.get("ever_tested", False)),
         general=GeneralSettings(),
         infra=InfraSettings(),
-        ops=OpsSettings(),
         test=TestSettings(),
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
@@ -648,14 +593,13 @@ def _from_item(item: dict[str, Any]) -> ConfigurationRecord:
 
 
 def _general_from_item(item: dict[str, Any]) -> GeneralSettings:
+    # Legacy agent/analyst/voicebot on-off keys on old rows are ignored:
+    # those switches live in OperationalSettings now.
     return GeneralSettings(
-        agent_enabled=bool(item.get("agent_enabled", True)),
         migration_window_enabled=bool(item.get("migration_window_enabled", False)),
         migration_window_datetime=str(
             item.get("migration_window_datetime", "2000-01-01T02:00")
         ),
-        analyst_escalation_enabled=bool(item.get("analyst_escalation_enabled", True)),
-        voicebot_escalation_enabled=bool(item.get("voicebot_escalation_enabled", True)),
     )
 
 
@@ -668,46 +612,6 @@ def _infra_from_item(item: dict[str, Any]) -> InfraSettings:
         ),
         fraud_history_cold_storage_retention_months=int(
             item.get("fraud_history_cold_storage_retention_months", 24)
-        ),
-    )
-
-
-def _ops_from_item(item: dict[str, Any]) -> OpsSettings:
-    capacity_item = item.get("analyst_capacity") or {}
-    return OpsSettings(
-        voicebot_max_concurrent_calls=int(
-            item.get("voicebot_max_concurrent_calls", 40)
-        ),
-        analyst_capacity=AnalystCapacity(
-            profiles=[],  # own table - filled in by DynamoConfigurationRepository._hydrate
-            default_profile_id=capacity_item.get("default_profile_id") or "",
-            day_overrides={
-                int(day): profile_id
-                for day, profile_id in (capacity_item.get("day_overrides") or {}).items()
-            },
-        ),
-        queue_max_lifetime_value=int(item.get("queue_max_lifetime_value", 60)),
-        queue_max_lifetime_unit=SamplingIntervalUnit(
-            item.get("queue_max_lifetime_unit", "minutes")
-        ),
-        queue_discard_amount_threshold=float(
-            item.get("queue_discard_amount_threshold", 0)
-        ),
-        queue_rule_filter_enabled=bool(item.get("queue_rule_filter_enabled", False)),
-        queue_rule_filter_mode=ListMembershipMode(
-            item.get("queue_rule_filter_mode", "belongs")
-        ),
-        queue_allowed_triggered_rules=list(
-            item.get("queue_allowed_triggered_rules") or []
-        ),
-        queue_discard_behavior=_shortage_behavior_from_item(
-            item.get("queue_discard_behavior") or {}
-        ),
-        voicebot_shortage_behavior=_shortage_behavior_from_item(
-            item.get("voicebot_shortage_behavior") or {}
-        ),
-        analyst_shortage_behavior=_shortage_behavior_from_item(
-            item.get("analyst_shortage_behavior") or {}
         ),
     )
 
@@ -789,19 +693,6 @@ def _example_case_from_item(item: dict[str, Any]) -> ExampleCase:
         modus_operandi_id=item["modus_operandi_id"],
         taxonomy_id=item["taxonomy_id"],
         segmento=item.get("segmento") or "",
-    )
-
-
-def _playbook_from_item(item: dict[str, Any]) -> AnalystPlaybook:
-    return AnalystPlaybook(
-        id=item["id"],
-        name=item["name"],
-        strategy=item.get("strategy") or "",
-        resolution_tag=ResolutionTag(
-            item.get("resolution_tag", "scale_to_analyst")
-        ),
-        resolution_method_id=item.get("resolution_method_id"),
-        modus_operandi_id=item.get("modus_operandi_id"),
     )
 
 
@@ -898,7 +789,6 @@ def _delegated_research_from_item(item: dict[str, Any] | None) -> DelegatedResea
     vector_store = item.get("vector_store") or {}
     history_pandas = item.get("history_pandas") or {}
     return DelegatedResearchSettings(
-        priority=item.get("priority") or "vector_first",
         vector_store=VectorStoreResearchConfig(
             **_kwargs_for(VectorStoreResearchConfig, vector_store)
         ),
@@ -908,27 +798,30 @@ def _delegated_research_from_item(item: dict[str, Any] | None) -> DelegatedResea
     )
 
 
-def _classification_from_item(item: dict[str, Any]) -> ClassificationConfig:
+def _tools_config_from_item(cls: type, item: dict[str, Any]) -> Any:
+    """Hydrate any AgentToolsConfig subclass (Detector, Classification and
+    both Adversarials)."""
     item = from_dynamodb(item)
-    payload = _kwargs_for(ClassificationConfig, item)
-    payload["delegated_research"] = _delegated_research_from_item(
-        item.get("delegated_research")
-    )
-    return ClassificationConfig(**payload)
-
-
-def _detector_from_item(item: dict[str, Any]) -> DetectorConfig:
-    item = from_dynamodb(item)
-    payload = _kwargs_for(DetectorConfig, item)
-    payload["delegated_research"] = _delegated_research_from_item(
-        item.get("delegated_research")
-    )
-    return DetectorConfig(**payload)
+    payload = _kwargs_for(cls, item)
+    research = _delegated_research_from_item(item.get("delegated_research"))
+    # Pre-unification rows: the old direct "Base de conocimiento" switch
+    # (top-level vector_store_enabled/_instance_id) is now the vector-store
+    # research tool - carry it over so a saved selection keeps working.
+    legacy_id = item.get("vector_store_instance_id")
+    if (
+        item.get("vector_store_enabled")
+        and legacy_id
+        and not research.vector_store.vector_store_instance_id
+    ):
+        research.vector_store.enabled = True
+        research.vector_store.vector_store_instance_id = legacy_id
+    payload["delegated_research"] = research
+    return cls(**payload)
 
 
 def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
     # taxonomies/modus_operandi/flags/example_cases and
-    # analyst.playbooks/executor.voicebot_call.category_prompts aren't
+    # executor.voicebot_call.category_prompts aren't
     # stored on this item (their own tables, see
     # DynamoConfigurationRepository._hydrate) - default to [] here, the
     # caller fills them in after querying.
@@ -944,11 +837,14 @@ def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
             )
             for item in agent_item.get("rubrics") or []
         ],
-        detector=_detector_from_item(agent_item.get("detector") or {}),
-        detector_adversarial=DetectorAdversarialConfig(**_kwargs_for(DetectorAdversarialConfig, from_dynamodb(agent_item.get("detector_adversarial") or {}))),
-        classification=_classification_from_item(agent_item.get("classification") or {}),
-        adversarial=AdversarialConfig(**_kwargs_for(AdversarialConfig, from_dynamodb(agent_item.get("adversarial") or {}))),
-        analyst=AnalystConfig(),
+        detector=_tools_config_from_item(DetectorConfig, agent_item.get("detector") or {}),
+        detector_adversarial=_tools_config_from_item(DetectorAdversarialConfig, agent_item.get("detector_adversarial") or {}),
+        classification=_tools_config_from_item(ClassificationConfig, agent_item.get("classification") or {}),
+        adversarial=_tools_config_from_item(AdversarialConfig, agent_item.get("adversarial") or {}),
+        analyst=AnalystConfig(
+            prompt=(agent_item.get("analyst") or {}).get("prompt") or "",
+            prompt_vars=list((agent_item.get("analyst") or {}).get("prompt_vars") or []),
+        ),
         executor=_executor_from_item(agent_item.get("executor") or {}),
         active_fields=list(agent_item.get("active_fields") or []),
         active_model_id=agent_item.get("active_model_id"),

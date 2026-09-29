@@ -7,7 +7,6 @@ from src.application.ports.configuration_port import (
     ConfigurationRecord,
     GeneralSettings,
     InfraSettings,
-    OpsSettings,
     TestSettings as ConfigurationTestSettings,
 )
 from src.application.use_cases.configurations.create_configuration import (
@@ -37,7 +36,6 @@ def _record() -> ConfigurationRecord:
         active=True,
         general=GeneralSettings(),
         infra=InfraSettings(),
-        ops=OpsSettings(),
         test=ConfigurationTestSettings(),
         segments={},
         created_at=now,
@@ -56,7 +54,6 @@ def test_reports_only_changed_values_and_high_impact_warning() -> None:
             description="Configuración activa",
             general=GeneralSettings(),
             infra=InfraSettings(max_instances=12),
-            ops=OpsSettings(),
             test=ConfigurationTestSettings(max_test_instances=8),
             segments={},
         )
@@ -81,7 +78,6 @@ def test_non_critical_change_has_no_warning() -> None:
             description="Configuración activa",
             general=GeneralSettings(),
             infra=InfraSettings(),
-            ops=OpsSettings(),
             test=ConfigurationTestSettings(),
             segments={},
         )

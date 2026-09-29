@@ -9,7 +9,6 @@ from src.application.ports.configuration_port import (
     ConfigurationRecord,
     GeneralSettings,
     InfraSettings,
-    OpsSettings,
     TestSettings,
 )
 from src.domain.configurations.exceptions import ConfigurationNotFoundError
@@ -47,7 +46,6 @@ def _config(configuration_id: str, version: int, active: bool) -> ConfigurationR
         active=active,
         general=GeneralSettings(),
         infra=InfraSettings(),
-        ops=OpsSettings(),
         test=TestSettings(),
         created_at=now,
         updated_at=now,

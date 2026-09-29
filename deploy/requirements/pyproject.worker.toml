@@ -29,16 +29,18 @@ botocore = "1.40.38"
 pydantic = "2.11.9"
 pydantic-settings = "2.11.0"
 
-# Model training (infrastructure/workflows/celery/model_training.py) - see
-# backend CLAUDE.md's "Alert / workflow domain state" section for what these
-# feed. No shap here: the worker only trains and persists the bundle: SHAP
-# explanations are computed lazily at serving time by the separate FastMCP
-# project (deploy/requirements/pyproject.mcp.toml).
+# Model training (infrastructure/workflows/celery/model_training.py) and
+# Detector-time scoring (alert_review_workflow.py's _score_with_xgboost,
+# which reuses entrypoint/mcp/scoring.py's score_row). shap is needed here
+# too since the Detector computes SHAP explanations in-worker when
+# DetectorConfig.xgboost_shap_enabled - without it score_row silently
+# returns empty top_features. Keep the pin in sync with pyproject.mcp.toml.
 xgboost = "2.1.3"
 scikit-learn = "1.5.2"
 pandas = "2.2.3"
 numpy = "1.26.4"
 joblib = "1.4.2"
+shap = "0.46.0"
 
 langchain-openai = "0.3.3"
 # 0.2.x line targets langchain-core ^0.3, matching langchain-openai above -

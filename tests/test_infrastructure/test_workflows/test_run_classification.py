@@ -4,16 +4,19 @@ from datetime import datetime, timezone
 from typing import Any
 
 import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
+import src.infrastructure.workflows.celery.factories as factories
+from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
 from src.application.ports.configuration_port import (
     AgentSettings,
     ClassificationConfig,
+    DelegatedResearchSettings,
+    VectorStoreResearchConfig,
     ConfigurationRecord,
     GeneralSettings,
     InfraSettings,
-    OpsSettings,
     SegmentSettings,
     TestSettings,
 )
@@ -29,7 +32,6 @@ def _config_with_segment(segment: SegmentSettings) -> ConfigurationRecord:
         active=True,
         general=GeneralSettings(),
         infra=InfraSettings(),
-        ops=OpsSettings(),
         test=TestSettings(),
         created_at=now,
         updated_at=now,
@@ -118,40 +120,46 @@ def test_run_classification_passes_calculator_and_output_labels_and_max_iteratio
     assert calls[0]["max_iterations"] == 3
 
 
-def test_run_classification_passes_vector_store_instance_id_only_when_both_set(
-    monkeypatch,
-) -> None:
-    calls = _patched(monkeypatch)
-    segment = SegmentSettings(
+def _vector_store_segment(instance_id: str | None) -> SegmentSettings:
+    return SegmentSettings(
         enabled=True,
         agent=AgentSettings(
             classification=ClassificationConfig(
-                vector_store_enabled=True, vector_store_instance_id="vs-1"
+                delegated_research=DelegatedResearchSettings(
+                    vector_store=VectorStoreResearchConfig(
+                        enabled=True,
+                        vector_store_instance_id=instance_id,
+                        max_delegations=2,
+                    )
+                )
             )
         ),
     )
 
-    workflow_module._run_classification(_context(segment))
 
-    assert "get_similar_frauds" in calls[0]["enabled_tools"]
-    assert "get_similar_taxonomy" in calls[0]["enabled_tools"]
-    assert "get_similar_modus_operandi" in calls[0]["enabled_tools"]
-    assert calls[0]["vector_store_instance_id"] == "vs-1"
-
-
-def test_run_classification_omits_fraud_knowledge_tools_without_an_instance_id(
+def test_run_classification_exposes_vector_store_research_as_a_bounded_tool(
     monkeypatch,
 ) -> None:
     calls = _patched(monkeypatch)
-    segment = SegmentSettings(
-        enabled=True,
-        agent=AgentSettings(classification=ClassificationConfig(vector_store_enabled=True)),
-    )
+    monkeypatch.setattr(factories, "get_search_fraud_knowledge_use_case", lambda: object())
 
-    workflow_module._run_classification(_context(segment))
+    workflow_module._run_classification(_context(_vector_store_segment("vs-1")))
 
+    research_tool = calls[0]["vector_store_research"]
+    assert isinstance(research_tool, BoundedResearchTool)
+    assert research_tool.remaining == 2
+    # "Base de conocimiento" direct tools are gone - the research tool replaces them.
     assert "get_similar_frauds" not in calls[0]["enabled_tools"]
-    assert "vector_store_instance_id" not in calls[0]
+
+
+def test_run_classification_omits_vector_store_research_without_an_instance_id(
+    monkeypatch,
+) -> None:
+    calls = _patched(monkeypatch)
+
+    workflow_module._run_classification(_context(_vector_store_segment(None)))
+
+    assert "vector_store_research" not in calls[0]
 
 
 def test_run_classification_passes_watchlist_config_only_when_fully_set(

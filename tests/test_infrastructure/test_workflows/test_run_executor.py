@@ -12,6 +12,10 @@ from src.application.dtos.post_process_alert_dtos import PostProcessAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.ports.alert_action_dispatcher_port import AlertActionDispatchRef
 from src.application.ports.analyst_escalation_port import AnalystEscalationRef
+from src.application.use_cases.alerts.route_alert_resolution import (
+    FallbackStep,
+    ResolutionRouting,
+)
 from src.application.ports.configuration_port import (
     AgentSettings,
     ConfigurationRecord,
@@ -20,7 +24,6 @@ from src.application.ports.configuration_port import (
     ExecutorConfig,
     GeneralSettings,
     InfraSettings,
-    OpsSettings,
     PromptField,
     SegmentSettings,
     TestSettings,
@@ -39,7 +42,6 @@ def _config_with_segment(segment: SegmentSettings) -> ConfigurationRecord:
         active=True,
         general=GeneralSettings(),
         infra=InfraSettings(),
-        ops=OpsSettings(),
         test=TestSettings(),
         created_at=now,
         updated_at=now,
@@ -68,7 +70,7 @@ def _context(segment: SegmentSettings | None, decision: str, **extra: Any) -> di
             is_fraud="fraud", fraud_classification="ACCOUNT_TAKEOVER", reasoning="r"
         ),
         "analyst": AnalystReviewAlertOutput(
-            decision=decision, reasoning="analyst reasoning", playbook_title=""
+            decision=decision, reasoning="analyst reasoning"
         ),
     }
     if segment is not None:
@@ -106,7 +108,24 @@ class RecordingGenerateAgentTextUseCase:
         return GenerateAgentTextOutput(text=self._text)
 
 
-def _patch_dispatchers(monkeypatch):
+class ScriptedRouteAlertResolutionUseCase:
+    """Returns a fixed routing, or passes the analyst's decision through
+    unchanged (resources available) when none is scripted."""
+
+    def __init__(self, routing: ResolutionRouting | None = None) -> None:
+        self._routing = routing
+        self.calls: list[dict[str, Any]] = []
+
+    def execute(self, *, alert_id, decision, playbook):
+        self.calls.append({"decision": decision, "playbook": playbook})
+        return self._routing or ResolutionRouting(decision=decision)
+
+
+def _patch_dispatchers(monkeypatch, routing: ResolutionRouting | None = None):
+    router = ScriptedRouteAlertResolutionUseCase(routing)
+    monkeypatch.setattr(
+        workflow_module, "get_route_alert_resolution_use_case", lambda: router
+    )
     action_dispatcher = RecordingAlertActionDispatcher()
     escalation_dispatcher = RecordingAnalystEscalationDispatcher()
     monkeypatch.setattr(
@@ -210,6 +229,51 @@ def test_run_executor_falls_back_to_analyst_reasoning_when_no_escalation_prompt(
     workflow_module._run_executor(_context(segment, "scale_to_analyst"))
 
     assert escalation_dispatcher.calls == [{"reason": "analyst reasoning"}]
+
+
+def test_run_executor_follows_the_routed_fallback_and_records_it(monkeypatch) -> None:
+    # The analyst chose voicebot, but no slot was left: the playbook's
+    # fallback (a hard block) is what actually runs.
+    routing = ResolutionRouting(
+        decision="block",
+        block_mode="hard",
+        fallbacks=[
+            FallbackStep(
+                from_decision="voicebot",
+                reason="voicebot_unavailable",
+                to_decision="block",
+                resolution_method_id="rm-hard",
+            )
+        ],
+    )
+    action_dispatcher, _ = _patch_dispatchers(monkeypatch, routing)
+
+    output = workflow_module._run_executor(_context(None, "voicebot"))
+
+    assert action_dispatcher.calls[0][0] == "block"
+    assert output["executed_action"] == "block"
+    assert output["decided_action"] == "voicebot"
+    assert output["block_mode"] == "hard"
+    assert output["fallbacks"] == [
+        {
+            "from_decision": "voicebot",
+            "reason": "voicebot_unavailable",
+            "to_decision": "block",
+            "resolution_method_id": "rm-hard",
+        }
+    ]
+
+
+def test_run_executor_records_the_voicebot_reservation(monkeypatch) -> None:
+    _patch_dispatchers(
+        monkeypatch, ResolutionRouting(decision="voicebot", reservation_id="res-1")
+    )
+
+    output = workflow_module._run_executor(_context(None, "voicebot"))
+
+    assert output["executed_action"] == "voicebot"
+    assert output["voicebot_reservation_id"] == "res-1"
+    assert "fallbacks" not in output
 
 
 def test_run_executor_without_active_segment_does_not_generate_content(monkeypatch) -> None:

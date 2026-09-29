@@ -120,6 +120,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
+      CELERY_TEST_QUEUE: ${CELERY_TEST_QUEUE:-test}
       OBJECT_STORAGE_ENDPOINT: http://minio:9000
       OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
       OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
@@ -205,6 +206,70 @@ services:
         condition: service_healthy
     networks:
       - aria-net
+
+  # Dedicated capacity for CSV/batch test runs. Production traffic is only
+  # consumed by `worker` on CELERY_DEFAULT_QUEUE.
+  test-worker:
+    image: aria-worker:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-test-worker
+    command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "worker", "--loglevel=INFO", "-Q", "${CELERY_TEST_QUEUE:-test}"]
+    volumes:
+      - ../../../config:/code/config:ro
+    environment:
+      GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      API_V0_STR: ${API_V0_STR:-/api/v0}
+      DYNAMO_ENDPOINT: http://dynamodb:8000
+      DYNAMO_REGION_NAME: ${DYNAMO_REGION_NAME:-us-east-1}
+      DYNAMO_ACCESS_KEY: ${DYNAMO_ACCESS_KEY:-dummy}
+      DYNAMO_SECRET_KEY: ${DYNAMO_SECRET_KEY:-dummy}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
+      CELERY_TEST_QUEUE: ${CELERY_TEST_QUEUE:-test}
+      OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
+      OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
+      OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-dummy123}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-aria-reports}
+      DATASET_STORAGE_BACKEND: ${DATASET_STORAGE_BACKEND:-minio}
+      DATASET_STORAGE_BUCKET: ${DATASET_STORAGE_BUCKET:-datasets}
+      MODEL_STORAGE_BUCKET: ${MODEL_STORAGE_BUCKET:-models}
+    depends_on:
+      dynamodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks:
+      - aria-net
+    restart: unless-stopped
+
+  # Exactly one scheduler process must run per environment.  It only
+  # publishes periodic maintenance tasks; workers execute them normally.
+  scheduler:
+    image: aria-worker:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-scheduler
+    command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+    volumes:
+      - ../../../config:/code/config:ro
+    environment:
+      GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      API_V0_STR: ${API_V0_STR:-/api/v0}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
+      CELERY_RECONCILE_INTERVAL_SECONDS: ${CELERY_RECONCILE_INTERVAL_SECONDS:-60}
+      CELERY_RECONCILE_LIMIT: ${CELERY_RECONCILE_LIMIT:-100}
+      CELERY_TEST_RUN_CLEANUP_INTERVAL_SECONDS: ${CELERY_TEST_RUN_CLEANUP_INTERVAL_SECONDS:-3600}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - aria-net
+    restart: unless-stopped
 
   simulator-worker:
     build:

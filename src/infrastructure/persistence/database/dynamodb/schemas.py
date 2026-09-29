@@ -145,18 +145,6 @@ WORKFLOW_STEP_EXECUTIONS_TABLE = {
 }
 
 
-FRAUD_PLAYBOOKS_TABLE = {
-    "TableName": "fraud_playbooks",
-    "BillingMode": "PAY_PER_REQUEST",
-    "KeySchema": [
-        {"AttributeName": "classification", "KeyType": "HASH"},
-    ],
-    "AttributeDefinitions": [
-        {"AttributeName": "classification", "AttributeType": "S"},
-    ],
-}
-
-
 TEST_RUNS_TABLE = {
     "TableName": "test_runs",
     "BillingMode": "PAY_PER_REQUEST",
@@ -238,6 +226,9 @@ FEEDBACK_TABLE = {
 }
 
 
+# Static channel snapshot - today only its `bidi` entry is read (analyst and
+# voicebot availability are computed live from OperationalSettings minus
+# active reservations, see LiveOperationsCapacity).
 OPERATIONS_CAPACITY_TABLE = {
     "TableName": "operations_capacity",
     "BillingMode": "PAY_PER_REQUEST",
@@ -250,11 +241,9 @@ OPERATIONS_CAPACITY_TABLE = {
 }
 
 
-# Admin-configured operational levers (agent on/off, escalation switches,
-# instance/voicebot/analyst capacity targets, test-platform limits) - see
-# operational_settings_port.py. Distinct from OPERATIONS_CAPACITY_TABLE
-# above, which holds a live current-availability snapshot, not admin-set
-# targets.
+# Admin-configured operational levers (agent/analyst/voicebot on-off,
+# voicebot slots, analyst staffing matrix, queue handling, test-platform
+# limits) - see operational_settings_port.py.
 OPERATIONAL_SETTINGS_TABLE = {
     "TableName": "operational_settings",
     "BillingMode": "PAY_PER_REQUEST",
@@ -263,6 +252,34 @@ OPERATIONAL_SETTINGS_TABLE = {
     ],
     "AttributeDefinitions": [
         {"AttributeName": "record_id", "AttributeType": "S"},
+    ],
+}
+
+# Currently-claimed resource locks (voicebot slots, analyst reservations) -
+# see resource_reservation_repository.py. pk resource, sk lock name
+# ("slot#0003", "alert#<id>", "holder#<user>").
+RESOURCE_LOCKS_TABLE = {
+    "TableName": "resource_locks",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "resource", "KeyType": "HASH"},
+        {"AttributeName": "lock", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "resource", "AttributeType": "S"},
+        {"AttributeName": "lock", "AttributeType": "S"},
+    ],
+}
+
+# Every reservation ever made (active, released, expired) - audit trail.
+RESOURCE_RESERVATIONS_TABLE = {
+    "TableName": "resource_reservations",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "id", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "id", "AttributeType": "S"},
     ],
 }
 
@@ -361,12 +378,6 @@ CONFIGURATION_INFRASTRUCTURE_TABLE = {
     **_OWNER_1_1_KEY_SCHEMA,
 }
 
-CONFIGURATION_OPERATIONS_TABLE = {
-    "TableName": "configuration_operations",
-    "BillingMode": "PAY_PER_REQUEST",
-    **_OWNER_1_1_KEY_SCHEMA,
-}
-
 CONFIGURATION_EVALUATION_TABLE = {
     "TableName": "configuration_evaluation",
     "BillingMode": "PAY_PER_REQUEST",
@@ -374,12 +385,6 @@ CONFIGURATION_EVALUATION_TABLE = {
 }
 
 # --- config-wide entity lists (FK = config_key = configuration_id#version) -
-
-CONFIGURATION_ANALYST_PROFILES_TABLE = {
-    "TableName": "configuration_analyst_profiles",
-    "BillingMode": "PAY_PER_REQUEST",
-    **_fk_key_schema("config_key"),
-}
 
 # The two segment objects (digital channels / cards) - born together with
 # their configuration at create() time, each with its own uuid `id`.
@@ -425,12 +430,6 @@ CONFIGURATION_RED_YELLOW_FLAGS_TABLE = {
 
 CONFIGURATION_EXAMPLES_TABLE = {
     "TableName": "configuration_examples",
-    "BillingMode": "PAY_PER_REQUEST",
-    **_fk_key_schema("segment_id"),
-}
-
-CONFIGURATION_PLAYBOOKS_TABLE = {
-    "TableName": "configuration_playbooks",
     "BillingMode": "PAY_PER_REQUEST",
     **_fk_key_schema("segment_id"),
 }

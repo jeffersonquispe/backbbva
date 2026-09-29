@@ -97,9 +97,10 @@ needs, and runs as neither FastAPI nor Celery. It does share the
 feature-building code in `infrastructure/workflows/celery/model_training.py`
 with the worker (training and scoring must build features identically), so a
 dependency that module needs (pandas/numpy/xgboost/scikit-learn/joblib) goes
-in **both** `pyproject.worker.toml` and `pyproject.mcp.toml` — `shap` is the
-one exception, needed only by the MCP project (explanations are computed at
-serving time, not at training time).
+in **both** `pyproject.worker.toml` and `pyproject.mcp.toml` — including
+`shap`: the worker's Detector step scores alerts in-process with the trained
+bundle (`_score_with_xgboost` → `entrypoint/mcp/scoring.py`'s `score_row`)
+and computes SHAP explanations there when enabled.
 
 ## Testing conventions
 

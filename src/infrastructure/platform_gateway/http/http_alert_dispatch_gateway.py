@@ -32,7 +32,9 @@ class HttpAlertDispatchGateway(AlertDispatchGateway):
 
         response = self._client.post(
             "/alerts/test",
-            json={"event": payload, "created_by": created_by},
+            # Simulator traffic stands in for live alerts: it must stop while
+            # the agent is switched off (see AlertOrigin).
+            json={"event": payload, "created_by": created_by, "origin": "simulator"},
             headers=headers,
         )
         if not response.is_success:

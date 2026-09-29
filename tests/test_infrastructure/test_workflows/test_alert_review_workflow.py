@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
+import pytest
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -19,7 +20,7 @@ from src.application.ports.alert_action_dispatcher_port import (
     AlertActionDispatchRef,
     AlertActionDispatcher,
 )
-from src.application.ports.alert_port import AlertRecord, AlertStatus
+from src.application.ports.alert_port import AlertOrigin, AlertRecord, AlertStatus
 from src.application.ports.analyst_decision_documenter_port import (
     AnalystDecisionDocumenter,
     DocumentationDispatchRef,
@@ -34,24 +35,26 @@ from src.application.ports.async_operation_port import (
 )
 from src.application.ports.configuration_port import (
     AgentSettings,
+    ResolutionTag,
+    ShortageBehavior,
     ConfigurationRecord,
     DeterministicConfig,
     DeterministicRule,
     FilterGroup,
     GeneralSettings,
     InfraSettings,
-    OpsSettings,
     SegmentSettings,
     TestSettings,
 )
-from src.application.ports.fraud_playbook_port import FraudPlaybookRecord
 from src.application.ports.llm_unit_of_work_port import (
     LLMInvocationResult,
     LLMMessage,
     LLMUnitOfWork,
     LLMUnitOfWorkFactory,
 )
+from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.operational_settings_port import OperationalSettings
 from src.application.ports.operations_capacity_port import (
     ChannelCapacity,
     OperationsCapacityRecord,
@@ -64,6 +67,12 @@ from src.application.ports.workflow_port import (
 )
 from src.infrastructure.monitoring.opentelemetry.monitoring import (
     OpenTelemetryMonitoring,
+)
+from src.application.use_cases.alerts.resolve_analyst_playbook import (
+    ResolvedPlaybook,
+)
+from src.application.use_cases.alerts.route_alert_resolution import (
+    ResolutionRouting,
 )
 from src.infrastructure.workflows.celery.alert_review_workflow import (
     AlertReviewWorkflowRunner,
@@ -225,22 +234,58 @@ class InMemoryConfigurationRepository:
         return self._active
 
 
-class InMemoryFraudPlaybookRepository:
-    def __init__(self, playbooks: list[FraudPlaybookRecord]) -> None:
-        self._playbooks = {p.classification: p for p in playbooks}
+class InMemoryOperationalSettingsRepository:
+    def __init__(self, settings: OperationalSettings) -> None:
+        self.settings = settings
 
-    def create(self, playbook: FraudPlaybookRecord) -> FraudPlaybookRecord:
-        self._playbooks[playbook.classification] = playbook
-        return playbook
+    def get(self) -> OperationalSettings:
+        return self.settings
 
-    def get(self, classification: str) -> FraudPlaybookRecord | None:
-        return self._playbooks.get(classification)
 
-    def update(self, classification: str, **changes: Any) -> FraudPlaybookRecord | None:
-        raise NotImplementedError
+class PassthroughRouteAlertResolutionUseCase:
+    """Every resource the analyst picks is available."""
 
-    def list(self) -> list[FraudPlaybookRecord]:
-        return list(self._playbooks.values())
+    def execute(self, *, alert_id, decision, playbook):
+        return ResolutionRouting(decision=decision)
+
+
+class ScriptedResolveAnalystPlaybookUseCase:
+    def __init__(self, resolved: ResolvedPlaybook | None) -> None:
+        self._resolved = resolved
+
+    def execute(self, query, *, vector_store_instance_id):
+        return self._resolved
+
+
+_ARIA_PLAYBOOK = ResolvedPlaybook(
+    modus_operandi_id="mo-ato",
+    modus_operandi_title="Account takeover",
+    playbook=ModusOperandiPlaybook(
+        strategy="Verificar dispositivo y contactar al cliente.",
+        resolution=ShortageBehavior(resolution_tag=ResolutionTag.HANDLE_BY_ARIA),
+    ),
+)
+
+
+@pytest.fixture(autouse=True)
+def _operations_defaults(monkeypatch):
+    # Agent on, every resource available, no modus operandi playbook -
+    # individual tests override what they exercise.
+    monkeypatch.setattr(
+        workflow_module,
+        "get_operational_settings_repository",
+        lambda: InMemoryOperationalSettingsRepository(OperationalSettings()),
+    )
+    monkeypatch.setattr(
+        workflow_module,
+        "get_route_alert_resolution_use_case",
+        PassthroughRouteAlertResolutionUseCase,
+    )
+    monkeypatch.setattr(
+        factories_module,
+        "get_resolve_analyst_playbook_use_case",
+        lambda: ScriptedResolveAnalystPlaybookUseCase(None),
+    )
 
 
 class InMemoryOperationsCapacityRepository:
@@ -388,24 +433,13 @@ def _build_in_memory_monitoring() -> tuple[MonitoringPort, InMemorySpanExporter]
     return OpenTelemetryMonitoring(provider.get_tracer("test")), exporter
 
 
-def test_alert_review_workflow_runs_full_pipeline_on_synthetic_alert(monkeypatch):
+def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
     now = datetime.now(timezone.utc)
 
     alerts = InMemoryAlertRepository()
     operations = InMemoryAsyncOperationRepository()
     workflows = InMemoryWorkflowExecutionRepository()
     steps = InMemoryWorkflowStepExecutionRepository()
-    playbooks = InMemoryFraudPlaybookRepository(
-        [
-            FraudPlaybookRecord(
-                classification="account_takeover",
-                title="Account Takeover Playbook",
-                steps=["Verify device fingerprint", "Contact customer via bidi"],
-                created_at=now,
-                updated_at=now,
-            )
-        ]
-    )
     capacity = InMemoryOperationsCapacityRepository(
         OperationsCapacityRecord(
             analysts=ChannelCapacity(available=3, status="available"),
@@ -439,10 +473,12 @@ def test_alert_review_workflow_runs_full_pipeline_on_synthetic_alert(monkeypatch
         workflow_module, "get_workflow_step_execution_repository", lambda: steps
     )
     monkeypatch.setattr(
-        factories_module, "get_fraud_playbook_repository", lambda: playbooks
+        factories_module, "get_live_operations_capacity", lambda: capacity
     )
     monkeypatch.setattr(
-        factories_module, "get_operations_capacity_repository", lambda: capacity
+        factories_module,
+        "get_resolve_analyst_playbook_use_case",
+        lambda: ScriptedResolveAnalystPlaybookUseCase(resolved),
     )
     monkeypatch.setattr(
         workflow_module, "get_alert_action_dispatcher", lambda: action_dispatcher
@@ -511,6 +547,33 @@ def test_alert_review_workflow_runs_full_pipeline_on_synthetic_alert(monkeypatch
     )
 
     result = AlertReviewWorkflowRunner().run(workflow_id)
+    return dict(
+        result=result,
+        alert_id=alert_id,
+        workflow_id=workflow_id,
+        async_operation_id=async_operation_id,
+        alerts=alerts,
+        operations=operations,
+        workflows=workflows,
+        steps=steps,
+        action_dispatcher=action_dispatcher,
+        escalation_dispatcher=escalation_dispatcher,
+        documenter_dispatcher=documenter_dispatcher,
+        llm_factory=llm_factory,
+    )
+
+
+def test_alert_review_workflow_runs_full_pipeline_on_synthetic_alert(monkeypatch):
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+    result, alert_id, workflow_id = run["result"], run["alert_id"], run["workflow_id"]
+    async_operation_id = run["async_operation_id"]
+    alerts, operations, workflows, steps = (
+        run["alerts"], run["operations"], run["workflows"], run["steps"]
+    )
+    action_dispatcher = run["action_dispatcher"]
+    escalation_dispatcher = run["escalation_dispatcher"]
+    documenter_dispatcher = run["documenter_dispatcher"]
+    llm_factory = run["llm_factory"]
 
     assert result == {"status": "ok", "workflow_execution_id": str(workflow_id)}
 
@@ -550,6 +613,7 @@ def test_alert_review_workflow_runs_full_pipeline_on_synthetic_alert(monkeypatch
         "account_takeover"
     )
     assert recorded_steps["analyst"].output["decision"] == "bidi"
+    assert recorded_steps["analyst"].output["modus_operandi_id"] == "mo-ato"
 
     # No active configuration/segment in this synthetic run, so there's no
     # executor.aric_marking prompt to generate a comment from - content
@@ -575,6 +639,151 @@ def test_alert_review_workflow_runs_full_pipeline_on_synthetic_alert(monkeypatch
         "adversarial",
         "analyst",
     ]
+
+
+def test_alert_review_workflow_escalates_without_playbook_and_leaves_alert_escalated(
+    monkeypatch,
+):
+    run = _run_full_pipeline(monkeypatch, resolved=None)
+
+    assert run["result"]["status"] == "ok"
+    recorded_steps = {
+        s.step_name: s for s in run["steps"].list_by_workflow(run["workflow_id"])
+    }
+    assert recorded_steps["analyst"].output["decision"] == "scale_to_analyst"
+    assert recorded_steps["analyst"].output["playbook"] is None
+    assert run["escalation_dispatcher"].calls != []
+    assert run["action_dispatcher"].calls == []
+    # No playbook -> the LLM is never asked to decide.
+    assert "analyst" not in run["llm_factory"].calls
+    # Waits in the analyst queue until a human resolves it.
+    assert run["alerts"].get(run["alert_id"]).status == AlertStatus.ESCALATED
+
+
+def _seed_pending_workflow(alerts, operations, workflows, input: dict[str, Any]):
+    now = datetime.now(timezone.utc)
+    alert_id, operation_id, workflow_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    alerts.create(
+        AlertRecord(
+            id=alert_id,
+            event_id="evt-1",
+            event_type="paymentRT",
+            payload=SYNTHETIC_ALERT_PAYLOAD,
+            status=AlertStatus.PROCESSING,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    operations.create(
+        AsyncOperationRecord(
+            id=operation_id,
+            operation_type="alert_review_workflow",
+            status=AsyncOperationStatus.DISPATCHED,
+            payload={"alert_id": str(alert_id)},
+            result=None,
+            error=None,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    workflows.create(
+        WorkflowExecutionRecord(
+            id=workflow_id,
+            alert_id=alert_id,
+            async_operation_id=operation_id,
+            workflow_name="alert_review",
+            status=WorkflowStatus.PENDING,
+            input=input,
+            output=None,
+            error=None,
+            current_step=None,
+            feedback_iterations=0,
+            max_feedback_iterations=1,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    return alert_id, operation_id, workflow_id
+
+
+@pytest.mark.parametrize("origin", [AlertOrigin.SIMULATOR, AlertOrigin.PRODUCTION])
+def test_agent_off_skips_simulator_and_production_alerts(monkeypatch, caplog, origin):
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    steps = InMemoryWorkflowStepExecutionRepository()
+    monkeypatch.setattr(workflow_module, "get_alert_repository", lambda: alerts)
+    monkeypatch.setattr(workflow_module, "get_async_operation_repository", lambda: operations)
+    monkeypatch.setattr(workflow_module, "get_workflow_execution_repository", lambda: workflows)
+    monkeypatch.setattr(workflow_module, "get_workflow_step_execution_repository", lambda: steps)
+    monkeypatch.setattr(
+        workflow_module,
+        "get_operational_settings_repository",
+        lambda: InMemoryOperationalSettingsRepository(
+            OperationalSettings(agent_enabled=False)
+        ),
+    )
+    alert_id, operation_id, workflow_id = _seed_pending_workflow(
+        alerts,
+        operations,
+        workflows,
+        {"alert_payload": SYNTHETIC_ALERT_PAYLOAD, "origin": origin.value},
+    )
+
+    with caplog.at_level("WARNING", logger=workflow_module.__name__):
+        result = AlertReviewWorkflowRunner().run(workflow_id)
+
+    assert result == {"status": "skipped", "workflow_execution_id": str(workflow_id)}
+    workflow = workflows.get(workflow_id)
+    assert workflow.status == WorkflowStatus.SUCCEEDED
+    assert workflow.output["status"] == "skipped"
+    assert workflow.output["origin"] == origin.value
+    assert alerts.get(alert_id).status == AlertStatus.SKIPPED
+    assert operations.get(operation_id).status == AsyncOperationStatus.SUCCEEDED
+    # Nothing ran.
+    assert steps.list_by_workflow(workflow_id) == []
+    assert str(alert_id) in caplog.text and origin.value in caplog.text
+
+
+@pytest.mark.parametrize("origin", [None, "manual", "test_run"])
+def test_agent_off_still_processes_manual_and_test_run_alerts(monkeypatch, origin):
+    monkeypatch.setattr(
+        workflow_module,
+        "get_operational_settings_repository",
+        lambda: InMemoryOperationalSettingsRepository(
+            OperationalSettings(agent_enabled=False)
+        ),
+    )
+    input: dict[str, Any] = {"alert_payload": SYNTHETIC_ALERT_PAYLOAD}
+    if origin is not None:
+        input["origin"] = origin
+
+    # Only the gate matters here: the run must get past it and start the
+    # first step, which is stubbed to fail fast.
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    steps = InMemoryWorkflowStepExecutionRepository()
+    monkeypatch.setattr(workflow_module, "get_alert_repository", lambda: alerts)
+    monkeypatch.setattr(workflow_module, "get_async_operation_repository", lambda: operations)
+    monkeypatch.setattr(workflow_module, "get_workflow_execution_repository", lambda: workflows)
+    monkeypatch.setattr(workflow_module, "get_workflow_step_execution_repository", lambda: steps)
+    _, _, workflow_id = _seed_pending_workflow(alerts, operations, workflows, input)
+    monkeypatch.setattr(
+        workflow_module,
+        "_execute_placeholder_step",
+        lambda step_name, context: (_ for _ in ()).throw(RuntimeError("reached")),
+    )
+    monkeypatch.setattr(
+        workflow_module,
+        "get_analyst_escalation_dispatcher",
+        RecordingAnalystEscalationDispatcher,
+    )
+
+    with pytest.raises(RuntimeError, match="reached"):
+        AlertReviewWorkflowRunner().run(workflow_id)
+
+    assert steps.list_by_workflow(workflow_id)[0].step_name == "pre_process"
 
 
 def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(monkeypatch):
@@ -620,7 +829,6 @@ def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(monkey
             active=True,
             general=GeneralSettings(),
             infra=InfraSettings(),
-            ops=OpsSettings(),
             test=TestSettings(),
             created_at=now,
             updated_at=now,
@@ -803,7 +1011,6 @@ def test_alert_review_workflow_skips_to_pass_when_detector_finds_no_fraud(monkey
             active=True,
             general=GeneralSettings(),
             infra=InfraSettings(),
-            ops=OpsSettings(),
             test=TestSettings(),
             created_at=now,
             updated_at=now,

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.application.ports.modus_operandi_library_port import ModusOperandiLibraryEntry
+from src.application.ports.configuration_port import ShortageBehavior
+from src.application.ports.modus_operandi_library_port import (
+    ModusOperandiLibraryEntry,
+    ModusOperandiPlaybook,
+)
 from src.application.use_cases.modus_operandi_library.create_modus_operandi_library_entry import (
     CreateModusOperandiLibraryEntryUseCase,
 )
@@ -15,6 +20,7 @@ from src.application.use_cases.modus_operandi_library.list_modus_operandi_librar
     ListModusOperandiLibraryEntriesUseCase,
 )
 from src.application.use_cases.modus_operandi_library.update_modus_operandi_library_entry import (
+    InvalidModusOperandiPlaybookError,
     ModusOperandiLibraryEntryNotFoundError,
     UpdateModusOperandiLibraryEntryUseCase,
 )
@@ -30,6 +36,7 @@ from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 from src.infrastructure.entrypoint.api.schemas import (
     CreateModusOperandiLibraryEntryRequest,
     ModusOperandiLibraryEntrySchema,
+    ModusOperandiPlaybookSchema,
     UpdateModusOperandiLibraryEntryRequest,
 )
 from src.infrastructure.entrypoint.api.authorization import require_library_access
@@ -91,9 +98,12 @@ def update_modus_operandi_library_entry(
             taxonomy_library_id=request.taxonomy_library_id,
             evolved_variables=request.evolved_variables,
             active=request.active,
+            playbook=_playbook_from_schema(request.playbook),
         )
     except ModusOperandiLibraryEntryNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except InvalidModusOperandiPlaybookError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _to_schema(entry)
 
 
@@ -121,4 +131,22 @@ def _to_schema(entry: ModusOperandiLibraryEntry) -> ModusOperandiLibraryEntrySch
         active=entry.active,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
+        playbook=(
+            ModusOperandiPlaybookSchema(**asdict(entry.playbook))
+            if entry.playbook is not None
+            else None
+        ),
+    )
+
+
+def _playbook_from_schema(
+    schema: ModusOperandiPlaybookSchema | None,
+) -> ModusOperandiPlaybook | None:
+    if schema is None:
+        return None
+    return ModusOperandiPlaybook(
+        strategy=schema.strategy,
+        resolution=ShortageBehavior(**schema.resolution.model_dump()),
+        if_no_voicebot=ShortageBehavior(**schema.if_no_voicebot.model_dump()),
+        if_no_analyst=ShortageBehavior(**schema.if_no_analyst.model_dump()),
     )

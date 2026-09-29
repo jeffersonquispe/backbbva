@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,6 +10,7 @@ from src.application.dtos.alert_dtos import (
     CurateAlertToDatasetInput,
     StartAlertWorkflowInput,
 )
+from src.application.ports.alert_port import AlertOrigin
 from src.application.use_cases.alerts.curate_alert_to_dataset import (
     CurateAlertToDatasetUseCase,
 )
@@ -32,6 +33,10 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 class AlertTestRequest(BaseModel):
     event: dict[str, Any] = Field(default_factory=dict)
     created_by: str | None = Field(default=None, max_length=120)
+    # Who is sending the alert - decides whether it runs while the agent is
+    # switched off (see AlertOrigin). test_run is set internally by batch
+    # runs, never accepted here.
+    origin: Literal["manual", "simulator", "production"] = "manual"
 
 
 class AlertTestResponse(BaseModel):
@@ -58,6 +63,7 @@ def start_alert_test_workflow(
             StartAlertWorkflowInput(
                 payload=request.event,
                 created_by=request.created_by,
+                origin=AlertOrigin(request.origin),
             )
         )
     except AlertPayloadTooLargeError as exc:

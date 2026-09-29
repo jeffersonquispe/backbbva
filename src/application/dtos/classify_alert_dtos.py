@@ -27,15 +27,6 @@ class ClassifyAlertInput:
     # to score the model against reality, separately from agreement with
     # the analyst.
     ground_truth_tipo: str | None = None
-    # Present when the Detector had a configured XGBoost model. Keeping the
-    # evidence beside the detector result makes thresholds and optional SHAP
-    # explanations visible in workflow history without changing the LLM API.
-    model_score: float | None = None
-    model_id: str | None = None
-    model_top_features: list[dict[str, Any]] | None = None
-    # Audit trail of bounded vector-store/history investigations performed
-    # before the final detector/classification answer.
-    research_delegations: list[dict[str, Any]] | None = None
 
 
 @dataclass
@@ -51,3 +42,14 @@ class ClassifyAlertOutput:
     output_tokens: int = 0
     expected_classification: str | None = None
     ground_truth_tipo: str | None = None
+    # XGBoost output kept separate from the LLM's reasoning: model id/tag,
+    # score, thresholds, verdict and SHAP top features (which variables
+    # weighed most). Set on any step with the model enabled - decisive in
+    # the Detector, evidence-only elsewhere.
+    model_output: dict[str, Any] | None = None
+    # Audit trail of the history analysis (run when the
+    # step stayed inconclusive).
+    research_delegations: list[dict[str, Any]] | None = None
+    # Every exchange between this agent and the vector-store research tool
+    # (insights sent, findings returned, refusals past the budget).
+    vector_store_interactions: list[dict[str, Any]] | None = None

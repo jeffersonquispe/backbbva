@@ -3,7 +3,6 @@ from __future__ import annotations
 from functools import lru_cache
 from uuid import UUID
 
-from src.application.ports.configuration_port import AnalystPlaybook
 from src.application.ports.workflow_status_port import WorkflowStatusReporter
 from src.application.use_cases.alerts.adversarial_review_alert import (
     AdversarialReviewAlertUseCase,
@@ -12,6 +11,12 @@ from src.application.use_cases.alerts.analyst_review_alert import (
     AnalystReviewAlertUseCase,
 )
 from src.application.use_cases.alerts.classify_alert import ClassifyAlertUseCase
+from src.application.use_cases.alerts.route_alert_resolution import (
+    RouteAlertResolutionUseCase,
+)
+from src.application.use_cases.operations.live_operations_capacity import (
+    LiveOperationsCapacity,
+)
 from src.application.use_cases.alerts.discard_alert import DiscardAlertUseCase
 from src.application.use_cases.alerts.enrich_profiling_fields import (
     EnrichProfilingFieldsUseCase,
@@ -39,6 +44,7 @@ from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
 )
 from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
+from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.embedding.langchain import get_embedding_unit_of_work_factory
 from src.infrastructure.fraud_intelligence.mock.fraud_taxonomy_adapter import (
@@ -79,8 +85,14 @@ from src.infrastructure.persistence.database.dynamodb.repositories.configuration
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
-from src.infrastructure.persistence.database.dynamodb.repositories.fraud_playbook_repository import (
-    DynamoFraudPlaybookRepository,
+from src.infrastructure.persistence.database.dynamodb.repositories.modus_operandi_library_repository import (
+    DynamoModusOperandiLibraryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.operational_settings_repository import (
+    DynamoOperationalSettingsRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.resource_reservation_repository import (
+    DynamoResourceReservationRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.operations_capacity_repository import (
     DynamoOperationsCapacityRepository,
@@ -147,13 +159,33 @@ def get_workflow_step_execution_repository() -> DynamoWorkflowStepExecutionRepos
 
 
 @lru_cache
-def get_fraud_playbook_repository() -> DynamoFraudPlaybookRepository:
-    return DynamoFraudPlaybookRepository()
+def get_operations_capacity_repository() -> DynamoOperationsCapacityRepository:
+    return DynamoOperationsCapacityRepository()
 
 
 @lru_cache
-def get_operations_capacity_repository() -> DynamoOperationsCapacityRepository:
-    return DynamoOperationsCapacityRepository()
+def get_operational_settings_repository() -> DynamoOperationalSettingsRepository:
+    return DynamoOperationalSettingsRepository()
+
+
+@lru_cache
+def get_resource_reservation_repository() -> DynamoResourceReservationRepository:
+    return DynamoResourceReservationRepository()
+
+
+@lru_cache
+def get_modus_operandi_library_repository() -> DynamoModusOperandiLibraryRepository:
+    return DynamoModusOperandiLibraryRepository()
+
+
+@lru_cache
+def get_live_operations_capacity() -> LiveOperationsCapacity:
+    return LiveOperationsCapacity(
+        settings_repository=get_operational_settings_repository(),
+        reservation_repository=get_resource_reservation_repository(),
+        static_capacity=get_operations_capacity_repository(),
+        timezone_name=genai_config.OPERATIONS_TIMEZONE,
+    )
 
 
 @lru_cache
@@ -220,7 +252,9 @@ def get_search_fraud_knowledge_use_case() -> SearchFraudKnowledgeUseCase:
 
 @lru_cache
 def get_resolve_analyst_playbook_use_case() -> ResolveAnalystPlaybookUseCase:
-    return ResolveAnalystPlaybookUseCase(get_search_fraud_knowledge_use_case())
+    return ResolveAnalystPlaybookUseCase(
+        get_search_fraud_knowledge_use_case(), get_modus_operandi_library_repository()
+    )
 
 
 # similar_fraud_case_port/fraud_taxonomy_port/modus_operandi_port fall back to
@@ -355,6 +389,7 @@ def get_classify_alert_use_case(
     max_iterations: int | None = None,
     step_name: str = "classification",
     vector_store_instance_id: str | None = None,
+    vector_store_research: BoundedResearchTool | None = None,
 ) -> ClassifyAlertUseCase:
     default_model = (
         genai_config.DETECTOR_LLM_MODEL
@@ -374,6 +409,7 @@ def get_classify_alert_use_case(
         watchlist_repository=get_watchlist_repository(),
         watchlist_ids=watchlist_ids,
         watchlist_compare_field=watchlist_compare_field,
+        vector_store_research=vector_store_research,
         output_labels=output_labels,
         max_iterations=max_iterations,
         step_name=step_name,
@@ -397,6 +433,7 @@ def get_adversarial_review_alert_use_case(
     max_iterations: int | None = None,
     step_name: str = "adversarial",
     vector_store_instance_id: str | None = None,
+    vector_store_research: BoundedResearchTool | None = None,
 ) -> AdversarialReviewAlertUseCase:
     default_model = (
         genai_config.DETECTOR_ADVERSARIAL_LLM_MODEL
@@ -416,6 +453,7 @@ def get_adversarial_review_alert_use_case(
         watchlist_repository=get_watchlist_repository(),
         watchlist_ids=watchlist_ids,
         watchlist_compare_field=watchlist_compare_field,
+        vector_store_research=vector_store_research,
         max_iterations=max_iterations,
         step_name=step_name,
         status_reporter=status_reporter,
@@ -431,7 +469,6 @@ def get_analyst_review_alert_use_case(
     step_id: UUID | None,
     system_prompt: str | None = None,
     model: str | None = None,
-    playbooks: list[AnalystPlaybook] | None = None,
     vector_store_instance_id: str | None = None,
     handling_prompt: str = "",
 ) -> AnalystReviewAlertUseCase:
@@ -439,16 +476,22 @@ def get_analyst_review_alert_use_case(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
         monitoring=get_monitoring(),
         model=model or genai_config.ANALYST_LLM_MODEL,
-        fraud_playbook_port=get_fraud_playbook_repository(),
-        operations_capacity_port=get_operations_capacity_repository(),
+        operations_capacity_port=get_live_operations_capacity(),
         resolve_analyst_playbook=get_resolve_analyst_playbook_use_case(),
         system_prompt=system_prompt,
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
-        playbooks=playbooks,
         vector_store_instance_id=vector_store_instance_id,
         handling_prompt=handling_prompt,
+    )
+
+
+def get_route_alert_resolution_use_case() -> RouteAlertResolutionUseCase:
+    return RouteAlertResolutionUseCase(
+        operations_capacity=get_live_operations_capacity(),
+        settings_repository=get_operational_settings_repository(),
+        reservation_repository=get_resource_reservation_repository(),
     )
 
 

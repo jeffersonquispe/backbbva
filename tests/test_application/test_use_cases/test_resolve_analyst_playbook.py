@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from src.application.ports.configuration_port import AnalystPlaybook
+from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
     FraudKnowledgeSearchPort,
@@ -11,13 +11,51 @@ from src.application.ports.fraud_knowledge_port import (
     ModusOperandiDocument,
     SearchPipeline,
 )
+from src.application.ports.modus_operandi_library_port import (
+    ModusOperandiLibraryEntry,
+    ModusOperandiPlaybook,
+)
 from src.application.ports.vector_store_instance_port import VectorStoreInstance
 from src.application.use_cases.alerts.resolve_analyst_playbook import (
     ResolveAnalystPlaybookUseCase,
+    ResolvedPlaybook,
 )
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
 )
+
+
+class InMemoryModusOperandiLibraryRepository:
+    def __init__(self, entries: list[ModusOperandiLibraryEntry]) -> None:
+        self._entries = {entry.id: entry for entry in entries}
+
+    def get(self, entry_id: str) -> ModusOperandiLibraryEntry | None:
+        return self._entries.get(entry_id)
+
+
+_VOICEBOT_PLAYBOOK = ModusOperandiPlaybook(
+    strategy="confirmar con el cliente",
+    resolution=ShortageBehavior(resolution_tag=ResolutionTag.SEND_TO_VOICEBOT),
+    if_no_voicebot=ShortageBehavior(resolution_tag=ResolutionTag.SCALE_TO_ANALYST),
+)
+
+
+def _entry(
+    entry_id: str,
+    playbook: ModusOperandiPlaybook | None = _VOICEBOT_PLAYBOOK,
+    active: bool = True,
+) -> ModusOperandiLibraryEntry:
+    now = datetime.now(timezone.utc)
+    return ModusOperandiLibraryEntry(
+        id=entry_id,
+        title=f"MO {entry_id}",
+        narrative="patron",
+        taxonomy_library_id="tx-1",
+        created_at=now,
+        updated_at=now,
+        active=active,
+        playbook=playbook,
+    )
 
 
 class InMemoryVectorStoreInstanceRepository:
@@ -104,25 +142,34 @@ def _mo_document(library_id: str, score: float) -> FraudKnowledgeSearchResult:
     )
 
 
-def _use_case(results: list[FraudKnowledgeSearchResult]) -> tuple[
-    ResolveAnalystPlaybookUseCase, ScriptedFraudKnowledgeSearchPort
-]:
+def _use_case(
+    results: list[FraudKnowledgeSearchResult],
+    entries: list[ModusOperandiLibraryEntry],
+) -> tuple[ResolveAnalystPlaybookUseCase, ScriptedFraudKnowledgeSearchPort]:
     search_port = ScriptedFraudKnowledgeSearchPort(results)
     search_use_case = SearchFraudKnowledgeUseCase(
         search_port, InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=2)])
     )
-    return ResolveAnalystPlaybookUseCase(search_use_case), search_port
-
-
-def test_resolves_playbook_matching_the_top_hit() -> None:
-    playbook = AnalystPlaybook(id="pb-1", name="Vishing", modus_operandi_id="mo-1")
-    use_case, search_port = _use_case([_mo_document("mo-1", score=0.9)])
-
-    resolved = use_case.execute(
-        "cambio de dispositivo", vector_store_instance_id="vs-1", playbooks=[playbook]
+    return (
+        ResolveAnalystPlaybookUseCase(
+            search_use_case, InMemoryModusOperandiLibraryRepository(entries)
+        ),
+        search_port,
     )
 
-    assert resolved == playbook
+
+def test_resolves_the_library_playbook_of_the_top_hit() -> None:
+    use_case, search_port = _use_case(
+        [_mo_document("mo-1", score=0.9)], [_entry("mo-1")]
+    )
+
+    resolved = use_case.execute("cambio de dispositivo", vector_store_instance_id="vs-1")
+
+    assert resolved == ResolvedPlaybook(
+        modus_operandi_id="mo-1",
+        modus_operandi_title="MO mo-1",
+        playbook=_VOICEBOT_PLAYBOOK,
+    )
     assert search_port.calls == [
         {
             "query": "cambio de dispositivo",
@@ -135,66 +182,49 @@ def test_resolves_playbook_matching_the_top_hit() -> None:
     ]
 
 
-def test_resolves_playbook_matching_a_lower_ranked_hit() -> None:
-    # The closest match's modus operandi has no playbook yet - keeps
-    # checking further down the ranked results rather than giving up at #1.
-    playbook = AnalystPlaybook(id="pb-2", name="Phishing", modus_operandi_id="mo-2")
+def test_skips_hits_whose_modus_operandi_has_no_playbook_or_is_inactive() -> None:
+    # The closest matches have no usable playbook - keeps checking further
+    # down the ranked results rather than giving up at #1.
     use_case, _ = _use_case(
-        [_mo_document("mo-1", score=0.9), _mo_document("mo-2", score=0.7)]
+        [
+            _mo_document("mo-1", score=0.9),
+            _mo_document("mo-2", score=0.8),
+            _mo_document("mo-3", score=0.7),
+        ],
+        [_entry("mo-1", playbook=None), _entry("mo-2", active=False), _entry("mo-3")],
     )
 
-    resolved = use_case.execute(
-        "correo sospechoso", vector_store_instance_id="vs-1", playbooks=[playbook]
-    )
+    resolved = use_case.execute("correo sospechoso", vector_store_instance_id="vs-1")
 
-    assert resolved == playbook
-
-
-def test_returns_none_when_no_playbook_has_a_modus_operandi_id() -> None:
-    playbook = AnalystPlaybook(id="pb-1", name="Generico")
-    use_case, search_port = _use_case([_mo_document("mo-1", score=0.9)])
-
-    resolved = use_case.execute(
-        "query", vector_store_instance_id="vs-1", playbooks=[playbook]
-    )
-
-    assert resolved is None
-    # Never even searches - nothing configured could match.
-    assert search_port.calls == []
+    assert resolved is not None
+    assert resolved.modus_operandi_id == "mo-3"
 
 
 def test_returns_none_without_a_vector_store_instance_id() -> None:
-    playbook = AnalystPlaybook(id="pb-1", name="Vishing", modus_operandi_id="mo-1")
-    use_case, search_port = _use_case([_mo_document("mo-1", score=0.9)])
+    use_case, search_port = _use_case([_mo_document("mo-1", score=0.9)], [_entry("mo-1")])
 
-    resolved = use_case.execute("query", vector_store_instance_id=None, playbooks=[playbook])
+    resolved = use_case.execute("query", vector_store_instance_id=None)
 
     assert resolved is None
     assert search_port.calls == []
 
 
-def test_returns_none_when_no_hit_matches_any_configured_playbook() -> None:
-    playbook = AnalystPlaybook(id="pb-1", name="Vishing", modus_operandi_id="mo-1")
-    use_case, _ = _use_case([_mo_document("mo-999", score=0.9)])
+def test_returns_none_when_no_hit_has_a_library_entry() -> None:
+    use_case, _ = _use_case([_mo_document("mo-999", score=0.9)], [_entry("mo-1")])
 
-    resolved = use_case.execute(
-        "query", vector_store_instance_id="vs-1", playbooks=[playbook]
-    )
-
-    assert resolved is None
+    assert use_case.execute("query", vector_store_instance_id="vs-1") is None
 
 
 def test_fails_open_when_vector_store_not_promoted() -> None:
-    playbook = AnalystPlaybook(id="pb-1", name="Vishing", modus_operandi_id="mo-1")
     search_port = ScriptedFraudKnowledgeSearchPort([_mo_document("mo-1", score=0.9)])
     search_use_case = SearchFraudKnowledgeUseCase(
         search_port, InMemoryVectorStoreInstanceRepository([])
     )
-    use_case = ResolveAnalystPlaybookUseCase(search_use_case)
-
-    resolved = use_case.execute(
-        "query", vector_store_instance_id="vs-missing", playbooks=[playbook]
+    use_case = ResolveAnalystPlaybookUseCase(
+        search_use_case, InMemoryModusOperandiLibraryRepository([_entry("mo-1")])
     )
+
+    resolved = use_case.execute("query", vector_store_instance_id="vs-missing")
 
     assert resolved is None
     assert search_port.calls == []

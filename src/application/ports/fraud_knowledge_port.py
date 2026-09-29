@@ -51,7 +51,7 @@ class ModusOperandiDocument:
     # from - `id` above is this document's own fresh uuid4 (see
     # ingest_modus_operandi.py), which changes every re-promotion, so it
     # can't be used to join a search hit back to a stable, admin-referenced
-    # Library entry (e.g. AnalystPlaybook.modus_operandi_id - see
+    # Library entry (e.g. to read its playbook - see
     # resolve_analyst_playbook.py). Defaults to "" (not populated) rather
     # than raising, so documents indexed before this field existed still
     # deserialize during a promotion's own delete-previous-generation pass.

@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 from src.application.ports.configuration_port import (
     AnalystCapacity,
     DayProfile,
+    ListMembershipMode,
     ResolutionTag,
+    SamplingIntervalUnit,
     ShortageBehavior,
     TestCleanupPolicy,
 )
@@ -25,21 +27,24 @@ from src.infrastructure.persistence.database.dynamodb.repositories.operational_s
 def _settings(**overrides) -> OperationalSettings:
     defaults = dict(
         agent_enabled=True,
-        analyst_escalation_enabled=True,
-        voicebot_escalation_enabled=True,
+        analyst_enabled=True,
+        voicebot_enabled=True,
         max_instances=8,
         auto_scale=True,
         voicebot_max_concurrent_calls=40,
-        voicebot_shortage_behavior=ShortageBehavior(
-            resolution_tag=ResolutionTag.BLOCK_SOFT
-        ),
         analyst_capacity=AnalystCapacity(
             profiles=[DayProfile(id="regular", name="Día regular", description="", hourly=[4] * 24)],
             default_profile_id="regular",
             day_overrides={15: "pago"},
         ),
-        analyst_shortage_behavior=ShortageBehavior(
-            resolution_tag=ResolutionTag.SCALE_TO_ANALYST
+        queue_max_lifetime_value=2,
+        queue_max_lifetime_unit=SamplingIntervalUnit.HOURS,
+        queue_discard_amount_threshold=1500.5,
+        queue_rule_filter_enabled=True,
+        queue_rule_filter_mode=ListMembershipMode.NOT_BELONGS,
+        queue_allowed_triggered_rules=["CUSTOMER - dg_no_digital"],
+        queue_discard_behavior=ShortageBehavior(
+            resolution_tag=ResolutionTag.BLOCK_HARD, resolution_method_id="rm-1"
         ),
         max_test_instances=4,
         max_concurrent_experiments=3,
@@ -59,7 +64,12 @@ def test_to_item_stringifies_day_override_keys() -> None:
 
 
 def test_item_round_trips_through_to_item_and_from_item() -> None:
-    settings = _settings(agent_enabled=False, max_instances=12)
+    settings = _settings(
+        agent_enabled=False,
+        analyst_enabled=False,
+        voicebot_enabled=False,
+        max_instances=12,
+    )
 
     restored = _from_item(_to_item(settings))
 
@@ -67,19 +77,24 @@ def test_item_round_trips_through_to_item_and_from_item() -> None:
 
 
 def test_from_item_defaults_when_fields_missing() -> None:
-    # Mirrors _ops_from_item's convention in configuration_repository.py:
-    # a missing analyst_capacity falls back to an empty-profiles capacity,
-    # not the dataclass's 2-seeded-profile default - repository.get()
-    # itself only reaches OperationalSettings()'s real defaults when no
-    # item exists at all (see DynamoOperationalSettingsRepository.get).
+    # A missing analyst_capacity falls back to the dataclass default (two
+    # seeded profiles), so a fresh singleton never reads as 0 analysts.
     restored = _from_item({"record_id": "current"})
 
-    assert restored.agent_enabled is True
-    assert restored.max_instances == 8
-    assert restored.test_cleanup_policy == TestCleanupPolicy.OLDEST
-    assert restored.analyst_capacity == AnalystCapacity(
-        profiles=[], default_profile_id="regular", day_overrides={}
+    assert restored == OperationalSettings()
+
+
+def test_from_item_reads_pre_rename_switches() -> None:
+    restored = _from_item(
+        {
+            "record_id": "current",
+            "analyst_escalation_enabled": False,
+            "voicebot_escalation_enabled": False,
+        }
     )
+
+    assert restored.analyst_enabled is False
+    assert restored.voicebot_enabled is False
 
 
 def test_change_item_round_trips_with_json_encoded_values() -> None:

@@ -71,7 +71,6 @@ def _record_values(record: ConfigurationRecord) -> dict[str, Any]:
         "description": record.description,
         "general": asdict(record.general),
         "infra": asdict(record.infra),
-        "ops": asdict(record.ops),
         "test": asdict(record.test),
         "segments": {code: asdict(value) for code, value in record.segments.items()},
     }
@@ -83,7 +82,6 @@ def _input_values(input: CreateConfigurationInput) -> dict[str, Any]:
         "description": input.description,
         "general": asdict(input.general),
         "infra": asdict(input.infra),
-        "ops": asdict(input.ops),
         "test": asdict(input.test),
         "segments": {code: asdict(value) for code, value in input.segments.items()},
     }
@@ -114,11 +112,8 @@ def _diff(previous: Any, proposed: Any, path: str = "") -> list[ConfigurationCha
 
 def _is_high_impact(path: str) -> bool:
     return (
-        path == "general.agent_enabled"
-        or path == "infra"
+        path == "infra"
         or path.startswith("infra.")
-        or path == "ops"
-        or path.startswith("ops.")
         or path.endswith(".agent")
         or ".agent." in path
     )

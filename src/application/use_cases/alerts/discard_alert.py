@@ -19,7 +19,7 @@ class DiscardAlertUseCase:
     dispatch (alert_id + a reason, called at a pipeline-terminating point)
     even though it doesn't dispatch anywhere yet, since this same
     "terminate the pipeline and just log it for now" pattern is expected
-    to recur (e.g. OpsSettings' queue-discard/shortage behaviors)."""
+    to recur (e.g. OperationalSettings' queue-discard behavior)."""
 
     def __init__(self, monitoring: MonitoringPort) -> None:
         self._monitoring = monitoring

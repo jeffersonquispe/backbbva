@@ -7,7 +7,11 @@ from src.application.ports.embedding_port import (
     EmbeddingUnitOfWork,
     EmbeddingUnitOfWorkFactory,
 )
-from src.application.ports.modus_operandi_library_port import ModusOperandiLibraryEntry
+from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
+from src.application.ports.modus_operandi_library_port import (
+    ModusOperandiLibraryEntry,
+    ModusOperandiPlaybook,
+)
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
 from src.application.use_cases.modus_operandi_library.create_modus_operandi_library_entry import (
     CreateModusOperandiLibraryEntryUseCase,
@@ -19,6 +23,7 @@ from src.application.use_cases.modus_operandi_library.list_modus_operandi_librar
     ListModusOperandiLibraryEntriesUseCase,
 )
 from src.application.use_cases.modus_operandi_library.update_modus_operandi_library_entry import (
+    InvalidModusOperandiPlaybookError,
     ModusOperandiLibraryEntryNotFoundError,
     UpdateModusOperandiLibraryEntryUseCase,
 )
@@ -51,6 +56,7 @@ class InMemoryModusOperandiLibraryRepository:
         evolved_variables: list[str] | None = None,
         active: bool | None = None,
         embedding: list[float] | None = None,
+        playbook: ModusOperandiPlaybook | None = None,
     ) -> ModusOperandiLibraryEntry | None:
         current = self.items.get(entry_id)
         if current is None:
@@ -69,6 +75,7 @@ class InMemoryModusOperandiLibraryRepository:
             created_at=current.created_at,
             updated_at=current.updated_at,
             embedding=embedding if embedding is not None else current.embedding,
+            playbook=playbook if playbook is not None else current.playbook,
         )
         self.items[entry_id] = updated
         return updated
@@ -169,6 +176,58 @@ def test_update_modus_operandi_library_entry_changes_fields_and_reembeds_on_text
     assert deactivated.active is False
     assert len(embedding_factory.calls) == calls_before
     assert deactivated.embedding == updated.embedding
+
+
+def test_update_sets_the_playbook_without_reembedding() -> None:
+    repo = InMemoryModusOperandiLibraryRepository()
+    embedding_factory = ScriptedEmbeddingUnitOfWorkFactory()
+    entry = _create_use_case(repo, embedding_factory).execute("Vishing", "n", "tx-1")
+    calls_before = len(embedding_factory.calls)
+    playbook = ModusOperandiPlaybook(
+        strategy="Confirmar por voicebot",
+        resolution=ShortageBehavior(
+            resolution_tag=ResolutionTag.SEND_TO_VOICEBOT, resolution_method_id="rm-1"
+        ),
+        if_no_voicebot=ShortageBehavior(resolution_tag=ResolutionTag.SCALE_TO_ANALYST),
+        if_no_analyst=ShortageBehavior(resolution_tag=ResolutionTag.BLOCK_HARD),
+    )
+
+    updated = _update_use_case(repo, embedding_factory).execute(
+        entry.id, playbook=playbook
+    )
+
+    assert updated.playbook == playbook
+    assert len(embedding_factory.calls) == calls_before
+
+
+@pytest.mark.parametrize(
+    "playbook",
+    [
+        # handle_by_aria needs the LLM - never valid as a no-LLM fallback.
+        ModusOperandiPlaybook(
+            if_no_voicebot=ShortageBehavior(resolution_tag=ResolutionTag.HANDLE_BY_ARIA)
+        ),
+        # A resource can't fall back to itself.
+        ModusOperandiPlaybook(
+            if_no_voicebot=ShortageBehavior(resolution_tag=ResolutionTag.SEND_TO_VOICEBOT)
+        ),
+        ModusOperandiPlaybook(
+            if_no_analyst=ShortageBehavior(resolution_tag=ResolutionTag.SCALE_TO_ANALYST)
+        ),
+        # The primary method routes; blocks only exist as fallbacks.
+        ModusOperandiPlaybook(
+            resolution=ShortageBehavior(resolution_tag=ResolutionTag.BLOCK_SOFT)
+        ),
+    ],
+)
+def test_update_rejects_an_invalid_playbook(playbook) -> None:
+    repo = InMemoryModusOperandiLibraryRepository()
+    entry = _create_use_case(repo).execute("Vishing", "n", "tx-1")
+
+    with pytest.raises(InvalidModusOperandiPlaybookError):
+        _update_use_case(repo).execute(entry.id, playbook=playbook)
+
+    assert repo.items[entry.id].playbook is None
 
 
 def test_update_unknown_modus_operandi_library_entry_raises() -> None:

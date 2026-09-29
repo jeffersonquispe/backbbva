@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -487,8 +488,8 @@ class DeleteModelResponse(BaseModel):
 
 
 # --- Analyst capacity import --------------------------------------------
-# Excel import for OpsSettings.analyst_capacity (configuration_port.py) -
-# result only ever feeds the frontend's draft, never persisted server-side,
+# Excel import for OperationalSettings.analyst_capacity -
+# result only feeds the frontend's form until the admin saves it,
 # see analyst_capacity_import_port.py.
 
 
@@ -613,11 +614,8 @@ class ShortageBehaviorSchema(BaseModel):
 
 
 class GeneralSettingsSchema(BaseModel):
-    agent_enabled: bool = True
     migration_window_enabled: bool = False
     migration_window_datetime: str = "2000-01-01T02:00"
-    analyst_escalation_enabled: bool = True
-    voicebot_escalation_enabled: bool = True
 
 
 class InfraSettingsSchema(BaseModel):
@@ -625,28 +623,6 @@ class InfraSettingsSchema(BaseModel):
     auto_scale: bool = True
     fraud_history_db_retention_days: int = Field(default=90, ge=1)
     fraud_history_cold_storage_retention_months: int = Field(default=24, ge=1)
-
-
-class OpsSettingsSchema(BaseModel):
-    voicebot_max_concurrent_calls: int = 40
-    analyst_capacity: AnalystCapacitySchema = Field(
-        default_factory=AnalystCapacitySchema
-    )
-    queue_max_lifetime_value: int = 60
-    queue_max_lifetime_unit: SamplingIntervalUnit = SamplingIntervalUnit.MINUTES
-    queue_discard_amount_threshold: float = 0
-    queue_rule_filter_enabled: bool = False
-    queue_rule_filter_mode: ListMembershipMode = ListMembershipMode.BELONGS
-    queue_allowed_triggered_rules: list[str] = Field(default_factory=list)
-    queue_discard_behavior: ShortageBehaviorSchema = Field(
-        default_factory=ShortageBehaviorSchema
-    )
-    voicebot_shortage_behavior: ShortageBehaviorSchema = Field(
-        default_factory=ShortageBehaviorSchema
-    )
-    analyst_shortage_behavior: ShortageBehaviorSchema = Field(
-        default_factory=ShortageBehaviorSchema
-    )
 
 
 class MonitoringSettingsSchema(BaseModel):
@@ -744,19 +720,6 @@ class RubricSchema(BaseModel):
     conditions: list[RuleConditionSchema] = Field(default_factory=list)
 
 
-class FraudPlaybookSchema(BaseModel):
-    classification: str
-    title: str
-    steps: list[str] = Field(default_factory=list)
-    created_at: datetime
-    updated_at: datetime
-
-
-class UpsertFraudPlaybookRequest(BaseModel):
-    title: str
-    steps: list[str] = Field(default_factory=list)
-
-
 class DeterministicConfigSchema(BaseModel):
     alert_filter: dict[str, Any] = Field(default_factory=_default_alert_filter_schema)
     field_enrichment: dict[str, Any] = Field(default_factory=_default_field_enrichment_schema)
@@ -772,15 +735,14 @@ class DeterministicConfigSchema(BaseModel):
 
 class ResearchAgentConfigSchema(BaseModel):
     enabled: bool = False
-    only_when_inconclusive: bool = True
     max_delegations: int = Field(default=1, ge=1, le=5)
-    max_iterations: int = Field(default=3, ge=1, le=10)
     timeout_seconds: int = Field(default=8, ge=1, le=60)
     max_result_items: int = Field(default=10, ge=1, le=100)
-    include_trace: bool = True
 
 
 class VectorStoreResearchConfigSchema(ResearchAgentConfigSchema):
+    # Interaction budget of the agent <-> vector-store tool calls.
+    max_delegations: int = Field(default=3, ge=1, le=10)
     vector_store_instance_id: str | None = None
     similarity_threshold: float = Field(default=0.7, ge=0, le=1)
     max_documents_per_query: int = Field(default=8, ge=1, le=100)
@@ -790,7 +752,8 @@ class VectorStoreResearchConfigSchema(ResearchAgentConfigSchema):
 
 
 class HistoryPandasResearchConfigSchema(ResearchAgentConfigSchema):
-    max_history_rows: int = Field(default=5_000, ge=1, le=100_000)
+    max_history_rows: int = Field(default=50, ge=1, le=100_000)
+    window_days: int = Field(default=30, ge=0)
     max_analysis_operations: int = Field(default=4, ge=1, le=20)
     allowed_columns: list[str] = Field(default_factory=list)
     allowed_operations: list[Literal[
@@ -801,7 +764,6 @@ class HistoryPandasResearchConfigSchema(ResearchAgentConfigSchema):
 
 
 class DelegatedResearchSettingsSchema(BaseModel):
-    priority: Literal["vector_first", "pandas_first"] = "vector_first"
     vector_store: VectorStoreResearchConfigSchema = Field(
         default_factory=VectorStoreResearchConfigSchema
     )
@@ -818,38 +780,33 @@ class DelegatedResearchSettingsSchema(BaseModel):
         return self
 
 
-class ClassificationConfigSchema(BaseModel):
-    vector_store_enabled: bool = False
-    vector_store_instance_id: str | None = None
+class AgentToolsConfigSchema(BaseModel):
     watchlist_enabled: bool = False
     watchlist_ids: list[str] = Field(default_factory=list)
     watchlist_compare_field: str | None = None
     calculator_enabled: bool = False
-    prompt: str = ""
-    prompt_vars: list[str] = Field(default_factory=list)
-    output_labels: list[str] = Field(default_factory=list)
-    max_thought_iterations: int = 5
+    use_xgboost_model: bool = False
+    xgboost_model_id: str | None = None
+    xgboost_fraud_threshold: float = 0.8
+    xgboost_uncertainty_threshold: float = 0.4
+    xgboost_shap_enabled: bool = True
     delegated_research: DelegatedResearchSettingsSchema = Field(
         default_factory=DelegatedResearchSettingsSchema
     )
 
 
+class ClassificationConfigSchema(AgentToolsConfigSchema):
+    prompt: str = ""
+    prompt_vars: list[str] = Field(default_factory=list)
+    output_labels: list[str] = Field(default_factory=list)
+    max_thought_iterations: int = 5
+
+
 class DetectorConfigSchema(ClassificationConfigSchema):
-    enable_pandas_history_tool: bool = False
-    use_xgboost_model: bool = False
-    xgboost_model_id: str | None = None
-    xgboost_fraud_threshold: float = 0.8
-    xgboost_uncertainty_threshold: float = 0.4
-    xgboost_shap_enabled: bool = False
+    pass
 
 
-class AdversarialConfigSchema(BaseModel):
-    vector_store_enabled: bool = False
-    vector_store_instance_id: str | None = None
-    watchlist_enabled: bool = False
-    watchlist_ids: list[str] = Field(default_factory=list)
-    watchlist_compare_field: str | None = None
-    calculator_enabled: bool = False
+class AdversarialConfigSchema(AgentToolsConfigSchema):
     prompt: str = ""
     prompt_vars: list[str] = Field(default_factory=list)
     max_cycles: int = 1
@@ -858,14 +815,6 @@ class AdversarialConfigSchema(BaseModel):
 
 class DetectorAdversarialConfigSchema(AdversarialConfigSchema):
     max_thought_iterations: int = 5
-
-
-class AnalystPlaybookSchema(BaseModel):
-    id: str
-    name: str
-    strategy: str = ""
-    resolution_tag: ResolutionTag = ResolutionTag.SCALE_TO_ANALYST
-    resolution_method_id: str | None = None
 
 
 class VoicebotCategoryPromptSchema(BaseModel):
@@ -981,10 +930,27 @@ class CreateConfigurationRequest(BaseModel):
     description: str = ""
     general: GeneralSettingsSchema = Field(default_factory=GeneralSettingsSchema)
     infra: InfraSettingsSchema = Field(default_factory=InfraSettingsSchema)
-    ops: OpsSettingsSchema = Field(default_factory=OpsSettingsSchema)
     test: TestSettingsSchema = Field(default_factory=TestSettingsSchema)
     created_by: str | None = Field(default=None, max_length=120)
     segments: dict[str, SegmentSettingsSchema] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_rubrics_sum_to_100(self):
+        # Request-side only (not on RubricSchema itself): that schema is
+        # also used to serialize stored configurations, and versions saved
+        # before this rule must stay readable.
+        errors = [
+            f"segment {code!r}, rubric {rubric.name or rubric.id!r}: "
+            f"condition points sum to {total:g}, must be exactly 100"
+            for code, segment in self.segments.items()
+            for rubric in segment.agent.rubrics
+            if not math.isclose(
+                total := sum(condition.score for condition in rubric.conditions), 100
+            )
+        ]
+        if errors:
+            raise ValueError("; ".join(errors))
+        return self
 
 
 class ConfigurationChangeResponse(BaseModel):
@@ -1049,7 +1015,6 @@ class ConfigurationSummaryResponse(BaseModel):
 class ConfigurationDetailResponse(ConfigurationSummaryResponse):
     general: GeneralSettingsSchema
     infra: InfraSettingsSchema
-    ops: OpsSettingsSchema
     test: TestSettingsSchema
     segments: dict[str, SegmentSettingsSchema] = Field(default_factory=dict)
     created_by: str | None = None
@@ -1064,18 +1029,21 @@ class ConfigurationDetailResponse(ConfigurationSummaryResponse):
 
 class OperationalSettingsSchema(BaseModel):
     agent_enabled: bool = True
-    analyst_escalation_enabled: bool = True
-    voicebot_escalation_enabled: bool = True
+    analyst_enabled: bool = True
+    voicebot_enabled: bool = True
     max_instances: int = 8
     auto_scale: bool = True
-    voicebot_max_concurrent_calls: int = 40
-    voicebot_shortage_behavior: ShortageBehaviorSchema = Field(
-        default_factory=ShortageBehaviorSchema
-    )
+    voicebot_max_concurrent_calls: int = Field(default=40, ge=0, le=500)
     analyst_capacity: AnalystCapacitySchema = Field(
         default_factory=AnalystCapacitySchema
     )
-    analyst_shortage_behavior: ShortageBehaviorSchema = Field(
+    queue_max_lifetime_value: int = 60
+    queue_max_lifetime_unit: SamplingIntervalUnit = SamplingIntervalUnit.MINUTES
+    queue_discard_amount_threshold: float = 0
+    queue_rule_filter_enabled: bool = False
+    queue_rule_filter_mode: ListMembershipMode = ListMembershipMode.BELONGS
+    queue_allowed_triggered_rules: list[str] = Field(default_factory=list)
+    queue_discard_behavior: ShortageBehaviorSchema = Field(
         default_factory=ShortageBehaviorSchema
     )
     max_test_instances: int = 4
@@ -1211,6 +1179,21 @@ class UpdateChannelLibraryEntryRequest(BaseModel):
     active: bool | None = None
 
 
+class ModusOperandiPlaybookSchema(BaseModel):
+    strategy: str = Field(default="", max_length=4000)
+    resolution: ShortageBehaviorSchema = Field(
+        default_factory=lambda: ShortageBehaviorSchema(
+            resolution_tag=ResolutionTag.SCALE_TO_ANALYST
+        )
+    )
+    if_no_voicebot: ShortageBehaviorSchema = Field(
+        default_factory=ShortageBehaviorSchema
+    )
+    if_no_analyst: ShortageBehaviorSchema = Field(
+        default_factory=ShortageBehaviorSchema
+    )
+
+
 class ModusOperandiLibraryEntrySchema(BaseModel):
     id: str
     title: str
@@ -1220,6 +1203,7 @@ class ModusOperandiLibraryEntrySchema(BaseModel):
     active: bool
     created_at: datetime
     updated_at: datetime
+    playbook: ModusOperandiPlaybookSchema | None = None
 
 
 class CreateModusOperandiLibraryEntryRequest(BaseModel):
@@ -1235,6 +1219,7 @@ class UpdateModusOperandiLibraryEntryRequest(BaseModel):
     taxonomy_library_id: str | None = None
     evolved_variables: list[str] | None = None
     active: bool | None = None
+    playbook: ModusOperandiPlaybookSchema | None = None
 
 
 class FlagLibraryEntrySchema(BaseModel):
@@ -1503,3 +1488,76 @@ class SimulationStatusResponse(BaseModel):
     events_emitted: int
     last_tick_offset_seconds: int
     error: str | None
+
+
+# --- Operations: live capacity, analyst queue, voicebot callback ---------
+
+
+class ChannelCapacitySchema(BaseModel):
+    available: int
+    status: str
+    total: int | None = None
+
+
+class OperationsCapacityResponse(BaseModel):
+    analysts: ChannelCapacitySchema
+    voicebot: ChannelCapacitySchema
+    bidi: ChannelCapacitySchema
+    updated_at: datetime
+
+
+class ResourceReservationResponse(BaseModel):
+    id: str
+    resource: str
+    alert_id: str
+    holder: str
+    # Display name of the analyst holding it (None for a voicebot call or
+    # an unknown user).
+    holder_name: str | None = None
+    reserved_at: datetime
+    expires_at: datetime
+    status: str
+    released_at: datetime | None = None
+    release_reason: str | None = None
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class AnalystQueueAlertResponse(BaseModel):
+    alert_id: UUID
+    event_id: str
+    event_type: str
+    status: str
+    customer_id: str | None
+    created_at: datetime
+    payload: dict[str, Any]
+    reservation: ResourceReservationResponse | None = None
+
+
+class AlertStepResponse(BaseModel):
+    step_name: str
+    status: str
+    attempt: int
+    output: Any = None
+    error: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class AlertDetailResponse(AnalystQueueAlertResponse):
+    workflow_execution_id: UUID | None = None
+    workflow_status: str | None = None
+    workflow_output: dict[str, Any] | None = None
+    steps: list[AlertStepResponse] = Field(default_factory=list)
+
+
+class ResolveEscalatedAlertRequest(BaseModel):
+    decision: Literal["block", "pass", "bidi"]
+    notes: str = Field(default="", max_length=4000)
+
+
+class VoicebotCallbackRequest(BaseModel):
+    alert_id: UUID
+    # Provider-defined result of the call (e.g. "confirmed_by_customer",
+    # "fraud_reported", "no_answer") - stored as-is on the reservation.
+    outcome: str = Field(..., min_length=1, max_length=120)
+    detail: dict[str, Any] = Field(default_factory=dict)

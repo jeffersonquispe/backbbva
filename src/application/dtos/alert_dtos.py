@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
+from src.application.ports.alert_port import AlertOrigin
 from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.dataset_analysis_port import DatasetAnalysisStatus
 
@@ -26,6 +27,7 @@ class StartAlertWorkflowInput:
     # (ConfigurationRepository.get_active()). See _resolve_segment in
     # alert_review_workflow.py.
     configuration_ref: ConfigurationRef | None = None
+    origin: AlertOrigin = AlertOrigin.MANUAL
 
 
 @dataclass

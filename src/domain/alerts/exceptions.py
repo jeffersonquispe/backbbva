@@ -25,3 +25,65 @@ class AlertPayloadTooLargeError(Exception):
             f"{limit_bytes:,}-byte limit (DynamoDB's item size cap, minus "
             "headroom for the alert's other fields)."
         )
+
+
+class AlertNotFoundError(Exception):
+    def __init__(self, alert_id: str) -> None:
+        self.alert_id = alert_id
+        super().__init__(f"Alert not found: {alert_id}")
+
+
+class AlertNotInAnalystQueueError(Exception):
+    """Only ESCALATED alerts can be taken/resolved by a human analyst."""
+
+    def __init__(self, alert_id: str, status: str) -> None:
+        self.alert_id = alert_id
+        self.status = status
+        super().__init__(
+            f"Alert {alert_id} is {status}, not waiting in the analyst queue."
+        )
+
+
+class AnalystBusyError(Exception):
+    """An analyst holds at most one alert at a time - any other alert opens
+    read-only until they resolve or release the one they have."""
+
+    def __init__(self, held_alert_id: str | None) -> None:
+        self.held_alert_id = held_alert_id
+        super().__init__(
+            "The analyst is already working on another alert"
+            + (f" ({held_alert_id})" if held_alert_id else "")
+            + "; resolve or release it first."
+        )
+
+
+class AlertAlreadyTakenError(Exception):
+    def __init__(self, alert_id: str) -> None:
+        self.alert_id = alert_id
+        super().__init__(f"Alert {alert_id} is already being handled by another analyst.")
+
+
+class NoAnalystCapacityError(Exception):
+    """Every analyst the staffing matrix plans for this hour is busy (or
+    analysts are switched off)."""
+
+    def __init__(self) -> None:
+        super().__init__("No analyst capacity available right now.")
+
+
+class AlertNotHeldByAnalystError(Exception):
+    def __init__(self, alert_id: str) -> None:
+        self.alert_id = alert_id
+        super().__init__(
+            f"Alert {alert_id} is not currently taken by this analyst "
+            "(never taken, released, or the 30-minute reservation expired)."
+        )
+
+
+class NoActiveVoicebotCallError(Exception):
+    def __init__(self, alert_id: str) -> None:
+        self.alert_id = alert_id
+        super().__init__(
+            f"No active voicebot call for alert {alert_id} (already "
+            "released, expired, or never placed)."
+        )

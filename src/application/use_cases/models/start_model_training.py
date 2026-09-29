@@ -36,7 +36,9 @@ class StartModelTrainingUseCase:
         model = self._models.get(model_id)
         if model is None:
             raise ModelNotFoundError(model_id)
-        if model.status != ModelStatus.DRAFT:
+        # An active model is the one serving (ModelRepository.get_active) -
+        # never retrain it in place, whatever its status says.
+        if model.active or model.status != ModelStatus.DRAFT:
             raise ValueError(
                 "El modelo solo puede entrenarse una vez; crea un nuevo modelo para volver a entrenar"
             )

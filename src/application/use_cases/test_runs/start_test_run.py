@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 from src.application.dtos.alert_dtos import StartAlertWorkflowInput
+from src.application.ports.alert_port import AlertOrigin
 from src.application.dtos.test_run_dtos import StartTestRunInput, StartTestRunOutput
 from src.application.ports.alert_port import AlertRepository
 from src.application.ports.async_operation_port import AsyncOperationRepository
@@ -94,6 +95,7 @@ class StartTestRunUseCase:
                     config_overrides=config_overrides,
                     max_feedback_iterations=input.config.max_feedback_iterations,
                     configuration_ref=input.config.configuration_ref,
+                    origin=AlertOrigin.TEST_RUN,
                 )
             )
         self._test_runs.update(test_run.id, status=TestRunStatus.RUNNING)

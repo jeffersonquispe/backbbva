@@ -35,6 +35,9 @@ from src.application.use_cases.datasets.delete_dataset import DeleteDatasetUseCa
 from src.application.use_cases.datasets.analyze_fraud_marking import (
     AnalyzeFraudMarkingUseCase,
 )
+from src.application.use_cases.test_runs.cleanup_test_runs import CleanupTestRunsUseCase
+from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
+from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
 from src.application.dtos.dataset_dtos import FraudMarkingAnalysisInput
 from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
     MockAlertChannelActionAdapter,
@@ -51,6 +54,19 @@ from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sampl
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_summary_repository import (
     DynamoDatasetSummaryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.operational_settings_repository import (
+    DynamoOperationalSettingsRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.test_run_repository import (
+    DynamoTestRunRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
+    DynamoWorkflowExecutionRepository,
+    DynamoWorkflowStepExecutionRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
+    DynamoAlertRepository,
 )
 from src.infrastructure.persistence.dataset.minio.csv_dataset_repository import (
     MinioCsvDatasetRepository,
@@ -118,6 +134,27 @@ def reconcile_async_operations(limit: int = 100) -> dict:
             }
             for operation in output.operations
         ],
+    }
+
+
+@app.task(name="test_runs.cleanup")
+def cleanup_test_runs() -> dict[str, int]:
+    settings = DynamoOperationalSettingsRepository().get()
+    workflows = DynamoWorkflowExecutionRepository()
+    output = CleanupTestRunsUseCase(
+        list_test_runs=ListTestRunsUseCase(DynamoTestRunRepository(), workflows),
+        delete_test_runs=DeleteTestRunsUseCase(
+            test_run_repository=DynamoTestRunRepository(),
+            workflow_repository=workflows,
+            step_repository=DynamoWorkflowStepExecutionRepository(),
+            alert_repository=DynamoAlertRepository(),
+            async_operation_repository=DynamoAsyncOperationRepository(),
+        ),
+    ).execute(settings.max_stored_test_runs, settings.test_cleanup_policy)
+    return {
+        "deleted_test_runs": output.deleted_test_runs,
+        "deleted_cases": output.deleted_cases,
+        "deferred_active_runs": output.deferred_active_runs,
     }
 
 

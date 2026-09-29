@@ -79,7 +79,6 @@ class CreateConfigurationUseCase:
             active=False,
             general=input.general,
             infra=input.infra,
-            ops=input.ops,
             test=input.test,
             created_at=latest.created_at if overwrite else now,
             updated_at=now,

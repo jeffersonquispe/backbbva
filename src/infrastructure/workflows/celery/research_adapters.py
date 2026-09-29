@@ -47,7 +47,7 @@ class WorkflowVectorStoreRetriever:
 
 
 class HeuristicHistoryResearchPlanner:
-    """A restricted planner for the pandas subagent's first release.
+    """A restricted planner for the history analysis' first release.
 
     It deliberately emits declarative operations rather than arbitrary code.
     A future LLM planner can implement the same port without changing the

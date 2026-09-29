@@ -10,8 +10,28 @@ from uuid import UUID
 class AlertStatus(StrEnum):
     RECEIVED = "RECEIVED"
     PROCESSING = "PROCESSING"
+    # Workflow finished by escalating to a human analyst - waits in the
+    # analyst queue until someone takes and resolves it (then CLOSED).
+    ESCALATED = "ESCALATED"
     CLOSED = "CLOSED"
+    # Not processed: the agent was switched off and the alert's origin is
+    # one that must not run while it is off (see AlertOrigin).
+    SKIPPED = "SKIPPED"
     FAILED = "FAILED"
+
+
+class AlertOrigin(StrEnum):
+    """Where an alert entered the pipeline. Decides what happens while the
+    agent is switched off (OperationalSettings.agent_enabled = False):
+    MANUAL and TEST_RUN still process, SIMULATOR and PRODUCTION are skipped."""
+
+    MANUAL = "manual"
+    TEST_RUN = "test_run"
+    SIMULATOR = "simulator"
+    PRODUCTION = "production"
+
+
+PROCESSED_WHILE_AGENT_OFF = frozenset({AlertOrigin.MANUAL, AlertOrigin.TEST_RUN})
 
 
 @dataclass
@@ -46,4 +66,9 @@ class AlertRepository(Protocol):
         ...
 
     def delete(self, alert_id: UUID) -> None:
+        ...
+
+    def list_by_status(self, status: AlertStatus) -> list[AlertRecord]:
+        """Oldest first - e.g. the ESCALATED alerts waiting in the analyst
+        queue."""
         ...

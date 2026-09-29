@@ -4,6 +4,50 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
+from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
+
+# Tags a playbook may fall back to when its resource is short. handle_by_aria
+# is excluded: a fallback is applied by the executor without an LLM, so it
+# must name a concrete action (another resource or a block).
+FALLBACK_RESOLUTION_TAGS = frozenset(
+    {
+        ResolutionTag.SCALE_TO_ANALYST,
+        ResolutionTag.SEND_TO_VOICEBOT,
+        ResolutionTag.BLOCK_SOFT,
+        ResolutionTag.BLOCK_HARD,
+    }
+)
+PRIMARY_RESOLUTION_TAGS = frozenset(
+    {
+        ResolutionTag.SCALE_TO_ANALYST,
+        ResolutionTag.SEND_TO_VOICEBOT,
+        ResolutionTag.HANDLE_BY_ARIA,
+    }
+)
+
+
+def _primary_default() -> ShortageBehavior:
+    return ShortageBehavior(resolution_tag=ResolutionTag.SCALE_TO_ANALYST)
+
+
+@dataclass
+class ModusOperandiPlaybook:
+    """How the analyst agent should resolve an alert that matches this
+    modus operandi - strategy text, the preferred resolution method, and
+    what to fall back to when a resource is short. Lives on the global
+    library entry (not in a versioned configuration), so the strategy can
+    differ per modus operandi and be edited live.
+
+    The analyst LLM receives all of it together with the live resource
+    availability and decides. The executor then re-checks availability
+    when it actually reserves the resource and, if it is gone, follows
+    if_no_voicebot / if_no_analyst deterministically (no LLM)."""
+
+    strategy: str = ""
+    resolution: ShortageBehavior = field(default_factory=_primary_default)
+    if_no_voicebot: ShortageBehavior = field(default_factory=ShortageBehavior)
+    if_no_analyst: ShortageBehavior = field(default_factory=ShortageBehavior)
+
 
 @dataclass
 class ModusOperandiLibraryEntry:
@@ -22,6 +66,10 @@ class ModusOperandiLibraryEntry:
     # narrative) - see taxonomy_library_port.py's `embedding` field for the
     # recycle-on-promote rationale.
     embedding: list[float] | None = None
+    # None = no playbook written yet: an alert matching this modus operandi
+    # is handled with the no-playbook default (escalate to an analyst,
+    # block soft if none is available).
+    playbook: ModusOperandiPlaybook | None = None
 
 
 class ModusOperandiLibraryRepository(Protocol):
@@ -44,6 +92,7 @@ class ModusOperandiLibraryRepository(Protocol):
         evolved_variables: list[str] | None = None,
         active: bool | None = None,
         embedding: list[float] | None = None,
+        playbook: ModusOperandiPlaybook | None = None,
     ) -> ModusOperandiLibraryEntry | None:
         ...
 

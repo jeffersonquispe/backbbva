@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
+from boto3.dynamodb.conditions import Attr, Key
+
 from src.application.ports.alert_port import (
     AlertRecord,
     AlertStatus,
@@ -68,6 +70,23 @@ class DynamoAlertRepository:
 
     def delete(self, alert_id: UUID) -> None:
         self._table.delete_item(Key={"partition": PARTITION, "alert_id": str(alert_id)})
+
+    def list_by_status(self, status: AlertStatus) -> list[AlertRecord]:
+        # Single partition, so a Query + filter reads only alert rows; the
+        # filter still pages through every alert - fine at queue volumes,
+        # a status GSI is the fix if this gets hot.
+        items: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {
+            "KeyConditionExpression": Key("partition").eq(PARTITION),
+            "FilterExpression": Attr("status").eq(status.value),
+        }
+        while True:
+            response = self._table.query(**kwargs)
+            items.extend(response.get("Items", []))
+            if "LastEvaluatedKey" not in response:
+                break
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        return sorted((_from_item(item) for item in items), key=lambda a: a.created_at)
 
 
 def _to_item(alert: AlertRecord) -> dict[str, Any]:

@@ -27,9 +27,9 @@ class ListMembershipMode(StrEnum):
 
 class ResolutionTag(StrEnum):
     # Fixed dimension a ResolutionMethod catalog entry maps onto (see
-    # resolution_method_catalog_port.py) - the workflow will eventually
-    # branch on this. BLOCK_SOFT/BLOCK_HARD exist only for ShortageBehavior
-    # below; AnalystPlaybook only ever uses the first three.
+    # resolution_method_catalog_port.py). The executor branches on it when
+    # it applies a modus operandi playbook's fallback chain (see
+    # ModusOperandiPlaybook in modus_operandi_library_port.py).
     SCALE_TO_ANALYST = "scale_to_analyst"
     SEND_TO_VOICEBOT = "send_to_voicebot"
     HANDLE_BY_ARIA = "handle_by_aria"
@@ -142,25 +142,26 @@ class AnalystCapacity:
 
 @dataclass
 class ShortageBehavior:
-    # Same catalog as AnalystPlaybook.resolution_method_id below - an admin
-    # names methods once (ResolutionMethodCatalogRepository) and reuses them
-    # here. resolution_tag stays denormalized for the same reason as
-    # AnalystPlaybook's; resolution_method_id is nullable so a freshly
-    # created config still has a sane default (block_soft) until an admin
-    # actually picks a method.
+    # One pick from the resolution-method catalog
+    # (ResolutionMethodCatalogRepository). resolution_tag stays denormalized
+    # (the catalog entry's mapped tag, copied at save time) so readers can
+    # branch on it without a catalog lookup; resolution_method_id is
+    # nullable so a fresh default (block_soft) is valid before an admin
+    # picks a method. Used by OperationalSettings.queue_discard_behavior
+    # and by a modus operandi playbook's primary method + fallbacks.
     resolution_tag: ResolutionTag = ResolutionTag.BLOCK_SOFT
     resolution_method_id: str | None = None
 
 
 @dataclass
 class GeneralSettings:
-    agent_enabled: bool = True
+    # Agent/analyst/voicebot on-off switches are NOT here: they take effect
+    # immediately, so they live in the OperationalSettings singleton
+    # (operational_settings_port.py), never in a versioned configuration.
     migration_window_enabled: bool = False
     # ISO datetime string ("YYYY-MM-DDTHH:MM"), same format the frontend's
     # <input type="datetime-local"> produces - stored as-is, no parsing.
     migration_window_datetime: str = "2000-01-01T02:00"
-    analyst_escalation_enabled: bool = True
-    voicebot_escalation_enabled: bool = True
 
 
 @dataclass
@@ -173,33 +174,6 @@ class InfraSettings:
     # before being purged for good.
     fraud_history_db_retention_days: int = 90
     fraud_history_cold_storage_retention_months: int = 24
-
-
-@dataclass
-class OpsSettings:
-    voicebot_max_concurrent_calls: int = 40
-    analyst_capacity: AnalystCapacity = field(default_factory=AnalystCapacity)
-    queue_max_lifetime_value: int = 60
-    queue_max_lifetime_unit: SamplingIntervalUnit = SamplingIntervalUnit.MINUTES
-    queue_discard_amount_threshold: float = 0
-    # When enabled, alerts are filtered by whether their triggered_rule tag
-    # belongs to queue_allowed_triggered_rules (per queue_rule_filter_mode) -
-    # non-matching alerts are discarded instead of queued, same as
-    # queue_discard_amount_threshold's amount-based discard.
-    queue_rule_filter_enabled: bool = False
-    queue_rule_filter_mode: ListMembershipMode = ListMembershipMode.BELONGS
-    queue_allowed_triggered_rules: list[str] = field(default_factory=list)
-    # What to do with an alert instead of queuing it normally, whenever any
-    # of the three queue-discard paths above trigger (lifetime skip, amount
-    # threshold, or rule filter) - same resolution-method catalog as
-    # voicebot/analyst shortage below.
-    queue_discard_behavior: ShortageBehavior = field(default_factory=ShortageBehavior)
-    voicebot_shortage_behavior: ShortageBehavior = field(
-        default_factory=ShortageBehavior
-    )
-    analyst_shortage_behavior: ShortageBehavior = field(
-        default_factory=ShortageBehavior
-    )
 
 
 @dataclass
@@ -356,18 +330,20 @@ class ResearchAgentConfig:
     """Execution budget shared by delegated evidence-gathering agents."""
 
     enabled: bool = False
-    only_when_inconclusive: bool = True
     max_delegations: int = 1
-    max_iterations: int = 3
+    # Per call (each vector-store interaction / each history round); an
+    # overrun comes back FAILED and the step carries on without it.
     timeout_seconds: int = 8
     max_result_items: int = 10
-    include_trace: bool = True
 
 
 @dataclass
 class VectorStoreResearchConfig(ResearchAgentConfig):
-    # Kept separate from the legacy direct-tool selection so the delegated
-    # agent can be rolled out independently.
+    # Called by the agent itself as a tool (search_vector_store),
+    # as many times as it needs: max_delegations is the interaction budget
+    # per step. The only vector-store path - it replaced the old direct
+    # get_similar_* tools ("Base de conocimiento").
+    max_delegations: int = 3
     vector_store_instance_id: str | None = None
     similarity_threshold: float = 0.7
     max_documents_per_query: int = 8
@@ -380,7 +356,14 @@ class VectorStoreResearchConfig(ResearchAgentConfig):
 
 @dataclass
 class HistoryPandasResearchConfig(ResearchAgentConfig):
-    max_history_rows: int = 5_000
+    # Runs when the step stays inconclusive (Detector/Clasificación) or the
+    # adversarial challenges the result, up to max_delegations rounds
+    # (capped at 5): analysis, then the step again with its findings, while
+    # the step stays open and each round brings new findings. The selector below scopes the
+    # history it analyzes: allowed_columns (empty = all), window_days
+    # before the alert (0 = no limit), max_history_rows most recent rows.
+    max_history_rows: int = 50
+    window_days: int = 30
     max_analysis_operations: int = 4
     allowed_columns: list[str] = field(default_factory=list)
     allowed_operations: list[str] = field(
@@ -393,7 +376,6 @@ class HistoryPandasResearchConfig(ResearchAgentConfig):
 
 @dataclass
 class DelegatedResearchSettings:
-    priority: str = "vector_first"
     vector_store: VectorStoreResearchConfig = field(
         default_factory=VectorStoreResearchConfig
     )
@@ -403,53 +385,46 @@ class DelegatedResearchSettings:
 
 
 @dataclass
-class ClassificationConfig:
-    vector_store_enabled: bool = False
-    # One vector store per stage, not a list - a stage's tool loop issues a
-    # single search scoped to a single vector_store_id (see
-    # vector_store_instance_port.py). Several stages may point at the same
-    # id; that's sharing, not multi-selection.
-    vector_store_instance_id: str | None = None
+class AgentToolsConfig:
+    """"Herramientas del agente" - identical for every ReAct step with a
+    tool picker (Detector, Adversarial (detector), Clasificación,
+    Adversarial (clasificador)); each step reads its own copy."""
+
     watchlist_enabled: bool = False
     watchlist_ids: list[str] = field(default_factory=list)
     # Which alert field's value is looked up against the selected
     # watchlists' elements (e.g. "documento", "correo").
     watchlist_compare_field: str | None = None
     calculator_enabled: bool = False
-    prompt: str = ""
-    prompt_vars: list[str] = field(default_factory=list)
-    max_thought_iterations: int = 5
-    output_labels: list[str] = field(default_factory=list)
-    # Delegated research is intentionally distinct from the legacy direct
-    # tools above. The worker decides when it is allowed to run.
+    # XGBoost: decisive only in the Detector (>= fraud threshold -> fraud,
+    # < uncertainty threshold -> not_fraud, band -> the LLM decides). In
+    # every other step its output (score + verdict + SHAP) is evidence.
+    use_xgboost_model: bool = False
+    xgboost_model_id: str | None = None
+    xgboost_fraud_threshold: float = 0.8
+    xgboost_uncertainty_threshold: float = 0.4
+    xgboost_shap_enabled: bool = True
     delegated_research: DelegatedResearchSettings = field(
         default_factory=DelegatedResearchSettings
     )
 
 
 @dataclass
-class DetectorConfig(ClassificationConfig):
-    enable_pandas_history_tool: bool = False
-    use_xgboost_model: bool = False
-    xgboost_model_id: str | None = None
-    xgboost_fraud_threshold: float = 0.8
-    xgboost_uncertainty_threshold: float = 0.4
-    xgboost_shap_enabled: bool = False
+class ClassificationConfig(AgentToolsConfig):
+    prompt: str = ""
+    prompt_vars: list[str] = field(default_factory=list)
+    max_thought_iterations: int = 5
+    output_labels: list[str] = field(default_factory=list)
 
 
 @dataclass
-class AdversarialConfig:
-    # Dead by product design, not an oversight: _segment_tool_kwargs() in
-    # alert_review_workflow.py always builds tool kwargs from the sibling
-    # ClassificationConfig, never from this one - Adversarial has no tool
-    # picker of its own. Kept here only because the shape must mirror
-    # ClassificationConfig's for the frontend contract.
-    vector_store_enabled: bool = False
-    vector_store_instance_id: str | None = None
-    watchlist_enabled: bool = False
-    watchlist_ids: list[str] = field(default_factory=list)
-    watchlist_compare_field: str | None = None
-    calculator_enabled: bool = False
+class DetectorConfig(ClassificationConfig):
+    """Same shape as ClassificationConfig; only the XGBoost semantics
+    differ (decisive here, see AgentToolsConfig)."""
+
+
+@dataclass
+class AdversarialConfig(AgentToolsConfig):
     prompt: str = ""
     prompt_vars: list[str] = field(default_factory=list)
     max_cycles: int = 1
@@ -459,33 +434,6 @@ class AdversarialConfig:
 @dataclass
 class DetectorAdversarialConfig(AdversarialConfig):
     max_thought_iterations: int = 5
-
-
-@dataclass
-class AnalystPlaybook:
-    # Config-time definition, distinct from fraud_playbook_port.py's
-    # FraudPlaybookRecord - that one is a different, already-live runtime
-    # concept (a flat {title, steps} doc read by analyst_review_alert.py
-    # at alert-review time, keyed 1:1 by classification string). This one
-    # is versioned per segment alongside taxonomies/flags/etc, like every
-    # other AgentSettings sub-config, and not read by the workflow yet.
-    id: str
-    name: str
-    strategy: str = ""
-    resolution_tag: ResolutionTag = ResolutionTag.SCALE_TO_ANALYST
-    # Which resolution_method_catalog entry the admin picked in the UI -
-    # resolution_tag is kept denormalized alongside it (the catalog entry's
-    # mapped tag, copied at save time) so this field stays optional and
-    # anything reading resolution_tag today keeps working unchanged.
-    resolution_method_id: str | None = None
-    # ModusOperandiLibraryEntry.id this playbook is written for - resolved
-    # at analyst-review time by matching the alert against the segment's
-    # vector_store_instance_id (same one Detector/Clasificación search,
-    # see resolve_analyst_playbook.py) and joining on
-    # ModusOperandiDocument.library_id. Advisory only: a resolved playbook
-    # is extra context for the analyst LLM call (AnalystReviewAlertUseCase),
-    # not a deterministic override - the model still decides.
-    modus_operandi_id: str | None = None
 
 
 @dataclass
@@ -510,9 +458,6 @@ class AnalystConfig:
     # {playbook}, {voicebot_resources} and {analyst_resources}.
     prompt: str = ""
     prompt_vars: list[str] = field(default_factory=list)
-    # Kept only to hydrate historical configuration versions.  New clients
-    # use the library playbook and the prompt above instead.
-    playbooks: list[AnalystPlaybook] = field(default_factory=list)
 
 
 class DocumentationStrategy(StrEnum):
@@ -675,7 +620,6 @@ class ConfigurationRecord:
     active: bool
     general: GeneralSettings
     infra: InfraSettings
-    ops: OpsSettings
     test: TestSettings
     created_at: datetime
     updated_at: datetime

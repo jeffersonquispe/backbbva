@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
 from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryEntry,
     ModusOperandiLibraryRepository,
+    ModusOperandiPlaybook,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
+    _shortage_behavior_from_item,
 )
 
 MODUS_OPERANDI_LIBRARY_TABLE_NAME = "library_modus_operandi"
@@ -44,6 +49,7 @@ class DynamoModusOperandiLibraryRepository(ModusOperandiLibraryRepository):
         evolved_variables: list[str] | None = None,
         active: bool | None = None,
         embedding: list[float] | None = None,
+        playbook: ModusOperandiPlaybook | None = None,
     ) -> ModusOperandiLibraryEntry | None:
         current = self.get(entry_id)
         if current is None:
@@ -62,6 +68,7 @@ class DynamoModusOperandiLibraryRepository(ModusOperandiLibraryRepository):
             created_at=current.created_at,
             updated_at=datetime.now(timezone.utc),
             embedding=embedding if embedding is not None else current.embedding,
+            playbook=playbook if playbook is not None else current.playbook,
         )
         self._table.put_item(Item=_to_item(updated))
         return updated
@@ -81,6 +88,7 @@ def _to_item(entry: ModusOperandiLibraryEntry) -> dict[str, Any]:
         "created_at": entry.created_at.isoformat(),
         "updated_at": entry.updated_at.isoformat(),
         "embedding": entry.embedding,
+        "playbook": asdict(entry.playbook) if entry.playbook is not None else None,
     }
 
 
@@ -95,4 +103,18 @@ def _from_item(item: dict[str, Any]) -> ModusOperandiLibraryEntry:
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
         embedding=[float(v) for v in item["embedding"]] if item.get("embedding") is not None else None,
+        playbook=_playbook_from_item(item.get("playbook")),
+    )
+
+
+def _playbook_from_item(item: dict[str, Any] | None) -> ModusOperandiPlaybook | None:
+    if not item:
+        return None
+    return ModusOperandiPlaybook(
+        strategy=item.get("strategy") or "",
+        resolution=_shortage_behavior_from_item(
+            item.get("resolution") or {"resolution_tag": "scale_to_analyst"}
+        ),
+        if_no_voicebot=_shortage_behavior_from_item(item.get("if_no_voicebot") or {}),
+        if_no_analyst=_shortage_behavior_from_item(item.get("if_no_analyst") or {}),
     )

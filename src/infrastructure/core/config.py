@@ -3,7 +3,7 @@ import os
 
 import boto3
 from botocore.exceptions import ClientError
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
@@ -123,6 +123,15 @@ class Config(BaseSettings):
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"
     CELERY_DEFAULT_QUEUE: str = "default"
+    # Test runs use a dedicated queue and worker so batch CSV work cannot
+    # consume production workflow capacity.
+    CELERY_TEST_QUEUE: str = "test"
+    # Celery Beat is deliberately a standalone process (never co-located
+    # with a worker).  This is the first global maintenance schedule; future
+    # retention and cleanup jobs use the same scheduler.
+    CELERY_RECONCILE_INTERVAL_SECONDS: int = Field(default=60, ge=10)
+    CELERY_RECONCILE_LIMIT: int = Field(default=100, ge=1, le=1000)
+    CELERY_TEST_RUN_CLEANUP_INTERVAL_SECONDS: int = Field(default=3600, ge=60)
 
     # TEST RUNS - CSV datasets dropped on disk, listed via plain fs scan
     DATASETS_DIR: str = "./datasets"
@@ -170,6 +179,15 @@ class Config(BaseSettings):
     # whenever that changes.
     EVENT_SIMULATOR_ARIA_API_BASE_URL: str = "http://api:8000"
     EVENT_SIMULATOR_ARIA_API_TOKEN: str = ""
+
+    # Local clock the analyst staffing matrix (OperationalSettings.
+    # analyst_capacity, one value per hour of the day) is read against.
+    OPERATIONS_TIMEZONE: str = "America/Bogota"
+    # Shared secret the voicebot provider sends as a Bearer token on
+    # POST /voicebot/callbacks. Checked only when non-empty (same opt-in
+    # pattern as EVENT_SIMULATOR_ARIA_API_TOKEN) - set it in every
+    # non-local environment, otherwise anyone can release voicebot slots.
+    VOICEBOT_CALLBACK_TOKEN: str = ""
 
     model_config = ConfigDict(extra="ignore")
 

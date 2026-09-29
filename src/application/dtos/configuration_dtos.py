@@ -6,7 +6,6 @@ from typing import Any
 from src.application.ports.configuration_port import (
     GeneralSettings,
     InfraSettings,
-    OpsSettings,
     SegmentSettings,
     TestSettings,
     default_segments,
@@ -27,7 +26,6 @@ class CreateConfigurationInput:
     description: str = ""
     general: GeneralSettings = field(default_factory=GeneralSettings)
     infra: InfraSettings = field(default_factory=InfraSettings)
-    ops: OpsSettings = field(default_factory=OpsSettings)
     test: TestSettings = field(default_factory=TestSettings)
     created_by: str | None = None
     segments: dict[str, SegmentSettings] = field(default_factory=default_segments)

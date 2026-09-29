@@ -604,3 +604,58 @@ def test_classify_alert_max_iterations_overrides_default() -> None:
     assert output.is_fraud == "unknown"
     # One invoke() call per iteration - exactly max_iterations of them.
     assert len(llm_factory.created[0].received_messages) == 2
+
+
+class CannedResearchAgent:
+    def research(self, request):
+        from src.application.dtos.research_dtos import (
+            ResearchFinding,
+            ResearchResult,
+            ResearchSource,
+            ResearchStatus,
+        )
+
+        return ResearchResult(
+            ResearchSource.VECTOR_STORE,
+            ResearchStatus.EXECUTED,
+            [ResearchFinding("vector_store_match", "mo-7", "vishing con nuevo beneficiario")],
+        )
+
+
+def test_classify_alert_consults_vector_store_research_and_logs_interactions() -> None:
+    from src.application.dtos.research_dtos import ResearchSource
+    from src.application.use_cases.research.research_tool import BoundedResearchTool
+
+    responses = [
+        "Thought: necesito patrones similares\n"
+        "Action: search_vector_store\n"
+        "Action Input: transferencia a beneficiario nuevo tras llamada",
+        "Thought: listo\nFinal Answer: {\"is_fraud\": \"fraud\", "
+        '"fraud_classification": "unknown", "reasoning": "coincide con mo-7"}',
+    ]
+    llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
+    use_case = ClassifyAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=NullMonitoringPort(),
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+        # Segment-driven calls always pass an explicit tool set - the
+        # vector-store research tool must survive that filter.
+        enabled_tools=set(),
+        vector_store_research=BoundedResearchTool(
+            CannedResearchAgent(), ResearchSource.VECTOR_STORE, max_interactions=2
+        ),
+    )
+
+    output = use_case.execute(_input())
+
+    system_prompt = llm_factory.created[0].received_messages[0][0].content
+    assert "search_vector_store" in system_prompt
+    observation = llm_factory.created[0].received_messages[1][-1].content
+    assert "mo-7" in observation
+    assert output.vector_store_interactions[0]["insights"] == (
+        "transferencia a beneficiario nuevo tras llamada"
+    )
+    assert output.vector_store_interactions[0]["status"] == "executed"

@@ -10,7 +10,7 @@ from src.application.dtos.research_dtos import (
 
 
 class HistoryResearchPlanner(Protocol):
-    """The optional LLM subagent plans only this closed operation language."""
+    """An optional LLM planner plans only this closed operation language."""
 
     def plan(self, request: ResearchRequest) -> list[HistoryOperation]: ...
 

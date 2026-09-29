@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import dataclasses
+import json
+import logging
 import uuid
+from functools import lru_cache
 from datetime import datetime, timezone
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
@@ -36,10 +40,12 @@ from src.application.dtos.profile_alert_dtos import (
     ProfileAlertOutput,
 )
 from src.application.dtos.research_dtos import ResearchRequest, ResearchSource
-from src.application.ports.configuration_port import DelegatedResearchSettings
-from src.application.ports.alert_port import AlertStatus
+from src.application.use_cases.research.research_tool import BoundedResearchTool
+from src.application.ports.alert_port import AlertOrigin, AlertStatus
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.ports.configuration_port import (
+    AdversarialConfig,
+    AgentToolsConfig,
     ClassificationConfig,
     DocumentationStrategy,
     ExecutorConfig,
@@ -75,10 +81,17 @@ from src.infrastructure.workflows.celery.factories import (
     get_post_process_alert_use_case,
     get_pre_process_alert_use_case,
     get_profile_alert_use_case,
+    get_operational_settings_repository,
+    get_route_alert_resolution_use_case,
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
 )
 from src.domain.alerts.rule_conditions import evaluate_condition
+from src.domain.alerts.transaction_history_selection import (
+    parse_event_time,
+    select_transaction_history,
+)
+from src.application.use_cases.alerts.agent_gate import agent_off_skip_reason
 from src.application.use_cases.alerts.resolve_alert_segment import (
     ResolveAlertSegmentUseCase,
 )
@@ -98,8 +111,11 @@ from src.infrastructure.workflows.celery.research_adapters import (
 from src.application.use_cases.research.delegated_research import (
     HistoryPandasResearchAgent,
     ResearchDelegationCoordinator,
+    TimeBoundedResearchAgent,
     VectorStoreResearchAgent,
 )
+
+logger = logging.getLogger(__name__)
 
 LINEAR_STEPS = (
     "pre_process",
@@ -136,6 +152,13 @@ class AlertReviewWorkflowRunner:
                 "status": "not_found",
                 "workflow_execution_id": str(workflow_execution_id),
             }
+
+        origin = AlertOrigin((workflow.input or {}).get("origin") or "manual")
+        skip_reason = agent_off_skip_reason(
+            origin, get_operational_settings_repository().get()
+        )
+        if skip_reason is not None:
+            return self._skip(workflow, origin, skip_reason)
 
         # One reporter per run: a daemon writer thread coalesces the
         # per-step status/progress updates below into DynamoDB writes off
@@ -224,7 +247,6 @@ class AlertReviewWorkflowRunner:
                                 "Detector determined this alert is not "
                                 f"fraud: {detector_output.reasoning}"
                             ),
-                            playbook_title="",
                         )
                         skip_steps |= {
                             "detector_adversarial",
@@ -280,7 +302,16 @@ class AlertReviewWorkflowRunner:
                 status=AsyncOperationStatus.SUCCEEDED,
                 result=output,
             )
-            self._alerts.update(workflow.alert_id, status=AlertStatus.CLOSED)
+            executed = context.get("executor") or {}
+            self._alerts.update(
+                workflow.alert_id,
+                # Waits in the analyst queue until a human resolves it.
+                status=(
+                    AlertStatus.ESCALATED
+                    if executed.get("executed_action") == "scale_to_analyst"
+                    else AlertStatus.CLOSED
+                ),
+            )
             return {"status": "ok", "workflow_execution_id": str(workflow.id)}
         except Exception as exc:
             error = str(exc)
@@ -316,11 +347,51 @@ class AlertReviewWorkflowRunner:
         finally:
             self._status.stop()
 
+    def _skip(
+        self,
+        workflow: WorkflowExecutionRecord,
+        origin: AlertOrigin,
+        reason: str,
+    ) -> dict[str, Any]:
+        logger.warning(
+            "Alert skipped: reason=%r alert_id=%s origin=%s workflow_execution_id=%s",
+            reason,
+            workflow.alert_id,
+            origin.value,
+            workflow.id,
+        )
+        output = {
+            "message": "Alert skipped: the agent is switched off",
+            "final_step": None,
+            "status": "skipped",
+            "resolution_path": "skipped_agent_disabled",
+            "reason": reason,
+            "origin": origin.value,
+            "total_duration_seconds": 0,
+        }
+        now = datetime.now(timezone.utc)
+        self._workflows.update(
+            workflow.id,
+            status=WorkflowStatus.SUCCEEDED,
+            output=output,
+            finished_at=now,
+        )
+        self._operations.update(
+            workflow.async_operation_id,
+            status=AsyncOperationStatus.SUCCEEDED,
+            result=output,
+        )
+        self._alerts.update(workflow.alert_id, status=AlertStatus.SKIPPED)
+        return {"status": "skipped", "workflow_execution_id": str(workflow.id)}
+
     def _escalate_to_analyst(
         self,
         workflow: WorkflowExecutionRecord,
         reason: str,
     ) -> None:
+        # A failed review that goes to a human still lands in the analyst
+        # queue, same as a normal scale_to_analyst decision.
+        self._alerts.update(workflow.alert_id, status=AlertStatus.ESCALATED)
         alert = self._alerts.get(workflow.alert_id)
         event_id = alert.event_id if alert is not None else str(workflow.alert_id)
         self._escalation.dispatch(
@@ -552,17 +623,6 @@ def _step_overrides(
     }
 
 
-# Fraud-knowledge retrieval tools gated by ClassificationConfig/
-# AdversarialConfig.vector_store_enabled - no more per-category picking
-# (see configuration_port.py's ClassificationConfig docstring), the switch
-# is all-or-nothing; which vector_store_instance_port.py instances get
-# searched is a retrieval-time detail, not a per-tool-function toggle.
-_FRAUD_KNOWLEDGE_TOOLS = {
-    "get_similar_frauds",
-    "get_similar_taxonomy",
-    "get_similar_modus_operandi",
-}
-
 _PROFILING_STRATEGY_OPERATION_MAP = {
     ProfilingStrategyKey.USUARIO: "user_profile",
     ProfilingStrategyKey.TRANSACCION: "transaction_profile",
@@ -570,35 +630,45 @@ _PROFILING_STRATEGY_OPERATION_MAP = {
 }
 
 
-def _segment_tool_kwargs(classification_cfg: ClassificationConfig) -> dict[str, Any]:
-    # Builds the same kwargs shape for both Classification and Adversarial
-    # (the latter has no tool picker of its own by product design - it
-    # reuses Classification's selection, see _run_adversarial below).
+def _segment_tool_kwargs(cfg: AgentToolsConfig) -> dict[str, Any]:
+    # Same kwargs shape for every ReAct step with the shared "Herramientas
+    # del agente" block (Detector, its Adversarial, Classification, its
+    # Adversarial) - each passes its own config.
     # calculator needs no extra config beyond the switch; check_watchlist
     # additionally needs which watchlists to check and which alert field's
     # value to check against them - only registered when all three
-    # (enabled, ids, compare field) are actually set, same guard
-    # ClassifyAlertUseCase/AdversarialReviewAlertUseCase use to decide
-    # whether to expose the tool at all. The fraud-knowledge tools follow
-    # the same pattern: enabled + an actual vector store picked, both
-    # required - get_*_port(vector_store_instance_id) in factories.py falls
-    # back to a Mock otherwise, which would silently return fake results.
+    # (enabled, ids, compare field) are actually set. The vector-store
+    # research is exposed as a tool (search_vector_store) the
+    # agent calls itself, bounded by max_delegations interactions.
     enabled_tools: set[str] = set()
-    if classification_cfg.vector_store_enabled and classification_cfg.vector_store_instance_id:
-        enabled_tools |= _FRAUD_KNOWLEDGE_TOOLS
-    if classification_cfg.calculator_enabled:
+    if cfg.calculator_enabled:
         enabled_tools.add("calculator")
     kwargs: dict[str, Any] = {"enabled_tools": enabled_tools}
-    if classification_cfg.vector_store_enabled and classification_cfg.vector_store_instance_id:
-        kwargs["vector_store_instance_id"] = classification_cfg.vector_store_instance_id
-    if (
-        classification_cfg.watchlist_enabled
-        and classification_cfg.watchlist_ids
-        and classification_cfg.watchlist_compare_field
-    ):
+    if cfg.watchlist_enabled and cfg.watchlist_ids and cfg.watchlist_compare_field:
         enabled_tools.add("check_watchlist")
-        kwargs["watchlist_ids"] = classification_cfg.watchlist_ids
-        kwargs["watchlist_compare_field"] = classification_cfg.watchlist_compare_field
+        kwargs["watchlist_ids"] = cfg.watchlist_ids
+        kwargs["watchlist_compare_field"] = cfg.watchlist_compare_field
+    vector_store = cfg.delegated_research.vector_store
+    if vector_store.enabled and vector_store.vector_store_instance_id:
+        from src.infrastructure.workflows.celery.factories import (
+            get_search_fraud_knowledge_use_case,
+        )
+
+        kwargs["vector_store_research"] = BoundedResearchTool(
+            TimeBoundedResearchAgent(
+                VectorStoreResearchAgent(
+                    WorkflowVectorStoreRetriever(
+                        get_search_fraud_knowledge_use_case(),
+                        vector_store.vector_store_instance_id,
+                    ),
+                    vector_store,
+                ),
+                ResearchSource.VECTOR_STORE,
+                vector_store.timeout_seconds,
+            ),
+            ResearchSource.VECTOR_STORE,
+            max_interactions=vector_store.max_delegations,
+        )
     return kwargs
 
 
@@ -741,350 +811,413 @@ def _run_detector(context: dict[str, Any]) -> ClassifyAlertOutput:
     # "is this fraud" call, just gating whether Clasificación's more
     # detailed taxonomy pass runs at all (see run()'s "detector" handling)
     # instead of being the final answer.
-    workflow_execution_id, step_id = _step_reporting_ids(context)
-    overrides = _step_overrides(context, "detector")
-    segment_kwargs: dict[str, Any] = {}
+    #
+    # With XGBoost enabled the model scores first: >= fraud threshold or
+    # < uncertainty threshold is a direct decision (no LLM call); only the
+    # band in between reaches the LLM, with the model output as evidence.
     segment = _active_segment(context)
-    if not overrides.get("system_prompt"):
-        if segment is not None:
-            detector_cfg = segment.agent.detector
-            rubric_context = _rubric_prompt_context(context)
-            if detector_cfg.prompt:
-                segment_kwargs["extra_instructions"] = substitute_variables(
-                    detector_cfg.prompt, _variables_pool(context, segment)
-                ) + rubric_context
-            elif rubric_context:
-                segment_kwargs["extra_instructions"] = rubric_context
-            segment_kwargs.update(_segment_tool_kwargs(detector_cfg))
-            if detector_cfg.output_labels:
-                segment_kwargs["output_labels"] = detector_cfg.output_labels
-            if detector_cfg.max_thought_iterations:
-                segment_kwargs["max_iterations"] = detector_cfg.max_thought_iterations
-    use_case = get_classify_alert_use_case(
-        status_reporter=context.get("status_reporter"),
-        workflow_execution_id=workflow_execution_id,
-        step_id=step_id,
-        step_name="detector",
-        **overrides,
-        **segment_kwargs,
-    )
-    alert_payload = (context.get("input") or {}).get("alert_payload") or {}
-    llm_output = use_case.execute(
-        ClassifyAlertInput(
-            alert_id=UUID(context["alert_id"]),
-            pre_process=context["pre_process"],
-            profile=context["profiling"],
-            expected_classification=alert_payload.get(MARCACION_FIELD),
-            ground_truth_tipo=alert_payload.get(TIPO_FIELD),
+    detector_cfg = segment.agent.detector if segment is not None else None
+    model_score = _model_score_for(context, detector_cfg)
+    if model_score is not None and model_score.is_fraud != "unknown":
+        return ClassifyAlertOutput(
+            is_fraud=model_score.is_fraud,
+            fraud_classification="unknown",
+            reasoning=model_score.reasoning,
+            model_output=model_score.as_output(),
         )
+    return _run_classify_step(context, "detector", detector_cfg, model_score)
+
+
+def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
+    segment = _active_segment(context)
+    classification_cfg = segment.agent.classification if segment is not None else None
+    return _run_classify_step(
+        context,
+        "classification",
+        classification_cfg,
+        _model_score_for(context, classification_cfg),
     )
-    if (
-        segment is not None
-        and llm_output.is_fraud == "unknown"
-        and (segment.agent.detector.delegated_research.vector_store.enabled
-             or segment.agent.detector.delegated_research.history_pandas.enabled)
-    ):
-        research = _delegated_research(
-            context, segment.agent.detector.delegated_research, llm_output.reasoning
+
+
+def _run_classify_step(
+    context: dict[str, Any],
+    step_name: str,
+    cfg: ClassificationConfig | None,
+    model_score: _XGBoostScore | None,
+) -> ClassifyAlertOutput:
+    """Detector and Clasificación: same ReAct use case, same tool block.
+
+    The history analysis runs only if the agent stays inconclusive, then
+    the agent answers again with its findings (see _history_rounds).
+    """
+    workflow_execution_id, step_id = _step_reporting_ids(context)
+    overrides = _step_overrides(context, step_name)
+    segment_kwargs: dict[str, Any] = {}
+    if cfg is not None and not overrides.get("system_prompt"):
+        segment = _active_segment(context)
+        extra_instructions = ""
+        if cfg.prompt:
+            extra_instructions = substitute_variables(
+                cfg.prompt, _variables_pool(context, segment)
+            )
+        if step_name == "detector":
+            extra_instructions += _rubric_prompt_context(context)
+        if model_score is not None:
+            extra_instructions += model_score.prompt_block()
+        if extra_instructions:
+            segment_kwargs["extra_instructions"] = extra_instructions
+        segment_kwargs.update(_segment_tool_kwargs(cfg))
+        if cfg.output_labels:
+            segment_kwargs["output_labels"] = cfg.output_labels
+        if cfg.max_thought_iterations:
+            segment_kwargs["max_iterations"] = cfg.max_thought_iterations
+    alert_payload = _alert_payload(context)
+    step_input = ClassifyAlertInput(
+        alert_id=UUID(context["alert_id"]),
+        pre_process=context["pre_process"],
+        profile=context["profiling"],
+        expected_classification=alert_payload.get(MARCACION_FIELD),
+        ground_truth_tipo=alert_payload.get(TIPO_FIELD),
+    )
+
+    def run(kwargs: dict[str, Any]) -> ClassifyAlertOutput:
+        return get_classify_alert_use_case(
+            status_reporter=context.get("status_reporter"),
+            workflow_execution_id=workflow_execution_id,
+            step_id=step_id,
+            step_name=step_name,
+            **overrides,
+            **kwargs,
+        ).execute(step_input)
+
+    output = run(segment_kwargs)
+    if cfg is not None:
+        output = _history_rounds(
+            context, cfg, segment_kwargs, output, run,
+            is_open=lambda out: out.is_fraud == "unknown",
+            reasoning_of=lambda out: out.reasoning,
         )
-        if research:
-            final_kwargs = dict(segment_kwargs)
-            final_kwargs["extra_instructions"] = (
-                str(final_kwargs.get("extra_instructions") or "")
-                + _research_instructions(research)
-            )
-            final_output = get_classify_alert_use_case(
-                status_reporter=context.get("status_reporter"),
-                workflow_execution_id=workflow_execution_id,
-                step_id=step_id,
-                step_name="detector",
-                **overrides,
-                **final_kwargs,
-            ).execute(
-                ClassifyAlertInput(
-                    alert_id=UUID(context["alert_id"]),
-                    pre_process=context["pre_process"],
-                    profile=context["profiling"],
-                    expected_classification=alert_payload.get(MARCACION_FIELD),
-                    ground_truth_tipo=alert_payload.get(TIPO_FIELD),
-                )
-            )
-            llm_output = dataclasses.replace(
-                final_output, research_delegations=research
-            )
-    if segment is None or not segment.agent.detector.use_xgboost_model:
-        return llm_output
-    return _apply_xgboost_detector_decision(
-        llm_output, context, segment.agent.detector
+    if model_score is not None:
+        output = dataclasses.replace(output, model_output=model_score.as_output())
+    return output
+
+
+def _run_detector_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
+    segment = _active_segment(context)
+    return _run_adversarial_step(
+        context,
+        "detector_adversarial",
+        segment.agent.detector_adversarial if segment is not None else None,
+        # Reuses AdversarialReviewAlertInput's `classification` field for
+        # the detector's output - same ClassifyAlertOutput shape.
+        reviewed=context["detector"],
     )
+
+
+def _run_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
+    segment = _active_segment(context)
+    return _run_adversarial_step(
+        context,
+        "adversarial",
+        segment.agent.adversarial if segment is not None else None,
+        reviewed=context["classification"],
+    )
+
+
+def _run_adversarial_step(
+    context: dict[str, Any],
+    step_name: str,
+    cfg: AdversarialConfig | None,
+    reviewed: ClassifyAlertOutput,
+) -> AdversarialReviewAlertOutput:
+    """Both adversarials: same use case, same tool block. The history
+    analysis runs only when the review challenges the result, then the
+    review runs again with its findings (see _history_rounds)."""
+    workflow_execution_id, step_id = _step_reporting_ids(context)
+    overrides = _step_overrides(context, step_name)
+    segment_kwargs: dict[str, Any] = {}
+    model_score = _model_score_for(context, cfg)
+    if cfg is not None and not overrides.get("system_prompt"):
+        segment = _active_segment(context)
+        extra_instructions = ""
+        if cfg.prompt:
+            extra_instructions = substitute_variables(
+                cfg.prompt, _variables_pool(context, segment)
+            )
+        if model_score is not None:
+            extra_instructions += model_score.prompt_block()
+        if extra_instructions:
+            segment_kwargs["extra_instructions"] = extra_instructions
+        segment_kwargs.update(_segment_tool_kwargs(cfg))
+        max_iterations = getattr(cfg, "max_thought_iterations", None)
+        if max_iterations:
+            segment_kwargs["max_iterations"] = max_iterations
+    step_input = AdversarialReviewAlertInput(
+        alert_id=UUID(context["alert_id"]),
+        pre_process=context["pre_process"],
+        profile=context["profiling"],
+        classification=reviewed,
+    )
+
+    def run(kwargs: dict[str, Any]) -> AdversarialReviewAlertOutput:
+        return get_adversarial_review_alert_use_case(
+            status_reporter=context.get("status_reporter"),
+            workflow_execution_id=workflow_execution_id,
+            step_id=step_id,
+            step_name=step_name,
+            **overrides,
+            **kwargs,
+        ).execute(step_input)
+
+    output = run(segment_kwargs)
+    if cfg is not None:
+        output = _history_rounds(
+            context, cfg, segment_kwargs, output, run,
+            is_open=lambda out: out.requires_classification_feedback,
+            reasoning_of=lambda out: out.feedback or out.reasoning,
+        )
+    if model_score is not None:
+        output = dataclasses.replace(output, model_output=model_score.as_output())
+    return output
 
 
 def _run_rubrics(context: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate all segment rubrics against enriched alert fields."""
+    """Score every segment rubric against enriched alert fields.
+
+    Additive scorecard: each matched condition adds its points to its
+    rubric's score. Condition points of a rubric sum to 100 (enforced on
+    save, see CreateConfigurationRequest), so each score is 0-100.
+    """
     segment = _active_segment(context)
     if segment is None:
-        return {"matched": [], "total_score": 0.0, "evaluated": 0}
+        return {"scores": [], "evaluated": 0}
     fields = _variables_pool(context, segment)
-    matched: list[dict[str, Any]] = []
+    scores: list[dict[str, Any]] = []
     for rubric in segment.agent.rubrics:
-        conditions = rubric.conditions
-        if conditions and all(evaluate_condition(condition, fields) for condition in conditions):
-            matched.append({
-                "id": rubric.id,
-                "name": rubric.name,
-                "score": sum(condition.score for condition in conditions),
-                "condition_ids": [condition.id for condition in conditions],
-            })
-    return {
-        "matched": matched,
-        "total_score": sum(item["score"] for item in matched),
-        "evaluated": len(segment.agent.rubrics),
-    }
+        matched = [
+            condition for condition in rubric.conditions
+            if evaluate_condition(condition, fields)
+        ]
+        scores.append({
+            "id": rubric.id,
+            "name": rubric.name,
+            "score": sum(condition.score for condition in matched),
+            "max_score": sum(condition.score for condition in rubric.conditions),
+            "matched_condition_ids": [condition.id for condition in matched],
+        })
+    return {"scores": scores, "evaluated": len(scores)}
 
 
 def _rubric_prompt_context(context: dict[str, Any]) -> str:
     rubric_result = context.get("rubrics")
-    if not rubric_result:
+    if not rubric_result or not rubric_result.get("scores"):
         return ""
+    lines = "\n".join(
+        f"- {item['name']}: {item['score']:g}/{item['max_score']:g}"
+        for item in rubric_result["scores"]
+    )
     return (
-        "\n\nResultado de rúbricas configuradas (evidencia adicional; "
-        "evalúala junto con las demás señales): "
-        f"{rubric_result}"
+        "\n\nPuntajes de rúbricas configuradas (evidencia adicional; "
+        f"evalúalos junto con las demás señales):\n{lines}"
     )
 
 
-def _delegated_research(
-    context: dict[str, Any], settings: DelegatedResearchSettings, reasoning: str
+def _history_research(
+    context: dict[str, Any], cfg: AgentToolsConfig, reasoning: str
 ) -> list[dict[str, Any]]:
-    """Run bounded investigators only after the primary agent is unknown."""
-    requests: list[ResearchRequest] = []
-    agents: dict[Any, Any] = {}
-    question = (
-        "Investiga evidencia adicional para esta alerta inconclusa. "
-        f"Razonamiento previo: {reasoning}"
+    """Run the history analysis over the configured history slice."""
+    settings = cfg.delegated_research.history_pandas
+    pre_process: PreProcessAlertOutput = context["pre_process"]
+    history = pre_process.enrichment.get("transaction_history") or []
+    if not settings.enabled or settings.max_delegations <= 0 or not history:
+        return []
+    # Selector: time window before the alert + most recent N rows. Column
+    # restriction (allowed_columns) is enforced by the agent itself.
+    selected = select_transaction_history(
+        history,
+        columns=[],
+        window_days=settings.window_days,
+        max_transactions=settings.max_history_rows,
+        reference_time=parse_event_time(pre_process.mandatory_fields.get("event_time")),
     )
-    if settings.vector_store.enabled and settings.vector_store.vector_store_instance_id:
-        from src.infrastructure.workflows.celery.factories import (
-            get_search_fraud_knowledge_use_case,
-        )
-
-        agents[ResearchSource.VECTOR_STORE] = VectorStoreResearchAgent(
-            WorkflowVectorStoreRetriever(
-                get_search_fraud_knowledge_use_case(),
-                settings.vector_store.vector_store_instance_id,
-            ),
-            settings.vector_store,
-        )
-        requests.append(ResearchRequest(ResearchSource.VECTOR_STORE, question))
-
-    history = context["pre_process"].enrichment.get("transaction_history") or []
-    if settings.history_pandas.enabled and history:
-        current_amount = context["pre_process"].mandatory_fields.get("amount")
-        agents[ResearchSource.HISTORY_PANDAS] = HistoryPandasResearchAgent(
-            HeuristicHistoryResearchPlanner(current_amount), settings.history_pandas
-        )
-        requests.append(ResearchRequest(ResearchSource.HISTORY_PANDAS, question))
-
-    if settings.priority == "pandas_first":
-        requests.reverse()
-    # Each configuration is its own bounded investigator.  A stage can never
-    # execute more than its configured number of requests per source.
-    requests = [
-        request for request in requests
-        if (settings.vector_store if request.source == ResearchSource.VECTOR_STORE else settings.history_pandas).max_delegations > 0
-    ]
-    accepted: list[Any] = []
-    results = ResearchDelegationCoordinator(agents).delegate(
-        requests,
-        is_inconclusive=lambda: True,
-        accept=accepted.append,
+    agent = TimeBoundedResearchAgent(
+        HistoryPandasResearchAgent(
+            HeuristicHistoryResearchPlanner(pre_process.mandatory_fields.get("amount")),
+            settings,
+            history_provider=lambda _request: selected,
+        ),
+        ResearchSource.HISTORY_PANDAS,
+        settings.timeout_seconds,
+    )
+    request = ResearchRequest(
+        ResearchSource.HISTORY_PANDAS,
+        "Investiga evidencia adicional en el historial de la alerta. "
+        f"Razonamiento previo: {reasoning}",
+    )
+    results = ResearchDelegationCoordinator({ResearchSource.HISTORY_PANDAS: agent}).delegate(
+        [request], is_inconclusive=lambda: True, accept=lambda _result: None
     )
     return [dataclasses.asdict(result) for result in results]
 
 
-def _research_instructions(results: list[dict[str, Any]]) -> str:
-    return (
-        "\n\nInvestigación delegada disponible. Úsala como evidencia adicional "
-        "y responde ahora con la decisión final:\n"
-        f"{results}"
+_MAX_HISTORY_ROUNDS = 5
+
+
+def _history_rounds(
+    context: dict[str, Any],
+    cfg: AgentToolsConfig,
+    segment_kwargs: dict[str, Any],
+    output: Any,
+    run: Callable[[dict[str, Any]], Any],
+    *,
+    is_open: Callable[[Any], bool],
+    reasoning_of: Callable[[Any], str],
+) -> Any:
+    """Up to history_pandas.max_delegations rounds (capped at 5) while the
+    step stays open (inconclusive / challenged): each round runs the
+    history analysis, then the step once more with every finding so far.
+
+    Stops early when the step concludes, or when a round brings back the
+    same findings as the previous one - re-asking would only repeat the
+    same prompt.
+    """
+    rounds = min(
+        cfg.delegated_research.history_pandas.max_delegations, _MAX_HISTORY_ROUNDS
     )
+    research: list[dict[str, Any]] = []
+    previous: list[Any] | None = None
+    for _ in range(rounds):
+        if not is_open(output):
+            break
+        found = _history_research(context, cfg, reasoning_of(output))
+        evidence = [(item.get("status"), item.get("findings")) for item in found]
+        if not found or evidence == previous:
+            break
+        previous = evidence
+        research.extend(found)
+        output = dataclasses.replace(
+            run(_with_research(segment_kwargs, research)),
+            research_delegations=list(research),
+        )
+    return output
 
 
-def _apply_xgboost_detector_decision(
-    llm_output: ClassifyAlertOutput, context: dict[str, Any], detector_cfg: Any
-) -> ClassifyAlertOutput:
-    """Use the configured trained bundle for the detector's binary gate."""
+def _with_research(kwargs: dict[str, Any], research: list[dict[str, Any]]) -> dict[str, Any]:
+    final_kwargs = dict(kwargs)
+    final_kwargs["extra_instructions"] = (
+        str(final_kwargs.get("extra_instructions") or "")
+        + "\n\nInvestigación delegada: análisis de historial. Úsala como "
+        "evidencia adicional y responde ahora con tu conclusión final:\n"
+        f"{research}"
+    )
+    return final_kwargs
+
+
+@dataclasses.dataclass(frozen=True)
+class _XGBoostScore:
+    score: float
+    model_id: str
+    model_tag: str
+    is_fraud: str  # "fraud" | "not_fraud" | "unknown" (uncertainty band)
+    verdict: str
+    fraud_threshold: float
+    uncertainty_threshold: float
+    top_features: list[dict[str, Any]] | None
+
+    @property
+    def reasoning(self) -> str:
+        return f"XGBoost ({self.model_tag}) obtuvo {self.score:.4f} y {self.verdict}."
+
+    def as_output(self) -> dict[str, Any]:
+        # Kept apart from the LLM's reasoning on every step output: the
+        # model's own result plus which variables weighed most (SHAP).
+        return {
+            "model_id": self.model_id,
+            "model_tag": self.model_tag,
+            "score": self.score,
+            "prediction": self.is_fraud,
+            "verdict": self.verdict,
+            "fraud_threshold": self.fraud_threshold,
+            "uncertainty_threshold": self.uncertainty_threshold,
+            "top_features": self.top_features,
+        }
+
+    def prompt_block(self) -> str:
+        return (
+            "\n\nSalida del modelo XGBoost (evidencia separada del resto de "
+            "señales; top_features son las variables con más peso en la "
+            "predicción según SHAP):\n"
+            + json.dumps(self.as_output(), ensure_ascii=False, default=str)
+        )
+
+
+@lru_cache(maxsize=4)
+def _load_model_bundle(storage_ref: str) -> dict[str, Any]:
+    # A trained bundle is immutable per storage_ref - cache the unpickled
+    # model instead of re-downloading it for every alert.
     from io import BytesIO
 
     import joblib
 
-    from src.infrastructure.entrypoint.mcp.scoring import score_row
+    return joblib.load(BytesIO(get_model_storage().get_bytes(storage_ref)))
 
-    model_id = detector_cfg.xgboost_model_id
+
+def _model_score_for(
+    context: dict[str, Any], cfg: AgentToolsConfig | None
+) -> _XGBoostScore | None:
+    if cfg is None or not cfg.use_xgboost_model:
+        return None
+    return _score_with_xgboost(context, cfg)
+
+
+def _score_with_xgboost(
+    context: dict[str, Any], cfg: AgentToolsConfig
+) -> _XGBoostScore | None:
+    """Score the alert with the configured trained bundle.
+
+    Returns None (the step runs LLM-only) when no trained model is
+    available - a model-registry problem shouldn't fail alert review.
+    Raw model results are cached per alert and model, so steps sharing a
+    model score once; thresholds/SHAP are applied per step's config.
+    """
+    model_id = cfg.xgboost_model_id
     repository = get_model_repository()
     model = repository.get(UUID(model_id)) if model_id else repository.get_active()
     if model is None or model.storage_ref is None:
-        raise ValueError("Configured XGBoost model is not trained or does not exist.")
-    bundle = joblib.load(BytesIO(get_model_storage().get_bytes(model.storage_ref)))
-    payload = (context.get("input") or {}).get("alert_payload") or {}
-    result = score_row(bundle, payload)
+        logger.warning(
+            "XGBoost enabled but model %s is not trained or does not exist; "
+            "alert %s continues LLM-only.",
+            model_id or "<active>", context.get("alert_id"),
+        )
+        return None
+    cache: dict[str, dict[str, Any]] = context.setdefault("_xgboost_results", {})
+    result = cache.get(str(model.id))
+    if result is None:
+        from src.infrastructure.entrypoint.mcp.scoring import score_row
+
+        result = score_row(_load_model_bundle(model.storage_ref), _alert_payload(context))
+        cache[str(model.id)] = result
     score = float(result["score"])
-    if score >= detector_cfg.xgboost_fraud_threshold:
+    if score >= cfg.xgboost_fraud_threshold:
         is_fraud, verdict = "fraud", "superó el umbral de fraude"
-    elif score < detector_cfg.xgboost_uncertainty_threshold:
+    elif score < cfg.xgboost_uncertainty_threshold:
         is_fraud, verdict = "not_fraud", "quedó por debajo del umbral de incertidumbre"
     else:
-        is_fraud, verdict = "unknown", "quedó entre los umbrales; requiere revisión posterior"
-    return dataclasses.replace(
-        llm_output,
-        is_fraud=is_fraud,
-        reasoning=(
-            f"XGBoost ({model.tag}) obtuvo {score:.4f} y {verdict}. "
-            f"Evaluación LLM: {llm_output.reasoning}"
-        ),
-        model_score=score,
+        is_fraud, verdict = "unknown", "quedó en la banda de incertidumbre"
+    return _XGBoostScore(
+        score=score,
         model_id=str(model.id),
-        model_top_features=result.get("top_features") if detector_cfg.xgboost_shap_enabled else None,
+        model_tag=model.tag,
+        is_fraud=is_fraud,
+        verdict=verdict,
+        fraud_threshold=cfg.xgboost_fraud_threshold,
+        uncertainty_threshold=cfg.xgboost_uncertainty_threshold,
+        top_features=result.get("top_features") if cfg.xgboost_shap_enabled else None,
     )
 
 
-def _run_detector_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
-    workflow_execution_id, step_id = _step_reporting_ids(context)
-    overrides = _step_overrides(context, "detector_adversarial")
-    segment_kwargs: dict[str, Any] = {}
-    if not overrides.get("system_prompt"):
-        segment = _active_segment(context)
-        if segment is not None:
-            detector_adversarial_cfg = segment.agent.detector_adversarial
-            if detector_adversarial_cfg.prompt:
-                segment_kwargs["extra_instructions"] = substitute_variables(
-                    detector_adversarial_cfg.prompt, _variables_pool(context, segment)
-                )
-            # No tool picker of its own by product design, same as
-            # Adversarial (clasificador) - reuses Detector's selection.
-            segment_kwargs.update(_segment_tool_kwargs(segment.agent.detector))
-    use_case = get_adversarial_review_alert_use_case(
-        status_reporter=context.get("status_reporter"),
-        workflow_execution_id=workflow_execution_id,
-        step_id=step_id,
-        step_name="detector_adversarial",
-        **overrides,
-        **segment_kwargs,
-    )
-    return use_case.execute(
-        AdversarialReviewAlertInput(
-            alert_id=UUID(context["alert_id"]),
-            pre_process=context["pre_process"],
-            profile=context["profiling"],
-            # Reuses AdversarialReviewAlertInput's `classification` field
-            # for the detector's output - same ClassifyAlertOutput shape,
-            # see _run_detector's docstring.
-            classification=context["detector"],
-        )
-    )
-
-
-def _run_classification(context: dict[str, Any]) -> ClassifyAlertOutput:
-    workflow_execution_id, step_id = _step_reporting_ids(context)
-    overrides = _step_overrides(context, "classification")
-    segment_kwargs: dict[str, Any] = {}
-    if not overrides.get("system_prompt"):
-        segment = _active_segment(context)
-        if segment is not None:
-            classification_cfg = segment.agent.classification
-            if classification_cfg.prompt:
-                segment_kwargs["extra_instructions"] = substitute_variables(
-                    classification_cfg.prompt, _variables_pool(context, segment)
-                )
-            segment_kwargs.update(_segment_tool_kwargs(classification_cfg))
-            if classification_cfg.output_labels:
-                segment_kwargs["output_labels"] = classification_cfg.output_labels
-            if classification_cfg.max_thought_iterations:
-                segment_kwargs["max_iterations"] = classification_cfg.max_thought_iterations
-    use_case = get_classify_alert_use_case(
-        status_reporter=context.get("status_reporter"),
-        workflow_execution_id=workflow_execution_id,
-        step_id=step_id,
-        **overrides,
-        **segment_kwargs,
-    )
-    alert_payload = (context.get("input") or {}).get("alert_payload") or {}
-    output = use_case.execute(
-        ClassifyAlertInput(
-            alert_id=UUID(context["alert_id"]),
-            pre_process=context["pre_process"],
-            profile=context["profiling"],
-            expected_classification=alert_payload.get(MARCACION_FIELD),
-            ground_truth_tipo=alert_payload.get(TIPO_FIELD),
-        )
-    )
-    segment = _active_segment(context)
-    if (
-        segment is None
-        or output.is_fraud != "unknown"
-        or not (
-            segment.agent.classification.delegated_research.vector_store.enabled
-            or segment.agent.classification.delegated_research.history_pandas.enabled
-        )
-    ):
-        return output
-    research = _delegated_research(
-        context, segment.agent.classification.delegated_research, output.reasoning
-    )
-    if not research:
-        return output
-    final_kwargs = dict(segment_kwargs)
-    final_kwargs["extra_instructions"] = (
-        str(final_kwargs.get("extra_instructions") or "")
-        + _research_instructions(research)
-    )
-    final = get_classify_alert_use_case(
-        status_reporter=context.get("status_reporter"),
-        workflow_execution_id=workflow_execution_id,
-        step_id=step_id,
-        **overrides,
-        **final_kwargs,
-    ).execute(
-        ClassifyAlertInput(
-            alert_id=UUID(context["alert_id"]),
-            pre_process=context["pre_process"],
-            profile=context["profiling"],
-            expected_classification=alert_payload.get(MARCACION_FIELD),
-            ground_truth_tipo=alert_payload.get(TIPO_FIELD),
-        )
-    )
-    return dataclasses.replace(final, research_delegations=research)
-
-
-def _run_adversarial(context: dict[str, Any]) -> AdversarialReviewAlertOutput:
-    workflow_execution_id, step_id = _step_reporting_ids(context)
-    overrides = _step_overrides(context, "adversarial")
-    segment_kwargs: dict[str, Any] = {}
-    if not overrides.get("system_prompt"):
-        segment = _active_segment(context)
-        if segment is not None:
-            if segment.agent.adversarial.prompt:
-                segment_kwargs["extra_instructions"] = substitute_variables(
-                    segment.agent.adversarial.prompt, _variables_pool(context, segment)
-                )
-            # No tool picker of its own by product design - reuses
-            # Classification's selection.
-            segment_kwargs.update(_segment_tool_kwargs(segment.agent.classification))
-    use_case = get_adversarial_review_alert_use_case(
-        status_reporter=context.get("status_reporter"),
-        workflow_execution_id=workflow_execution_id,
-        step_id=step_id,
-        **overrides,
-        **segment_kwargs,
-    )
-    return use_case.execute(
-        AdversarialReviewAlertInput(
-            alert_id=UUID(context["alert_id"]),
-            pre_process=context["pre_process"],
-            profile=context["profiling"],
-            classification=context["classification"],
-        )
-    )
+def _alert_payload(context: dict[str, Any]) -> dict[str, Any]:
+    return (context.get("input") or {}).get("alert_payload") or {}
 
 
 def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
@@ -1093,12 +1226,16 @@ def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
     segment = _active_segment(context)
     if segment is not None:
         segment_kwargs["handling_prompt"] = segment.agent.analyst.prompt
-        # Reuses Classification's selection - confirmed to be the same
-        # instance Detector/Clasificación already search (see
-        # ResolveAnalystPlaybookUseCase's docstring), Analyst has no vector
-        # store picker of its own, same reuse pattern as Adversarial's tools.
+        # Reuses Classification's vector-store research selection (see
+        # ResolveAnalystPlaybookUseCase's docstring) - Analyst has no
+        # vector store picker of its own.
+        classification_vector_store = (
+            segment.agent.classification.delegated_research.vector_store
+        )
         segment_kwargs["vector_store_instance_id"] = (
-            segment.agent.classification.vector_store_instance_id
+            classification_vector_store.vector_store_instance_id
+            if classification_vector_store.enabled
+            else None
         )
     use_case = get_analyst_review_alert_use_case(
         status_reporter=context.get("status_reporter"),
@@ -1198,15 +1335,35 @@ def _voicebot_script(
 
 def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
     analyst: AnalystReviewAlertOutput = context["analyst"]
-    decision = analyst.decision
     alert_id = UUID(context["alert_id"])
     segment = _active_segment(context)
     executor_cfg = segment.agent.executor if segment is not None else None
+
+    # The analyst saw availability when deciding, but it may be gone now:
+    # reserve the voicebot slot / confirm an analyst is available, and
+    # follow the playbook's fallbacks otherwise.
+    routing = get_route_alert_resolution_use_case().execute(
+        alert_id=str(alert_id),
+        decision=analyst.decision,
+        playbook=analyst.playbook,
+    )
+    decision = routing.decision
+    routing_detail: dict[str, Any] = {}
+    if routing.fallbacks:
+        routing_detail["decided_action"] = analyst.decision
+        routing_detail["fallbacks"] = [
+            dataclasses.asdict(step) for step in routing.fallbacks
+        ]
+    if routing.block_mode is not None:
+        routing_detail["block_mode"] = routing.block_mode
+    if routing.reservation_id is not None:
+        routing_detail["voicebot_reservation_id"] = routing.reservation_id
 
     if decision == "pass":
         return {
             "executed_action": "none",
             "detail": "Analyst decision was pass - no action required.",
+            **routing_detail,
         }
 
     if decision == "scale_to_analyst":
@@ -1229,6 +1386,7 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
             "executed_action": decision,
             "dispatch_backend": ref.backend,
             "dispatch_external_id": ref.external_id,
+            **routing_detail,
         }
 
     if decision in ("block", "bidi", "voicebot"):
@@ -1252,6 +1410,7 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
             "executed_action": decision,
             "dispatch_backend": ref.backend,
             "dispatch_external_id": ref.external_id,
+            **routing_detail,
         }
 
     raise ValueError(f"Unsupported analyst decision: {decision}")

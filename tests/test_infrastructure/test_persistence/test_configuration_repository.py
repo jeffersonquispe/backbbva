@@ -6,9 +6,7 @@ from datetime import datetime, timezone
 from src.application.ports.configuration_port import (
     AdversarialConfig,
     AgentSettings,
-    AnalystCapacity,
     AnalystConfig,
-    AnalystPlaybook,
     ClassificationConfig,
     ConfigurationRecord,
     DeterministicConfig,
@@ -28,19 +26,15 @@ from src.application.ports.configuration_port import (
     HistoryPandasResearchConfig,
     ModusOperandi,
     MonitoringSettings,
-    OpsSettings,
     ProfilingConfig,
     ProfilingPromptMode,
     ProfilingStrategy,
     ProfilingStrategyKey,
     PromptField,
-    ResolutionTag,
     Rubric,
     RuleCondition,
     SamplingCriterion,
-    SamplingIntervalUnit,
     SegmentSettings,
-    ShortageBehavior,
     Taxonomy,
     TestCleanupPolicy,
     TestSettings,
@@ -64,9 +58,6 @@ from src.infrastructure.persistence.database.dynamodb.repositories.configuration
     _group_key,
     _infra_from_item,
     _modus_operandi_from_item,
-    _operations_payload,
-    _ops_from_item,
-    _playbook_from_item,
     _profiling_strategy_from_item,
     _sampling_criterion_from_item,
     _segment_settings_from_item,
@@ -92,7 +83,6 @@ def _base_record(**overrides) -> ConfigurationRecord:
         active=False,
         general=GeneralSettings(),
         infra=InfraSettings(),
-        ops=OpsSettings(),
         test=TestSettings(),
         created_at=now,
         updated_at=now,
@@ -122,7 +112,6 @@ def test_owner_item_round_trips_through_to_item_and_from_item() -> None:
     assert restored.created_by == "carlos"
     assert restored.general == GeneralSettings()
     assert restored.infra == InfraSettings()
-    assert restored.ops == OpsSettings()
     assert restored.test == TestSettings()
     # ConfigurationRecord.segments defaults via default_factory here since
     # _to_item/_from_item no longer carry it - DynamoConfigurationRepository
@@ -180,15 +169,14 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
                 ],
             ),
             classification=ClassificationConfig(
-                vector_store_enabled=True,
-                vector_store_instance_id="vs-1",
                 watchlist_enabled=True,
+                use_xgboost_model=True,
+                xgboost_model_id="model-1",
                 watchlist_ids=["wl-1"],
                 watchlist_compare_field="documento",
                 prompt="clasifica esta alerta",
                 prompt_vars=["Saldo"],
                 delegated_research=DelegatedResearchSettings(
-                    priority="pandas_first",
                     vector_store=VectorStoreResearchConfig(
                         enabled=True,
                         vector_store_instance_id="research-vs-1",
@@ -198,6 +186,7 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
                         enabled=True,
                         allowed_columns=["amount", "channel"],
                         max_history_rows=250,
+                        window_days=15,
                     ),
                 ),
             ),
@@ -231,7 +220,7 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
             rubrics=[Rubric(id="fraud-score", name="estafa_score", conditions=[RuleCondition(id="device", variable="device", comparison="neq", values=["iphone"], score=5.5)])],
         ),
     )
-    # taxonomies/modus_operandi/flags/example_cases/playbooks/
+    # taxonomies/modus_operandi/flags/example_cases/
     # voicebot.category_prompts/monitoring.sampling_criteria/filter/
     # profiling.strategies all live in their own tables (own FK = this row's
     # uuid `id`) - exercised separately below and via the real tables in
@@ -263,20 +252,19 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert restored.agent.modus_operandi == []
     assert restored.agent.flags == []
     assert restored.agent.example_cases == []
-    assert restored.agent.analyst.playbooks == []
     assert restored.agent.executor.voicebot_call.category_prompts == []
-    assert restored.agent.classification.vector_store_enabled is True
-    assert restored.agent.classification.vector_store_instance_id == "vs-1"
+    assert restored.agent.classification.use_xgboost_model is True
+    assert restored.agent.classification.xgboost_model_id == "model-1"
     assert restored.agent.classification.watchlist_enabled is True
     assert restored.agent.classification.watchlist_ids == ["wl-1"]
     assert restored.agent.classification.watchlist_compare_field == "documento"
     assert restored.agent.classification.prompt == "clasifica esta alerta"
-    assert restored.agent.classification.delegated_research.priority == "pandas_first"
     assert restored.agent.classification.delegated_research.vector_store.enabled is True
     assert restored.agent.classification.delegated_research.vector_store.vector_store_instance_id == "research-vs-1"
     assert restored.agent.classification.delegated_research.vector_store.similarity_threshold == 0.82
     assert restored.agent.classification.delegated_research.history_pandas.allowed_columns == ["amount", "channel"]
     assert restored.agent.classification.delegated_research.history_pandas.max_history_rows == 250
+    assert restored.agent.classification.delegated_research.history_pandas.window_days == 15
     assert restored.agent.adversarial.max_cycles == 3
     assert restored.agent.adversarial.feed_feedback_to_classification is False
     assert restored.agent.executor.aric_marking.prompt == "marca esta alerta"
@@ -287,35 +275,45 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
 
 
 def test_segment_hydration_tolerates_pre_migration_agent_field_names() -> None:
-    # Regression: ClassificationConfig/DetectorConfig/AdversarialConfig's
-    # vector_store_instance_ids (list) was renamed to vector_store_instance_id
-    # (str | None). _agent_from_item splats each stored sub-dict as kwargs
-    # (DetectorConfig(**...)), so a row written before the rename still
-    # carries the old key and would otherwise raise
-    # "unexpected keyword argument" on every hydration - this took down
-    # aria-api's startup seeding locally.
-    segment = SegmentSettings(
-        agent=AgentSettings(
-            classification=ClassificationConfig(vector_store_instance_id="vs-1"),
-        ),
-    )
+    # Regression: _agent_from_item splats each stored sub-dict as kwargs,
+    # so a row written before a field rename/removal still carries the old
+    # key and would otherwise raise "unexpected keyword argument" on every
+    # hydration - this took down aria-api's startup seeding locally.
     item = {
         "config_key": _config_key("cfg-1", 1),
         "id": _SEGMENT_ID,
         "segment_code": "tarjetas",
-        **_segment_to_item(segment),
+        **_segment_to_item(SegmentSettings()),
     }
-    item["agent"]["detector"]["vector_store_instance_ids"] = ["stale-a", "stale-b"]
-    item["agent"]["classification"]["vector_store_instance_ids"] = ["stale-a"]
-    item["agent"]["adversarial"]["vector_store_instance_ids"] = ["stale-a"]
-    item["agent"]["detector_adversarial"]["vector_store_instance_ids"] = ["stale-a"]
+    for step in ("detector", "classification", "adversarial", "detector_adversarial"):
+        item["agent"][step]["vector_store_instance_ids"] = ["stale-a"]
+    item["agent"]["detector"]["enable_pandas_history_tool"] = True
+    item["agent"]["classification"]["delegated_research"]["priority"] = "pandas_first"
 
     restored = _segment_settings_from_item(item)
 
-    assert restored.agent.classification.vector_store_instance_id == "vs-1"
-    assert restored.agent.detector.vector_store_instance_id is None
-    assert restored.agent.adversarial.vector_store_instance_id is None
-    assert restored.agent.detector_adversarial.vector_store_instance_id is None
+    assert restored.agent.classification.delegated_research.vector_store.enabled is False
+
+
+def test_legacy_direct_vector_store_selection_becomes_the_research_tool() -> None:
+    # "Base de conocimiento" (top-level vector_store_enabled/_instance_id)
+    # was unified into the vector-store research tool - a saved selection must
+    # survive the migration instead of silently turning off.
+    item = {
+        "config_key": _config_key("cfg-1", 1),
+        "id": _SEGMENT_ID,
+        "segment_code": "tarjetas",
+        **_segment_to_item(SegmentSettings()),
+    }
+    item["agent"]["adversarial"]["vector_store_enabled"] = True
+    item["agent"]["adversarial"]["vector_store_instance_id"] = "vs-legacy"
+
+    restored = _segment_settings_from_item(item)
+
+    vector_store = restored.agent.adversarial.delegated_research.vector_store
+    assert vector_store.enabled is True
+    assert vector_store.vector_store_instance_id == "vs-legacy"
+    assert restored.agent.classification.delegated_research.vector_store.enabled is False
 
 
 def test_default_segment_round_trips_through_its_own_table_item() -> None:
@@ -346,7 +344,6 @@ def test_fk_keys_scope_by_configuration_version_group_and_criterion() -> None:
 
 def test_general_round_trips_through_its_own_table_item() -> None:
     general = GeneralSettings(
-        agent_enabled=False,
         migration_window_enabled=True,
         migration_window_datetime="2026-01-01T03:00",
     )
@@ -359,59 +356,47 @@ def test_general_round_trips_through_its_own_table_item() -> None:
     assert _general_from_item(item) == general
 
 
+def test_general_ignores_legacy_on_off_switches() -> None:
+    # Old rows still carry agent/analyst/voicebot switches - those live in
+    # OperationalSettings now, so reading them back must not break.
+    item = {
+        "configuration_id": "cfg-1",
+        "version": 1,
+        "agent_enabled": False,
+        "analyst_escalation_enabled": False,
+        "voicebot_escalation_enabled": False,
+        "migration_window_enabled": True,
+    }
+
+    assert _general_from_item(item) == GeneralSettings(migration_window_enabled=True)
+
+
+def test_analyst_prompt_survives_segment_round_trip() -> None:
+    segment = SegmentSettings(
+        enabled=True,
+        agent=AgentSettings(
+            analyst=AnalystConfig(prompt="sigue {playbook}", prompt_vars=["playbook"])
+        ),
+    )
+    item = {
+        "config_key": _config_key("cfg-1", 1),
+        "id": _SEGMENT_ID,
+        "segment_code": "tarjetas",
+        **_segment_to_item(segment),
+    }
+
+    restored = _segment_settings_from_item(item)
+
+    assert restored.agent.analyst == AnalystConfig(
+        prompt="sigue {playbook}", prompt_vars=["playbook"]
+    )
+
+
 def test_infra_round_trips_through_its_own_table_item() -> None:
     infra = InfraSettings(max_instances=16, auto_scale=False)
     item = {"configuration_id": "cfg-1", "version": 1, **asdict(infra)}
 
     assert _infra_from_item(item) == infra
-
-
-def test_operations_round_trips_through_its_own_table_item_minus_profiles() -> None:
-    ops = OpsSettings(
-        voicebot_max_concurrent_calls=99,
-        analyst_capacity=AnalystCapacity(
-            profiles=[
-                DayProfile(
-                    id="regular",
-                    name="Día regular",
-                    description="",
-                    hourly=[4] * 24,
-                )
-            ],
-            default_profile_id="regular",
-            day_overrides={15: "pago"},
-        ),
-        queue_max_lifetime_value=120,
-        queue_max_lifetime_unit=SamplingIntervalUnit.HOURS,
-        queue_discard_amount_threshold=15000,
-        voicebot_shortage_behavior=ShortageBehavior(
-            resolution_tag=ResolutionTag.BLOCK_HARD, resolution_method_id="rm-1"
-        ),
-        analyst_shortage_behavior=ShortageBehavior(
-            resolution_tag=ResolutionTag.BLOCK_SOFT, resolution_method_id="rm-2"
-        ),
-    )
-    item = {
-        "configuration_id": "cfg-1",
-        "version": 1,
-        **_operations_payload(ops),
-    }
-
-    restored = _ops_from_item(item)
-
-    # profiles live in configuration_analyst_profiles now - the repository
-    # fills this back in after _ops_from_item via a separate query.
-    assert restored.analyst_capacity.profiles == []
-    assert restored.analyst_capacity.default_profile_id == "regular"
-    assert restored.analyst_capacity.day_overrides == {15: "pago"}
-    assert restored.voicebot_max_concurrent_calls == 99
-    assert restored.queue_max_lifetime_value == 120
-    assert restored.queue_max_lifetime_unit == SamplingIntervalUnit.HOURS
-    assert restored.queue_discard_amount_threshold == 15000
-    assert restored.voicebot_shortage_behavior.resolution_tag == ResolutionTag.BLOCK_HARD
-    assert restored.voicebot_shortage_behavior.resolution_method_id == "rm-1"
-    assert restored.analyst_shortage_behavior.resolution_tag == ResolutionTag.BLOCK_SOFT
-    assert restored.analyst_shortage_behavior.resolution_method_id == "rm-2"
 
 
 def test_evaluation_round_trips_through_its_own_table_item() -> None:
@@ -509,19 +494,6 @@ def test_example_case_round_trips_through_its_own_table_item() -> None:
     item = {"segment_id": _SEGMENT_ID, **asdict(example_case)}
 
     assert _example_case_from_item(item) == example_case
-
-
-def test_playbook_round_trips_through_its_own_table_item() -> None:
-    playbook = AnalystPlaybook(
-        id="pb-1",
-        name="Escalar a analista",
-        strategy="revisar historial",
-        resolution_tag=ResolutionTag.SCALE_TO_ANALYST,
-        modus_operandi_id="mo-1",
-    )
-    item = {"segment_id": _SEGMENT_ID, **asdict(playbook)}
-
-    assert _playbook_from_item(item) == playbook
 
 
 def test_voicebot_category_prompt_round_trips_through_its_own_table_item() -> None:

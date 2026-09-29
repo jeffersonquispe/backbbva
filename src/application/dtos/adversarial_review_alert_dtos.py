@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
@@ -27,3 +28,7 @@ class AdversarialReviewAlertOutput:
     cot: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
+    # Same separate-evidence fields as ClassifyAlertOutput.
+    model_output: dict[str, Any] | None = None
+    research_delegations: list[dict[str, Any]] | None = None
+    vector_store_interactions: list[dict[str, Any]] | None = None

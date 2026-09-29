@@ -1,3 +1,5 @@
+import threading
+
 from src.application.dtos.research_dtos import (
     HistoryOperation,
     ResearchRequest,
@@ -12,6 +14,7 @@ from src.application.ports.configuration_port import (
 from src.application.use_cases.research.delegated_research import (
     HistoryPandasResearchAgent,
     ResearchDelegationCoordinator,
+    TimeBoundedResearchAgent,
     VectorStoreResearchAgent,
 )
 
@@ -66,15 +69,22 @@ def test_history_agent_executes_only_declared_operations_and_returns_audit_trace
     assert len(result.trace) == 4
 
 
-def test_history_agent_rejects_unauthorised_columns_and_never_raises_to_workflow():
+def test_history_agent_skips_operations_on_unauthorised_columns_without_exposing_them():
     agent = HistoryPandasResearchAgent(
-        _Planner([HistoryOperation("aggregate", column="document", aggregate="count")]),
+        _Planner([
+            HistoryOperation("aggregate", column="document", aggregate="count"),
+            HistoryOperation("aggregate", column="amount", aggregate="sum"),
+        ]),
         HistoryPandasResearchConfig(enabled=True, allowed_columns=("amount",)),
     )
     result = agent.research(_history_request(), [{"amount": 4, "document": "secret"}])
 
-    assert result.status == ResearchStatus.FAILED
-    assert "column is not allowed" in result.error
+    # The column selection is a scope, not an error: operations outside it
+    # are skipped, the rest still run, and the value never leaks.
+    assert result.status == ResearchStatus.EXECUTED
+    assert [finding.metric for finding in result.findings] == ["sum_amount"]
+    assert "skipped" in result.trace[1]
+    assert "secret" not in repr(result)
 
 
 def test_history_agent_rejects_operation_budget():
@@ -124,3 +134,44 @@ def test_coordinator_stops_after_evidence_becomes_conclusive():
     assert len(results) == 1
     assert vector.calls == 1
     assert pandas.calls == 0
+
+
+class _SlowAgent:
+    def __init__(self, release):
+        self.release = release
+
+    def research(self, request):
+        self.release.wait(5)
+        return ResearchResult(request.source, ResearchStatus.EXECUTED)
+
+
+def test_time_bounded_agent_fails_the_call_when_the_call_overruns():
+    release = threading.Event()
+    agent = TimeBoundedResearchAgent(_SlowAgent(release), ResearchSource.VECTOR_STORE, 0.05)
+
+    result = agent.research(ResearchRequest(ResearchSource.VECTOR_STORE, "q"))
+    release.set()
+
+    assert result.status == ResearchStatus.FAILED
+    assert result.source == ResearchSource.VECTOR_STORE
+    assert "timeout" in result.error
+
+
+def test_time_bounded_agent_returns_the_result_within_the_limit():
+    release = threading.Event()
+    release.set()
+    agent = TimeBoundedResearchAgent(_SlowAgent(release), ResearchSource.VECTOR_STORE, 5)
+
+    result = agent.research(ResearchRequest(ResearchSource.VECTOR_STORE, "q"))
+
+    assert result.status == ResearchStatus.EXECUTED
+
+
+def test_time_bounded_agent_without_limit_calls_through():
+    release = threading.Event()
+    release.set()
+    agent = TimeBoundedResearchAgent(_SlowAgent(release), ResearchSource.HISTORY_PANDAS, 0)
+
+    result = agent.research(ResearchRequest(ResearchSource.HISTORY_PANDAS, "q"))
+
+    assert result.status == ResearchStatus.EXECUTED

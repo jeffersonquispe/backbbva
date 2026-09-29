@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from src.application.dtos.test_run_dtos import DeleteTestRunsInput, DeleteTestRunsOutput
 from src.application.ports.alert_port import AlertRepository
 from src.application.ports.async_operation_port import AsyncOperationRepository
@@ -33,8 +35,11 @@ class DeleteTestRunsUseCase:
         self._operations = async_operation_repository
 
     def execute(self, input: DeleteTestRunsInput) -> DeleteTestRunsOutput:
+        return self.execute_for_ids(input.test_run_ids)
+
+    def execute_for_ids(self, test_run_ids: list[UUID]) -> DeleteTestRunsOutput:
         deleted_cases = 0
-        for test_run_id in input.test_run_ids:
+        for test_run_id in test_run_ids:
             for workflow in self._workflows.list_by_test_run(test_run_id):
                 for step in self._steps.list_by_workflow(workflow.id):
                     self._steps.delete(workflow.id, step.id)
@@ -44,6 +49,6 @@ class DeleteTestRunsUseCase:
                 deleted_cases += 1
             self._test_runs.delete(test_run_id)
         return DeleteTestRunsOutput(
-            deleted_test_runs=len(input.test_run_ids),
+            deleted_test_runs=len(test_run_ids),
             deleted_cases=deleted_cases,
         )

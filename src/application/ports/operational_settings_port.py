@@ -6,6 +6,8 @@ from typing import Any, Protocol
 
 from src.application.ports.configuration_port import (
     AnalystCapacity,
+    ListMembershipMode,
+    SamplingIntervalUnit,
     ShortageBehavior,
     TestCleanupPolicy,
 )
@@ -15,28 +17,44 @@ from src.application.ports.configuration_port import (
 class OperationalSettings:
     """Admin-configured operational levers that take effect immediately -
     no version/activate lifecycle, unlike ConfigurationRecord
-    (configuration_port.py). Distinct from OperationsCapacityPort's
-    OperationsCapacityRecord (operations_capacity_port.py): that one is a
-    live current-availability snapshot (analysts/voicebot/bidi, "available"
-    + "status") read by the analyst-review workflow at decision time; this
-    is the admin-set target/ceiling/schedule those numbers would eventually
-    be measured against (voicebot_max_concurrent_calls is the ceiling,
-    analyst_capacity is the staffing plan) - the two aren't wired together
-    yet, that link is a separate piece of work."""
+    (configuration_port.py). Everything that must react right away lives
+    here and never in a versioned configuration: the agent/analyst/voicebot
+    on-off switches, resource sizing (voicebot slots, the analyst staffing
+    matrix) and queue handling.
 
+    Resource *availability* is derived from these at read time by
+    GetOperationsCapacityUseCase (current matrix hour / slot quota minus
+    active reservations, or 0 when the resource is off). What to do when a
+    resource is short is NOT a resource setting: it belongs to each modus
+    operandi playbook's fallback chain (modus_operandi_library_port.py)."""
+
+    # OFF: manual runs and CSV batch runs still process; simulator and
+    # production alerts are skipped by the worker (see AlertOrigin).
     agent_enabled: bool = True
-    analyst_escalation_enabled: bool = True
-    voicebot_escalation_enabled: bool = True
+    # OFF: analyst availability reads as 0 / "unavailable".
+    analyst_enabled: bool = True
+    # OFF: voicebot availability reads as 0 / "unavailable".
+    voicebot_enabled: bool = True
 
     max_instances: int = 8
     auto_scale: bool = True
 
+    # Fixed quota of voicebot slots: a call holds one until its callback
+    # arrives (or the reservation TTL expires).
     voicebot_max_concurrent_calls: int = 40
-    voicebot_shortage_behavior: ShortageBehavior = field(
-        default_factory=ShortageBehavior
-    )
     analyst_capacity: AnalystCapacity = field(default_factory=AnalystCapacity)
-    analyst_shortage_behavior: ShortageBehavior = field(
+
+    queue_max_lifetime_value: int = 60
+    queue_max_lifetime_unit: SamplingIntervalUnit = SamplingIntervalUnit.MINUTES
+    queue_discard_amount_threshold: float = 0
+    # When enabled, alerts are filtered by whether their triggered_rule tag
+    # belongs to queue_allowed_triggered_rules (per queue_rule_filter_mode).
+    queue_rule_filter_enabled: bool = False
+    queue_rule_filter_mode: ListMembershipMode = ListMembershipMode.BELONGS
+    queue_allowed_triggered_rules: list[str] = field(default_factory=list)
+    # What to do with an alert instead of queuing it normally, whenever any
+    # of the queue-discard paths above trigger.
+    queue_discard_behavior: ShortageBehavior = field(
         default_factory=ShortageBehavior
     )
 

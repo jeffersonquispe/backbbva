@@ -140,6 +140,19 @@ test:  ## Run tests and generate coverage report.
 	python -m pytest
 
 
+.PHONY: test-integration-reservations
+test-integration-reservations:  ## Run resource-reservation tests (voicebot slots / analyst locks) against the running local DynamoDB. Vars: DYNAMO_PORT(8002)
+	GENAI_ENVIRONMENT=test DYNAMO_ENDPOINT=http://localhost:$${DYNAMO_PORT:-8002} DYNAMO_REGION_NAME=us-east-1 \
+		DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
+		python -m pytest -m docker_integration tests/test_integration/test_resource_reservations
+
+.PHONY: test-e2e-simulation
+test-e2e-simulation:  ## Run the simulator lifecycle/tick/dispatch e2e test against local DynamoDB. Vars: DYNAMO_PORT(8002)
+	GENAI_ENVIRONMENT=test DYNAMO_ENDPOINT=http://localhost:$${DYNAMO_PORT:-8002} DYNAMO_REGION_NAME=us-east-1 \
+		DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
+		python -m pytest -m docker_integration tests/test_integration/test_event_simulation
+
+
 .PHONY: test-unit-vector-store
 test-unit-vector-store:  ## Run isolated Vector Store use-case tests (no Docker required).
 	GENAI_ENVIRONMENT=test API_V0_STR=/api/v0 python -m pytest \

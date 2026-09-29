@@ -3,11 +3,17 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from boto3.dynamodb.conditions import Key
 
-from src.application.ports.configuration_port import AnalystCapacity, TestCleanupPolicy
+from src.application.ports.configuration_port import (
+    AnalystCapacity,
+    ListMembershipMode,
+    SamplingIntervalUnit,
+    TestCleanupPolicy,
+)
 from src.application.ports.operational_settings_port import (
     OperationalSettings,
     OperationalSettingsChange,
@@ -64,41 +70,62 @@ def _to_item(settings: OperationalSettings) -> dict[str, Any]:
         str(day): profile_id
         for day, profile_id in payload["analyst_capacity"]["day_overrides"].items()
     }
+    # boto3's resource layer rejects native float.
+    payload["queue_discard_amount_threshold"] = Decimal(
+        str(payload["queue_discard_amount_threshold"])
+    )
     return {"record_id": SETTINGS_RECORD_ID, **payload}
 
 
 def _from_item(item: dict[str, Any]) -> OperationalSettings:
     capacity_item = item.get("analyst_capacity") or {}
+    defaults = AnalystCapacity()
+    profiles = [
+        _day_profile_from_item(p) for p in capacity_item.get("profiles") or []
+    ]
     return OperationalSettings(
         agent_enabled=bool(item.get("agent_enabled", True)),
-        analyst_escalation_enabled=bool(
-            item.get("analyst_escalation_enabled", True)
+        # Pre-rename items stored these as *_escalation_enabled.
+        analyst_enabled=bool(
+            item.get("analyst_enabled", item.get("analyst_escalation_enabled", True))
         ),
-        voicebot_escalation_enabled=bool(
-            item.get("voicebot_escalation_enabled", True)
+        voicebot_enabled=bool(
+            item.get("voicebot_enabled", item.get("voicebot_escalation_enabled", True))
         ),
         max_instances=int(item.get("max_instances", 8)),
         auto_scale=bool(item.get("auto_scale", True)),
         voicebot_max_concurrent_calls=int(
             item.get("voicebot_max_concurrent_calls", 40)
         ),
-        voicebot_shortage_behavior=_shortage_behavior_from_item(
-            item.get("voicebot_shortage_behavior") or {}
-        ),
         analyst_capacity=AnalystCapacity(
-            profiles=[
-                _day_profile_from_item(p) for p in capacity_item.get("profiles") or []
-            ],
-            default_profile_id=capacity_item.get("default_profile_id") or "regular",
-            day_overrides={
-                int(day): profile_id
-                for day, profile_id in (
-                    capacity_item.get("day_overrides") or {}
-                ).items()
-            },
+            profiles=profiles or defaults.profiles,
+            default_profile_id=capacity_item.get("default_profile_id")
+            or defaults.default_profile_id,
+            day_overrides=(
+                {
+                    int(day): profile_id
+                    for day, profile_id in capacity_item["day_overrides"].items()
+                }
+                if "day_overrides" in capacity_item
+                else defaults.day_overrides
+            ),
         ),
-        analyst_shortage_behavior=_shortage_behavior_from_item(
-            item.get("analyst_shortage_behavior") or {}
+        queue_max_lifetime_value=int(item.get("queue_max_lifetime_value", 60)),
+        queue_max_lifetime_unit=SamplingIntervalUnit(
+            item.get("queue_max_lifetime_unit", "minutes")
+        ),
+        queue_discard_amount_threshold=float(
+            item.get("queue_discard_amount_threshold", 0)
+        ),
+        queue_rule_filter_enabled=bool(item.get("queue_rule_filter_enabled", False)),
+        queue_rule_filter_mode=ListMembershipMode(
+            item.get("queue_rule_filter_mode", "belongs")
+        ),
+        queue_allowed_triggered_rules=list(
+            item.get("queue_allowed_triggered_rules") or []
+        ),
+        queue_discard_behavior=_shortage_behavior_from_item(
+            item.get("queue_discard_behavior") or {}
         ),
         max_test_instances=int(item.get("max_test_instances", 4)),
         max_concurrent_experiments=int(item.get("max_concurrent_experiments", 3)),

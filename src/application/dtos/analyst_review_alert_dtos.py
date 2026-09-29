@@ -6,6 +6,7 @@ from uuid import UUID
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
+from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
 
 # The five actions the analyst decision agent can route an alert to.
 VALID_ANALYST_DECISIONS = (
@@ -29,18 +30,19 @@ class AnalystReviewAlertInput:
 class AnalystReviewAlertOutput:
     decision: str  # one of VALID_ANALYST_DECISIONS
     reasoning: str
-    playbook_title: str
-    playbook_steps: list[str] = field(default_factory=list)
-    # Name of the AnalystPlaybook resolved via ResolveAnalystPlaybookUseCase
-    # (None if no segment playbook's modus_operandi_id matched, or the
-    # segment has no vector store configured) - advisory context fed to the
-    # analyst LLM alongside playbook_title/playbook_steps, surfaced here for
-    # observability into which one (if any) actually matched.
-    modus_operandi_playbook_name: str | None = None
-    # channel -> {"available": int, "status": str}, no datetimes - this
-    # DTO gets dataclasses.asdict()'d straight into a DynamoDB step record
-    # and into a Celery task's JSON args, both of which reject raw
-    # datetime values.
+    # The modus operandi playbook that guided the decision (resolved via
+    # ResolveAnalystPlaybookUseCase). None = no close modus operandi had a
+    # playbook, so the no-playbook default applied (escalate to an analyst,
+    # block soft if none is available) without calling the LLM. The
+    # executor reads its fallbacks when the chosen resource is gone by the
+    # time it reserves it.
+    modus_operandi_id: str | None = None
+    modus_operandi_title: str | None = None
+    playbook: ModusOperandiPlaybook | None = None
+    # channel -> {"available": int, "status": str, "total": int | None}, no
+    # datetimes - this DTO gets dataclasses.asdict()'d straight into a
+    # DynamoDB step record and into a Celery task's JSON args, both of
+    # which reject raw datetime values.
     operations_capacity: dict[str, dict[str, object]] = field(
         default_factory=dict
     )

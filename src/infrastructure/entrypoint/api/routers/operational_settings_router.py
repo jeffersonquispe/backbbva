@@ -88,14 +88,11 @@ def list_operational_settings_history(
 def _to_schema(settings: OperationalSettings) -> OperationalSettingsSchema:
     return OperationalSettingsSchema(
         agent_enabled=settings.agent_enabled,
-        analyst_escalation_enabled=settings.analyst_escalation_enabled,
-        voicebot_escalation_enabled=settings.voicebot_escalation_enabled,
+        analyst_enabled=settings.analyst_enabled,
+        voicebot_enabled=settings.voicebot_enabled,
         max_instances=settings.max_instances,
         auto_scale=settings.auto_scale,
         voicebot_max_concurrent_calls=settings.voicebot_max_concurrent_calls,
-        voicebot_shortage_behavior=ShortageBehaviorSchema(
-            **settings.voicebot_shortage_behavior.__dict__
-        ),
         analyst_capacity=AnalystCapacitySchema(
             profiles=[
                 DayProfileSchema(**p.__dict__)
@@ -104,8 +101,14 @@ def _to_schema(settings: OperationalSettings) -> OperationalSettingsSchema:
             default_profile_id=settings.analyst_capacity.default_profile_id,
             day_overrides=settings.analyst_capacity.day_overrides,
         ),
-        analyst_shortage_behavior=ShortageBehaviorSchema(
-            **settings.analyst_shortage_behavior.__dict__
+        queue_max_lifetime_value=settings.queue_max_lifetime_value,
+        queue_max_lifetime_unit=settings.queue_max_lifetime_unit,
+        queue_discard_amount_threshold=settings.queue_discard_amount_threshold,
+        queue_rule_filter_enabled=settings.queue_rule_filter_enabled,
+        queue_rule_filter_mode=settings.queue_rule_filter_mode,
+        queue_allowed_triggered_rules=settings.queue_allowed_triggered_rules,
+        queue_discard_behavior=ShortageBehaviorSchema(
+            **settings.queue_discard_behavior.__dict__
         ),
         max_test_instances=settings.max_test_instances,
         max_concurrent_experiments=settings.max_concurrent_experiments,
@@ -118,14 +121,11 @@ def _to_schema(settings: OperationalSettings) -> OperationalSettingsSchema:
 def _from_schema(schema: OperationalSettingsSchema) -> OperationalSettings:
     return OperationalSettings(
         agent_enabled=schema.agent_enabled,
-        analyst_escalation_enabled=schema.analyst_escalation_enabled,
-        voicebot_escalation_enabled=schema.voicebot_escalation_enabled,
+        analyst_enabled=schema.analyst_enabled,
+        voicebot_enabled=schema.voicebot_enabled,
         max_instances=schema.max_instances,
         auto_scale=schema.auto_scale,
         voicebot_max_concurrent_calls=schema.voicebot_max_concurrent_calls,
-        voicebot_shortage_behavior=ShortageBehavior(
-            **schema.voicebot_shortage_behavior.model_dump()
-        ),
         analyst_capacity=AnalystCapacity(
             profiles=[
                 DayProfile(**p.model_dump())
@@ -134,8 +134,14 @@ def _from_schema(schema: OperationalSettingsSchema) -> OperationalSettings:
             default_profile_id=schema.analyst_capacity.default_profile_id,
             day_overrides=schema.analyst_capacity.day_overrides,
         ),
-        analyst_shortage_behavior=ShortageBehavior(
-            **schema.analyst_shortage_behavior.model_dump()
+        queue_max_lifetime_value=schema.queue_max_lifetime_value,
+        queue_max_lifetime_unit=schema.queue_max_lifetime_unit,
+        queue_discard_amount_threshold=schema.queue_discard_amount_threshold,
+        queue_rule_filter_enabled=schema.queue_rule_filter_enabled,
+        queue_rule_filter_mode=schema.queue_rule_filter_mode,
+        queue_allowed_triggered_rules=schema.queue_allowed_triggered_rules,
+        queue_discard_behavior=ShortageBehavior(
+            **schema.queue_discard_behavior.model_dump()
         ),
         max_test_instances=schema.max_test_instances,
         max_concurrent_experiments=schema.max_concurrent_experiments,

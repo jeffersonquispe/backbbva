@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -10,7 +10,6 @@ from src.application.ports.configuration_port import (
     AlertParserConfig,
     AlertParserField,
     AgentSettings,
-    AnalystCapacity,
     AnalystConfig,
     ClassificationConfig,
     ConfigurationRecord,
@@ -19,7 +18,6 @@ from src.application.ports.configuration_port import (
     DetectorConfig,
     DetectorAdversarialConfig,
     DeterministicRule,
-    DayProfile,
     DistributionValue,
     DocumentationConfig,
     ExampleCase,
@@ -32,7 +30,6 @@ from src.application.ports.configuration_port import (
     HistoryPandasResearchConfig,
     ModusOperandi,
     MonitoringSettings,
-    OpsSettings,
     ProfilingConfig,
     ProfilingStrategy,
     PromptField,
@@ -40,7 +37,6 @@ from src.application.ports.configuration_port import (
     RuleCondition,
     SamplingCriterion,
     SegmentSettings,
-    ShortageBehavior,
     Taxonomy,
     VectorStoreResearchConfig,
     TestSettings,
@@ -84,7 +80,6 @@ from src.infrastructure.entrypoint.api.factories.configuration_factory import (
 from src.infrastructure.entrypoint.api.schemas import (
     AdversarialConfigSchema,
     AgentSettingsSchema,
-    AnalystCapacitySchema,
     AlertParserConfigSchema,
     AlertParserFieldSchema,
     AnalystConfigSchema,
@@ -93,7 +88,6 @@ from src.infrastructure.entrypoint.api.schemas import (
     ConfigurationDetailResponse,
     ConfigurationSummaryResponse,
     CreateConfigurationRequest,
-    DayProfileSchema,
     DeterministicConfigSchema,
     DetectorConfigSchema,
     DelegatedResearchSettingsSchema,
@@ -110,7 +104,6 @@ from src.infrastructure.entrypoint.api.schemas import (
     InfraSettingsSchema,
     ModusOperandiSchema,
     MonitoringSettingsSchema,
-    OpsSettingsSchema,
     ProfilingConfigSchema,
     ProfilingStrategySchema,
     PromptFieldSchema,
@@ -118,7 +111,6 @@ from src.infrastructure.entrypoint.api.schemas import (
     RubricSchema,
     SamplingCriterionSchema,
     SegmentSettingsSchema,
-    ShortageBehaviorSchema,
     TaxonomySchema,
     TestConfigurationResponse,
     TestSettingsSchema,
@@ -176,7 +168,6 @@ def _input_from_request(request: CreateConfigurationRequest) -> CreateConfigurat
         description=request.description,
         general=_general_from_schema(request.general),
         infra=_infra_from_schema(request.infra),
-        ops=_ops_from_schema(request.ops),
         test=_test_from_schema(request.test),
         created_by=request.created_by,
         segments={
@@ -286,32 +277,6 @@ def _to_detail_response(record: ConfigurationRecord) -> ConfigurationDetailRespo
         created_by=record.created_by,
         general=GeneralSettingsSchema(**record.general.__dict__),
         infra=InfraSettingsSchema(**record.infra.__dict__),
-        ops=OpsSettingsSchema(
-            voicebot_max_concurrent_calls=record.ops.voicebot_max_concurrent_calls,
-            analyst_capacity=AnalystCapacitySchema(
-                profiles=[
-                    DayProfileSchema(**p.__dict__)
-                    for p in record.ops.analyst_capacity.profiles
-                ],
-                default_profile_id=record.ops.analyst_capacity.default_profile_id,
-                day_overrides=record.ops.analyst_capacity.day_overrides,
-            ),
-            queue_max_lifetime_value=record.ops.queue_max_lifetime_value,
-            queue_max_lifetime_unit=record.ops.queue_max_lifetime_unit,
-            queue_discard_amount_threshold=record.ops.queue_discard_amount_threshold,
-            queue_rule_filter_enabled=record.ops.queue_rule_filter_enabled,
-            queue_rule_filter_mode=record.ops.queue_rule_filter_mode,
-            queue_allowed_triggered_rules=record.ops.queue_allowed_triggered_rules,
-            queue_discard_behavior=ShortageBehaviorSchema(
-                **record.ops.queue_discard_behavior.__dict__
-            ),
-            voicebot_shortage_behavior=ShortageBehaviorSchema(
-                **record.ops.voicebot_shortage_behavior.__dict__
-            ),
-            analyst_shortage_behavior=ShortageBehaviorSchema(
-                **record.ops.analyst_shortage_behavior.__dict__
-            ),
-        ),
         test=TestSettingsSchema(**record.test.__dict__),
         segments={
             code: _segment_settings_to_schema(settings)
@@ -355,23 +320,29 @@ def _profiling_to_schema(profiling: ProfilingConfig) -> ProfilingConfigSchema:
     )
 
 
-def _classification_to_schema(
-    classification: ClassificationConfig,
-) -> ClassificationConfigSchema:
-    return ClassificationConfigSchema(
+def _tools_config_to_schema(config: Any, schema_cls: type) -> Any:
+    # Shared by the four AgentToolsConfig subclasses (Detector, its
+    # Adversarial, Classification, its Adversarial).
+    research = config.delegated_research
+    return schema_cls(
         **{
-            **classification.__dict__,
+            **config.__dict__,
             "delegated_research": DelegatedResearchSettingsSchema(
-                vector_store=classification.delegated_research.vector_store.__dict__,
-                history_pandas=classification.delegated_research.history_pandas.__dict__,
-                priority=classification.delegated_research.priority,
+                vector_store=research.vector_store.__dict__,
+                history_pandas=research.history_pandas.__dict__,
             ),
         }
     )
 
 
+def _classification_to_schema(
+    classification: ClassificationConfig,
+) -> ClassificationConfigSchema:
+    return _tools_config_to_schema(classification, ClassificationConfigSchema)
+
+
 def _adversarial_to_schema(adversarial: AdversarialConfig) -> AdversarialConfigSchema:
-    return AdversarialConfigSchema(**adversarial.__dict__)
+    return _tools_config_to_schema(adversarial, AdversarialConfigSchema)
 
 
 def _voicebot_to_schema(voicebot: VoicebotConfig) -> VoicebotConfigSchema:
@@ -424,17 +395,10 @@ def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
             )
             for rubric in agent.rubrics
         ],
-        detector=DetectorConfigSchema(
-            **{
-                **agent.detector.__dict__,
-                "delegated_research": DelegatedResearchSettingsSchema(
-                    vector_store=agent.detector.delegated_research.vector_store.__dict__,
-                    history_pandas=agent.detector.delegated_research.history_pandas.__dict__,
-                    priority=agent.detector.delegated_research.priority,
-                ),
-            }
+        detector=_tools_config_to_schema(agent.detector, DetectorConfigSchema),
+        detector_adversarial=_tools_config_to_schema(
+            agent.detector_adversarial, DetectorAdversarialConfigSchema
         ),
-        detector_adversarial=DetectorAdversarialConfigSchema(**agent.detector_adversarial.__dict__),
         classification=_classification_to_schema(agent.classification),
         adversarial=_adversarial_to_schema(agent.adversarial),
         analyst=_analyst_to_schema(agent.analyst),
@@ -458,35 +422,6 @@ def _general_from_schema(schema: GeneralSettingsSchema) -> GeneralSettings:
 
 def _infra_from_schema(schema: InfraSettingsSchema) -> InfraSettings:
     return InfraSettings(**schema.model_dump())
-
-
-def _ops_from_schema(schema: OpsSettingsSchema) -> OpsSettings:
-    return OpsSettings(
-        voicebot_max_concurrent_calls=schema.voicebot_max_concurrent_calls,
-        analyst_capacity=AnalystCapacity(
-            profiles=[
-                DayProfile(**p.model_dump())
-                for p in schema.analyst_capacity.profiles
-            ],
-            default_profile_id=schema.analyst_capacity.default_profile_id,
-            day_overrides=schema.analyst_capacity.day_overrides,
-        ),
-        queue_max_lifetime_value=schema.queue_max_lifetime_value,
-        queue_max_lifetime_unit=schema.queue_max_lifetime_unit,
-        queue_discard_amount_threshold=schema.queue_discard_amount_threshold,
-        queue_rule_filter_enabled=schema.queue_rule_filter_enabled,
-        queue_rule_filter_mode=schema.queue_rule_filter_mode,
-        queue_allowed_triggered_rules=schema.queue_allowed_triggered_rules,
-        queue_discard_behavior=ShortageBehavior(
-            **schema.queue_discard_behavior.model_dump()
-        ),
-        voicebot_shortage_behavior=ShortageBehavior(
-            **schema.voicebot_shortage_behavior.model_dump()
-        ),
-        analyst_shortage_behavior=ShortageBehavior(
-            **schema.analyst_shortage_behavior.model_dump()
-        ),
-    )
 
 
 def _monitoring_from_schema(schema: MonitoringSettingsSchema) -> MonitoringSettings:
@@ -524,36 +459,30 @@ def _profiling_from_schema(schema: ProfilingConfigSchema) -> ProfilingConfig:
     )
 
 
+def _tools_config_from_schema(schema: Any, config_cls: type) -> Any:
+    payload = schema.model_dump()
+    research = payload.pop("delegated_research")
+    return config_cls(
+        **payload,
+        delegated_research=DelegatedResearchSettings(
+            vector_store=VectorStoreResearchConfig(**research["vector_store"]),
+            history_pandas=HistoryPandasResearchConfig(**research["history_pandas"]),
+        ),
+    )
+
+
 def _classification_from_schema(
     schema: ClassificationConfigSchema,
 ) -> ClassificationConfig:
-    payload = schema.model_dump()
-    research = payload.pop("delegated_research")
-    return ClassificationConfig(
-        **payload,
-        delegated_research=DelegatedResearchSettings(
-            priority=research["priority"],
-            vector_store=VectorStoreResearchConfig(**research["vector_store"]),
-            history_pandas=HistoryPandasResearchConfig(**research["history_pandas"]),
-        ),
-    )
+    return _tools_config_from_schema(schema, ClassificationConfig)
 
 
 def _detector_from_schema(schema: DetectorConfigSchema) -> DetectorConfig:
-    payload = schema.model_dump()
-    research = payload.pop("delegated_research")
-    return DetectorConfig(
-        **payload,
-        delegated_research=DelegatedResearchSettings(
-            priority=research["priority"],
-            vector_store=VectorStoreResearchConfig(**research["vector_store"]),
-            history_pandas=HistoryPandasResearchConfig(**research["history_pandas"]),
-        ),
-    )
+    return _tools_config_from_schema(schema, DetectorConfig)
 
 
 def _adversarial_from_schema(schema: AdversarialConfigSchema) -> AdversarialConfig:
-    return AdversarialConfig(**schema.model_dump())
+    return _tools_config_from_schema(schema, AdversarialConfig)
 
 
 def _voicebot_from_schema(schema: VoicebotConfigSchema) -> VoicebotConfig:
@@ -606,7 +535,9 @@ def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
             for rubric in schema.rubrics
         ],
         detector=_detector_from_schema(schema.detector),
-        detector_adversarial=DetectorAdversarialConfig(**schema.detector_adversarial.model_dump()),
+        detector_adversarial=_tools_config_from_schema(
+            schema.detector_adversarial, DetectorAdversarialConfig
+        ),
         classification=_classification_from_schema(schema.classification),
         adversarial=_adversarial_from_schema(schema.adversarial),
         analyst=_analyst_from_schema(schema.analyst),

@@ -7,12 +7,10 @@ from src.application.ports.configuration_port import (
     ConfigurationRecord,
     GeneralSettings,
     InfraSettings,
-    OpsSettings,
     ResolutionTag,
     TestSettings,
 )
 from src.application.ports.channel_library_port import ChannelLibraryEntry
-from src.application.ports.fraud_playbook_port import FraudPlaybookRecord
 from src.application.ports.marcacion_catalog_port import MarcacionCategory, RiskLabel
 from src.application.ports.resolution_method_catalog_port import ResolutionMethod
 from src.application.ports.operations_capacity_port import (
@@ -24,9 +22,6 @@ from src.application.ports.variable_catalog_port import VariableEntry
 from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
     DynamoConfigurationRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.fraud_playbook_repository import (
-    DynamoFraudPlaybookRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.marcacion_catalog_repository import (
     DynamoMarcacionCatalogRepository,
@@ -63,7 +58,6 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     ALERTS_TABLE,
     ASYNC_OPERATIONS_TABLE,
     AUDIT_LOG_TABLE,
-    CONFIGURATION_ANALYST_PROFILES_TABLE,
     CONFIGURATION_EVALUATION_TABLE,
     CONFIGURATION_EXAMPLES_TABLE,
     CONFIGURATION_FILTER_CONDITIONS_TABLE,
@@ -71,8 +65,6 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     CONFIGURATION_GENERAL_TABLE,
     CONFIGURATION_INFRASTRUCTURE_TABLE,
     CONFIGURATION_MODUS_OPERANDI_TABLE,
-    CONFIGURATION_OPERATIONS_TABLE,
-    CONFIGURATION_PLAYBOOKS_TABLE,
     CONFIGURATION_PROFILING_STRATEGIES_TABLE,
     CONFIGURATION_RED_YELLOW_FLAGS_TABLE,
     CONFIGURATION_SAMPLING_CRITERIA_TABLE,
@@ -85,7 +77,6 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     DATASET_SAMPLES_TABLE,
     DATASET_SUMMARIES_TABLE,
     FEEDBACK_TABLE,
-    FRAUD_PLAYBOOKS_TABLE,
     LIBRARY_CHANNELS_TABLE,
     LIBRARY_FLAGS_TABLE,
     LIBRARY_MODUS_OPERANDI_TABLE,
@@ -98,6 +89,8 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     OPERATIONAL_SETTINGS_HISTORY_TABLE,
     OPERATIONAL_SETTINGS_TABLE,
     OPERATIONS_CAPACITY_TABLE,
+    RESOURCE_LOCKS_TABLE,
+    RESOURCE_RESERVATIONS_TABLE,
     RESOLUTION_METHOD_CATALOG_TABLE,
     TAG_CATALOG_TABLE,
     TEST_RUNS_TABLE,
@@ -109,41 +102,8 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     USERS_TABLE,
 )
 
-# Seeded once, only if missing - reference/ops data, not per-alert state.
-_DEFAULT_PLAYBOOKS = [
-    FraudPlaybookRecord(
-        classification="ACCOUNT_TAKEOVER",
-        title="Account takeover response playbook",
-        steps=[
-            "Verify the device/session change against the customer's known "
-            "device and location history.",
-            "Check for a recent credential or personal data change "
-            "preceding the transaction.",
-            "If identity cannot be confirmed with available signals, "
-            "require step-up verification before releasing funds.",
-            "If confirmed fraud, block the transaction and freeze the "
-            "affected channel.",
-        ],
-        # Placeholder timestamps - this list is a template read by
-        # seed_defaults() below, which stamps the real created_at/updated_at
-        # at seed time. Required here only to satisfy the dataclass.
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    ),
-    FraudPlaybookRecord(
-        classification="unknown",
-        title="Generic manual review playbook",
-        steps=[
-            "No specific playbook matched this classification - treat as "
-            "inconclusive.",
-            "Review available evidence and prefer routing to a human "
-            "analyst over an automated decision.",
-        ],
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    ),
-]
-
+# Seeded once, only if missing - only its bidi entry is read today (analyst
+# and voicebot availability are computed live, see LiveOperationsCapacity).
 _DEFAULT_CAPACITY = OperationsCapacityRecord(
     analysts=ChannelCapacity(available=5, status="available"),
     voicebot=ChannelCapacity(available=20, status="available"),
@@ -328,10 +288,11 @@ def ensure_all_tables() -> None:
     create_table(ALERTS_TABLE)
     create_table(WORKFLOW_EXECUTIONS_TABLE)
     create_table(WORKFLOW_STEP_EXECUTIONS_TABLE)
-    create_table(FRAUD_PLAYBOOKS_TABLE)
     create_table(OPERATIONS_CAPACITY_TABLE)
     create_table(OPERATIONAL_SETTINGS_TABLE)
     create_table(OPERATIONAL_SETTINGS_HISTORY_TABLE)
+    create_table(RESOURCE_LOCKS_TABLE)
+    create_table(RESOURCE_RESERVATIONS_TABLE)
     create_table(TEST_RUNS_TABLE)
     from src.infrastructure.persistence.database.dynamodb.schemas import FEATURE_TEMPLATES_TABLE
     create_table(FEATURE_TEMPLATES_TABLE)
@@ -340,16 +301,13 @@ def ensure_all_tables() -> None:
     create_table(CONFIGURATION_DEPLOY_REQUESTS_TABLE)
     create_table(CONFIGURATION_GENERAL_TABLE)
     create_table(CONFIGURATION_INFRASTRUCTURE_TABLE)
-    create_table(CONFIGURATION_OPERATIONS_TABLE)
     create_table(CONFIGURATION_EVALUATION_TABLE)
-    create_table(CONFIGURATION_ANALYST_PROFILES_TABLE)
     create_table(CONFIGURATION_SEGMENTS_TABLE)
     create_table(CONFIGURATION_PROFILING_STRATEGIES_TABLE)
     create_table(CONFIGURATION_TAXONOMIES_TABLE)
     create_table(CONFIGURATION_MODUS_OPERANDI_TABLE)
     create_table(CONFIGURATION_RED_YELLOW_FLAGS_TABLE)
     create_table(CONFIGURATION_EXAMPLES_TABLE)
-    create_table(CONFIGURATION_PLAYBOOKS_TABLE)
     create_table(CONFIGURATION_VOICEBOT_PROMPTS_TABLE)
     create_table(CONFIGURATION_SAMPLING_CRITERIA_TABLE)
     create_table(CONFIGURATION_SAMPLING_CRITERIA_VALUES_TABLE)
@@ -377,21 +335,6 @@ def ensure_all_tables() -> None:
 def seed_defaults() -> None:
     """Seed reference/ops data the analyst step depends on, only if
     missing - idempotent, safe to run on every startup."""
-    playbooks = DynamoFraudPlaybookRepository()
-    for playbook in _DEFAULT_PLAYBOOKS:
-        now = datetime.now(timezone.utc)
-        if playbooks.get(playbook.classification) is None:
-            playbooks.create(
-                FraudPlaybookRecord(
-                    classification=playbook.classification,
-                    title=playbook.title,
-                    steps=playbook.steps,
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-            print(f"Playbook sembrado: {playbook.classification}")
-
     capacity_table = get_dynamodb_resource().Table(OPERATIONS_CAPACITY_TABLE["TableName"])
     existing = capacity_table.get_item(Key={"record_id": "current"}).get("Item")
     if existing is None:
@@ -410,7 +353,6 @@ def seed_defaults() -> None:
                 active=False,
                 general=GeneralSettings(),
                 infra=InfraSettings(),
-                ops=OpsSettings(),
                 test=TestSettings(),
                 created_at=now,
                 updated_at=now,

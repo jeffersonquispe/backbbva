@@ -16,7 +16,6 @@ from src.application.ports.configuration_port import (
     InfraSettings,
     LogicalOperator,
     MonitoringSettings,
-    OpsSettings,
     SegmentSettings,
     TestSettings,
     default_segments,
@@ -121,7 +120,6 @@ def _with_active(
         ever_activated=config.ever_activated if ever_activated is None else ever_activated,
         general=config.general,
         infra=config.infra,
-        ops=config.ops,
         test=config.test,
         created_at=config.created_at,
         updated_at=datetime.now(timezone.utc),
@@ -190,7 +188,6 @@ def test_create_configuration_starts_new_lineage_at_version_1_inactive() -> None
     assert record.active is False
     assert record.general == GeneralSettings()
     assert record.infra == InfraSettings()
-    assert record.ops == OpsSettings()
     assert record.test == TestSettings()
     assert record.segments == default_segments()
     assert set(record.segments) == {"canales_digitales", "tarjetas"}
