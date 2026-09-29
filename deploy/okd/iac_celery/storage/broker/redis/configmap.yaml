@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aria-redis-config
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: broker
+    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/managed-by: argocd
+data:
+  REDIS_APPENDONLY: "yes"

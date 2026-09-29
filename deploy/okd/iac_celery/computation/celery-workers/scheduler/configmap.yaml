@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aria-scheduler-config
+  labels:
+    app.kubernetes.io/name: scheduler
+    app.kubernetes.io/component: celery-scheduler
+    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/managed-by: argocd
+data:
+  GENAI_ENVIRONMENT: development
+  API_V0_STR: /api/v0
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  CELERY_DEFAULT_QUEUE: default
+  CELERY_RECONCILE_INTERVAL_SECONDS: "60"
+  CELERY_RECONCILE_LIMIT: "100"
+  CELERY_TEST_RUN_CLEANUP_INTERVAL_SECONDS: "3600"

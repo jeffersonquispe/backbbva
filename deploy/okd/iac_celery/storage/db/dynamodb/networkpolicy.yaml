@@ -1,0 +1,12 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dynamodb-ingress
+  labels: {app.kubernetes.io/name: dynamodb, app.kubernetes.io/part-of: aria, app.kubernetes.io/managed-by: argocd}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: dynamodb}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [api, mcp, worker, test-worker, simulator-worker]}]}
+      ports: [{protocol: TCP, port: 8000}]

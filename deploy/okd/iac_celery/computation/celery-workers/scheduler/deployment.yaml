@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler
+  labels:
+    app.kubernetes.io/name: scheduler
+    app.kubernetes.io/component: celery-scheduler
+    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: scheduler}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: scheduler, app.kubernetes.io/component: celery-scheduler, app.kubernetes.io/part-of: aria}}
+    spec:
+      serviceAccountName: aria-scheduler
+      containers:
+        - name: scheduler
+          image: REGISTRY_REPLACE_ME/aria-worker:IMAGE_TAG_REPLACE_ME
+          command: [celery, -A, src.infrastructure.entrypoint.worker.celery.celery_app:app, beat, --loglevel=INFO, --schedule=/tmp/celerybeat-schedule]
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
+          resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
+          envFrom:
+            - configMapRef: {name: aria-scheduler-config}
+
+          volumeMounts: [{name: secrets-store, mountPath: /mnt/secrets-store, readOnly: true}]
+      volumes:
+        - name: secrets-store
+          csi: {driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: {secretProviderClass: aria-scheduler-secrets}}

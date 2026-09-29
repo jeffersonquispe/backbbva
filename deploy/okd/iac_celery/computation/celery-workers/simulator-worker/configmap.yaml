@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aria-simulator-worker-config
+  labels:
+    app.kubernetes.io/name: simulator-worker
+    app.kubernetes.io/component: celery-worker
+    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/managed-by: argocd
+data:
+  GENAI_ENVIRONMENT: development
+  API_V0_STR: /api/v0
+  COMPONENT_NAME: aria-event-simulator-worker
+  DYNAMO_ENDPOINT: http://dynamodb:8000
+  DYNAMO_REGION_NAME: us-east-1
+  EVENT_SIMULATOR_TICK_SECONDS: "10"
+  EVENT_SIMULATOR_MAX_EVENTS_PER_TICK: "200"
+  EVENT_SIMULATOR_CELERY_BROKER_URL: redis://redis:6379/2
+  EVENT_SIMULATOR_CELERY_RESULT_BACKEND: redis://redis:6379/3
+  EVENT_SIMULATOR_CELERY_QUEUE: event_simulation
+  EVENT_SIMULATOR_ARIA_API_BASE_URL: http://api:8000
+  OTEL_ENDPOINT: OTEL_ENDPOINT_REPLACE_ME
+  OTEL_CAPTURE_LLM_CONTENT: "false"

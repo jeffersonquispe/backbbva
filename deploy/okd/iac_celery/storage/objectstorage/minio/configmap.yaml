@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aria-minio-config
+  labels:
+    app.kubernetes.io/name: minio
+    app.kubernetes.io/component: objectstorage
+    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/managed-by: argocd
+data:
+  MINIO_BROWSER: "off"

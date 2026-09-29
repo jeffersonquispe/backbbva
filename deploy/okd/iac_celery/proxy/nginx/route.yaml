@@ -1,0 +1,14 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: nginx
+  annotations: {haproxy.router.openshift.io/timeout: 300s}
+  labels:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/component: proxy
+    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/managed-by: argocd
+spec:
+  to: {kind: Service, name: nginx}
+  port: {targetPort: http}
+  tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}

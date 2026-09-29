@@ -1,0 +1,12 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp-ingress
+  labels: {app.kubernetes.io/name: mcp, app.kubernetes.io/part-of: aria, app.kubernetes.io/managed-by: argocd}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: mcp}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app.kubernetes.io/name: api}}
+      ports: [{protocol: TCP, port: 8100}]

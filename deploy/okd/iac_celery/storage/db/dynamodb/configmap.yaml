@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aria-dynamodb-config
+  labels: {app.kubernetes.io/name: dynamodb, app.kubernetes.io/component: database, app.kubernetes.io/part-of: aria, app.kubernetes.io/managed-by: argocd}
+data:
+  DYNAMODB_COMMAND: -jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data
