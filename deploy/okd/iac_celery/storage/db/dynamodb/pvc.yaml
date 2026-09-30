@@ -5,5 +5,5 @@ metadata:
   labels: {app.kubernetes.io/name: dynamodb, app.kubernetes.io/component: database, app.kubernetes.io/part-of: aria, app.kubernetes.io/managed-by: argocd}
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: STORAGE_CLASS_REPLACE_ME
+  storageClassName: ceph-rbd
   resources: {requests: {storage: 10Gi}}

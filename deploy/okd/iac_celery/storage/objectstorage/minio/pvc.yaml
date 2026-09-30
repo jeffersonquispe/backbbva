@@ -9,5 +9,5 @@ metadata:
     app.kubernetes.io/managed-by: argocd
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: STORAGE_CLASS_REPLACE_ME
+  storageClassName: ceph-rbd
   resources: {requests: {storage: 20Gi}}
