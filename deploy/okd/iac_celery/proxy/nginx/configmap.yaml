@@ -9,6 +9,9 @@ metadata:
     app.kubernetes.io/managed-by: argocd
 data:
   nginx.conf: |
+    # This image runs without root privileges (including arbitrary OKD UIDs).
+    # /run is not writable in that context, so keep the PID in /tmp.
+    pid /tmp/nginx.pid;
     worker_processes auto;
     events { worker_connections 1024; }
     http {
