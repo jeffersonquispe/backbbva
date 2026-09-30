@@ -55,6 +55,30 @@ def test_bundle_persists_snapshot_and_fits_categories_on_training_only():
         train_model_bundle(rows, record)
 
 
+def test_scoring_real_xgboost_bundle_returns_native_feature_contributions():
+    """Keep MCP/worker explanations covered without depending on shap."""
+    from src.infrastructure.entrypoint.mcp.scoring import score_row
+
+    rows = sample_rows()
+    record = ModelRecord(
+        id=uuid4(), tag="native-contributions", description="",
+        status=ModelStatus.DRAFT, dataset_name="samples", target_field="label",
+        positive_labels=["1"], feature_transforms=[],
+        feature_configuration=definition(),
+        training_config=TrainingConfig(
+            n_estimators=8, split_strategy="temporal", time_field="at"
+        ),
+    )
+
+    result = score_row(train_model_bundle(rows, record), rows[0])
+
+    assert 0.0 <= result["score"] <= 1.0
+    assert result["top_features"]
+    assert {item["feature"] for item in result["top_features"]} <= {
+        "amount_numeric", "channel_category", "count_24h"
+    }
+
+
 def test_scoring_uses_saved_recipe_order_and_categories():
     from src.infrastructure.entrypoint.mcp.scoring import score_row
 

@@ -1,4 +1,4 @@
-FROM artifactory.globaldevtools.bbva.com:443/public.ecr.aws-remote/docker/library/python:3.11-slim
+FROM artifactory.globaldevtools.bbva.com:443/public.ecr.aws-remote/docker/library/python:3.11-slim AS builder
 
 ARG GENAI_ENVIRONMENT
 ARG ARTIFACTORY_USER
@@ -7,30 +7,43 @@ ARG ARTIFACTORY_PASSWORD
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     GENAI_ENVIRONMENT=${GENAI_ENVIRONMENT} \
-    APP_DIR=/code \
+    VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:$PATH \
     POETRY_VIRTUALENVS_CREATE=false \
     POETRY_VERSION=2.2.1 \
     POETRY_NO_INTERACTION=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-WORKDIR ${APP_DIR}
+WORKDIR /build
+
+# Poetry, Artifactory credentials, and its download cache stay in this
+# disposable stage and are never copied into the production image.
+RUN python -m venv ${VIRTUAL_ENV} \
+    && pip install --no-cache-dir \
+        --index-url https://${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD}@artifactory.globaldevtools.bbva.com/artifactory/api/pypi/gl-ai-genai-python-virtual/simple \
+        poetry==${POETRY_VERSION}
 COPY deploy/requirements/pyproject.toml ./pyproject.toml
-RUN pip install --no-cache-dir --index-url https://${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD}@artifactory.globaldevtools.bbva.com/artifactory/api/pypi/gl-ai-genai-python-virtual/simple poetry==${POETRY_VERSION} 
-RUN poetry config http-basic.BBVARepo ${ARTIFACTORY_USER} ${ARTIFACTORY_PASSWORD} 
-RUN poetry install --without dev --no-root 
+RUN poetry config http-basic.BBVARepo ${ARTIFACTORY_USER} ${ARTIFACTORY_PASSWORD} \
+    && poetry install --only main --no-root
 
-RUN rm -rf /root/.cache/* && \
-    rm -rf /usr/local/lib/python*/site-packages/pip* /usr/local/lib/python*/site-packages/setuptools* /usr/local/bin/pip*
-RUN apt-get update && apt-get install -y --no-install-recommends \                                                                                                                                         
-    make \                                                                                                                                                                                                   
-    && rm -rf /var/lib/apt/lists/*
+FROM artifactory.globaldevtools.bbva.com:443/public.ecr.aws-remote/docker/library/python:3.11-slim AS runtime
 
-RUN poetry install --only main --no-root
+ARG GENAI_ENVIRONMENT
 
-COPY src ./src
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    GENAI_ENVIRONMENT=${GENAI_ENVIRONMENT} \
+    APP_DIR=/code \
+    VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:$PATH \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN chown -R www-data:www-data ${APP_DIR} && chmod -R 755 ${APP_DIR}
+WORKDIR ${APP_DIR}
+
+COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+COPY --chown=www-data:www-data src ./src
 USER www-data
 
 EXPOSE 8000

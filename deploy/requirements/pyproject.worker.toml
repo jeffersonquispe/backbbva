@@ -31,16 +31,14 @@ pydantic-settings = "2.11.0"
 
 # Model training (infrastructure/workflows/celery/model_training.py) and
 # Detector-time scoring (alert_review_workflow.py's _score_with_xgboost,
-# which reuses entrypoint/mcp/scoring.py's score_row). shap is needed here
-# too since the Detector computes SHAP explanations in-worker when
-# DetectorConfig.xgboost_shap_enabled - without it score_row silently
-# returns empty top_features. Keep the pin in sync with pyproject.mcp.toml.
+# which reuses entrypoint/mcp/scoring.py's score_row).  XGBoost's native
+# TreeSHAP contributions provide the explanations, so the heavy `shap`
+# package is not required at runtime.
 xgboost = "2.1.3"
 scikit-learn = "1.5.2"
 pandas = "2.2.3"
 numpy = "1.26.4"
 joblib = "1.4.2"
-shap = "0.46.0"
 
 langchain-openai = "0.3.3"
 # 0.2.x line targets langchain-core ^0.3, matching langchain-openai above -

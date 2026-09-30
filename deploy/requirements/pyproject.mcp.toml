@@ -4,7 +4,7 @@
 # (API) and pyproject.worker.toml (Celery worker) - an explicit exception to
 # the root CLAUDE.md's "two separate poetry projects" rule, agreed on when
 # this service was scoped: it needs the ML inference stack (xgboost/sklearn/
-# pandas/joblib/shap) that the API doesn't, runs as neither FastAPI nor
+# pandas/joblib) that the API doesn't, runs as neither FastAPI nor
 # Celery, and reuses only src/application + parts of
 # src/infrastructure/workflows/celery/model_training.py and the DynamoDB/
 # MinIO adapters - not the full API or worker dependency surface.
@@ -41,7 +41,6 @@ scikit-learn = "1.5.2"
 pandas = "2.2.3"
 numpy = "1.26.4"
 joblib = "1.4.2"
-shap = "0.46.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.2.0"

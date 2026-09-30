@@ -157,6 +157,7 @@ services:
     build:
       context: ../../..
       dockerfile: deploy/local/docker/Dockerfile.worker
+      no_cache: true
       args:
         GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
     image: aria-worker:${LOCAL_IMAGE_TAG:-local}
@@ -275,6 +276,7 @@ services:
     build:
       context: ../../..
       dockerfile: deploy/local/docker/Dockerfile.simulator.worker
+      no_cache: true
       args:
         GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
     image: aria-event-simulator-worker:${LOCAL_IMAGE_TAG:-local}
@@ -332,6 +334,7 @@ services:
     build:
       context: ../../..
       dockerfile: deploy/local/docker/Dockerfile.mcp
+      no_cache: true
       args:
         GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
     image: aria-mcp:${LOCAL_IMAGE_TAG:-local}

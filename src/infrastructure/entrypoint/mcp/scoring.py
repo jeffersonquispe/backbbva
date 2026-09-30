@@ -11,7 +11,7 @@ from src.infrastructure.workflows.celery.model_training import build_feature_fra
 def score_row(bundle: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     """Reproduces the exact feature matrix used at training time (fixed
     rule_vocab, fixed column order, fixed categorical categories) for one
-    row, scores it, calibrates it, and attaches the top-5 SHAP
+    row, scores it, calibrates it, and attaches the top-5 XGBoost
     contributions - same shape as the newArquitecture+XGboost branch's
     score_xus()."""
     X, _ = build_feature_frame(
@@ -29,10 +29,14 @@ def score_row(bundle: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     p_cal = float(bundle["isotonic"].transform([p_raw])[0])
 
     try:
-        import shap
+        # XGBoost exposes TreeSHAP contributions directly.  This produces
+        # the same per-feature explanation without importing shap (and its
+        # sizeable numba/llvmlite runtime dependency tree).
+        from xgboost import DMatrix
 
-        explainer = shap.TreeExplainer(model)
-        values = np.asarray(explainer(X).values)[0]
+        values = model.get_booster().predict(
+            DMatrix(X, enable_categorical=True), pred_contribs=True
+        )[0][:-1]  # The last value is the model bias, not a feature.
         top_idx = np.argsort(np.abs(values))[::-1][:5]
         top_features = [
             {

@@ -1,0 +1,31 @@
+# The API image only copies its dependency manifest and application source.
+# Exclude local artifacts and test data from the Docker build context.
+.git
+.gitignore
+.dockerignore
+.agents
+.claude
+.codex
+.env
+.env.*
+.envs
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.cache
+__pycache__
+*.py[cod]
+*.egg-info
+.venv
+venv
+node_modules
+datasets
+tests
+experiments
+build
+dist
+htmlcov
+coverage.xml
+xunit-result.xml
+*.log
+PENDIENTES.md
