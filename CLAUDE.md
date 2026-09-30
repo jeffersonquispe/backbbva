@@ -92,15 +92,24 @@ yourself.
 `pyproject.mcp.toml` is a **third** independent project (`infrastructure/
 entrypoint/mcp/`, the FastMCP model-serving service) — an explicit, agreed
 exception to "two projects": it needs the ML inference stack (xgboost/
-sklearn/pandas/joblib/shap) that neither the API nor the worker's other code
+sklearn/pandas/joblib) that neither the API nor the worker's other code
 needs, and runs as neither FastAPI nor Celery. It does share the
 feature-building code in `infrastructure/workflows/celery/model_training.py`
 with the worker (training and scoring must build features identically), so a
 dependency that module needs (pandas/numpy/xgboost/scikit-learn/joblib) goes
-in **both** `pyproject.worker.toml` and `pyproject.mcp.toml` — including
-`shap`: the worker's Detector step scores alerts in-process with the trained
-bundle (`_score_with_xgboost` → `entrypoint/mcp/scoring.py`'s `score_row`)
-and computes SHAP explanations there when enabled.
+in **both** `pyproject.worker.toml` and `pyproject.mcp.toml`. The worker's
+Detector step scores alerts in-process with the trained bundle
+(`_score_with_xgboost` → `entrypoint/mcp/scoring.py`'s `score_row`), and
+feature explanations come from XGBoost's native TreeSHAP
+(`pred_contribs=True`) — **don't re-add the `shap` package**, it was removed
+on purpose (heavy numba/llvmlite tree) to slim the images.
+
+Each service has two Dockerfiles in `deploy/local/docker/`: `Dockerfile.<svc>`
+(local, public PyPI/Docker Hub) and `Dockerfile.<svc>.okd` (OKD: base image
+and Python libs pulled through BBVA Artifactory, needs `ARTIFACTORY_USER`/
+`ARTIFACTORY_PASSWORD` build args). Both are multi-stage (Poetry and
+credentials stay in the `builder` stage) — a change to one (system packages
+like `libgomp1`, CMD, ports) must be mirrored in the other.
 
 ## Testing conventions
 
