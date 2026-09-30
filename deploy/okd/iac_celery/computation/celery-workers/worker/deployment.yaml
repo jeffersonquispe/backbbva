@@ -34,3 +34,5 @@ spec:
               valueFrom: {secretKeyRef: {name: aria-worker-runtime, key: OBJECT_STORAGE_ACCESS_KEY}}
             - name: OBJECT_STORAGE_SECRET_KEY
               valueFrom: {secretKeyRef: {name: aria-worker-runtime, key: OBJECT_STORAGE_SECRET_KEY}}
+            - name: OPENAI_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-runtime, key: OPENAI_KEY}}

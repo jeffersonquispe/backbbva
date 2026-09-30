@@ -28,3 +28,5 @@ spec:
               valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: DYNAMO_ACCESS_KEY}}
             - name: DYNAMO_SECRET_KEY
               valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: DYNAMO_SECRET_KEY}}
+            - name: OPENAI_KEY
+              valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: OPENAI_KEY}}

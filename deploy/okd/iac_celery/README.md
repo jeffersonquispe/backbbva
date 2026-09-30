@@ -20,7 +20,7 @@ straight from public registries (the cluster has internet egress):
 | DynamoDB local | `docker.io/amazon/dynamodb-local:latest` |
 | MinIO | `cgr.dev/chainguard/minio:latest` — upstream `minio/minio` is no longer publicly pullable from Docker Hub/Quay |
 
-Still to replace before promotion: `STORAGE_CLASS_REPLACE_ME`. Initial resource values are
+`OTEL_ENDPOINT` is a `http://localhost:4317` placeholder (no Collector in the namespace yet: spans are dropped) - point it at the OTLP Collector when one exists. PVCs use the `ceph-rbd` storage class. Initial resource values are
 development defaults, not production sizing.
 
 `dynamodb-local` is documented as a compatibility risk: the local Compose stack
@@ -37,12 +37,12 @@ so Argo CD never commits, syncs, or overwrites real values.
 
 | Workload | Secret | Keys |
 | --- | --- | --- |
-| API | `aria-api-runtime` | `AUTH_JWT_SECRET`, `AUTH_BOOTSTRAP_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY`, `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD` |
+| API | `aria-api-runtime` | `AUTH_JWT_SECRET`, `AUTH_BOOTSTRAP_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY`, `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`, `OPENAI_KEY` |
 | MCP | `aria-mcp-runtime` | AWS, Dynamo, and object-storage keys |
-| worker | `aria-worker-runtime` | AWS, Dynamo, and object-storage keys |
-| test worker | `aria-test-worker-runtime` | AWS, Dynamo, and object-storage keys |
+| worker | `aria-worker-runtime` | AWS, Dynamo, and object-storage keys, `OPENAI_KEY` |
+| test worker | `aria-test-worker-runtime` | AWS, Dynamo, and object-storage keys, `OPENAI_KEY` |
 | scheduler | — | no application secret required |
-| simulator worker | `aria-simulator-worker-runtime` | `EVENT_SIMULATOR_ARIA_API_TOKEN`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY` |
+| simulator worker | `aria-simulator-worker-runtime` | `EVENT_SIMULATOR_ARIA_API_TOKEN`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY`, `OPENAI_KEY` |
 | MinIO | `aria-minio-runtime` | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` |
 | OpenSearch | `aria-opensearch-runtime` | `OPENSEARCH_INITIAL_ADMIN_PASSWORD` |
 

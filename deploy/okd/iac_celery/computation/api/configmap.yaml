@@ -29,3 +29,10 @@ data:
   OPENSEARCH_ENDPOINT: http://opensearch:9200
   OPENSEARCH_AUTH_MODE: basic
   OPENSEARCH_INDEX: fraud_knowledge
+  LLM_BACKEND: azure
+  OPENAI_ENDPOINT: https://genai-lupitaasistente-work-llm-openai.openai.azure.com/
+  OPENAI_VERSION: "2024-08-01-preview"
+  EMBEDDING_MODEL: agentepqrs-llm-live-emebed-3-large
+  EMBEDDING_DIMENSIONS: "3072"
+  OTEL_ENDPOINT: http://localhost:4317
+  OTEL_CAPTURE_LLM_CONTENT: "false"

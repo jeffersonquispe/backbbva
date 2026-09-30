@@ -19,5 +19,8 @@ data:
   EVENT_SIMULATOR_CELERY_RESULT_BACKEND: redis://redis:6379/3
   EVENT_SIMULATOR_CELERY_QUEUE: event_simulation
   EVENT_SIMULATOR_ARIA_API_BASE_URL: http://api:8000
-  OTEL_ENDPOINT: OTEL_ENDPOINT_REPLACE_ME
+  OTEL_ENDPOINT: http://localhost:4317
   OTEL_CAPTURE_LLM_CONTENT: "false"
+  LLM_BACKEND: azure
+  OPENAI_ENDPOINT: https://genai-lupitaasistente-work-llm-openai.openai.azure.com/
+  OPENAI_VERSION: "2024-08-01-preview"

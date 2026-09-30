@@ -43,6 +43,8 @@ spec:
               valueFrom: {secretKeyRef: {name: aria-api-runtime, key: OPENSEARCH_USERNAME}}
             - name: OPENSEARCH_PASSWORD
               valueFrom: {secretKeyRef: {name: aria-api-runtime, key: OPENSEARCH_PASSWORD}}
+            - name: OPENAI_KEY
+              valueFrom: {secretKeyRef: {name: aria-api-runtime, key: OPENAI_KEY}}
           startupProbe: {httpGet: {path: /health, port: http}, periodSeconds: 5, failureThreshold: 24}
           readinessProbe: {httpGet: {path: /health, port: http}, periodSeconds: 10}
           livenessProbe: {httpGet: {path: /health, port: http}, periodSeconds: 20}
