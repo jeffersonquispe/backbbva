@@ -13,7 +13,7 @@ spec:
       serviceAccountName: aria-dynamodb
       containers:
         - name: dynamodb
-          image: REGISTRY_REPLACE_ME/amazon/dynamodb-local:IMAGE_TAG_REPLACE_ME
+          image: docker.io/amazon/dynamodb-local:latest
           args: [-jar, DynamoDBLocal.jar, -sharedDb, -dbPath, /home/dynamodblocal/data]
           ports: [{name: http, containerPort: 8000}]
           envFrom: [{configMapRef: {name: aria-dynamodb-config}}]

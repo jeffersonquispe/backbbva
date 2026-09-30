@@ -16,7 +16,7 @@ spec:
       serviceAccountName: aria-mcp
       containers:
         - name: mcp
-          image: REGISTRY_REPLACE_ME/aria-mcp:IMAGE_TAG_REPLACE_ME
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-mcp:latest
           ports: [{name: http, containerPort: 8100}]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
@@ -35,10 +35,6 @@ spec:
               valueFrom: {secretKeyRef: {name: aria-mcp-runtime, key: OBJECT_STORAGE_ACCESS_KEY}}
             - name: OBJECT_STORAGE_SECRET_KEY
               valueFrom: {secretKeyRef: {name: aria-mcp-runtime, key: OBJECT_STORAGE_SECRET_KEY}}
-          volumeMounts: [{name: secrets-store, mountPath: /mnt/secrets-store, readOnly: true}]
           startupProbe: {tcpSocket: {port: http}, periodSeconds: 5, failureThreshold: 24}
           readinessProbe: {tcpSocket: {port: http}, periodSeconds: 10}
           livenessProbe: {tcpSocket: {port: http}, periodSeconds: 20}
-      volumes:
-        - name: secrets-store
-          csi: {driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: {secretProviderClass: aria-mcp-secrets}}

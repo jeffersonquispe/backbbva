@@ -17,7 +17,7 @@ spec:
       serviceAccountName: aria-opensearch
       containers:
         - name: opensearch
-          image: REGISTRY_REPLACE_ME/opensearchproject/opensearch:2.19.1
+          image: docker.io/opensearchproject/opensearch:2.19.1
           args: [-Ediscovery.type=single-node]
           ports: [{name: http, containerPort: 9200}]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
@@ -28,11 +28,8 @@ spec:
               valueFrom: {secretKeyRef: {name: aria-opensearch-runtime, key: OPENSEARCH_INITIAL_ADMIN_PASSWORD}}
           volumeMounts:
             - {name: data, mountPath: /usr/share/opensearch/data}
-            - {name: secrets-store, mountPath: /mnt/secrets-store, readOnly: true}
           startupProbe: {tcpSocket: {port: http}, periodSeconds: 10, failureThreshold: 30}
           readinessProbe: {tcpSocket: {port: http}, periodSeconds: 10}
           livenessProbe: {tcpSocket: {port: http}, periodSeconds: 20}
       volumes:
         - {name: data, persistentVolumeClaim: {claimName: opensearch-data}}
-        - name: secrets-store
-          csi: {driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: {secretProviderClass: aria-opensearch-secrets}}

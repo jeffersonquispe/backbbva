@@ -17,7 +17,7 @@ spec:
       serviceAccountName: aria-minio
       containers:
         - name: minio
-          image: REGISTRY_REPLACE_ME/minio/minio:IMAGE_TAG_REPLACE_ME
+          image: cgr.dev/chainguard/minio:latest
           args: [server, /data]
           ports: [{name: http, containerPort: 9000}]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
@@ -30,11 +30,8 @@ spec:
               valueFrom: {secretKeyRef: {name: aria-minio-runtime, key: MINIO_ROOT_PASSWORD}}
           volumeMounts:
             - {name: data, mountPath: /data}
-            - {name: secrets-store, mountPath: /mnt/secrets-store, readOnly: true}
           startupProbe: {tcpSocket: {port: http}, periodSeconds: 10, failureThreshold: 30}
           readinessProbe: {tcpSocket: {port: http}, periodSeconds: 10}
           livenessProbe: {tcpSocket: {port: http}, periodSeconds: 20}
       volumes:
         - {name: data, persistentVolumeClaim: {claimName: minio-data}}
-        - name: secrets-store
-          csi: {driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: {secretProviderClass: aria-minio-secrets}}

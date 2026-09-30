@@ -16,7 +16,7 @@ spec:
       serviceAccountName: aria-simulator-worker
       containers:
         - name: simulator-worker
-          image: REGISTRY_REPLACE_ME/aria-event-simulator-worker:IMAGE_TAG_REPLACE_ME
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-event-simulator-worker:latest
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
           envFrom:
@@ -28,7 +28,3 @@ spec:
               valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: DYNAMO_ACCESS_KEY}}
             - name: DYNAMO_SECRET_KEY
               valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: DYNAMO_SECRET_KEY}}
-          volumeMounts: [{name: secrets-store, mountPath: /mnt/secrets-store, readOnly: true}]
-      volumes:
-        - name: secrets-store
-          csi: {driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: {secretProviderClass: aria-simulator-worker-secrets}}

@@ -16,14 +16,9 @@ spec:
       serviceAccountName: aria-scheduler
       containers:
         - name: scheduler
-          image: REGISTRY_REPLACE_ME/aria-worker:IMAGE_TAG_REPLACE_ME
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:latest
           command: [celery, -A, src.infrastructure.entrypoint.worker.celery.celery_app:app, beat, --loglevel=INFO, --schedule=/tmp/celerybeat-schedule]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
           envFrom:
             - configMapRef: {name: aria-scheduler-config}
-
-          volumeMounts: [{name: secrets-store, mountPath: /mnt/secrets-store, readOnly: true}]
-      volumes:
-        - name: secrets-store
-          csi: {driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: {secretProviderClass: aria-scheduler-secrets}}

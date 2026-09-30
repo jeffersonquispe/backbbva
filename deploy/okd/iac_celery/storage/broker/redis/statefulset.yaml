@@ -17,7 +17,7 @@ spec:
       serviceAccountName: aria-redis
       containers:
         - name: redis
-          image: REGISTRY_REPLACE_ME/redis:7.2-alpine
+          image: docker.io/library/redis:7.2-alpine
           args: [redis-server, --appendonly, "$(REDIS_APPENDONLY)", --dir, /data]
           ports: [{name: redis, containerPort: 6379}]
           envFrom: [{configMapRef: {name: aria-redis-config}}]
