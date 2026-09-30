@@ -50,3 +50,6 @@ experiments/*.csv
 # Test-run datasets - can carry real customer data (names, documents,
 # addresses, transaction history); never belongs in git history.
 datasets/*.csv
+
+# Generated from config.cfg by kubectl - holds real credentials
+config/**/secret.yaml
