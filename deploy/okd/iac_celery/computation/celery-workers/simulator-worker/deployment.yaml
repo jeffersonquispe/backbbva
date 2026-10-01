@@ -14,6 +14,8 @@ spec:
     metadata: {labels: {app.kubernetes.io/name: simulator-worker, app.kubernetes.io/component: celery-worker, app.kubernetes.io/part-of: aria}}
     spec:
       serviceAccountName: aria-simulator-worker
+      imagePullSecrets:
+        - name: artifactory-auth
       containers:
         - name: simulator-worker
           image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-event-simulator-worker:latest

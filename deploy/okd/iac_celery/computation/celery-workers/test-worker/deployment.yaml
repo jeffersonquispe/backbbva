@@ -14,6 +14,8 @@ spec:
     metadata: {labels: {app.kubernetes.io/name: test-worker, app.kubernetes.io/component: celery-worker, app.kubernetes.io/part-of: aria}}
     spec:
       serviceAccountName: aria-test-worker
+      imagePullSecrets:
+        - name: artifactory-auth
       containers:
         - name: test-worker
           image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:latest

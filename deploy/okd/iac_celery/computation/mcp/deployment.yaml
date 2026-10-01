@@ -14,6 +14,8 @@ spec:
     metadata: {labels: {app.kubernetes.io/name: mcp, app.kubernetes.io/component: mcp, app.kubernetes.io/part-of: aria}}
     spec:
       serviceAccountName: aria-mcp
+      imagePullSecrets:
+        - name: artifactory-auth
       containers:
         - name: mcp
           image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-mcp:latest

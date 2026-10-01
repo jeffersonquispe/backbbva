@@ -14,6 +14,8 @@ spec:
     metadata: {labels: {app.kubernetes.io/name: scheduler, app.kubernetes.io/component: celery-scheduler, app.kubernetes.io/part-of: aria}}
     spec:
       serviceAccountName: aria-scheduler
+      imagePullSecrets:
+        - name: artifactory-auth
       containers:
         - name: scheduler
           image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:latest
