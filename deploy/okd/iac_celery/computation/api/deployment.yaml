@@ -34,9 +34,9 @@ spec:
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom: {secretKeyRef: {name: aria-api-runtime, key: AWS_SECRET_ACCESS_KEY}}
             - name: DYNAMO_ACCESS_KEY
-              value: test
+              valueFrom: {secretKeyRef: {name: aria-api-runtime, key: DYNAMO_ACCESS_KEY}}
             - name: DYNAMO_SECRET_KEY
-              value: test
+              valueFrom: {secretKeyRef: {name: aria-api-runtime, key: DYNAMO_SECRET_KEY}}
             - name: OBJECT_STORAGE_ACCESS_KEY
               valueFrom: {secretKeyRef: {name: aria-api-runtime, key: OBJECT_STORAGE_ACCESS_KEY}}
             - name: OBJECT_STORAGE_SECRET_KEY
