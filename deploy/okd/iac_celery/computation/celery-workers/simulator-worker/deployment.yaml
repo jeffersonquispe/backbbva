@@ -18,7 +18,7 @@ spec:
         - name: artifactory-auth
       containers:
         - name: simulator-worker
-          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-event-simulator-worker:latest
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-event-simulator-worker:a35181f2f32cbd73530173d887ee3cc93f869996
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
           envFrom:
