@@ -9,4 +9,4 @@ spec:
   ingress:
     - from:
         - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [api, mcp, worker, test-worker, simulator-worker]}]}
-      ports: [{protocol: TCP, port: 8000}]
+      ports: [{protocol: TCP, port: 4566}]

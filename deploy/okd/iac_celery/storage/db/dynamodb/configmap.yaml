@@ -4,4 +4,7 @@ metadata:
   name: aria-dynamodb-config
   labels: {app.kubernetes.io/name: dynamodb, app.kubernetes.io/component: database, app.kubernetes.io/part-of: aria, app.kubernetes.io/managed-by: argocd}
 data:
-  DYNAMODB_COMMAND: -jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data
+  SERVICES: dynamodb
+  EAGER_SERVICE_LOADING: "1"
+  LOCALSTACK_VOLUME_DIR: /tmp/localstack_data
+  DISABLE_DNS: "1"
