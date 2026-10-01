@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - storage/db/dynamodb
-  - storage/db/opensearch
+  - storage/db/opsearch
   - storage/objectstorage/minio
   - storage/broker/redis
   - computation/api
