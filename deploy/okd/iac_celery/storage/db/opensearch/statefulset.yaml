@@ -15,6 +15,11 @@ spec:
     metadata: {labels: {app.kubernetes.io/name: opensearch, app.kubernetes.io/component: database, app.kubernetes.io/part-of: aria}}
     spec:
       serviceAccountName: aria-opensearch
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: opensearch
           image: docker.io/opensearchproject/opensearch:2.19.1
