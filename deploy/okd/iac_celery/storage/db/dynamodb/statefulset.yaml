@@ -14,6 +14,7 @@ spec:
       containers:
         - name: dynamodb
           image: docker.io/amazon/dynamodb-local:latest
+          workingDir: /home/dynamodblocal
           args: [-jar, DynamoDBLocal.jar, -sharedDb, -dbPath, /home/dynamodblocal/data]
           ports: [{name: http, containerPort: 8000}]
           envFrom: [{configMapRef: {name: aria-dynamodb-config}}]
