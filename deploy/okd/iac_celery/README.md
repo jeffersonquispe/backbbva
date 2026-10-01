@@ -16,7 +16,7 @@ straight from public registries (the cluster has internet egress):
 | --- | --- |
 | nginx proxy | `docker.io/nginxinc/nginx-unprivileged:1.27-alpine` |
 | Redis | `docker.io/library/redis:7.2-alpine` |
-| OpenSearch | `docker.io/opensearchproject/opensearch:2.19.1` |
+| OpenSearch | `docker.io/opensearchproject/opensearch:2.13.0` |
 | DynamoDB local | `docker.io/amazon/dynamodb-local:latest` |
 | MinIO | `cgr.dev/chainguard/minio:latest` — upstream `minio/minio` is no longer publicly pullable from Docker Hub/Quay |
 

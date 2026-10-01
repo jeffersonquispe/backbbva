@@ -23,8 +23,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: opensearch
-          image: docker.io/opensearchproject/opensearch:2.19.1
-          command: [/bin/bash, /usr/share/opensearch/opensearch-docker-entrypoint.sh]
+          image: docker.io/opensearchproject/opensearch:2.13.0
           args: [-Ediscovery.type=single-node]
           ports: [{name: http, containerPort: 9200}]
           securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
