@@ -18,7 +18,7 @@ spec:
           envFrom: [{configMapRef: {name: aria-dynamodb-config}}]
           securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: 500m, memory: 512Mi}}
-          volumeMounts: [{name: data, mountPath: /tmp/localstack_data}]
+          volumeMounts: [{name: data, mountPath: /var/lib/localstack}]
           startupProbe: {tcpSocket: {port: dynamodb}, periodSeconds: 10, failureThreshold: 30}
           readinessProbe: {tcpSocket: {port: dynamodb}, periodSeconds: 10, failureThreshold: 6}
           livenessProbe: {tcpSocket: {port: dynamodb}, periodSeconds: 30}

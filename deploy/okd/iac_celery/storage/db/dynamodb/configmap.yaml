@@ -6,5 +6,8 @@ metadata:
 data:
   SERVICES: dynamodb
   EAGER_SERVICE_LOADING: "1"
-  LOCALSTACK_VOLUME_DIR: /tmp/localstack_data
-  DISABLE_DNS: "1"
+  PERSISTENCE: "1"
+  GATEWAY_LISTEN: 0.0.0.0:4566
+  USE_SSL: "0"
+  DNS_ADDRESS: "0"
+  SKIP_SSL_CERT_DOWNLOAD: "1"

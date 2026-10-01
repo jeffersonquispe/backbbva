@@ -27,8 +27,8 @@ spec:
             - name: EVENT_SIMULATOR_ARIA_API_TOKEN
               valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: EVENT_SIMULATOR_ARIA_API_TOKEN}}
             - name: DYNAMO_ACCESS_KEY
-              valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: DYNAMO_ACCESS_KEY}}
+              value: test
             - name: DYNAMO_SECRET_KEY
-              valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: DYNAMO_SECRET_KEY}}
+              value: test
             - name: OPENAI_KEY
               valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: OPENAI_KEY}}
