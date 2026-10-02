@@ -30,7 +30,7 @@ data:
   OBJECT_STORAGE_BUCKET: aria-reports
   DATASET_STORAGE_BACKEND: minio
   DATASET_STORAGE_BUCKET: datasets
-  OPENSEARCH_ENDPOINT: http://opensearch:9200
+  OPENSEARCH_ENDPOINT: https://opensearch:9200
   OPENSEARCH_AUTH_MODE: basic
   OPENSEARCH_INDEX: fraud_knowledge
   LLM_BACKEND: azure
