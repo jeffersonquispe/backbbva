@@ -11,6 +11,11 @@ from src.application.ports.configuration_port import (
     HistoryPandasResearchConfig,
     VectorStoreResearchConfig,
 )
+from src.application.ports.monitoring_port import (
+    MonitoringPort,
+    MonitoringSpan,
+    ResearchCallOutcome,
+)
 from src.application.use_cases.research.delegated_research import (
     HistoryPandasResearchAgent,
     ResearchDelegationCoordinator,
@@ -175,3 +180,81 @@ def test_time_bounded_agent_without_limit_calls_through():
     result = agent.research(ResearchRequest(ResearchSource.HISTORY_PANDAS, "q"))
 
     assert result.status == ResearchStatus.EXECUTED
+
+
+# --- T3: aria.research.calls producer ------------------------------------------
+
+
+class _NoopSpan(MonitoringSpan):
+    def write_input(self, data): ...
+    def write_result(self, data): ...
+    def write_inner_logs(self, entries): ...
+    def write_operation_metas(self, metadata): ...
+    def record_dependency(self, name, kind, metadata=None): ...
+    def finish(self, error=None): ...
+
+
+class RecordingResearchMonitoring(MonitoringPort):
+    def __init__(self):
+        self.research_calls: list[tuple[str, ResearchCallOutcome]] = []
+
+    def start(self, operation_name, operation_type, metadata=None):
+        return _NoopSpan()
+
+    def record_research_call(self, source, outcome):
+        self.research_calls.append((source, outcome))
+
+
+class _StatusAgent:
+    def __init__(self, status=None, raises=False):
+        self._status = status
+        self._raises = raises
+
+    def research(self, request):
+        if self._raises:
+            raise RuntimeError("opensearch down")
+        return ResearchResult(request.source, self._status)
+
+
+def test_time_bounded_agent_records_ok_failed_and_timeout_calls():
+    monitoring = RecordingResearchMonitoring()
+    request = ResearchRequest(ResearchSource.VECTOR_STORE, "q")
+
+    TimeBoundedResearchAgent(
+        _StatusAgent(ResearchStatus.EXECUTED), ResearchSource.VECTOR_STORE, 5, monitoring
+    ).research(request)
+    TimeBoundedResearchAgent(
+        _StatusAgent(ResearchStatus.FAILED), ResearchSource.VECTOR_STORE, 0, monitoring
+    ).research(request)
+    release = threading.Event()
+    timed_out = TimeBoundedResearchAgent(
+        _SlowAgent(release), ResearchSource.VECTOR_STORE, 0.05, monitoring
+    ).research(request)
+    release.set()
+
+    # Behaviour unchanged: a timeout still comes back as FAILED.
+    assert timed_out.status == ResearchStatus.FAILED
+    assert monitoring.research_calls == [
+        ("vector_store", ResearchCallOutcome.OK),
+        ("vector_store", ResearchCallOutcome.FAILED),
+        ("vector_store", ResearchCallOutcome.TIMEOUT),
+    ]
+
+
+def test_time_bounded_agent_records_a_raising_call_as_failed_and_skips_are_not_calls():
+    monitoring = RecordingResearchMonitoring()
+    request = ResearchRequest(ResearchSource.HISTORY_PANDAS, "q")
+
+    try:
+        TimeBoundedResearchAgent(
+            _StatusAgent(raises=True), ResearchSource.HISTORY_PANDAS, 0, monitoring
+        ).research(request)
+    except RuntimeError:
+        pass
+    TimeBoundedResearchAgent(
+        _StatusAgent(ResearchStatus.SKIPPED), ResearchSource.HISTORY_PANDAS, 0, monitoring
+    ).research(request)
+
+    assert monitoring.research_calls == [
+        ("history_pandas", ResearchCallOutcome.FAILED)
+    ]

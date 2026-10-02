@@ -18,9 +18,10 @@ straight from public registries (the cluster has internet egress):
 | Redis | `docker.io/library/redis:7.2-alpine` |
 | OpenSearch | `docker.io/opensearchproject/opensearch:2.13.0` |
 | DynamoDB local | `docker.io/amazon/dynamodb-local:latest` |
+| OTLP Collector | `artifactory.globaldevtools.bbva.com:443/public.ecr.aws-remote/aws-observability/aws-otel-collector:v0.43.2` (via Artifactory) |
 | MinIO | `cgr.dev/chainguard/minio:latest` — upstream `minio/minio` is no longer publicly pullable from Docker Hub/Quay |
 
-`OTEL_ENDPOINT` is a `http://localhost:4317` placeholder (no Collector in the namespace yet: spans are dropped) - point it at the OTLP Collector when one exists. PVCs use the `ceph-rbd` storage class. Initial resource values are
+`OTEL_ENDPOINT` points every workload at the namespace OTLP Collector, `http://otel-collector:4317` (`observability/otel-collector/`, decision D5). The Collector image is the AWS Distro for OpenTelemetry (`aws-otel-collector`) pulled through Artifactory's `public.ecr.aws-remote`. **Its upstream backend is still a placeholder**: it exports to the `debug` exporter (sampled, pod logs) and to `otlp/upstream` -> `OTLP_UPSTREAM_ENDPOINT` in `aria-otel-collector-config`, which must be set to the real BBVA observability endpoint (plus TLS/auth) before telemetry leaves the namespace. PVCs use the `ceph-rbd` storage class. Initial resource values are
 development defaults, not production sizing.
 
 `dynamodb-local` is documented as a compatibility risk: the local Compose stack

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.application.ports.analyst_capacity_import_port import (
     AnalystCapacityImportStatus,
@@ -1027,6 +1027,14 @@ class ConfigurationDetailResponse(ConfigurationSummaryResponse):
 # above for the versioned configuration schemas.
 
 
+class AmountTierSchema(BaseModel):
+    code: str = Field(..., min_length=1, max_length=60)
+    label: str = Field(default="", max_length=120)
+    min_inclusive: float = Field(..., ge=0)
+    # None = unbounded (the last tier).
+    max_exclusive: float | None = None
+
+
 class OperationalSettingsSchema(BaseModel):
     agent_enabled: bool = True
     analyst_enabled: bool = True
@@ -1051,6 +1059,16 @@ class OperationalSettingsSchema(BaseModel):
     experiment_timeout_minutes: int = 30
     max_stored_test_runs: int = 20
     test_cleanup_policy: TestCleanupPolicy = TestCleanupPolicy.OLDEST
+    # Request: omitted/None keeps the current tiers; [] clears them. Must be
+    # contiguous, non-overlapping and cover 0 -> inf (else 422). Response:
+    # always the full current list.
+    amount_tiers: list[AmountTierSchema] | None = None
+    # Read-only: bumped server-side on every amount_tiers change, ignored
+    # on requests.
+    amount_tier_set_version: int = 0
+    # Share (0..1) of finished alerts sent to the reasoning LLM-judge;
+    # 0 disables it.
+    reasoning_evaluation_sample_rate: float = Field(default=0.05, ge=0, le=1)
 
 
 class UpdateOperationalSettingsRequest(BaseModel):
@@ -1561,3 +1579,323 @@ class VoicebotCallbackRequest(BaseModel):
     # "fraud_reported", "no_answer") - stored as-is on the reservation.
     outcome: str = Field(..., min_length=1, max_length=120)
     detail: dict[str, Any] = Field(default_factory=dict)
+
+
+# --- Metrics (A2): GET /metrics/overview, GET /metrics/agent ----------------
+# Mirrors application/dtos/metrics_dtos.py. Every number is a sum of additive
+# rollup measures; rates/averages are numerator / denominator on the client.
+
+
+class MetricsRangeSchema(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: datetime = Field(alias="from")
+    to: datetime
+    timezone: str
+    amount_tier_set_versions: list[str] = Field(default_factory=list)
+
+
+class MetricsPeriodSchema(BaseModel):
+    level: Literal["day", "month", "year"]
+    period: str
+    period_start: date
+    period_end: date
+    hours: list[int]
+    partial: bool
+    maturation: Literal["maturing", "may_vary", "stable"]
+    alerts: int
+    amount_sum: float
+    decided: int
+    false_positives: int
+    undetected_fraud: int
+    reviewed: int
+
+
+class MetricsWarningSchema(BaseModel):
+    code: Literal["partial_period", "amount_tier_set_changed", "fraud_label_maturing"]
+    message: str
+    periods: list[str] = Field(default_factory=list)
+
+
+class HistogramBucketSchema(BaseModel):
+    bucket: str
+    upper_bound_seconds: float | None
+    count: int
+
+
+class ResolutionTimeStatsSchema(BaseModel):
+    count: int
+    sum_seconds: float
+    within_sla_count: int
+    histogram: list[HistogramBucketSchema]
+
+
+class FraudQualityStatsSchema(BaseModel):
+    decided: int
+    pending: int
+    true_positives: int
+    true_negatives: int
+    false_positives: int
+    undetected_fraud: int
+    true_positive_amount_sum: float
+    false_positive_amount_sum: float
+    undetected_fraud_amount_sum: float
+    reviewed: int
+    reviewed_changed: int
+    reviewed_confirmed: int
+    review_events: int
+    maturation_histogram: list[HistogramBucketSchema]
+
+
+class DimensionBucketSchema(BaseModel):
+    value: str
+    alerts: int
+    amount_sum: float
+    amount_count: int
+    decided: int
+    false_positives: int
+    undetected_fraud: int
+
+
+class HourlyProfileSlotSchema(BaseModel):
+    hour: int
+    alerts: int
+    amount_sum: float
+    resolution_time_count: int
+    resolution_time_sum_seconds: float
+    within_sla_count: int
+
+
+class MetricsTotalsSchema(BaseModel):
+    alerts: int
+    amount_sum: float
+    amount_count: int
+
+
+class MetricsOverviewResponse(BaseModel):
+    range: MetricsRangeSchema
+    periods: list[MetricsPeriodSchema]
+    warnings: list[MetricsWarningSchema]
+    totals: MetricsTotalsSchema
+    funnel_by_status: list[DimensionBucketSchema]
+    fraud_quality: FraudQualityStatsSchema
+    resolution_time: ResolutionTimeStatsSchema
+    distributions: dict[str, list[DimensionBucketSchema]]
+    hourly_profile: list[HourlyProfileSlotSchema]
+
+
+class ResolutionMethodStatsSchema(BaseModel):
+    resolution_method: Literal["aria", "analyst", "voicebot", "bidi", "unknown"]
+    alerts: int
+    fraud_marks: int
+    no_fraud_marks: int
+    fraud_quality: FraudQualityStatsSchema
+    resolution_time: ResolutionTimeStatsSchema
+
+
+class RecommendationAcceptanceSchema(BaseModel):
+    available: bool
+    accepted: int | None
+    ignored: int | None
+    reason: str
+
+
+class AgentMetricsResponse(BaseModel):
+    range: MetricsRangeSchema
+    periods: list[MetricsPeriodSchema]
+    warnings: list[MetricsWarningSchema]
+    totals: MetricsTotalsSchema
+    by_resolution_method: list[ResolutionMethodStatsSchema]
+    fraud_quality: FraudQualityStatsSchema
+    resolution_time: ResolutionTimeStatsSchema
+    hourly_profile: list[HourlyProfileSlotSchema]
+    recommendations: RecommendationAcceptanceSchema
+
+
+# --- Metrics (A2): GET /metrics/technical ----------------------------------
+# Mirrors application/dtos/technical_metrics_dtos.py. Sums only: avg
+# latency = duration.sum_seconds / duration.count, hallucination % =
+# evaluations.hallucinations / evaluations.evaluated, etc.
+
+
+class DurationStatsSchema(BaseModel):
+    count: int
+    sum_seconds: float
+    histogram: list[HistogramBucketSchema]
+
+
+class WorkflowStepStatsSchema(BaseModel):
+    step_name: str
+    executions: int
+    succeeded: int
+    failed: int
+    retries: int
+    duration: DurationStatsSchema
+
+
+class LLMCallStatsSchema(BaseModel):
+    model: str
+    calls: int
+    errors: int
+    input_tokens: int
+    output_tokens: int
+    latency: DurationStatsSchema
+
+
+class ResearchCallStatsSchema(BaseModel):
+    source: str
+    calls: int
+    ok: int
+    failed: int
+    timeout: int
+
+
+class EvaluationStatsSchema(BaseModel):
+    evaluated: int
+    hallucinations: int
+    data_use_correct: int
+    invalid: int
+
+
+class TechnicalHourSlotSchema(BaseModel):
+    hour: int
+    step_executions: int
+    step_failed: int
+    step_duration_sum_seconds: float
+    step_duration_count: int
+    llm_calls: int
+    llm_errors: int
+    input_tokens: int
+    output_tokens: int
+    research_calls: int
+    research_failed: int
+    research_timeout: int
+
+
+class TechnicalPeriodSchema(BaseModel):
+    level: Literal["day", "month", "year"]
+    period: str
+    period_start: date
+    period_end: date
+    hours: list[int]
+    partial: bool
+    maturation: Literal["maturing", "may_vary", "stable"]
+    step_executions: int
+    step_failed: int
+    llm_calls: int
+    llm_errors: int
+    input_tokens: int
+    output_tokens: int
+    research_calls: int
+    evaluated: int
+    hallucinations: int
+    data_use_correct: int
+
+
+class TechnicalMetricsResponse(BaseModel):
+    range: MetricsRangeSchema
+    periods: list[TechnicalPeriodSchema]
+    warnings: list[MetricsWarningSchema]
+    workflow_steps: WorkflowStepStatsSchema
+    workflow_steps_by_step: list[WorkflowStepStatsSchema]
+    llm_calls: LLMCallStatsSchema
+    llm_calls_by_model: list[LLMCallStatsSchema]
+    research_calls: ResearchCallStatsSchema
+    research_calls_by_source: list[ResearchCallStatsSchema]
+    evaluations: EvaluationStatsSchema
+    hourly_profile: list[TechnicalHourSlotSchema]
+
+
+# --- Fraud history (A3) + fraud_label review (C5) ----------------------------
+
+
+class AlertHistoryItemSchema(BaseModel):
+    alert_id: UUID
+    event_id: str
+    event_type: str
+    # Live alert status (the metrics "status" filter matches the snapshot's).
+    status: str
+    customer_id: str | None
+    created_at: datetime
+    updated_at: datetime
+    # False = no metrics event touched this alert yet; the fields below are
+    # then derived from its payload (mark/fraud_label "pending").
+    has_snapshot: bool
+    origin: str | None
+    segment: str | None
+    channel: str | None
+    subchannel: str | None
+    amount: float | None
+    amount_tier: str
+    amount_tier_set_version: int | None
+    configuration_id: str | None
+    resolution_method: Literal["aria", "analyst", "voicebot", "bidi"] | None
+    mark: Literal["fraud", "no_fraud", "pending"]
+    fraud_label: Literal["fraud", "no_fraud", "pending"]
+    marked_at: datetime | None
+    fraud_reviewed_at: datetime | None
+    fraud_review_count: int
+    resolution_time_seconds: float | None
+
+
+class AlertHistoryPageResponse(BaseModel):
+    items: list[AlertHistoryItemSchema]
+    # Opaque - pass back as ?cursor= for the next page; null = no more.
+    next_cursor: str | None
+
+
+class FraudReviewRequest(BaseModel):
+    fraud_label: Literal["fraud", "no_fraud"]
+    note: str = Field(default="", max_length=2000)
+
+
+class FraudLabelReviewSchema(BaseModel):
+    id: UUID
+    alert_id: UUID
+    from_label: Literal["fraud", "no_fraud", "pending"]
+    to_label: Literal["fraud", "no_fraud"]
+    reviewed_by: str
+    reviewed_at: datetime
+    channel: Literal["ui", "csv"]
+    note: str
+
+
+class FraudReviewResponse(BaseModel):
+    review: FraudLabelReviewSchema
+    # The alert's snapshot after the review.
+    mark: Literal["fraud", "no_fraud", "pending"]
+    fraud_label: Literal["fraud", "no_fraud", "pending"]
+    marked_at: datetime | None
+    fraud_reviewed_at: datetime | None
+    fraud_review_count: int
+
+
+class FraudLabelReviewRowResultSchema(BaseModel):
+    row: int
+    alert_id: str
+    fraud_label: str
+    status: Literal["applied", "invalid", "not_found", "error"]
+    error: str | None = None
+
+
+class UploadFraudLabelReviewImportResponse(BaseModel):
+    task_id: str
+    status: Literal["PENDING", "READY", "FAILED"]
+
+
+class FraudLabelReviewImportResponse(BaseModel):
+    task_id: str
+    status: Literal["PENDING", "READY", "FAILED"]
+    total: int
+    applied: int
+    failed: int
+    rows: list[FraudLabelReviewRowResultSchema]
+    error: str | None = None
+
+
+class LiveAlertFunnelResponse(BaseModel):
+    received: int
+    processing: int
+    escalated: int
+    voicebot_in_call: int
+    measured_at: datetime

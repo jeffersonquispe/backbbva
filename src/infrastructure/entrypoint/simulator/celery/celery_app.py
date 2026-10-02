@@ -35,7 +35,9 @@ def create_celery_app(name: str = "aria-event-simulator") -> Celery:
         task_serializer="json",
         accept_content=["json"],
         result_serializer="json",
-        timezone="UTC",
+        # Messages/ETAs stay UTC; crontab-style schedules (e.g. closing a
+        # day of metric rollups at local midnight) run on Bogotá time.
+        timezone=genai_config.OPERATIONS_TIMEZONE,
         enable_utc=True,
         worker_prefetch_multiplier=1,
         task_acks_late=True,

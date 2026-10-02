@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
@@ -10,12 +11,12 @@ from pydantic import BaseModel, Field
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.use_cases.auth.local_auth import (
     AuthenticateLocalUserUseCase, DuplicateEmailError, GetCurrentLocalUserUseCase,
-    InvalidCredentialsError, RegisterLocalUserUseCase, permissions_for,
+    InvalidCredentialsError, LogoutLocalUserUseCase, RegisterLocalUserUseCase, permissions_for,
 )
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.factories.local_auth_factory import (
     get_authenticate_local_user_use_case, get_current_local_user_use_case,
-    get_jwt_service, get_register_local_user_use_case,
+    get_jwt_service, get_logout_local_user_use_case, get_register_local_user_use_case,
 )
 from src.infrastructure.security.local_auth import JwtService
 
@@ -50,20 +51,25 @@ def _to_user_response(user: LocalUser) -> UserResponse:
     return UserResponse(id=user.id, email=user.email, name=user.name, role=user.role, permissions=permissions_for(user.role))
 
 
-def get_current_user(
+def get_token_claims(
     authorization: Annotated[str | None, Header()] = None,
     jwt_service: Annotated[JwtService, Depends(get_jwt_service)] = None,
-    use_case: Annotated[GetCurrentLocalUserUseCase, Depends(get_current_local_user_use_case)] = None,
-) -> LocalUser:
+) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token required", headers={"WWW-Authenticate": "Bearer"})
     try:
-        claims = jwt_service.decode(authorization.removeprefix("Bearer "))
+        return jwt_service.decode(authorization.removeprefix("Bearer "))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc), headers={"WWW-Authenticate": "Bearer"}) from exc
-    user = use_case.execute(UUID(claims["sub"]))
+
+
+def get_current_user(
+    claims: Annotated[dict, Depends(get_token_claims)],
+    use_case: Annotated[GetCurrentLocalUserUseCase, Depends(get_current_local_user_use_case)] = None,
+) -> LocalUser:
+    user = use_case.execute(UUID(claims["sub"]), token_id=claims.get("jti"))
     if not user or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User is inactive", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ended or user is inactive", headers={"WWW-Authenticate": "Bearer"})
     return user
 
 
@@ -91,6 +97,17 @@ def login(
     except InvalidCredentialsError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password", headers={"WWW-Authenticate": "Bearer"}) from exc
     return LoginResponse(**_to_user_response(authenticated.user).model_dump(), access_token=authenticated.access_token, expires_in=authenticated.expires_in)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    claims: Annotated[dict, Depends(get_token_claims)],
+    _: Annotated[LocalUser, Depends(get_current_user)],
+    use_case: Annotated[LogoutLocalUserUseCase, Depends(get_logout_local_user_use_case)],
+):
+    """End the caller's session: its access token is rejected from now on,
+    even though it has not reached its exp yet."""
+    use_case.execute(token_id=claims.get("jti"), expires_at=datetime.fromtimestamp(int(claims["exp"]), timezone.utc))
 
 
 @router.get("/me", response_model=UserResponse)

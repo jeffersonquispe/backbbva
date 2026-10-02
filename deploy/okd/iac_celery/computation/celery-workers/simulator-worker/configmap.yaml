@@ -8,6 +8,10 @@ metadata:
     app.kubernetes.io/part-of: aria
     app.kubernetes.io/managed-by: argocd
 data:
+  # Container clock and business buckets (analyst matrix, metric rollups)
+  # both follow Bogotá - see docs/OBSERVABILITY_STRATEGY.md.
+  TZ: America/Bogota
+  OPERATIONS_TIMEZONE: America/Bogota
   GENAI_ENVIRONMENT: development
   API_V0_STR: /api/v0
   COMPONENT_NAME: aria-event-simulator-worker
@@ -19,7 +23,8 @@ data:
   EVENT_SIMULATOR_CELERY_RESULT_BACKEND: redis://redis:6379/3
   EVENT_SIMULATOR_CELERY_QUEUE: event_simulation
   EVENT_SIMULATOR_ARIA_API_BASE_URL: http://api:8000
-  OTEL_ENDPOINT: http://localhost:4317
+  # Namespace Collector (observability/otel-collector), the only OTLP boundary.
+  OTEL_ENDPOINT: http://otel-collector:4317
   OTEL_CAPTURE_LLM_CONTENT: "false"
   LLM_BACKEND: azure
   OPENAI_ENDPOINT: https://genai-lupitaasistente-work-llm-openai.openai.azure.com/

@@ -20,6 +20,9 @@ datasources:
         spanStartTimeShift: "-5m"
         spanEndTimeShift: "5m"
         filterByTraceID: true
+        tags:
+          - key: service.name
+            value: service_name
       serviceMap:
         datasourceUid: prometheus
 
@@ -29,8 +32,11 @@ datasources:
     url: http://loki:3100
     uid: loki
     jsonData:
+      # Logs arrive over OTLP (collector -> Loki /otlp), so trace_id is
+      # structured metadata, not text in the line: match it as a label.
       derivedFields:
         - datasourceUid: tempo
-          matcherRegex: "trace_id=(\\w+)"
+          matcherType: label
+          matcherRegex: trace_id
           name: TraceID
           url: "$${__value.raw}"

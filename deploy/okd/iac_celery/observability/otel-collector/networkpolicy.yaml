@@ -1,0 +1,16 @@
+# Ingress only, like every other component here: the namespace has no
+# Egress-type NetworkPolicy, so the Collector's outbound OTLP to the
+# (still placeholder) upstream backend is not restricted. If platform later
+# enables default-deny egress, add an Egress rule for DNS + that backend.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otel-collector-ingress
+  labels: {app.kubernetes.io/name: otel-collector, app.kubernetes.io/part-of: aria, app.kubernetes.io/managed-by: argocd}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: otel-collector}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [api, worker, test-worker, scheduler, simulator-worker, mcp]}]}
+      ports: [{protocol: TCP, port: 4317}, {protocol: TCP, port: 4318}]

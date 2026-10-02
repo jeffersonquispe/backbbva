@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.application.dtos.operational_settings_dtos import (
     UpdateOperationalSettingsInput,
@@ -13,6 +13,7 @@ from src.application.ports.configuration_port import (
     ShortageBehavior,
 )
 from src.application.ports.operational_settings_port import (
+    AmountTier,
     OperationalSettings,
     OperationalSettingsChange,
 )
@@ -30,7 +31,9 @@ from src.infrastructure.entrypoint.api.factories.operational_settings_factory im
     get_list_operational_settings_history_use_case,
     get_update_operational_settings_use_case,
 )
+from src.domain.alerts.amount_tiers import InvalidAmountTiersError
 from src.infrastructure.entrypoint.api.schemas import (
+    AmountTierSchema,
     AnalystCapacitySchema,
     DayProfileSchema,
     OperationalSettingsChangeResponse,
@@ -65,12 +68,16 @@ def update_operational_settings(
         Depends(get_update_operational_settings_use_case),
     ],
 ):
-    updated = use_case.execute(
-        UpdateOperationalSettingsInput(
-            settings=_from_schema(request.settings),
-            changed_by=request.changed_by,
+    try:
+        updated = use_case.execute(
+            UpdateOperationalSettingsInput(
+                settings=_from_schema(request.settings),
+                changed_by=request.changed_by,
+                preserve_amount_tiers=request.settings.amount_tiers is None,
+            )
         )
-    )
+    except InvalidAmountTiersError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _to_schema(updated)
 
 
@@ -115,6 +122,17 @@ def _to_schema(settings: OperationalSettings) -> OperationalSettingsSchema:
         experiment_timeout_minutes=settings.experiment_timeout_minutes,
         max_stored_test_runs=settings.max_stored_test_runs,
         test_cleanup_policy=settings.test_cleanup_policy,
+        amount_tiers=[
+            AmountTierSchema(
+                code=tier.code,
+                label=tier.label,
+                min_inclusive=tier.min_inclusive,
+                max_exclusive=tier.max_exclusive,
+            )
+            for tier in settings.amount_tiers
+        ],
+        amount_tier_set_version=settings.amount_tier_set_version,
+        reasoning_evaluation_sample_rate=settings.reasoning_evaluation_sample_rate,
     )
 
 
@@ -148,6 +166,16 @@ def _from_schema(schema: OperationalSettingsSchema) -> OperationalSettings:
         experiment_timeout_minutes=schema.experiment_timeout_minutes,
         max_stored_test_runs=schema.max_stored_test_runs,
         test_cleanup_policy=schema.test_cleanup_policy,
+        amount_tiers=[
+            AmountTier(
+                code=tier.code,
+                label=tier.label or tier.code,
+                min_inclusive=tier.min_inclusive,
+                max_exclusive=tier.max_exclusive,
+            )
+            for tier in schema.amount_tiers or []
+        ],
+        reasoning_evaluation_sample_rate=schema.reasoning_evaluation_sample_rate,
     )
 
 

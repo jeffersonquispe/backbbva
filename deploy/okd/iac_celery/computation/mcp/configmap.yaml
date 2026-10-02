@@ -8,6 +8,10 @@ metadata:
     app.kubernetes.io/part-of: aria
     app.kubernetes.io/managed-by: argocd
 data:
+  # Container clock and business buckets (analyst matrix, metric rollups)
+  # both follow Bogotá - see docs/OBSERVABILITY_STRATEGY.md.
+  TZ: America/Bogota
+  OPERATIONS_TIMEZONE: America/Bogota
   GENAI_ENVIRONMENT: development
   API_V0_STR: /api/v0
   COMPONENT_NAME: aria-mcp
@@ -16,3 +20,6 @@ data:
   OBJECT_STORAGE_ENDPOINT: http://minio:9000
   OBJECT_STORAGE_REGION: us-east-1
   MODEL_STORAGE_BUCKET: models
+  # Namespace Collector (observability/otel-collector), the only OTLP boundary.
+  OTEL_ENDPOINT: http://otel-collector:4317
+  OTEL_CAPTURE_LLM_CONTENT: "false"

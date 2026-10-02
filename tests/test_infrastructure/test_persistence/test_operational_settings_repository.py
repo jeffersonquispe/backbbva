@@ -113,3 +113,28 @@ def test_change_item_round_trips_with_json_encoded_values() -> None:
     restored = _change_from_item(_change_to_item(change))
 
     assert restored == change
+
+
+def test_amount_tiers_round_trip_and_old_items_default_empty() -> None:
+    from decimal import Decimal
+
+    from src.application.ports.operational_settings_port import AmountTier
+
+    settings = _settings(
+        amount_tiers=[
+            AmountTier("low", "< 1.5M", 0, 1_500_000.5),
+            AmountTier("high", ">= 1.5M", 1_500_000.5, None),
+        ],
+        amount_tier_set_version=2,
+    )
+    item = _to_item(settings)
+    assert item["amount_tiers"][0]["max_exclusive"] == Decimal("1500000.5")
+    assert item["amount_tiers"][1]["max_exclusive"] is None
+
+    restored = _from_item(item)
+    assert restored.amount_tiers == settings.amount_tiers
+    assert restored.amount_tier_set_version == 2
+
+    legacy = {k: v for k, v in item.items() if not k.startswith("amount_tier")}
+    old = _from_item(legacy)
+    assert old.amount_tiers == [] and old.amount_tier_set_version == 0

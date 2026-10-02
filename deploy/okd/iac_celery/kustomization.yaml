@@ -5,6 +5,7 @@ resources:
   - storage/db/opsearch
   - storage/objectstorage/minio
   - storage/broker/redis
+  - observability/otel-collector
   - computation/api
   - computation/mcp
   - computation/celery-workers/worker

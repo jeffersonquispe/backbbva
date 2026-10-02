@@ -12,6 +12,25 @@ processors:
     limit_mib: 512
   batch:
 
+connectors:
+  # Traces -> RED metrics (rate, errors, duration) for every span the app
+  # already emits, with no app code involved. Prometheus series:
+  #   traces_span_metrics_calls_total
+  #   traces_span_metrics_duration_seconds_{bucket,sum,count}
+  # Labels: service_name, span_name, span_kind, status_code + the dimensions
+  # below (dots -> underscores). Only low-cardinality span attributes may be
+  # listed here: never customer ids, alert ids or exact amounts.
+  spanmetrics:
+    histogram:
+      unit: s
+      explicit:
+        buckets: [50ms, 100ms, 250ms, 500ms, 1s, 2s, 5s, 10s, 20s, 30s, 60s, 120s, 300s]
+    dimensions:
+      - name: operation.type
+      - name: gen_ai.request.model
+      - name: gen_ai.provider.name
+    metrics_flush_interval: 15s
+
 exporters:
   otlp/tempo:
     endpoint: tempo:4317
@@ -19,8 +38,13 @@ exporters:
       insecure: true
   prometheus:
     endpoint: 0.0.0.0:8889
-  loki:
-    endpoint: http://loki:3100/loki/api/v1/push
+  # Loki 3.x native OTLP ingestion: resource attributes become labels
+  # (service_name, ...) and trace_id/span_id land as structured metadata,
+  # which the Grafana Loki datasource links to Tempo.
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
 
 service:
   telemetry:
@@ -30,12 +54,12 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [otlp/tempo]
+      exporters: [otlp/tempo, spanmetrics]
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, spanmetrics]
       processors: [memory_limiter, batch]
       exporters: [prometheus]
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [loki]
+      exporters: [otlphttp/loki]

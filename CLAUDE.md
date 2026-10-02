@@ -157,6 +157,43 @@ the sole boundary. Local stack: `deploy/local/docker/observability/`,
 content is opt-in via `OTEL_CAPTURE_LLM_CONTENT` (default `false`) — never
 flip that default.
 
+Span dimension attributes use the `ATTR_*` constants /
+`span_dimension_attributes(snapshot)` in `application/ports/monitoring_port.py`
+(names mirror `AlertMetricsSnapshot`). **Never put `customer_id` or the exact
+amount on a span or metric attribute** (a test in
+`test_alert_review_workflow.py` enforces it); metric attributes stay
+low-cardinality. Runbook: `docs/OBSERVABILITY_RUNBOOK.md`.
+
+## Business metrics — snapshot + rollups (DynamoDB, not telemetry)
+
+Design: `docs/OBSERVABILITY_STRATEGY.md`; tasks/decisions:
+`docs/OBSERVABILITY_TASKS.md`.
+
+- Each alert carries `AlertRecord.metrics: AlertMetricsSnapshot | None`
+  (`alert_port.py`). Two labels only: `mark` (`fraud`/`no_fraud`/`pending`,
+  the decision by ARIA/analyst/voicebot, immutable once non-pending) and
+  `fraud_label` (reality; starts = `mark`, corrected by the fraud team).
+  FP / undetected fraud = `mark` ≠ `fraud_label`, `pending` excluded. Don't
+  add a third "ground truth" field.
+- **Only `RecordAlertMetricsEvent`
+  (`application/use_cases/metrics/record_alert_metrics_event.py`) writes the
+  snapshot and the `alert` rollups** — one `TransactWriteItems` guarded by
+  `snapshot_version`, so Celery retries never double count.
+  `AlertRepository.update` deliberately can't touch the snapshot. New hook
+  points call it with an `AlertMetricsEventType`; don't write rollups
+  elsewhere. Two sanctioned exceptions, rows only: `RecordWorkflowStepMetrics`
+  / `EvaluateAlertReasoning` (technical + judge data types, idempotent via
+  `apply_once` markers) and `ReconcileAlertRollups` (nightly R7, conditional
+  `correct()` on the row `rev`).
+- `metrics_rollups` table: levels day (TTL 90 d) / month / year, 24
+  hour-of-day slots stored as flat attributes `<measure>__h<HH>` (DynamoDB
+  can't `ADD` into nested paths). Only additive measures. Bucketed by the
+  alert's Bogotá date; late changes apply −old/+new to every live level.
+- Reads go through `range_planner.plan(...)`; the API returns
+  numerators/denominators and the frontend computes rates.
+- Alerts GSIs: `CreatedDayIdx` (history, backfill, reconciliation) and
+  `StatusIdx` (queue, live funnel) — never `Scan` the alerts table.
+
 ## Alert / workflow domain state (as of this writing)
 
 - `AlertRecord` (`application/ports/alert_port.py`) is the canonical alert

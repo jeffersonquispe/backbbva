@@ -1,0 +1,75 @@
+# OTLP Collector for the namespace (decision D5: own Collector). The app only
+# knows OTEL_ENDPOINT=http://otel-collector:4317; everything behind this
+# file is swappable without touching application code.
+#
+# !! Destination backend still UNKNOWN: today data goes to the `debug`
+# exporter (pod logs, sampled) and to the `otlp/upstream` placeholder.
+# Replace OTLP_UPSTREAM_ENDPOINT (and its TLS/auth) with the real BBVA
+# observability endpoint once platform provides it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aria-otel-collector-config
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/component: telemetry
+    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/managed-by: argocd
+data:
+  OTLP_UPSTREAM_ENDPOINT: "placeholder-otlp-backend.invalid:4317"
+  collector.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 20
+      batch:
+
+    exporters:
+      debug:
+        verbosity: basic
+        sampling_initial: 5
+        sampling_thereafter: 200
+      # PLACEHOLDER - see header. Sending queue keeps the pipeline from
+      # blocking while the placeholder host does not resolve.
+      otlp/upstream:
+        endpoint: ${env:OTLP_UPSTREAM_ENDPOINT}
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 1000
+        retry_on_failure:
+          enabled: true
+          max_elapsed_time: 60s
+
+    service:
+      extensions: [health_check]
+      telemetry:
+        logs:
+          level: info
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [debug, otlp/upstream]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [debug, otlp/upstream]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [debug, otlp/upstream]

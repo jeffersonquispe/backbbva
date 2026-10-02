@@ -67,11 +67,17 @@ def get_workflow_executor() -> WorkflowExecutor:
 
 
 def get_start_alert_test_workflow_use_case() -> StartAlertTestWorkflowUseCase:
+    # Lazy: metrics_factory imports this module (get_alert_repository).
+    from src.infrastructure.entrypoint.api.factories.metrics_factory import (
+        get_record_alert_metrics_event_use_case,
+    )
+
     return StartAlertTestWorkflowUseCase(
         alert_repository=get_alert_repository(),
         async_operation_repository=DynamoAsyncOperationRepository(),
         workflow_repository=get_workflow_execution_repository(),
         workflow_executor=get_workflow_executor(),
+        metrics_recorder=get_record_alert_metrics_event_use_case(),
     )
 
 

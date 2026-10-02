@@ -115,3 +115,78 @@ def test_list_operational_settings_history_returns_most_recent_first() -> None:
     result = ListOperationalSettingsHistoryUseCase(repository).execute(limit=1)
 
     assert result == [newer]
+
+
+# --- amount tiers (C2) -------------------------------------------------------------
+
+from src.application.ports.operational_settings_port import AmountTier  # noqa: E402
+from src.domain.alerts.amount_tiers import InvalidAmountTiersError  # noqa: E402
+
+_TIERS = [
+    AmountTier("low", "< 1M", 0, 1_000_000),
+    AmountTier("high", ">= 1M", 1_000_000, None),
+]
+
+
+def test_amount_tiers_default_to_empty() -> None:
+    settings = OperationalSettings()
+    assert settings.amount_tiers == [] and settings.amount_tier_set_version == 0
+
+
+def test_changing_amount_tiers_bumps_version_and_records_history() -> None:
+    repository = InMemoryOperationalSettingsRepository()
+    use_case = UpdateOperationalSettingsUseCase(repository)
+
+    first = use_case.execute(
+        UpdateOperationalSettingsInput(
+            settings=replace(OperationalSettings(), amount_tiers=_TIERS)
+        )
+    )
+    assert first.amount_tier_set_version == 1
+    paths = {c.path for c in repository.history[-1].changes}
+    assert {"amount_tiers", "amount_tier_set_version"} <= paths
+    tiers_change = next(c for c in repository.history[-1].changes if c.path == "amount_tiers")
+    assert tiers_change.previous == [] and tiers_change.new[0]["code"] == "low"
+
+    # Unrelated change: version stays, even if the client sends another one.
+    second = use_case.execute(
+        UpdateOperationalSettingsInput(
+            settings=replace(first, agent_enabled=False, amount_tier_set_version=99)
+        )
+    )
+    assert second.amount_tier_set_version == 1
+
+    third = use_case.execute(
+        UpdateOperationalSettingsInput(settings=replace(second, amount_tiers=[]))
+    )
+    assert third.amount_tier_set_version == 2
+
+
+def test_invalid_amount_tiers_are_rejected_and_nothing_is_saved() -> None:
+    repository = InMemoryOperationalSettingsRepository()
+    gap = [AmountTier("a", "a", 0, 10), AmountTier("b", "b", 20, None)]
+    try:
+        UpdateOperationalSettingsUseCase(repository).execute(
+            UpdateOperationalSettingsInput(
+                settings=replace(OperationalSettings(), amount_tiers=gap)
+            )
+        )
+    except InvalidAmountTiersError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("expected InvalidAmountTiersError")
+    assert repository.update_calls == []
+
+
+def test_preserve_amount_tiers_keeps_current_set() -> None:
+    repository = InMemoryOperationalSettingsRepository(
+        replace(OperationalSettings(), amount_tiers=_TIERS, amount_tier_set_version=4)
+    )
+    updated = UpdateOperationalSettingsUseCase(repository).execute(
+        UpdateOperationalSettingsInput(
+            settings=OperationalSettings(agent_enabled=False),
+            preserve_amount_tiers=True,
+        )
+    )
+    assert updated.amount_tiers == _TIERS
+    assert updated.amount_tier_set_version == 4

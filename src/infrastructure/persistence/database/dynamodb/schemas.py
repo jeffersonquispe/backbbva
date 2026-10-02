@@ -41,6 +41,17 @@ USERS_TABLE = {
 }
 
 
+# Access tokens ended by POST /auth/logout before their exp, keyed by the
+# token's jti. expires_at (epoch seconds) is the TTL attribute - see
+# manager.ensure_all_tables.
+REVOKED_TOKENS_TABLE = {
+    "TableName": "revoked_tokens",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "jti", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "jti", "AttributeType": "S"}],
+}
+
+
 ASYNC_OPERATIONS_TABLE = {
     "TableName": "async_operations",
     "BillingMode": "PAY_PER_REQUEST",
@@ -77,6 +88,9 @@ ALERTS_TABLE = {
         {"AttributeName": "partition", "AttributeType": "S"},
         {"AttributeName": "alert_id", "AttributeType": "S"},
         {"AttributeName": "event_id", "AttributeType": "S"},
+        {"AttributeName": "created_day", "AttributeType": "S"},
+        {"AttributeName": "created_at", "AttributeType": "S"},
+        {"AttributeName": "status", "AttributeType": "S"},
     ],
     "GlobalSecondaryIndexes": [
         {
@@ -87,7 +101,81 @@ ALERTS_TABLE = {
             ],
             "Projection": {"ProjectionType": "ALL"},
         },
+        # Alerts by calendar day in the operations timezone (Bogota) -
+        # reconciliation, backfill and the fraud history page read a day
+        # without a Scan. Added to pre-existing tables by
+        # manager.ensure_global_secondary_indexes; alerts written before
+        # created_day existed are absent from it until backfilled (R6).
+        {
+            "IndexName": "CreatedDayIdx",
+            "KeySchema": [
+                {"AttributeName": "created_day", "KeyType": "HASH"},
+                {"AttributeName": "created_at", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+        # Alerts by current status (R9): the live funnel counts and the
+        # analyst queue list read one status instead of paging through
+        # every alert. KEYS_ONLY keeps a COUNT over 10k in-flight alerts at
+        # ~1.5 MB (two pages); list_by_status fetches the items by key.
+        {
+            "IndexName": "StatusIdx",
+            "KeySchema": [
+                {"AttributeName": "status", "KeyType": "HASH"},
+                {"AttributeName": "created_at", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "KEYS_ONLY"},
+        },
     ],
+}
+
+
+# Additive metrics rollups (see application/ports/metrics_rollup_port.py and
+# docs/OBSERVABILITY_STRATEGY.md "Fase C"). pk "<data_type>#<level>#<period>"
+# (e.g. "alert#day#2026-10-01"), sk = the dimension combination serialized in
+# a fixed order. Measures are flat top-level numbers "<measure>__h<HH>" (one
+# per hour of day) because DynamoDB's ADD only works on top-level
+# attributes. Day rows carry expires_at (TTL, 90 days); month/year don't.
+METRICS_ROLLUPS_TABLE = {
+    "TableName": "metrics_rollups",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "pk", "KeyType": "HASH"},
+        {"AttributeName": "sk", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "pk", "AttributeType": "S"},
+        {"AttributeName": "sk", "AttributeType": "S"},
+    ],
+}
+
+
+# Append-only audit of fraud-team reviews of an alert's fraud_label (C5,
+# application/ports/fraud_label_review_port.py): who, when, from -> to,
+# note, channel (ui | csv). One partition per alert, sorted by review time;
+# rows are only ever put (conditioned on not existing), never updated.
+FRAUD_LABEL_REVIEWS_TABLE = {
+    "TableName": "fraud_label_reviews",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "alert_id", "KeyType": "HASH"},
+        {"AttributeName": "review_key", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "alert_id", "AttributeType": "S"},
+        {"AttributeName": "review_key", "AttributeType": "S"},
+    ],
+}
+
+
+# One LLM-judge verdict per alert (D6, EvaluateAlertReasoning). Counts go to
+# metrics_rollups (data_type "evaluation"); this table keeps the verdict and
+# its rationale for audit.
+ALERT_REASONING_EVALUATIONS_TABLE = {
+    "TableName": "alert_reasoning_evaluations",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "alert_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "alert_id", "AttributeType": "S"}],
 }
 
 

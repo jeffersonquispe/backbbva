@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import time
 import uuid
 from functools import lru_cache
 from datetime import datetime, timezone
@@ -10,6 +11,16 @@ from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
+from src.application.dtos.alert_metrics_dtos import (
+    AlertMetricsEventType,
+    RecordAlertMetricsEventInput,
+)
+from src.application.dtos.technical_metrics_dtos import (
+    RecordWorkflowStepMetricsInput,
+)
+from src.application.use_cases.metrics.evaluate_alert_reasoning import (
+    is_sampled_for_evaluation,
+)
 from src.application.dtos.adversarial_review_alert_dtos import (
     AdversarialReviewAlertInput,
     AdversarialReviewAlertOutput,
@@ -42,6 +53,16 @@ from src.application.dtos.profile_alert_dtos import (
 from src.application.dtos.research_dtos import ResearchRequest, ResearchSource
 from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.application.ports.alert_port import AlertOrigin, AlertStatus
+from src.application.ports.monitoring_port import (
+    ATTR_ALERT_ID,
+    ATTR_WORKFLOW_ATTEMPT,
+    ATTR_WORKFLOW_EXECUTION_ID,
+    ATTR_WORKFLOW_OUTCOME,
+    ATTR_WORKFLOW_STEP,
+    WORKFLOW_TOTAL_STEP,
+    MonitoringSpan,
+    span_dimension_attributes,
+)
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.ports.configuration_port import (
     AdversarialConfig,
@@ -82,6 +103,10 @@ from src.infrastructure.workflows.celery.factories import (
     get_pre_process_alert_use_case,
     get_profile_alert_use_case,
     get_operational_settings_repository,
+    get_record_alert_metrics_event_use_case,
+    get_record_workflow_step_metrics_use_case,
+    get_reasoning_evaluation_dispatcher,
+    llm_step_models,
     get_route_alert_resolution_use_case,
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
@@ -140,6 +165,16 @@ class AlertReviewWorkflowRunner:
         self._escalation = get_analyst_escalation_dispatcher()
         self._documenter = get_analyst_decision_documenter()
         self._status: WorkflowStatusReporter | None = None
+        # Looked up at call time (not imported at module load) so tests can
+        # swap factories.get_monitoring for an in-memory exporter.
+        from src.infrastructure.workflows.celery.factories import get_monitoring
+
+        self._monitoring = get_monitoring()
+        self._workflow_span: MonitoringSpan | None = None
+        # T2: the alert's known dimensions (aria.channel, aria.segment, ...)
+        # from its metrics snapshot - refreshed after every metrics event and
+        # copied onto each step span.
+        self._dimensions: dict[str, str] = {}
 
     def run(
         self,
@@ -153,6 +188,46 @@ class AlertReviewWorkflowRunner:
                 "workflow_execution_id": str(workflow_execution_id),
             }
 
+        started = time.perf_counter()
+        alert = self._alerts.get(workflow.alert_id)
+        self._dimensions = span_dimension_attributes(
+            alert.metrics if alert is not None else None
+        )
+        span = self._monitoring.start(
+            "alert_review_workflow",
+            "workflow",
+            metadata={
+                ATTR_ALERT_ID: str(workflow.alert_id),
+                ATTR_WORKFLOW_EXECUTION_ID: str(workflow.id),
+                **self._dimensions,
+            },
+        )
+        self._workflow_span = span
+        error: str | None = None
+        try:
+            return self._run(workflow, is_final_attempt)
+        except Exception as exc:
+            error = str(exc)
+            raise
+        finally:
+            # Outcome = the alert's final status for this attempt
+            # (CLOSED/ESCALATED/FAILED/SKIPPED).
+            alert = self._alerts.get(workflow.alert_id)
+            outcome = str(alert.status) if alert is not None else "UNKNOWN"
+            span.write_operation_metas(
+                {**self._dimensions, ATTR_WORKFLOW_OUTCOME: outcome}
+            )
+            span.finish(error)
+            self._workflow_span = None
+            self._monitoring.record_workflow_duration(
+                WORKFLOW_TOTAL_STEP, outcome, time.perf_counter() - started
+            )
+
+    def _run(
+        self,
+        workflow: WorkflowExecutionRecord,
+        is_final_attempt: bool,
+    ) -> dict[str, Any]:
         origin = AlertOrigin((workflow.input or {}).get("origin") or "manual")
         skip_reason = agent_off_skip_reason(
             origin, get_operational_settings_repository().get()
@@ -206,6 +281,15 @@ class AlertReviewWorkflowRunner:
                 context = self._run_step(workflow, step_name, context)
                 if step_name == "pre_process":
                     context = _resolve_segment(context)
+                    config = context.get("active_configuration")
+                    self._record_metrics(
+                        workflow,
+                        AlertMetricsEventType.PRE_PROCESSED,
+                        segment=context.get("segment_code"),
+                        configuration_id=(
+                            config.configuration_id if config is not None else None
+                        ),
+                    )
                 if step_name == "profiling":
                     # Rubrics are part of profiling context, rather than a
                     # public workflow stage.  This preserves the workflow
@@ -303,15 +387,24 @@ class AlertReviewWorkflowRunner:
                 result=output,
             )
             executed = context.get("executor") or {}
-            self._alerts.update(
-                workflow.alert_id,
-                # Waits in the analyst queue until a human resolves it.
-                status=(
-                    AlertStatus.ESCALATED
-                    if executed.get("executed_action") == "scale_to_analyst"
-                    else AlertStatus.CLOSED
+            final_status = (
+                AlertStatus.ESCALATED
+                if executed.get("executed_action") == "scale_to_analyst"
+                else AlertStatus.CLOSED
+            )
+            # Waits in the analyst queue until a human resolves it.
+            self._alerts.update(workflow.alert_id, status=final_status)
+            self._record_metrics(
+                workflow,
+                AlertMetricsEventType.WORKFLOW_FINISHED,
+                status=final_status,
+                executed_action=(
+                    "discarded" if discarded else executed.get("executed_action")
                 ),
             )
+            self._record_step_metrics(workflow)
+            if not discarded:
+                self._dispatch_reasoning_evaluation(workflow)
             return {"status": "ok", "workflow_execution_id": str(workflow.id)}
         except Exception as exc:
             error = str(exc)
@@ -329,6 +422,11 @@ class AlertReviewWorkflowRunner:
                 error=error,
             )
             self._alerts.update(workflow.alert_id, status=AlertStatus.FAILED)
+            self._record_metrics(
+                workflow,
+                AlertMetricsEventType.WORKFLOW_FINISHED,
+                status=AlertStatus.FAILED,
+            )
             # AdversarialFeedbackLimitExceededError is excluded from Celery
             # autoretry (see tasks.py), so it's terminal on this one raise
             # regardless of is_final_attempt - escalate every time.
@@ -343,6 +441,11 @@ class AlertReviewWorkflowRunner:
             # exhausted its retries) - escalate that case to an analyst too.
             elif is_final_attempt and "pre_process" not in context:
                 self._escalate_to_analyst(workflow, error)
+            # After the escalation, so the steps carry the alert's final
+            # status for this attempt. Steps of an attempt that Celery will
+            # retry are counted now (they ran); the next attempt's call
+            # skips them via their apply_once markers.
+            self._record_step_metrics(workflow)
             raise
         finally:
             self._status.stop()
@@ -382,7 +485,72 @@ class AlertReviewWorkflowRunner:
             result=output,
         )
         self._alerts.update(workflow.alert_id, status=AlertStatus.SKIPPED)
+        self._record_metrics(
+            workflow,
+            AlertMetricsEventType.WORKFLOW_FINISHED,
+            status=AlertStatus.SKIPPED,
+        )
         return {"status": "skipped", "workflow_execution_id": str(workflow.id)}
+
+    def _record_metrics(
+        self,
+        workflow: WorkflowExecutionRecord,
+        event_type: AlertMetricsEventType,
+        **fields: Any,
+    ) -> None:
+        # Best effort: a metrics failure must never fail (and so Celery-
+        # retry) the alert review. Re-recording the same event on a retry is
+        # a no-op (RecordAlertMetricsEvent compares snapshots), and the
+        # daily reconciliation repairs anything lost here.
+        try:
+            snapshot = get_record_alert_metrics_event_use_case().execute(
+                RecordAlertMetricsEventInput(
+                    alert_id=workflow.alert_id, event_type=event_type, **fields
+                )
+            )
+            if snapshot is not None:
+                self._dimensions.update(span_dimension_attributes(snapshot))
+                if self._workflow_span is not None:
+                    self._workflow_span.write_operation_metas(self._dimensions)
+        except Exception:
+            logger.exception(
+                "Metrics event %s failed for alert %s", event_type.value, workflow.alert_id
+            )
+
+    def _record_step_metrics(self, workflow: WorkflowExecutionRecord) -> None:
+        # R8 technical rollups from the run's persisted step records (call
+        # after self._status.flush()). Best effort like _record_metrics:
+        # exactly-once per step execution is RecordWorkflowStepMetrics'
+        # job, so calling it again on a retry/escalation is harmless.
+        try:
+            config_overrides = (workflow.input or {}).get("config_overrides") or {}
+            get_record_workflow_step_metrics_use_case().execute(
+                RecordWorkflowStepMetricsInput(
+                    alert_id=workflow.alert_id,
+                    workflow_execution_id=workflow.id,
+                    step_models=llm_step_models(
+                        config_overrides.get("model_overrides") or {}
+                    ),
+                )
+            )
+        except Exception:
+            logger.exception("Step metrics failed for alert %s", workflow.alert_id)
+
+    def _dispatch_reasoning_evaluation(self, workflow: WorkflowExecutionRecord) -> None:
+        # D6: a sampled share of finished alerts goes to the LLM-judge in
+        # its own Celery task, off this run's critical path. Sampling is
+        # deterministic per alert and the judge is idempotent, so a
+        # duplicate dispatch can't double count.
+        try:
+            rate = get_operational_settings_repository().get().reasoning_evaluation_sample_rate
+            if is_sampled_for_evaluation(workflow.alert_id, rate):
+                get_reasoning_evaluation_dispatcher().dispatch(
+                    workflow.alert_id, workflow.id
+                )
+        except Exception:
+            logger.exception(
+                "Reasoning evaluation dispatch failed for alert %s", workflow.alert_id
+            )
 
     def _escalate_to_analyst(
         self,
@@ -392,6 +560,12 @@ class AlertReviewWorkflowRunner:
         # A failed review that goes to a human still lands in the analyst
         # queue, same as a normal scale_to_analyst decision.
         self._alerts.update(workflow.alert_id, status=AlertStatus.ESCALATED)
+        self._record_metrics(
+            workflow,
+            AlertMetricsEventType.WORKFLOW_FINISHED,
+            status=AlertStatus.ESCALATED,
+            executed_action="scale_to_analyst",
+        )
         alert = self._alerts.get(workflow.alert_id)
         event_id = alert.event_id if alert is not None else str(workflow.alert_id)
         self._escalation.dispatch(
@@ -435,6 +609,17 @@ class AlertReviewWorkflowRunner:
         )
         context["current_step_id"] = str(step.id)
 
+        step_started = time.perf_counter()
+        step_span = self._monitoring.start(
+            f"alert_review_workflow.{step_name}",
+            "workflow.step",
+            metadata={
+                ATTR_ALERT_ID: str(workflow.alert_id),
+                ATTR_WORKFLOW_STEP: step_name,
+                ATTR_WORKFLOW_ATTEMPT: attempt,
+                **self._dimensions,
+            },
+        )
         try:
             output = _execute_placeholder_step(step_name, context)
             db_output = (
@@ -453,8 +638,14 @@ class AlertReviewWorkflowRunner:
                 )
             )
             context[step_name] = output
+            self._finish_step_span(
+                step_span, step_name, WorkflowStepStatus.SUCCEEDED, step_started
+            )
             return context
         except Exception as exc:
+            self._finish_step_span(
+                step_span, step_name, WorkflowStepStatus.FAILED, step_started, str(exc)
+            )
             finished_at = datetime.now(timezone.utc)
             # Must go through the queue, not a direct self._steps.update():
             # a progress report from mid-step (e.g. profile_alert's
@@ -476,6 +667,19 @@ class AlertReviewWorkflowRunner:
             )
             self._status.flush()
             raise
+
+    def _finish_step_span(
+        self,
+        span: MonitoringSpan,
+        step_name: str,
+        status: WorkflowStepStatus,
+        started: float,
+        error: str | None = None,
+    ) -> None:
+        span.finish(error)
+        self._monitoring.record_workflow_duration(
+            step_name, str(status), time.perf_counter() - started
+        )
 
     def _run_adversarial_review(
         self,
@@ -651,6 +855,7 @@ def _segment_tool_kwargs(cfg: AgentToolsConfig) -> dict[str, Any]:
     vector_store = cfg.delegated_research.vector_store
     if vector_store.enabled and vector_store.vector_store_instance_id:
         from src.infrastructure.workflows.celery.factories import (
+            get_monitoring,
             get_search_fraud_knowledge_use_case,
         )
 
@@ -665,6 +870,7 @@ def _segment_tool_kwargs(cfg: AgentToolsConfig) -> dict[str, Any]:
                 ),
                 ResearchSource.VECTOR_STORE,
                 vector_store.timeout_seconds,
+                monitoring=get_monitoring(),
             ),
             ResearchSource.VECTOR_STORE,
             max_interactions=vector_store.max_delegations,
@@ -1048,6 +1254,7 @@ def _history_research(
         ),
         ResearchSource.HISTORY_PANDAS,
         settings.timeout_seconds,
+        monitoring=_factories_monitoring(),
     )
     request = ResearchRequest(
         ResearchSource.HISTORY_PANDAS,
@@ -1058,6 +1265,13 @@ def _history_research(
         [request], is_inconclusive=lambda: True, accept=lambda _result: None
     )
     return [dataclasses.asdict(result) for result in results]
+
+
+def _factories_monitoring():
+    # Call-time lookup so tests can swap factories.get_monitoring.
+    from src.infrastructure.workflows.celery.factories import get_monitoring
+
+    return get_monitoring()
 
 
 _MAX_HISTORY_ROUNDS = 5

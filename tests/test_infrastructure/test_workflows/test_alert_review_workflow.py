@@ -20,6 +20,7 @@ from src.application.ports.alert_action_dispatcher_port import (
     AlertActionDispatchRef,
     AlertActionDispatcher,
 )
+from src.application.dtos.alert_metrics_dtos import AlertMetricsEventType
 from src.application.ports.alert_port import AlertOrigin, AlertRecord, AlertStatus
 from src.application.ports.analyst_decision_documenter_port import (
     AnalystDecisionDocumenter,
@@ -53,8 +54,14 @@ from src.application.ports.llm_unit_of_work_port import (
     LLMUnitOfWorkFactory,
 )
 from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
-from src.application.ports.monitoring_port import MonitoringPort
-from src.application.ports.operational_settings_port import OperationalSettings
+from src.application.ports.monitoring_port import WORKFLOW_TOTAL_STEP, MonitoringPort
+from src.application.ports.operational_settings_port import (
+    AmountTier,
+    OperationalSettings,
+)
+from src.application.use_cases.metrics.record_alert_metrics_event import (
+    RecordAlertMetricsEvent,
+)
 from src.application.ports.operations_capacity_port import (
     ChannelCapacity,
     OperationsCapacityRecord,
@@ -267,6 +274,64 @@ _ARIA_PLAYBOOK = ResolvedPlaybook(
 )
 
 
+class RecordingMetricsEvents:
+    """Stands in for RecordAlertMetricsEvent: records every event input."""
+
+    def __init__(self) -> None:
+        self.events: list = []
+
+    def execute(self, input):
+        self.events.append(input)
+        return None
+
+
+@pytest.fixture(autouse=True)
+def metrics_events(monkeypatch) -> RecordingMetricsEvents:
+    recorder = RecordingMetricsEvents()
+    monkeypatch.setattr(
+        workflow_module, "get_record_alert_metrics_event_use_case", lambda: recorder
+    )
+    return recorder
+
+
+class RecordingStepMetrics:
+    """Stands in for RecordWorkflowStepMetrics: records every input."""
+
+    def __init__(self) -> None:
+        self.inputs: list = []
+
+    def execute(self, input):
+        self.inputs.append(input)
+        return None
+
+
+class RecordingReasoningEvaluationDispatcher:
+    def __init__(self) -> None:
+        self.calls: list[tuple[UUID, UUID]] = []
+
+    def dispatch(self, alert_id, workflow_execution_id):
+        self.calls.append((alert_id, workflow_execution_id))
+        return None
+
+
+@pytest.fixture(autouse=True)
+def step_metrics(monkeypatch) -> RecordingStepMetrics:
+    recorder = RecordingStepMetrics()
+    monkeypatch.setattr(
+        workflow_module, "get_record_workflow_step_metrics_use_case", lambda: recorder
+    )
+    return recorder
+
+
+@pytest.fixture(autouse=True)
+def evaluation_dispatches(monkeypatch) -> RecordingReasoningEvaluationDispatcher:
+    dispatcher = RecordingReasoningEvaluationDispatcher()
+    monkeypatch.setattr(
+        workflow_module, "get_reasoning_evaluation_dispatcher", lambda: dispatcher
+    )
+    return dispatcher
+
+
 @pytest.fixture(autouse=True)
 def _operations_defaults(monkeypatch):
     # Agent on, every resource available, no modus operandi playbook -
@@ -426,11 +491,37 @@ class FakeLLMUnitOfWorkFactory(LLMUnitOfWorkFactory):
         return FakeLLMUnitOfWork(operation_name)
 
 
+class RecordingOpenTelemetryMonitoring(OpenTelemetryMonitoring):
+    """Real span adapter (in-memory exporter) that also records the explicit
+    metric calls the runner makes."""
+
+    def __init__(self, tracer) -> None:
+        super().__init__(tracer)
+        self.workflow_durations: list[tuple[str, str, float]] = []
+        self.research_calls: list[tuple[str, str]] = []
+
+    def record_workflow_duration(self, step, outcome, duration_seconds) -> None:
+        self.workflow_durations.append((step, outcome, duration_seconds))
+
+    def record_research_call(self, source, outcome) -> None:
+        self.research_calls.append((source, str(outcome)))
+
+
 def _build_in_memory_monitoring() -> tuple[MonitoringPort, InMemorySpanExporter]:
     exporter = InMemorySpanExporter()
     provider = TracerProvider(resource=Resource.create({"service.name": "test"}))
     provider.add_span_processor(SimpleSpanProcessor(exporter))
-    return OpenTelemetryMonitoring(provider.get_tracer("test")), exporter
+    return RecordingOpenTelemetryMonitoring(provider.get_tracer("test")), exporter
+
+
+@pytest.fixture(autouse=True)
+def in_memory_monitoring(monkeypatch):
+    # The runner looks up factories.get_monitoring() itself: never let a
+    # test reach the real (global) OTel provider. Tests that patch it again
+    # (e.g. _run_full_pipeline) simply override this one.
+    monitoring, exporter = _build_in_memory_monitoring()
+    monkeypatch.setattr(factories_module, "get_monitoring", lambda: monitoring)
+    return monitoring, exporter
 
 
 def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
@@ -452,10 +543,11 @@ def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
     escalation_dispatcher = RecordingAnalystEscalationDispatcher()
     documenter_dispatcher = RecordingAnalystDecisionDocumenter()
     llm_factory = FakeLLMUnitOfWorkFactory()
-    # Only used so real step use cases get a real MonitoringPort instance
-    # (type-correct DI) - FakeLLMUnitOfWork never calls monitoring.start(),
-    # unlike the real Langchain adapter, so no spans land here to assert on.
-    monitoring, _ = _build_in_memory_monitoring()
+    # Real step use cases get a real MonitoringPort instance. FakeLLMUnitOfWork
+    # never calls monitoring.start() (unlike the real Langchain adapter), so
+    # the spans here are the runner's own workflow/step spans (T2) plus the
+    # step use cases' (escalation, action, ...).
+    monitoring, span_exporter = _build_in_memory_monitoring()
 
     # AlertReviewWorkflowRunner and the per-step _run_* functions call these
     # factory functions by the name each imported into its own module
@@ -560,6 +652,8 @@ def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
         escalation_dispatcher=escalation_dispatcher,
         documenter_dispatcher=documenter_dispatcher,
         llm_factory=llm_factory,
+        monitoring=monitoring,
+        span_exporter=span_exporter,
     )
 
 
@@ -786,7 +880,9 @@ def test_agent_off_still_processes_manual_and_test_run_alerts(monkeypatch, origi
     assert steps.list_by_workflow(workflow_id)[0].step_name == "pre_process"
 
 
-def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(monkeypatch):
+def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(
+    monkeypatch, metrics_events
+):
     now = datetime.now(timezone.utc)
 
     alerts = InMemoryAlertRepository()
@@ -923,6 +1019,14 @@ def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(monkey
     assert finished_workflow is not None
     assert finished_workflow.status == WorkflowStatus.SUCCEEDED
     assert finished_workflow.current_step == "deterministic"
+    # C4: a discard is recorded as ARIA's no_fraud decision.
+    finished_events = [
+        e for e in metrics_events.events
+        if e.event_type == AlertMetricsEventType.WORKFLOW_FINISHED
+    ]
+    assert [(e.status, e.executed_action) for e in finished_events] == [
+        (AlertStatus.CLOSED, "discarded")
+    ]
     assert finished_workflow.output is not None
     assert finished_workflow.output["resolution_path"] == "discarded_deterministic"
 
@@ -1133,3 +1237,381 @@ def test_alert_review_workflow_skips_to_pass_when_detector_finds_no_fraud(monkey
     assert action_dispatcher.calls == []
     assert escalation_dispatcher.calls == []
     assert documenter_dispatcher.calls == []
+
+
+# --- C4: metrics events at the workflow's hook points -----------------------------
+
+
+def _metrics_summary(metrics_events):
+    return [
+        (e.event_type, e.status, e.executed_action) for e in metrics_events.events
+    ]
+
+
+def test_metrics_events_on_full_pipeline(monkeypatch, metrics_events):
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+
+    assert _metrics_summary(metrics_events) == [
+        (AlertMetricsEventType.PRE_PROCESSED, None, None),
+        (AlertMetricsEventType.WORKFLOW_FINISHED, AlertStatus.CLOSED, "bidi"),
+    ]
+    assert all(e.alert_id == run["alert_id"] for e in metrics_events.events)
+
+
+def test_metrics_events_on_escalation(monkeypatch, metrics_events):
+    _run_full_pipeline(monkeypatch, resolved=None)
+
+    assert _metrics_summary(metrics_events)[-1] == (
+        AlertMetricsEventType.WORKFLOW_FINISHED,
+        AlertStatus.ESCALATED,
+        "scale_to_analyst",
+    )
+
+
+def test_metrics_event_on_skip(monkeypatch, metrics_events):
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    monkeypatch.setattr(workflow_module, "get_alert_repository", lambda: alerts)
+    monkeypatch.setattr(workflow_module, "get_async_operation_repository", lambda: operations)
+    monkeypatch.setattr(workflow_module, "get_workflow_execution_repository", lambda: workflows)
+    monkeypatch.setattr(
+        workflow_module,
+        "get_operational_settings_repository",
+        lambda: InMemoryOperationalSettingsRepository(OperationalSettings(agent_enabled=False)),
+    )
+    _, _, workflow_id = _seed_pending_workflow(
+        alerts, operations, workflows, {"alert_payload": SYNTHETIC_ALERT_PAYLOAD, "origin": "simulator"}
+    )
+
+    AlertReviewWorkflowRunner().run(workflow_id)
+
+    assert _metrics_summary(metrics_events) == [
+        (AlertMetricsEventType.WORKFLOW_FINISHED, AlertStatus.SKIPPED, None)
+    ]
+
+
+def test_metrics_events_on_failure_then_escalation(monkeypatch, metrics_events):
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    steps = InMemoryWorkflowStepExecutionRepository()
+    monkeypatch.setattr(workflow_module, "get_alert_repository", lambda: alerts)
+    monkeypatch.setattr(workflow_module, "get_async_operation_repository", lambda: operations)
+    monkeypatch.setattr(workflow_module, "get_workflow_execution_repository", lambda: workflows)
+    monkeypatch.setattr(workflow_module, "get_workflow_step_execution_repository", lambda: steps)
+    monkeypatch.setattr(
+        workflow_module, "get_analyst_escalation_dispatcher", RecordingAnalystEscalationDispatcher
+    )
+    # Empty payload: pre_process fails on missing mandatory data.
+    _, _, workflow_id = _seed_pending_workflow(
+        alerts, operations, workflows, {"alert_payload": {}}
+    )
+
+    with pytest.raises(Exception):
+        AlertReviewWorkflowRunner().run(workflow_id)
+
+    assert _metrics_summary(metrics_events) == [
+        (AlertMetricsEventType.WORKFLOW_FINISHED, AlertStatus.FAILED, None),
+        (AlertMetricsEventType.WORKFLOW_FINISHED, AlertStatus.ESCALATED, "scale_to_analyst"),
+    ]
+
+
+def test_metrics_failure_never_fails_the_workflow(monkeypatch):
+    class Exploding:
+        def execute(self, input):
+            raise RuntimeError("dynamodb down")
+
+    monkeypatch.setattr(
+        workflow_module, "get_record_alert_metrics_event_use_case", lambda: Exploding()
+    )
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+
+    assert run["result"]["status"] == "ok"
+    assert run["alerts"].get(run["alert_id"]).status == AlertStatus.CLOSED
+
+
+# --- R8: technical metrics from the run's step records ---------------------------
+
+
+class InMemoryMarkedRollupRepository:
+    """MetricsRollupRepository fake for apply_once: rows summed per key and
+    hour, markers kept in a set (a known marker writes nothing)."""
+
+    def __init__(self) -> None:
+        self.markers: set[tuple[str, str]] = set()
+        self.rows: dict = {}
+
+    def apply_once(self, deltas, marker) -> bool:
+        if (marker.scope, marker.key) in self.markers:
+            return False
+        self.markers.add((marker.scope, marker.key))
+        for delta in deltas:
+            slots = self.rows.setdefault(delta.key, {})
+            for name, value in delta.measures.items():
+                hours = slots.setdefault(name, [0.0] * 24)
+                hours[delta.hour] += value
+        return True
+
+    def total(self, data_type, level, measure) -> float:
+        return sum(
+            sum(slots.get(measure, [0.0] * 24))
+            for key, slots in self.rows.items()
+            if key.data_type == data_type and key.level == level
+        )
+
+
+def test_step_metrics_recorded_once_per_successful_run(monkeypatch, step_metrics):
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+
+    assert len(step_metrics.inputs) == 1
+    recorded = step_metrics.inputs[0]
+    assert recorded.alert_id == run["alert_id"]
+    assert recorded.workflow_execution_id == run["workflow_id"]
+    assert {"detector", "classification", "adversarial", "analyst"} <= set(
+        recorded.step_models
+    )
+    assert "pre_process" not in recorded.step_models
+
+
+def test_step_metrics_recorded_on_failure(monkeypatch, step_metrics):
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    steps = InMemoryWorkflowStepExecutionRepository()
+    monkeypatch.setattr(workflow_module, "get_alert_repository", lambda: alerts)
+    monkeypatch.setattr(workflow_module, "get_async_operation_repository", lambda: operations)
+    monkeypatch.setattr(workflow_module, "get_workflow_execution_repository", lambda: workflows)
+    monkeypatch.setattr(workflow_module, "get_workflow_step_execution_repository", lambda: steps)
+    monkeypatch.setattr(
+        workflow_module, "get_analyst_escalation_dispatcher", RecordingAnalystEscalationDispatcher
+    )
+    _, _, workflow_id = _seed_pending_workflow(alerts, operations, workflows, {"alert_payload": {}})
+
+    with pytest.raises(Exception):
+        AlertReviewWorkflowRunner().run(workflow_id)
+
+    assert [i.workflow_execution_id for i in step_metrics.inputs] == [workflow_id]
+
+
+def test_step_metrics_rows_and_tokens_match_token_usage(monkeypatch):
+    from src.application.dtos.technical_metrics_dtos import RecordWorkflowStepMetricsInput
+    from src.application.ports.metrics_rollup_port import MetricsDataType, RollupLevel
+    from src.application.use_cases.metrics.record_workflow_step_metrics import (
+        RecordWorkflowStepMetrics,
+    )
+    from src.application.use_cases.test_runs.token_usage import sum_step_tokens
+
+    def invoke_with_usage(self, messages):
+        return LLMInvocationResult(
+            content=_LLM_RESPONSES[self._operation_name],
+            model="fake-model",
+            input_tokens=120,
+            output_tokens=15,
+        )
+
+    monkeypatch.setattr(FakeLLMUnitOfWork, "invoke", invoke_with_usage)
+    rollups = InMemoryMarkedRollupRepository()
+    # Resolved at call time: the runner's repos are the in-memory ones
+    # _run_full_pipeline patches in.
+    monkeypatch.setattr(
+        workflow_module,
+        "get_record_workflow_step_metrics_use_case",
+        lambda: RecordWorkflowStepMetrics(
+            alert_repository=workflow_module.get_alert_repository(),
+            step_repository=workflow_module.get_workflow_step_execution_repository(),
+            rollup_repository=rollups,
+            timezone_name="America/Bogota",
+        ),
+    )
+
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+
+    steps = run["steps"].list_by_workflow(run["workflow_id"])
+    input_tokens, output_tokens = sum_step_tokens(steps)
+    assert input_tokens > 0 and output_tokens > 0
+    for level in (RollupLevel.DAY, RollupLevel.MONTH, RollupLevel.YEAR):
+        assert rollups.total(MetricsDataType.LLM_CALL, level, "input_tokens") == input_tokens
+        assert rollups.total(MetricsDataType.LLM_CALL, level, "output_tokens") == output_tokens
+        assert rollups.total(MetricsDataType.WORKFLOW_STEP, level, "count") == len(steps)
+    assert len(rollups.markers) == len(steps)
+
+    # Recording the same run again (a retry / the escalation path) adds nothing.
+    before = {key: {m: list(v) for m, v in slots.items()} for key, slots in rollups.rows.items()}
+    workflow_module.get_record_workflow_step_metrics_use_case().execute(
+        RecordWorkflowStepMetricsInput(
+            alert_id=run["alert_id"], workflow_execution_id=run["workflow_id"]
+        )
+    )
+    assert rollups.rows == before
+
+
+def test_reasoning_evaluation_dispatched_only_when_sampled(monkeypatch, evaluation_dispatches):
+    monkeypatch.setattr(
+        workflow_module,
+        "get_operational_settings_repository",
+        lambda: InMemoryOperationalSettingsRepository(
+            OperationalSettings(reasoning_evaluation_sample_rate=1.0)
+        ),
+    )
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+    assert evaluation_dispatches.calls == [(run["alert_id"], run["workflow_id"])]
+
+    evaluation_dispatches.calls.clear()
+    monkeypatch.setattr(
+        workflow_module,
+        "get_operational_settings_repository",
+        lambda: InMemoryOperationalSettingsRepository(
+            OperationalSettings(reasoning_evaluation_sample_rate=0.0)
+        ),
+    )
+    _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+    assert evaluation_dispatches.calls == []
+
+
+# --- T2/T3: workflow + step spans and explicit workflow metrics -------------------
+
+
+class SnapshotWritingRollupRepository:
+    """MetricsRollupRepository fake for RecordAlertMetricsEvent: stores the
+    guarded snapshot on the (in-memory) alert, ignores the deltas."""
+
+    def apply(self, deltas, alert_guard) -> None:
+        alerts = workflow_module.get_alert_repository()
+        alert = alerts.get(alert_guard.alert_id)
+        alerts.alerts[alert.id] = dataclasses.replace(alert, metrics=alert_guard.snapshot)
+
+
+def _real_metrics_events(monkeypatch):
+    settings = InMemoryOperationalSettingsRepository(
+        OperationalSettings(
+            amount_tiers=[
+                AmountTier("low", "< 1M", 0, 1_000_000),
+                AmountTier("high", ">= 1M", 1_000_000, None),
+            ],
+            amount_tier_set_version=1,
+        )
+    )
+    monkeypatch.setattr(
+        workflow_module,
+        "get_record_alert_metrics_event_use_case",
+        # Built per call so it reads the alert repo the test patched in.
+        lambda: RecordAlertMetricsEvent(
+            alert_repository=workflow_module.get_alert_repository(),
+            rollup_repository=SnapshotWritingRollupRepository(),
+            settings_repository=settings,
+            timezone_name="America/Bogota",
+        ),
+    )
+
+
+_FORBIDDEN_VALUES = (
+    SYNTHETIC_ALERT_PAYLOAD["customerId"],
+    "15000000",
+)
+
+
+def _assert_no_customer_id_or_amount(spans) -> None:
+    for span in spans:
+        attribute_sets = [dict(span.attributes or {})] + [
+            dict(event.attributes or {}) for event in span.events
+        ]
+        for attributes in attribute_sets:
+            for key, value in attributes.items():
+                last = key.rsplit(".", 1)[-1].lower()
+                assert last not in {"customer_id", "customerid", "amount"}, (span.name, key)
+                assert value != SYNTHETIC_ALERT_PAYLOAD["amount"]["baseValue"], (span.name, key)
+                text = str(value).replace(".0", "").replace("_", "")
+                for forbidden in _FORBIDDEN_VALUES:
+                    assert forbidden not in text, (span.name, key, value)
+
+
+def test_workflow_and_step_spans_carry_dimensions_never_customer_or_amount(monkeypatch):
+    _real_metrics_events(monkeypatch)
+
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+
+    spans = run["span_exporter"].get_finished_spans()
+    by_name = {span.name: span for span in spans}
+    workflow_span = by_name["alert_review_workflow"]
+    assert workflow_span.attributes["alert_id"] == str(run["alert_id"])
+    assert workflow_span.attributes["aria.channel"] == "mobileApp"
+    assert workflow_span.attributes["aria.subchannel"] == "APP"
+    assert workflow_span.attributes["aria.amount_tier"] == "high"
+    assert workflow_span.attributes["aria.status"] == "CLOSED"
+    assert workflow_span.attributes["aria.mark"] == "pending"  # bidi
+    assert workflow_span.attributes["aria.resolution_method"] == "bidi"
+    assert workflow_span.attributes["aria.workflow.outcome"] == "CLOSED"
+
+    step_spans = [s for s in spans if s.attributes.get("operation.type") == "workflow.step"]
+    assert {s.attributes["aria.workflow.step"] for s in step_spans} >= {
+        "pre_process", "profiling", "detector", "analyst", "executor", "post_process",
+    }
+    assert all(s.parent.span_id == workflow_span.context.span_id for s in step_spans)
+    # Dimensions known before a step starts ride on its span too.
+    assert by_name["alert_review_workflow.analyst"].attributes["aria.channel"] == "mobileApp"
+
+    _assert_no_customer_id_or_amount(spans)
+
+
+def test_workflow_duration_recorded_per_step_and_per_run(monkeypatch):
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+
+    durations = run["monitoring"].workflow_durations
+    assert durations[-1][:2] == (WORKFLOW_TOTAL_STEP, "CLOSED")
+    steps = [(step, outcome) for step, outcome, _ in durations[:-1]]
+    assert ("pre_process", "SUCCEEDED") in steps
+    assert ("post_process", "SUCCEEDED") in steps
+    assert all(seconds >= 0 for _, _, seconds in durations)
+
+
+def test_workflow_duration_records_failed_step_and_escalated_run(monkeypatch, in_memory_monitoring):
+    monitoring, exporter = in_memory_monitoring
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    steps = InMemoryWorkflowStepExecutionRepository()
+    monkeypatch.setattr(workflow_module, "get_alert_repository", lambda: alerts)
+    monkeypatch.setattr(workflow_module, "get_async_operation_repository", lambda: operations)
+    monkeypatch.setattr(workflow_module, "get_workflow_execution_repository", lambda: workflows)
+    monkeypatch.setattr(workflow_module, "get_workflow_step_execution_repository", lambda: steps)
+    monkeypatch.setattr(
+        workflow_module, "get_analyst_escalation_dispatcher", RecordingAnalystEscalationDispatcher
+    )
+    _, _, workflow_id = _seed_pending_workflow(alerts, operations, workflows, {"alert_payload": {}})
+
+    with pytest.raises(Exception):
+        AlertReviewWorkflowRunner().run(workflow_id)
+
+    assert [(step, outcome) for step, outcome, _ in monitoring.workflow_durations] == [
+        ("pre_process", "FAILED"),
+        (WORKFLOW_TOTAL_STEP, "ESCALATED"),
+    ]
+    workflow_span = next(
+        s for s in exporter.get_finished_spans() if s.name == "alert_review_workflow"
+    )
+    assert workflow_span.status.status_code.name == "ERROR"
+
+
+def test_skipped_run_records_its_duration_as_skipped(monkeypatch, in_memory_monitoring):
+    monitoring, _ = in_memory_monitoring
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    monkeypatch.setattr(workflow_module, "get_alert_repository", lambda: alerts)
+    monkeypatch.setattr(workflow_module, "get_async_operation_repository", lambda: operations)
+    monkeypatch.setattr(workflow_module, "get_workflow_execution_repository", lambda: workflows)
+    monkeypatch.setattr(
+        workflow_module,
+        "get_operational_settings_repository",
+        lambda: InMemoryOperationalSettingsRepository(OperationalSettings(agent_enabled=False)),
+    )
+    _, _, workflow_id = _seed_pending_workflow(
+        alerts, operations, workflows, {"alert_payload": SYNTHETIC_ALERT_PAYLOAD, "origin": "simulator"}
+    )
+
+    AlertReviewWorkflowRunner().run(workflow_id)
+
+    assert [(step, outcome) for step, outcome, _ in monitoring.workflow_durations] == [
+        (WORKFLOW_TOTAL_STEP, "SKIPPED")
+    ]

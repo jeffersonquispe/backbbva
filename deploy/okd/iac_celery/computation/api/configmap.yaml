@@ -8,6 +8,10 @@ metadata:
     app.kubernetes.io/part-of: aria
     app.kubernetes.io/managed-by: argocd
 data:
+  # Container clock and business buckets (analyst matrix, metric rollups)
+  # both follow Bogotá - see docs/OBSERVABILITY_STRATEGY.md.
+  TZ: America/Bogota
+  OPERATIONS_TIMEZONE: America/Bogota
   GENAI_ENVIRONMENT: development
   API_V0_STR: /api/v0
   COMPONENT_NAME: aria-api
@@ -34,5 +38,6 @@ data:
   OPENAI_VERSION: "2024-08-01-preview"
   EMBEDDING_MODEL: agentepqrs-llm-live-emebed-3-large
   EMBEDDING_DIMENSIONS: "3072"
-  OTEL_ENDPOINT: http://localhost:4317
+  # Namespace Collector (observability/otel-collector), the only OTLP boundary.
+  OTEL_ENDPOINT: http://otel-collector:4317
   OTEL_CAPTURE_LLM_CONTENT: "false"

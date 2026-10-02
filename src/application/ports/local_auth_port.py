@@ -17,9 +17,12 @@ class LocalRole(StrEnum):
 
 
 ROLE_PERMISSIONS: dict[LocalRole, frozenset[str]] = {
-    LocalRole.MANAGER: frozenset({"dashboard", "in_progress", "fraud_history", "monitor", "configuration"}),
+    # fraud_review: correct an alert's fraud_label (POST /alerts/{id}/fraud-review
+    # and the bulk CSV) - a bank business record: manager, plus
+    # channel_manager, which by design holds every frontend permission.
+    LocalRole.MANAGER: frozenset({"dashboard", "in_progress", "fraud_history", "fraud_review", "monitor", "configuration"}),
     LocalRole.RELEASE_MANAGER: frozenset({"dashboard", "in_progress", "fraud_history", "monitor", "configuration", "testing"}),
-    LocalRole.CHANNEL_MANAGER: frozenset({"dashboard", "in_progress", "fraud_history", "monitor", "configuration", "testing", "library", "models"}),
+    LocalRole.CHANNEL_MANAGER: frozenset({"dashboard", "in_progress", "fraud_history", "fraud_review", "monitor", "configuration", "testing", "library", "models"}),
     LocalRole.DATA_ANALYST: frozenset({"monitor", "library", "testing", "models"}),
     LocalRole.FRAUD_ANALYST: frozenset({"in_progress"}),
     LocalRole.OPS_ANALYST: frozenset({"dashboard", "in_progress", "monitor"}),

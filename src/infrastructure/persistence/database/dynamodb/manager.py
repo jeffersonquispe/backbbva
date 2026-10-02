@@ -1,3 +1,4 @@
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -77,11 +78,14 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     DATASET_SAMPLES_TABLE,
     DATASET_SUMMARIES_TABLE,
     FEEDBACK_TABLE,
+    FRAUD_LABEL_REVIEWS_TABLE,
     LIBRARY_CHANNELS_TABLE,
     LIBRARY_FLAGS_TABLE,
     LIBRARY_MODUS_OPERANDI_TABLE,
     LIBRARY_SIMILAR_CASES_TABLE,
     LIBRARY_TAXONOMIES_TABLE,
+    METRICS_ROLLUPS_TABLE,
+    ALERT_REASONING_EVALUATIONS_TABLE,
     VECTOR_STORE_INSTANCE_ASSETS_TABLE,
     VECTOR_STORE_INSTANCES_TABLE,
     MARCACION_CATALOG_TABLE,
@@ -91,6 +95,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     OPERATIONS_CAPACITY_TABLE,
     RESOURCE_LOCKS_TABLE,
     RESOURCE_RESERVATIONS_TABLE,
+    REVOKED_TOKENS_TABLE,
     RESOLUTION_METHOD_CATALOG_TABLE,
     TAG_CATALOG_TABLE,
     TEST_RUNS_TABLE,
@@ -280,12 +285,87 @@ def create_table(schema: dict) -> None:
             raise
 
 
+def enable_ttl(schema: dict, attribute: str) -> None:
+    """Turn on DynamoDB TTL for a table. Idempotent; best effort, since the
+    readers never rely on TTL deletion for correctness."""
+    try:
+        get_dynamodb_resource().meta.client.update_time_to_live(
+            TableName=schema["TableName"],
+            TimeToLiveSpecification={"Enabled": True, "AttributeName": attribute},
+        )
+    except ClientError as e:
+        print(f"TTL no aplicado en {schema['TableName']}: {e.response['Error']['Code']}")
+
+
+def _wait_for_index(client, table_name: str, index_name: str, timeout_s: int = 300) -> None:
+    """Block until the new GSI is ACTIVE (the table itself stays ACTIVE
+    while the index backfills; writes right after creation can fail)."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        indexes = client.describe_table(TableName=table_name)["Table"].get(
+            "GlobalSecondaryIndexes"
+        ) or []
+        status = next(
+            (i.get("IndexStatus") for i in indexes if i["IndexName"] == index_name), None
+        )
+        if status == "ACTIVE":
+            return
+        time.sleep(1)
+
+
+def ensure_global_secondary_indexes(schema: dict) -> None:
+    """Add any GSI declared in the schema that an already-existing table is
+    missing (create_table only applies them to new tables). Idempotent; one
+    index per UpdateTable call, as DynamoDB requires."""
+    client = get_dynamodb_resource().meta.client
+    table_name = schema["TableName"]
+    description = client.describe_table(TableName=table_name)["Table"]
+    existing = {
+        index["IndexName"] for index in description.get("GlobalSecondaryIndexes") or []
+    }
+    definitions = {
+        attribute["AttributeName"]: attribute
+        for attribute in schema["AttributeDefinitions"]
+    }
+    for index in schema.get("GlobalSecondaryIndexes") or []:
+        if index["IndexName"] in existing:
+            continue
+        key_attributes = [key["AttributeName"] for key in index["KeySchema"]]
+        create: dict = {
+            "IndexName": index["IndexName"],
+            "KeySchema": index["KeySchema"],
+            "Projection": index["Projection"],
+        }
+        if "ProvisionedThroughput" in index:
+            create["ProvisionedThroughput"] = index["ProvisionedThroughput"]
+        try:
+            client.update_table(
+                TableName=table_name,
+                AttributeDefinitions=[definitions[name] for name in key_attributes],
+                GlobalSecondaryIndexUpdates=[{"Create": create}],
+            )
+            _wait_for_index(client, table_name, index["IndexName"])
+            print(f"Índice creado: {table_name}.{index['IndexName']}")
+        except ClientError as e:
+            print(
+                f"Índice no creado {table_name}.{index['IndexName']}: "
+                f"{e.response['Error']['Code']}"
+            )
+
+
 def ensure_all_tables() -> None:
     """Ensure all DynamoDB tables used by the application exist."""
     create_table(AUDIT_LOG_TABLE)
     create_table(USERS_TABLE)
+    create_table(REVOKED_TOKENS_TABLE)
+    enable_ttl(REVOKED_TOKENS_TABLE, "expires_at")
     create_table(ASYNC_OPERATIONS_TABLE)
     create_table(ALERTS_TABLE)
+    ensure_global_secondary_indexes(ALERTS_TABLE)
+    create_table(METRICS_ROLLUPS_TABLE)
+    enable_ttl(METRICS_ROLLUPS_TABLE, "expires_at")
+    create_table(ALERT_REASONING_EVALUATIONS_TABLE)
+    create_table(FRAUD_LABEL_REVIEWS_TABLE)
     create_table(WORKFLOW_EXECUTIONS_TABLE)
     create_table(WORKFLOW_STEP_EXECUTIONS_TABLE)
     create_table(OPERATIONS_CAPACITY_TABLE)

@@ -40,6 +40,9 @@ from src.infrastructure.entrypoint.api.routers.health_router import (
 from src.infrastructure.entrypoint.api.routers.marcacion_catalog_router import (
     router as marcacion_catalog_router,
 )
+from src.infrastructure.entrypoint.api.routers.metrics_router import (
+    router as metrics_router,
+)
 from src.infrastructure.entrypoint.api.routers.models_router import (
     router as models_router,
 )
@@ -200,6 +203,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         scenarios_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        metrics_router,
         prefix=genai_config.API_V0_STR,
     )
     return app

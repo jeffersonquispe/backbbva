@@ -21,6 +21,10 @@ from src.application.ports.configuration_port import (
     HistoryPandasResearchConfig,
     VectorStoreResearchConfig,
 )
+from src.application.ports.monitoring_port import (
+    MonitoringPort,
+    ResearchCallOutcome,
+)
 from src.application.ports.research_port import (
     HistoryResearchPlanner,
     ResearchAgent,
@@ -247,27 +251,56 @@ class TimeBoundedResearchAgent:
     result is discarded.
     """
 
-    def __init__(self, agent: ResearchAgent, source: ResearchSource, timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        agent: ResearchAgent,
+        source: ResearchSource,
+        timeout_seconds: float,
+        monitoring: MonitoringPort | None = None,
+    ) -> None:
         self._agent = agent
         self._source = source
         self._timeout_seconds = timeout_seconds
+        # T3 aria.research.calls: every call (both sources go through this
+        # wrapper) is counted as ok / failed / timeout. SKIPPED is not a
+        # call to the backend and is not counted.
+        self._monitoring = monitoring
 
     def research(self, request: ResearchRequest) -> ResearchResult:
+        try:
+            result, timed_out = self._research(request)
+        except Exception:
+            self._record(ResearchCallOutcome.FAILED)
+            raise
+        if timed_out:
+            self._record(ResearchCallOutcome.TIMEOUT)
+        elif result.status == ResearchStatus.EXECUTED:
+            self._record(ResearchCallOutcome.OK)
+        elif result.status == ResearchStatus.FAILED:
+            self._record(ResearchCallOutcome.FAILED)
+        return result
+
+    def _research(self, request: ResearchRequest) -> tuple[ResearchResult, bool]:
+        """(result, whether the call overran timeout_seconds)."""
         if self._timeout_seconds <= 0:
-            return self._agent.research(request)
+            return self._agent.research(request), False
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research-tool")
         # copy_context: the thread keeps the caller's OpenTelemetry span.
         future = executor.submit(contextvars.copy_context().run, self._agent.research, request)
         try:
-            return future.result(timeout=self._timeout_seconds)
+            return future.result(timeout=self._timeout_seconds), False
         except FutureTimeoutError:
             return ResearchResult(
                 self._source,
                 ResearchStatus.FAILED,
                 error=f"timeout: la investigación no respondió en {self._timeout_seconds:g} s",
-            )
+            ), True
         finally:
             executor.shutdown(wait=False)
+
+    def _record(self, outcome: ResearchCallOutcome) -> None:
+        if self._monitoring is not None:
+            self._monitoring.record_research_call(str(self._source), outcome)
 
 
 class ResearchDelegationCoordinator:

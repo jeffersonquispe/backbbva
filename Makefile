@@ -146,6 +146,48 @@ test-integration-reservations:  ## Run resource-reservation tests (voicebot slot
 		DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
 		python -m pytest -m docker_integration tests/test_integration/test_resource_reservations
 
+.PHONY: test-integration-metrics
+test-integration-metrics:  ## Run metrics snapshot/rollup tests (transaction, retry, version race, TTL, created_day index) against the running local DynamoDB. Vars: DYNAMO_PORT(8002)
+	GENAI_ENVIRONMENT=test DYNAMO_ENDPOINT=http://localhost:$${DYNAMO_PORT:-8002} DYNAMO_REGION_NAME=us-east-1 \
+		DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
+		python -m pytest -m docker_integration tests/test_integration/test_metrics_rollups
+
+.PHONY: metrics-backfill
+metrics-backfill:  ## Rebuild metrics snapshots + rollups for alerts of FROM..TO (Bogota days, inclusive) that have none. Idempotent. Vars: FROM, TO (YYYY-MM-DD, required), DYNAMO_PORT(8002), GENAI_ENVIRONMENT(local)
+	@if [ -z "$(FROM)" ] || [ -z "$(TO)" ]; then \
+		echo "ERROR: usage: make metrics-backfill FROM=YYYY-MM-DD TO=YYYY-MM-DD"; \
+		exit 1; \
+	fi
+	GENAI_ENVIRONMENT=$${GENAI_ENVIRONMENT:-local} API_V0_STR=$${API_V0_STR:-/api/v0} \
+		DYNAMO_ENDPOINT=http://localhost:$${DYNAMO_PORT:-8002} DYNAMO_REGION_NAME=us-east-1 \
+		DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
+		python -m src.infrastructure.entrypoint.worker.metrics_backfill --from $(FROM) --to $(TO)
+
+# Q3/A4 load test: a THROWAWAY DynamoDB Local on its own port (table names
+# have no prefix, so never point these at the stack's 8002).
+LOADTEST_DYNAMO_PORT ?= 8012
+LOADTEST_ENV = GENAI_ENVIRONMENT=$${GENAI_ENVIRONMENT:-local} API_V0_STR=$${API_V0_STR:-/api/v0} \
+	DYNAMO_ENDPOINT=http://localhost:$(LOADTEST_DYNAMO_PORT) DYNAMO_REGION_NAME=us-east-1 \
+	DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy
+
+.PHONY: metrics-loadtest-up
+metrics-loadtest-up:  ## Start a throwaway DynamoDB Local (container aria-dynamodb-loadtest) for the metrics load test. Vars: LOADTEST_DYNAMO_PORT(8012)
+	docker run -d --rm --name aria-dynamodb-loadtest -p $(LOADTEST_DYNAMO_PORT):8000 \
+		amazon/dynamodb-local:latest -jar DynamoDBLocal.jar -sharedDb
+
+.PHONY: metrics-loadtest-down
+metrics-loadtest-down:  ## Remove the throwaway load-test DynamoDB Local and all its data.
+	docker rm -f aria-dynamodb-loadtest
+
+.PHONY: metrics-synthetic-load
+metrics-synthetic-load:  ## Q3: synthetic alerts + every metrics event through the real writers, into the load-test DynamoDB. Vars: DAYS(90), PER_DAY(1500), TECH_SAMPLE(0.1), WORKERS(1; more processes hit DynamoDB Local lock timeouts)
+	$(LOADTEST_ENV) python -m src.infrastructure.entrypoint.worker.metrics_synthetic_load \
+		--days $${DAYS:-90} --per-day $${PER_DAY:-1500} --tech-sample $${TECH_SAMPLE:-0.1} --workers $${WORKERS:-1}
+
+.PHONY: metrics-query-bench
+metrics-query-bench:  ## A4: p50/p95 of /metrics/overview|agent|technical for 24h..1y, with/without filters, against the load-test DynamoDB. Vars: RUNS(15)
+	$(LOADTEST_ENV) python -m src.infrastructure.entrypoint.api.metrics_query_bench --runs $${RUNS:-15}
+
 .PHONY: test-e2e-simulation
 test-e2e-simulation:  ## Run the simulator lifecycle/tick/dispatch e2e test against local DynamoDB. Vars: DYNAMO_PORT(8002)
 	GENAI_ENVIRONMENT=test DYNAMO_ENDPOINT=http://localhost:$${DYNAMO_PORT:-8002} DYNAMO_REGION_NAME=us-east-1 \

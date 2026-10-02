@@ -10,6 +10,7 @@ from src.application.ports.local_auth_port import (
     LocalUser,
     LocalUserRepository,
 )
+from src.application.ports.revoked_token_port import RevokedTokenRepository
 
 
 class InvalidCredentialsError(Exception):
@@ -59,11 +60,27 @@ class AuthenticateLocalUserUseCase:
 
 
 class GetCurrentLocalUserUseCase:
-    def __init__(self, users: LocalUserRepository) -> None:
+    def __init__(self, users: LocalUserRepository, revoked_tokens: RevokedTokenRepository | None = None) -> None:
         self._users = users
+        self._revoked_tokens = revoked_tokens
 
-    def execute(self, user_id) -> LocalUser | None:
+    def execute(self, user_id, token_id: str | None = None) -> LocalUser | None:
+        """Resolve the user behind a request. With ``token_id`` (the access
+        token's jti), a token ended by logout resolves to no user."""
+        if token_id and self._revoked_tokens is not None and self._revoked_tokens.is_revoked(token_id):
+            return None
         return self._users.get_by_id(user_id)
+
+
+class LogoutLocalUserUseCase:
+    def __init__(self, revoked_tokens: RevokedTokenRepository) -> None:
+        self._revoked_tokens = revoked_tokens
+
+    def execute(self, *, token_id: str | None, expires_at: datetime) -> None:
+        # Tokens issued before jti existed can't be denylisted; they simply
+        # run out at their exp (AUTH_JWT_TTL_SECONDS).
+        if token_id:
+            self._revoked_tokens.revoke(token_id, expires_at)
 
 
 def permissions_for(role: LocalRole) -> list[str]:

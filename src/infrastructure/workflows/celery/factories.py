@@ -40,6 +40,18 @@ from src.application.use_cases.alerts.profile_alert_deterministic import (
 from src.application.use_cases.alerts.resolve_analyst_playbook import (
     ResolveAnalystPlaybookUseCase,
 )
+from src.application.use_cases.metrics.record_alert_metrics_event import (
+    RecordAlertMetricsEvent,
+)
+from src.application.use_cases.metrics.backfill_alert_metrics import (
+    BackfillAlertMetrics,
+)
+from src.application.use_cases.metrics.reconcile_alert_rollups import (
+    ReconcileAlertRollups,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_lifecycle_reader import (
+    DynamoAlertLifecycleReader,
+)
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
 )
@@ -85,6 +97,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.configuration
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.metrics_rollup_repository import (
+    DynamoMetricsRollupRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.modus_operandi_library_repository import (
     DynamoModusOperandiLibraryRepository,
 )
@@ -129,6 +144,18 @@ from src.infrastructure.queues.celery.analyst_decision_documenter_dispatcher imp
 from src.infrastructure.queues.celery.analyst_escalation_dispatcher import (
     CeleryAnalystEscalationDispatcher,
 )
+from src.infrastructure.queues.celery.reasoning_evaluation_dispatcher import (
+    CeleryReasoningEvaluationDispatcher,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_reasoning_evaluation_repository import (
+    DynamoAlertReasoningEvaluationRepository,
+)
+from src.application.use_cases.metrics.evaluate_alert_reasoning import (
+    EvaluateAlertReasoning,
+)
+from src.application.use_cases.metrics.record_workflow_step_metrics import (
+    RecordWorkflowStepMetrics,
+)
 
 # --- stateless adapters: one instance per worker process ---
 
@@ -136,6 +163,11 @@ from src.infrastructure.queues.celery.analyst_escalation_dispatcher import (
 @lru_cache
 def get_alert_repository() -> DynamoAlertRepository:
     return DynamoAlertRepository()
+
+
+@lru_cache
+def get_metrics_rollup_repository() -> DynamoMetricsRollupRepository:
+    return DynamoMetricsRollupRepository(timezone_name=genai_config.OPERATIONS_TIMEZONE)
 
 
 @lru_cache
@@ -310,6 +342,16 @@ def get_analyst_decision_documenter() -> CeleryAnalystDecisionDocumenter:
 @lru_cache
 def get_alert_action_dispatcher() -> CeleryAlertActionDispatcher:
     return CeleryAlertActionDispatcher()
+
+
+@lru_cache
+def get_reasoning_evaluation_dispatcher() -> CeleryReasoningEvaluationDispatcher:
+    return CeleryReasoningEvaluationDispatcher()
+
+
+@lru_cache
+def get_alert_reasoning_evaluation_repository() -> DynamoAlertReasoningEvaluationRepository:
+    return DynamoAlertReasoningEvaluationRepository()
 
 
 # --- use cases: fresh instance per call, wired from the singletons above ---
@@ -495,6 +537,45 @@ def get_route_alert_resolution_use_case() -> RouteAlertResolutionUseCase:
     )
 
 
+def get_record_alert_metrics_event_use_case() -> RecordAlertMetricsEvent:
+    return RecordAlertMetricsEvent(
+        alert_repository=get_alert_repository(),
+        rollup_repository=get_metrics_rollup_repository(),
+        settings_repository=get_operational_settings_repository(),
+        timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        monitoring=get_monitoring(),
+    )
+
+
+@lru_cache
+def get_fraud_label_review_repository():
+    from src.infrastructure.persistence.database.dynamodb.repositories.fraud_label_review_repository import (
+        DynamoFraudLabelReviewRepository,
+    )
+
+    return DynamoFraudLabelReviewRepository()
+
+
+def get_import_fraud_label_reviews_use_case():
+    """Bulk CSV fraud_label review (C5) - used by tasks.py's
+    import_fraud_label_reviews_task."""
+    from src.application.use_cases.fraud_review.import_fraud_label_reviews import (
+        ImportFraudLabelReviews,
+    )
+    from src.application.use_cases.fraud_review.review_fraud_label import (
+        ReviewFraudLabel,
+    )
+
+    return ImportFraudLabelReviews(
+        review_fraud_label=ReviewFraudLabel(
+            alert_repository=get_alert_repository(),
+            review_repository=get_fraud_label_review_repository(),
+            record_metrics_event=get_record_alert_metrics_event_use_case(),
+            monitoring=get_monitoring(),
+        )
+    )
+
+
 def get_post_process_alert_use_case() -> PostProcessAlertUseCase:
     return PostProcessAlertUseCase()
 
@@ -511,4 +592,85 @@ def get_generate_agent_text_use_case(
         model=model or genai_config.EXECUTOR_LLM_MODEL,
         system_prompt=system_prompt,
         operation_name=operation_name,
+    )
+
+
+def llm_step_models(model_overrides: dict[str, str] | None = None) -> dict[str, str]:
+    """LLM step name -> the model it runs with: a test run's per-step
+    override, else the same config default the step's factory above uses.
+    Feeds the `model` dimension of the llm_call rollups. profiling is an
+    LLM step only with PROFILING_BACKEND=llm."""
+    defaults = {
+        "detector": genai_config.DETECTOR_LLM_MODEL,
+        "detector_adversarial": genai_config.DETECTOR_ADVERSARIAL_LLM_MODEL,
+        "classification": genai_config.CLASSIFICATION_LLM_MODEL,
+        "adversarial": genai_config.ADVERSARIAL_LLM_MODEL,
+        "analyst": genai_config.ANALYST_LLM_MODEL,
+        "executor": genai_config.EXECUTOR_LLM_MODEL,
+    }
+    if genai_config.PROFILING_BACKEND.strip().lower() == "llm":
+        defaults["profiling"] = genai_config.PROFILING_LLM_MODEL
+    overrides = model_overrides or {}
+    return {step: overrides.get(step) or model for step, model in defaults.items()}
+
+
+def get_record_workflow_step_metrics_use_case() -> RecordWorkflowStepMetrics:
+    return RecordWorkflowStepMetrics(
+        alert_repository=get_alert_repository(),
+        step_repository=get_workflow_step_execution_repository(),
+        rollup_repository=get_metrics_rollup_repository(),
+        timezone_name=genai_config.OPERATIONS_TIMEZONE,
+    )
+
+
+def get_evaluate_alert_reasoning_use_case() -> EvaluateAlertReasoning:
+    return EvaluateAlertReasoning(
+        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        monitoring=get_monitoring(),
+        model=genai_config.JUDGE_LLM_MODEL or genai_config.REPORT_LLM_MODEL,
+        alert_repository=get_alert_repository(),
+        workflow_repository=get_workflow_execution_repository(),
+        step_repository=get_workflow_step_execution_repository(),
+        evaluation_repository=get_alert_reasoning_evaluation_repository(),
+        rollup_repository=get_metrics_rollup_repository(),
+        timezone_name=genai_config.OPERATIONS_TIMEZONE,
+    )
+
+
+def get_backfill_alert_metrics_use_case() -> BackfillAlertMetrics:
+    # The lifecycle reader caches one Scan of resource_reservations, so it
+    # is built fresh per use case (per run), never an lru_cache singleton.
+    return BackfillAlertMetrics(
+        alert_repository=get_alert_repository(),
+        lifecycle_reader=DynamoAlertLifecycleReader(
+            workflow_repository=get_workflow_execution_repository(),
+            step_repository=get_workflow_step_execution_repository(),
+        ),
+        recorder=get_record_alert_metrics_event_use_case(),
+    )
+
+
+def get_reconcile_alert_rollups_use_case() -> ReconcileAlertRollups:
+    return ReconcileAlertRollups(
+        alert_repository=get_alert_repository(),
+        rollup_repository=get_metrics_rollup_repository(),
+        monitoring=get_monitoring(),
+        timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        backfill=get_backfill_alert_metrics_use_case(),
+    )
+
+
+def get_record_operational_state_use_case():
+    """T3/T5 operational gauges - used by tasks.py's
+    record_operational_state (Beat, every 60 s)."""
+    from src.application.use_cases.metrics.record_operational_state import (
+        RecordOperationalState,
+    )
+
+    return RecordOperationalState(
+        settings_repository=get_operational_settings_repository(),
+        alert_repository=get_alert_repository(),
+        operations_capacity=get_live_operations_capacity(),
+        monitoring=get_monitoring(),
+        timezone_name=genai_config.OPERATIONS_TIMEZONE,
     )

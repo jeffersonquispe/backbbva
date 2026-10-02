@@ -40,6 +40,9 @@ def get_workflow_step_execution_repository() -> DynamoWorkflowStepExecutionRepos
 
 def get_start_test_run_use_case() -> StartTestRunUseCase:
     from src.infrastructure.entrypoint.api.factories.configuration_factory import get_configuration_repository
+    from src.infrastructure.entrypoint.api.factories.metrics_factory import (
+        get_record_alert_metrics_event_use_case,
+    )
 
     return StartTestRunUseCase(
         configuration_repository=get_configuration_repository(),
@@ -49,6 +52,7 @@ def get_start_test_run_use_case() -> StartTestRunUseCase:
         async_operation_repository=get_async_operation_repository(),
         workflow_repository=get_workflow_execution_repository(),
         workflow_executor=get_workflow_executor(),
+        metrics_recorder=get_record_alert_metrics_event_use_case(),
     )
 
 

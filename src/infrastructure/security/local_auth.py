@@ -6,7 +6,7 @@ import hmac
 import json
 import os
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from src.application.ports.local_auth_port import LocalUser
 from src.infrastructure.core.config import genai_config
@@ -47,7 +47,7 @@ class JwtService:
     def issue(self, user: LocalUser) -> tuple[str, int]:
         now = int(datetime.now(timezone.utc).timestamp())
         header = _b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
-        payload = _b64encode(json.dumps({"sub": str(user.id), "email": user.email, "role": user.role.value, "iat": now, "exp": now + self._ttl_seconds}, separators=(",", ":")).encode())
+        payload = _b64encode(json.dumps({"sub": str(user.id), "jti": uuid4().hex, "email": user.email, "role": user.role.value, "iat": now, "exp": now + self._ttl_seconds}, separators=(",", ":")).encode())
         signature = _b64encode(hmac.new(self._secret, f"{header}.{payload}".encode(), hashlib.sha256).digest())
         return f"{header}.{payload}.{signature}", self._ttl_seconds
 

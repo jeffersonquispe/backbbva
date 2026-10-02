@@ -15,6 +15,7 @@ from src.application.ports.configuration_port import (
     TestCleanupPolicy,
 )
 from src.application.ports.operational_settings_port import (
+    AmountTier,
     OperationalSettings,
     OperationalSettingsChange,
     OperationalSettingsRepository,
@@ -73,6 +74,22 @@ def _to_item(settings: OperationalSettings) -> dict[str, Any]:
     # boto3's resource layer rejects native float.
     payload["queue_discard_amount_threshold"] = Decimal(
         str(payload["queue_discard_amount_threshold"])
+    )
+    payload["amount_tiers"] = [
+        {
+            "code": tier["code"],
+            "label": tier["label"],
+            "min_inclusive": Decimal(str(tier["min_inclusive"])),
+            "max_exclusive": (
+                Decimal(str(tier["max_exclusive"]))
+                if tier["max_exclusive"] is not None
+                else None
+            ),
+        }
+        for tier in payload["amount_tiers"]
+    ]
+    payload["reasoning_evaluation_sample_rate"] = Decimal(
+        str(payload["reasoning_evaluation_sample_rate"])
     )
     return {"record_id": SETTINGS_RECORD_ID, **payload}
 
@@ -133,6 +150,23 @@ def _from_item(item: dict[str, Any]) -> OperationalSettings:
         max_stored_test_runs=int(item.get("max_stored_test_runs", 20)),
         test_cleanup_policy=TestCleanupPolicy(
             item.get("test_cleanup_policy", "oldest")
+        ),
+        amount_tiers=[
+            AmountTier(
+                code=str(tier["code"]),
+                label=str(tier.get("label") or tier["code"]),
+                min_inclusive=float(tier.get("min_inclusive") or 0),
+                max_exclusive=(
+                    float(tier["max_exclusive"])
+                    if tier.get("max_exclusive") is not None
+                    else None
+                ),
+            )
+            for tier in item.get("amount_tiers") or []
+        ],
+        amount_tier_set_version=int(item.get("amount_tier_set_version", 0)),
+        reasoning_evaluation_sample_rate=float(
+            item.get("reasoning_evaluation_sample_rate", 0.05)
         ),
     )
 

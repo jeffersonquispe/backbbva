@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from opentelemetry import context as otel_context
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 from opentelemetry.trace import Span, Status, StatusCode, Tracer
 
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import (
+    MonitoringPort,
+    MonitoringSpan,
+    OperationalStateSnapshot,
+    ResearchCallOutcome,
+)
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.monitoring.opentelemetry.meter import AriaInstruments
 
 # Attributes with an OpenTelemetry GenAI semantic-convention equivalent are
 # renamed on write; anything else is kept as a plain attribute.
@@ -22,11 +29,35 @@ _GEN_AI_ATTRIBUTE_MAP = {
     "output_tokens": "gen_ai.usage.output_tokens",
 }
 
+# Span operation types that also feed the gen_ai.client.* metrics.
+_GEN_AI_OPERATION_TYPES = frozenset({"llm", "embedding"})
+# Only these (low-cardinality) span attributes are copied onto gen_ai.*
+# metric points; everything else stays on the span only.
+_GEN_AI_METRIC_ATTRIBUTES = (
+    "gen_ai.operation.name",
+    "gen_ai.provider.name",
+    "gen_ai.request.model",
+    "gen_ai.response.model",
+)
+
 
 class OpenTelemetrySpan(MonitoringSpan):
-    def __init__(self, span: Span, context_token: object) -> None:
+    def __init__(
+        self,
+        span: Span,
+        context_token: object,
+        operation_type: str = "",
+        instruments: AriaInstruments | None = None,
+    ) -> None:
         self._span = span
         self._context_token = context_token
+        self._operation_type = operation_type
+        self._instruments = instruments
+        self._started_at = time.perf_counter()
+        self._gen_ai_attributes: dict[str, Any] = {}
+        self._input_tokens: int | None = None
+        self._output_tokens: int | None = None
+        self._error_type: str | None = None
 
     def write_input(self, data: dict[str, Any]) -> None:
         self._write_event("gen_ai.content.prompt", data)
@@ -44,9 +75,14 @@ class OpenTelemetrySpan(MonitoringSpan):
         for key, value in metadata.items():
             if value is None:
                 continue
-            self._span.set_attribute(
-                _GEN_AI_ATTRIBUTE_MAP.get(key, key), value
-            )
+            name = _GEN_AI_ATTRIBUTE_MAP.get(key, key)
+            self._span.set_attribute(name, value)
+            if name in _GEN_AI_METRIC_ATTRIBUTES:
+                self._gen_ai_attributes[name] = value
+            elif key == "input_tokens":
+                self._input_tokens = value
+            elif key == "output_tokens":
+                self._output_tokens = value
 
     def record_dependency(
         self,
@@ -67,6 +103,39 @@ class OpenTelemetrySpan(MonitoringSpan):
             self._span.set_status(Status(StatusCode.OK))
         self._span.end()
         otel_context.detach(self._context_token)
+        self._record_gen_ai_metrics(error)
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        # error.type must be low-cardinality: the exception class, never
+        # its message.
+        if exc_type is not None:
+            self._error_type = exc_type.__name__
+        super().__exit__(exc_type, exc, tb)
+
+    def _record_gen_ai_metrics(self, error: str | None) -> None:
+        if (
+            self._instruments is None
+            or self._operation_type not in _GEN_AI_OPERATION_TYPES
+        ):
+            return
+        attributes = dict(self._gen_ai_attributes)
+        if error is not None:
+            attributes["error.type"] = self._error_type or "_OTHER"
+        self._instruments.operation_duration.record(
+            time.perf_counter() - self._started_at, attributes=attributes
+        )
+        for token_type, count in (
+            ("input", self._input_tokens),
+            ("output", self._output_tokens),
+        ):
+            if isinstance(count, int):
+                self._instruments.token_usage.record(
+                    count,
+                    attributes={
+                        **self._gen_ai_attributes,
+                        "gen_ai.token.type": token_type,
+                    },
+                )
 
     def _write_event(self, event_name: str, data: dict[str, Any]) -> None:
         # Prompts/completions are opt-in (OTEL_CAPTURE_LLM_CONTENT): by
@@ -81,8 +150,15 @@ class OpenTelemetrySpan(MonitoringSpan):
 
 
 class OpenTelemetryMonitoring(MonitoringPort):
-    def __init__(self, tracer: Tracer) -> None:
+    def __init__(
+        self, tracer: Tracer, meter: metrics.Meter | None = None
+    ) -> None:
         self._tracer = tracer
+        self._instruments = AriaInstruments(
+            meter
+            if meter is not None
+            else metrics.NoOpMeterProvider().get_meter("aria")
+        )
 
     def start(
         self,
@@ -95,11 +171,64 @@ class OpenTelemetryMonitoring(MonitoringPort):
         # (a dependency, a follow-up LLM call, ...) is parented under it and
         # lands in the same trace as the request that triggered it.
         token = otel_context.attach(trace.set_span_in_context(span))
-        wrapped = OpenTelemetrySpan(span, token)
+        wrapped = OpenTelemetrySpan(
+            span, token, operation_type, self._instruments
+        )
         wrapped.write_operation_metas({"operation.type": operation_type})
         if metadata:
             wrapped.write_operation_metas(metadata)
         return wrapped
+
+    def record_workflow_duration(
+        self, step: str, outcome: str, duration_seconds: float
+    ) -> None:
+        self._instruments.workflow_duration.record(
+            duration_seconds,
+            attributes={
+                "aria.workflow.step": step,
+                "aria.workflow.outcome": str(outcome),
+            },
+        )
+
+    def record_research_call(
+        self, source: str, outcome: ResearchCallOutcome
+    ) -> None:
+        self._instruments.research_calls.add(
+            1,
+            attributes={
+                "aria.research.source": source,
+                "aria.research.outcome": str(outcome),
+            },
+        )
+
+    def record_rollup_drift(
+        self, data_type: str, level: str, drift: float
+    ) -> None:
+        self._instruments.rollup_drift.set(
+            drift,
+            attributes={
+                "aria.metrics.data_type": data_type,
+                "aria.metrics.level": level,
+            },
+        )
+
+    def record_operational_state(
+        self, snapshot: OperationalStateSnapshot
+    ) -> None:
+        i = self._instruments
+        i.agent_enabled.set(int(snapshot.agent_enabled))
+        i.operating_hours.set(int(snapshot.within_operating_hours))
+        i.analyst_queue_depth.set(snapshot.analyst_queue_depth)
+        i.analyst_queue_oldest_age.set(
+            snapshot.analyst_queue_oldest_age_seconds
+        )
+        i.capacity_available.set(
+            snapshot.analysts_available, attributes={"aria.resource": "analyst"}
+        )
+        i.capacity_available.set(
+            snapshot.voicebot_slots_available,
+            attributes={"aria.resource": "voicebot"},
+        )
 
 
 def _flatten(data: dict[str, Any]) -> dict[str, Any]:

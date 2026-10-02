@@ -21,6 +21,9 @@ from src.application.ports.workflow_port import WorkflowExecutionRepository
 from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
 )
+from src.application.use_cases.metrics.record_alert_metrics_event import (
+    RecordAlertMetricsEvent,
+)
 from src.application.use_cases.test_runs.dataset_sampling import sample_rows
 
 
@@ -34,6 +37,7 @@ class StartTestRunUseCase:
         workflow_repository: WorkflowExecutionRepository,
         workflow_executor: WorkflowExecutor,
         configuration_repository: ConfigurationRepository | None = None,
+        metrics_recorder: RecordAlertMetricsEvent | None = None,
     ) -> None:
         self._configurations = configuration_repository
         self._datasets = dataset_repository
@@ -47,6 +51,7 @@ class StartTestRunUseCase:
             async_operation_repository=async_operation_repository,
             workflow_repository=workflow_repository,
             workflow_executor=workflow_executor,
+            metrics_recorder=metrics_recorder,
         )
 
     def execute(self, input: StartTestRunInput) -> StartTestRunOutput:

@@ -87,3 +87,28 @@ class NoActiveVoicebotCallError(Exception):
             f"No active voicebot call for alert {alert_id} (already "
             "released, expired, or never placed)."
         )
+
+
+class SnapshotVersionConflictError(Exception):
+    """The alert's metrics snapshot changed between read and write (another
+    event won the race) - re-read and recompute the delta. Raised by
+    MetricsRollupRepository.apply; RecordAlertMetricsEvent retries on it."""
+
+    def __init__(self, alert_id: str, expected_version: int) -> None:
+        self.alert_id = alert_id
+        self.expected_version = expected_version
+        super().__init__(
+            f"Metrics snapshot of alert {alert_id} is no longer at version "
+            f"{expected_version}."
+        )
+
+
+class InvalidFraudLabelError(ValueError):
+    """A fraud-team review may only set fraud_label to fraud or no_fraud
+    (pending is the absence of a decision, never a review outcome)."""
+
+    def __init__(self, value: str) -> None:
+        self.value = value
+        super().__init__(
+            f"Invalid fraud_label {value!r}: expected 'fraud' or 'no_fraud'."
+        )

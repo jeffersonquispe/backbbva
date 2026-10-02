@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from src.application.ports.local_auth_port import LocalRole
 from src.application.use_cases.auth.local_auth import (
     AuthenticateLocalUserUseCase,
+    GetCurrentLocalUserUseCase,
+    LogoutLocalUserUseCase,
     RegisterLocalUserUseCase,
     permissions_for,
 )
@@ -39,10 +43,53 @@ def test_local_login_returns_signed_token_and_fixed_permissions():
 
     assert service.decode(result.access_token)["sub"] == str(registered.id)
     assert permissions_for(registered.role) == [
-        "configuration", "dashboard", "fraud_history", "in_progress", "monitor",
+        "configuration", "dashboard", "fraud_history", "fraud_review", "in_progress", "monitor",
     ]
 
 
 def test_channel_manager_is_the_only_role_with_every_frontend_permission():
-    assert len(permissions_for(LocalRole.CHANNEL_MANAGER)) == 8
+    assert len(permissions_for(LocalRole.CHANNEL_MANAGER)) == 9
     assert permissions_for(LocalRole.FRAUD_ANALYST) == ["in_progress"]
+
+
+class InMemoryRevokedTokens:
+    def __init__(self):
+        self.revoked = {}
+
+    def revoke(self, token_id, expires_at):
+        self.revoked[token_id] = expires_at
+
+    def is_revoked(self, token_id):
+        return token_id in self.revoked
+
+
+def test_logout_revokes_the_token_so_it_no_longer_resolves_a_user():
+    users = InMemoryUsers()
+    hasher = PasswordHasher()
+    registered = RegisterLocalUserUseCase(users, hasher).execute(
+        email="ana@aria.local", name="Ana", password="safe-password", role=LocalRole.FRAUD_ANALYST,
+    )
+    service = JwtService(secret="test-secret", ttl_seconds=60)
+    first = service.decode(AuthenticateLocalUserUseCase(users, hasher, service).execute(
+        email=registered.email, password="safe-password").access_token)
+    second = service.decode(AuthenticateLocalUserUseCase(users, hasher, service).execute(
+        email=registered.email, password="safe-password").access_token)
+    revoked = InMemoryRevokedTokens()
+    current = GetCurrentLocalUserUseCase(users, revoked)
+
+    LogoutLocalUserUseCase(revoked).execute(
+        token_id=first["jti"], expires_at=datetime.fromtimestamp(first["exp"], timezone.utc),
+    )
+
+    assert current.execute(registered.id, token_id=first["jti"]) is None
+    # Logout ends that session only - another login (other tab/device) stays valid.
+    assert current.execute(registered.id, token_id=second["jti"]) == registered
+    assert revoked.revoked[first["jti"]] == datetime.fromtimestamp(first["exp"], timezone.utc)
+
+
+def test_logout_of_a_legacy_token_without_jti_is_a_no_op():
+    revoked = InMemoryRevokedTokens()
+
+    LogoutLocalUserUseCase(revoked).execute(token_id=None, expires_at=datetime.now(timezone.utc))
+
+    assert revoked.revoked == {}

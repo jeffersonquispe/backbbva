@@ -93,6 +93,10 @@ class Config(BaseSettings):
 
     REPORT_LLM_MODEL: str = ""
 
+    # Sampled reasoning LLM-judge (EvaluateAlertReasoning, D6). Empty falls
+    # back to REPORT_LLM_MODEL (see workflows/celery/factories.py).
+    JUDGE_LLM_MODEL: str = ""
+
     # DYNAMODB
     DYNAMO_REGION_NAME: str = "us-east-1"
     DYNAMO_ENDPOINT: str = "http://dynamodb-lupita:8000"

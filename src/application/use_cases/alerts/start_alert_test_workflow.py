@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 
+from src.application.dtos.alert_metrics_dtos import (
+    AlertMetricsEventType,
+    RecordAlertMetricsEventInput,
+)
 from src.application.dtos.alert_dtos import (
     StartAlertWorkflowInput,
     StartAlertWorkflowOutput,
@@ -25,7 +30,12 @@ from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
     WorkflowStatus,
 )
+from src.application.use_cases.metrics.record_alert_metrics_event import (
+    RecordAlertMetricsEvent,
+)
 from src.domain.alerts.exceptions import AlertPayloadTooLargeError
+
+logger = logging.getLogger(__name__)
 
 WORKFLOW_NAME = "massive_fraud_alert_review"
 
@@ -46,11 +56,13 @@ class StartAlertTestWorkflowUseCase:
         async_operation_repository: AsyncOperationRepository,
         workflow_repository: WorkflowExecutionRepository,
         workflow_executor: WorkflowExecutor,
+        metrics_recorder: RecordAlertMetricsEvent | None = None,
     ) -> None:
         self._alert_repository = alert_repository
         self._async_operation_repository = async_operation_repository
         self._workflow_repository = workflow_repository
         self._workflow_executor = workflow_executor
+        self._metrics = metrics_recorder
 
     def execute(
         self,
@@ -72,6 +84,9 @@ class StartAlertTestWorkflowUseCase:
                 updated_at=now,
             )
         )
+        # Before dispatch, so the arrival snapshot normally lands before the
+        # worker's first event (a race is still safe: snapshot_version).
+        self._record_created(alert.id, input, now)
         operation = self._async_operation_repository.create(
             AsyncOperationRecord(
                 id=uuid.uuid4(),
@@ -145,6 +160,30 @@ class StartAlertTestWorkflowUseCase:
             workflow_execution_id=workflow.id,
             status=WorkflowStatus.DISPATCHED.value,
         )
+
+
+    def _record_created(self, alert_id, input: StartAlertWorkflowInput, now) -> None:
+        # Best effort: never fail alert intake over metrics; a missed
+        # arrival snapshot is rebuilt by the alert's next event or the
+        # daily reconciliation.
+        if self._metrics is None:
+            return
+        try:
+            self._metrics.execute(
+                RecordAlertMetricsEventInput(
+                    alert_id=alert_id,
+                    event_type=AlertMetricsEventType.CREATED,
+                    occurred_at=now,
+                    origin=input.origin.value,
+                    configuration_id=(
+                        input.configuration_ref.configuration_id
+                        if input.configuration_ref is not None
+                        else None
+                    ),
+                )
+            )
+        except Exception:
+            logger.exception("Metrics event failed for alert %s", alert_id)
 
 
 def _optional_str(value) -> str | None:

@@ -11,6 +11,10 @@ from src.application.ports.configuration_port import (
     ShortageBehavior,
     TestCleanupPolicy,
 )
+# AmountTier lives in the domain (domain/alerts/amount_tiers.py) next to
+# classify_amount/validate_amount_tiers; re-exported here as part of this
+# port's contract.
+from src.domain.alerts.amount_tiers import AmountTier  # noqa: F401  (re-export)
 
 
 @dataclass
@@ -63,6 +67,21 @@ class OperationalSettings:
     experiment_timeout_minutes: int = 30
     max_stored_test_runs: int = 20
     test_cleanup_policy: TestCleanupPolicy = TestCleanupPolicy.OLDEST
+
+    # Ranges an alert's amount is classified into when it arrives (frozen on
+    # its metrics snapshot). Empty = every amount is "unknown". Must be a
+    # contiguous, non-overlapping cover of 0 -> inf when non-empty
+    # (validate_amount_tiers). amount_tier_set_version is owned by
+    # UpdateOperationalSettingsUseCase: +1 on every change of amount_tiers,
+    # client-sent values are ignored; old sets stay readable in the settings
+    # history (each change records the previous and new list).
+    amount_tiers: list[AmountTier] = field(default_factory=list)
+    amount_tier_set_version: int = 0
+
+    # Share (0..1) of alerts whose finished review is sent to the LLM-judge
+    # (EvaluateAlertReasoning, the /monitor "Alucinaciones" / "Uso correcto
+    # de datos" KPIs). 0 disables it. Sampling is deterministic per alert.
+    reasoning_evaluation_sample_rate: float = 0.05
 
 
 @dataclass(frozen=True)

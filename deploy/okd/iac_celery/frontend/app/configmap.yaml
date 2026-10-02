@@ -8,5 +8,6 @@ metadata:
     app.kubernetes.io/part-of: aria
     app.kubernetes.io/managed-by: argocd
 data:
+  TZ: America/Bogota
   PORT: "8080"
   SPA_FALLBACK: "true"

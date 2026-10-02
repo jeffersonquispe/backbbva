@@ -1,0 +1,142 @@
+"""Fraud history (A3, /historico-fraude): alerts newest first, paginated by
+arrival day through the created_day index (never a Scan), with the same
+filters as /metrics/*, each item carrying its metrics snapshot (mark,
+fraud_label, marked_at, fraud_reviewed_at, review count).
+
+Pagination is an opaque cursor encoding where to resume: the local day and
+the created_at of the last alert examined (the next page continues
+strictly before it). A request reads at most MAX_DAYS_PER_PAGE days and
+MAX_EXAMINED_PER_PAGE alerts, so a very selective filter over a long range
+returns a short (possibly empty) page plus a cursor instead of reading the
+whole range at once - keep following next_cursor until it is null."""
+from __future__ import annotations
+
+import base64
+import binascii
+import json
+from collections.abc import Callable
+from datetime import date, datetime, timedelta, timezone, tzinfo
+from zoneinfo import ZoneInfo
+
+from src.application.dtos.alert_history_dtos import (
+    AlertHistoryItem,
+    ListAlertHistoryInput,
+    ListAlertHistoryOutput,
+)
+from src.application.ports.alert_port import (
+    AlertMetricsSnapshot,
+    AlertRecord,
+    AlertRepository,
+)
+from src.application.use_cases.metrics.metrics_filters import (
+    normalize_filters,
+    snapshot_matches,
+)
+from src.application.use_cases.metrics.record_alert_metrics_event import (
+    payload_dimensions,
+)
+
+DEFAULT_RANGE = timedelta(days=30)
+MAX_LIMIT = 200
+MAX_DAYS_PER_PAGE = 31
+MAX_EXAMINED_PER_PAGE = 5000
+_CHUNK = 200
+
+
+class InvalidHistoryCursorError(ValueError):
+    pass
+
+
+def encode_cursor(day: date, before: datetime | None) -> str:
+    raw = json.dumps(
+        {"d": day.isoformat(), "b": before.isoformat() if before else None},
+        separators=(",", ":"),
+    ).encode()
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def decode_cursor(cursor: str) -> tuple[date, datetime | None]:
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        data = json.loads(base64.urlsafe_b64decode(padded.encode()))
+        day = date.fromisoformat(data["d"])
+        before = datetime.fromisoformat(data["b"]) if data.get("b") else None
+    except (binascii.Error, ValueError, KeyError, TypeError) as exc:
+        raise InvalidHistoryCursorError("Invalid cursor") from exc
+    if before is not None and before.tzinfo is None:
+        raise InvalidHistoryCursorError("Invalid cursor")
+    return day, before
+
+
+def history_snapshot(alert: AlertRecord) -> tuple[AlertMetricsSnapshot, bool]:
+    if alert.metrics is not None:
+        return alert.metrics, True
+    channel, subchannel, amount = payload_dimensions(alert.payload or {})
+    return (
+        AlertMetricsSnapshot(
+            channel=channel, subchannel=subchannel, amount=amount, status=alert.status
+        ),
+        False,
+    )
+
+
+class ListAlertHistory:
+    def __init__(
+        self,
+        alert_repository: AlertRepository,
+        timezone_name: str,
+        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+    ) -> None:
+        self._alerts = alert_repository
+        self._zone: tzinfo = ZoneInfo(timezone_name)
+        self._clock = clock
+
+    def execute(self, input: ListAlertHistoryInput) -> ListAlertHistoryOutput:
+        """Raises ValueError (bad range / filter) or InvalidHistoryCursorError."""
+        to = input.to or self._clock()
+        from_ = input.from_ or (to - DEFAULT_RANGE)
+        for name, value in (("from", from_), ("to", to)):
+            if value.tzinfo is None:
+                raise ValueError(f"{name} must be timezone-aware")
+        if from_ > to:
+            raise ValueError("from must be <= to")
+        filters = normalize_filters(input.filters)
+        limit = max(1, min(input.limit, MAX_LIMIT))
+
+        first_day = from_.astimezone(self._zone).date()
+        # [from_, to): an alert at exactly `to` is excluded.
+        day = (to - timedelta(microseconds=1)).astimezone(self._zone).date()
+        before: datetime | None = to
+        if input.cursor:
+            day, before = decode_cursor(input.cursor)
+            if before is None or before > to:
+                before = to
+
+        items: list[AlertHistoryItem] = []
+        days_read = 0
+        examined = 0
+        while day >= first_day:
+            if days_read == MAX_DAYS_PER_PAGE:
+                return ListAlertHistoryOutput(items, encode_cursor(day, before))
+            days_read += 1
+            while True:
+                chunk = self._alerts.page_by_created_day(day, before=before, limit=_CHUNK)
+                for alert in chunk:
+                    before = alert.created_at
+                    examined += 1
+                    if alert.created_at < from_:
+                        break
+                    snapshot, has_snapshot = history_snapshot(alert)
+                    if snapshot_matches(snapshot, filters):
+                        items.append(AlertHistoryItem(alert, snapshot, has_snapshot))
+                        if len(items) == limit:
+                            return ListAlertHistoryOutput(items, encode_cursor(day, before))
+                    if examined >= MAX_EXAMINED_PER_PAGE:
+                        return ListAlertHistoryOutput(items, encode_cursor(day, before))
+                else:
+                    if len(chunk) == _CHUNK:
+                        continue  # more alerts left in this day
+                break
+            day -= timedelta(days=1)
+            before = to
+        return ListAlertHistoryOutput(items, None)

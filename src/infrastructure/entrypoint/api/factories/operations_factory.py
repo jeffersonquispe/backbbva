@@ -29,6 +29,9 @@ from src.infrastructure.entrypoint.api.factories.alert_factory import (
     get_alert_repository,
     get_workflow_execution_repository,
 )
+from src.infrastructure.entrypoint.api.factories.metrics_factory import (
+    get_record_alert_metrics_event_use_case,
+)
 from src.infrastructure.entrypoint.api.factories.operational_settings_factory import (
     get_operational_settings_repository,
 )
@@ -96,6 +99,7 @@ def get_resolve_escalated_alert_use_case() -> ResolveEscalatedAlertUseCase:
         get_alert_repository(),
         get_resource_reservation_repository(),
         get_alert_action_dispatcher(),
+        metrics_recorder=get_record_alert_metrics_event_use_case(),
     )
 
 
@@ -104,4 +108,7 @@ def get_release_escalated_alert_use_case() -> ReleaseEscalatedAlertUseCase:
 
 
 def get_complete_voicebot_call_use_case() -> CompleteVoicebotCallUseCase:
-    return CompleteVoicebotCallUseCase(get_resource_reservation_repository())
+    return CompleteVoicebotCallUseCase(
+        get_resource_reservation_repository(),
+        metrics_recorder=get_record_alert_metrics_event_use_case(),
+    )

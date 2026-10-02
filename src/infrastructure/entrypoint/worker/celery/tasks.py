@@ -84,6 +84,12 @@ from src.infrastructure.workflows.celery.alert_review_workflow import (
     AdversarialFeedbackLimitExceededError,
     AlertReviewWorkflowRunner,
 )
+from src.infrastructure.workflows.celery.factories import (
+    get_evaluate_alert_reasoning_use_case,
+)
+from src.application.dtos.reasoning_evaluation_dtos import (
+    EvaluateAlertReasoningInput,
+)
 
 
 @app.task(name="queue.healthcheck")
@@ -250,6 +256,31 @@ def document_analyst_decision(
         "status": "ok",
         "alert_id": alert_id,
         "object_storage_uri": output.object_storage_ref.uri,
+    }
+
+
+# D6 LLM-judge for a sampled, finished alert (dispatched by the alert
+# review runner). Safe to autoretry: EvaluateAlertReasoning reuses a stored
+# verdict and counts it at most once (apply_once marker per alert).
+@app.task(
+    bind=True,
+    name="metrics.evaluate_alert_reasoning",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def evaluate_alert_reasoning(self, alert_id: str, workflow_execution_id: str) -> dict:
+    output = get_evaluate_alert_reasoning_use_case().execute(
+        EvaluateAlertReasoningInput(
+            alert_id=UUID(alert_id),
+            workflow_execution_id=UUID(workflow_execution_id),
+        )
+    )
+    evaluation = output.evaluation
+    return {
+        "status": evaluation.status.value if evaluation is not None else "skipped",
+        "alert_id": alert_id,
+        "counted": output.counted,
     }
 
 
@@ -454,3 +485,70 @@ def parse_analyst_capacity_workbook_task(content_b64: str) -> dict:
         "profiles": [asdict(p) for p in profiles],
         "day_overrides": {str(day): profile_id for day, profile_id in day_overrides.items()},
     }
+
+
+# Bulk fraud_label review CSV (C5). No autoretry: a bad row is reported in
+# the result and never aborts the batch, and every applied row is already
+# idempotence-safe through RecordAlertMetricsEvent's snapshot_version guard
+# - but a retry would append duplicate audit rows. The per-row report is
+# read back via Celery's result backend (fraud_label_review_import_port.py).
+@app.task(name="fraud_review.import_csv")
+def import_fraud_label_reviews_task(content_b64: str, reviewed_by: str) -> dict:
+    # Lazy import: keeps the worker-side factories out of the API process,
+    # which imports this module only to call .delay().
+    from src.infrastructure.workflows.celery.factories import (
+        get_import_fraud_label_reviews_use_case,
+    )
+
+    result = get_import_fraud_label_reviews_use_case().execute(
+        base64.b64decode(content_b64), reviewed_by
+    )
+    return {
+        "status": result.status.value,
+        "total": result.total,
+        "applied": result.applied,
+        "failed": result.failed,
+        "error": result.error,
+        "rows": [
+            {
+                "row": row.row,
+                "alert_id": row.alert_id,
+                "fraud_label": row.fraud_label,
+                "status": row.status.value,
+                "error": row.error,
+            }
+            for row in result.rows
+        ],
+    }
+
+
+@app.task(name="metrics.reconcile_alert_rollups")
+def reconcile_alert_rollups() -> dict:
+    # Worker-only factory, imported here so the module import stays light.
+    from src.infrastructure.workflows.celery.factories import (
+        get_reconcile_alert_rollups_use_case,
+    )
+
+    output = get_reconcile_alert_rollups_use_case().execute()
+    return {
+        "drift": output.drift,
+        "drift_by_level": output.drift_by_level,
+        "corrected": output.corrected,
+        "skipped_concurrent": output.skipped_concurrent,
+        "rows_checked": output.rows_checked,
+        "days_checked": output.days_checked,
+        "months_checked": output.months_checked,
+        "snapshots_backfilled": output.snapshots_backfilled,
+    }
+
+
+# T3/T5: one sample of the operational gauges per Beat tick (60 s, see
+# celery_app.periodic_schedule). No retry: the next tick is the retry.
+@app.task(name="metrics.record_operational_state")
+def record_operational_state() -> dict:
+    from src.infrastructure.workflows.celery.factories import (
+        get_record_operational_state_use_case,
+    )
+
+    snapshot = get_record_operational_state_use_case().execute()
+    return asdict(snapshot)

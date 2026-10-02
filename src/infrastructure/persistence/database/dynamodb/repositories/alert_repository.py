@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from boto3.dynamodb.conditions import Attr, Key
+from botocore.exceptions import ClientError
 
 from src.application.ports.alert_port import (
+    AlertMetricsSnapshot,
     AlertRecord,
+    AlertResolutionMethod,
     AlertStatus,
+    Mark,
 )
+from src.infrastructure.core.config import genai_config
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
@@ -20,14 +27,33 @@ from src.infrastructure.persistence.database.dynamodb.serialization import (
 
 TABLE_NAME = "alerts"
 PARTITION = "alert"
+# GSI on created_day (operations-timezone calendar day, "YYYY-MM-DD") +
+# created_at - see schemas.ALERTS_TABLE.
+CREATED_DAY_INDEX = "CreatedDayIdx"
+# KEYS_ONLY GSI on status + created_at (R9) - see schemas.ALERTS_TABLE.
+STATUS_INDEX = "StatusIdx"
+# BatchGetItem's per-call key limit.
+_BATCH_GET_LIMIT = 100
+# Map attribute holding the AlertMetricsSnapshot. Written only by
+# DynamoMetricsRollupRepository.apply (one transaction with the rollup
+# deltas) - this repository only reads it, and update() never touches it.
+METRICS_ATTRIBUTE = "metrics"
+
+
+def created_day_for(created_at: datetime, timezone_name: str | None = None) -> str:
+    """The GSI partition value: created_at's calendar day in the operations
+    timezone (Bogota), not UTC."""
+    tz = ZoneInfo(timezone_name or genai_config.OPERATIONS_TIMEZONE)
+    return created_at.astimezone(tz).date().isoformat()
 
 
 class DynamoAlertRepository:
-    def __init__(self) -> None:
+    def __init__(self, timezone_name: str | None = None) -> None:
         self._table = get_dynamodb_resource().Table(TABLE_NAME)
+        self._timezone_name = timezone_name or genai_config.OPERATIONS_TIMEZONE
 
     def create(self, alert: AlertRecord) -> AlertRecord:
-        self._table.put_item(Item=_to_item(alert))
+        self._table.put_item(Item=_to_item(alert, self._timezone_name))
         return alert
 
     def get(self, alert_id: UUID) -> AlertRecord | None:
@@ -47,34 +73,137 @@ class DynamoAlertRepository:
         async_operation_id: UUID | None = None,
         workflow_execution_id: UUID | None = None,
     ) -> AlertRecord | None:
-        current = self.get(alert_id)
-        if current is None:
-            return None
-
-        updated = AlertRecord(
-            id=current.id,
-            event_id=current.event_id,
-            event_type=current.event_type,
-            payload=current.payload,
-            status=status or current.status,
-            customer_id=current.customer_id,
-            async_operation_id=async_operation_id
-            or current.async_operation_id,
-            workflow_execution_id=workflow_execution_id
-            or current.workflow_execution_id,
-            created_at=current.created_at,
-            updated_at=datetime.now(timezone.utc),
-        )
-        self._table.put_item(Item=_to_item(updated))
-        return updated
+        # UpdateItem on just the given fields, never a whole-item put: the
+        # metrics snapshot (and its snapshot_version guard) is written by a
+        # separate transaction and must not be overwritten with a stale copy.
+        names: dict[str, str] = {"#updated_at": "updated_at"}
+        values: dict[str, Any] = {
+            ":updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        sets = ["#updated_at = :updated_at"]
+        for field_name, value in (
+            ("status", status.value if status else None),
+            ("async_operation_id", str(async_operation_id) if async_operation_id else None),
+            (
+                "workflow_execution_id",
+                str(workflow_execution_id) if workflow_execution_id else None,
+            ),
+        ):
+            if value is None:
+                continue
+            names[f"#{field_name}"] = field_name
+            values[f":{field_name}"] = value
+            sets.append(f"#{field_name} = :{field_name}")
+        try:
+            response = self._table.update_item(
+                Key={"partition": PARTITION, "alert_id": str(alert_id)},
+                UpdateExpression="SET " + ", ".join(sets),
+                ConditionExpression="attribute_exists(alert_id)",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+                ReturnValues="ALL_NEW",
+            )
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                return None
+            raise
+        return _from_item(response["Attributes"])
 
     def delete(self, alert_id: UUID) -> None:
         self._table.delete_item(Key={"partition": PARTITION, "alert_id": str(alert_id)})
 
     def list_by_status(self, status: AlertStatus) -> list[AlertRecord]:
-        # Single partition, so a Query + filter reads only alert rows; the
-        # filter still pages through every alert - fine at queue volumes,
-        # a status GSI is the fix if this gets hot.
+        # StatusIdx holds only keys: query it, then fetch the items. The
+        # index may lag a status change, so re-check the fetched status.
+        try:
+            keys = self._status_index_keys(status)
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] != "ValidationException":
+                raise
+            return self._list_by_status_filtered(status)  # index not built yet
+        items = [
+            item for item in self._batch_get(keys) if item.get("status") == status.value
+        ]
+        return sorted((_from_item(item) for item in items), key=lambda a: a.created_at)
+
+    def count_by_status(self, status: AlertStatus) -> int:
+        count = 0
+        kwargs: dict[str, Any] = {
+            "IndexName": STATUS_INDEX,
+            "KeyConditionExpression": Key("status").eq(status.value),
+            "Select": "COUNT",
+        }
+        while True:
+            response = self._table.query(**kwargs)
+            count += response.get("Count", 0)
+            if "LastEvaluatedKey" not in response:
+                return count
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+
+    def fill_missing_created_day(self, from_day: date, to_day: date) -> int:
+        """One-off migration for the metrics backfill (R6): alerts written
+        before the created_day attribute existed are absent from
+        CreatedDayIdx. One pass over the alerts partition, reading only
+        keys + created_at of the alerts lacking it, sets created_day on
+        those whose operations-timezone day is in [from_day, to_day].
+        Idempotent (if_not_exists). Returns how many it filled."""
+        filled = 0
+        kwargs: dict[str, Any] = {
+            "KeyConditionExpression": Key("partition").eq(PARTITION),
+            "FilterExpression": Attr("created_day").not_exists(),
+            "ProjectionExpression": "alert_id, created_at",
+        }
+        while True:
+            response = self._table.query(**kwargs)
+            for item in response.get("Items", []):
+                created_at = datetime.fromisoformat(item["created_at"])
+                day = created_day_for(created_at, self._timezone_name)
+                if not from_day.isoformat() <= day <= to_day.isoformat():
+                    continue
+                self._table.update_item(
+                    Key={"partition": PARTITION, "alert_id": item["alert_id"]},
+                    UpdateExpression="SET created_day = if_not_exists(created_day, :day)",
+                    ConditionExpression="attribute_exists(alert_id)",
+                    ExpressionAttributeValues={":day": day},
+                )
+                filled += 1
+            if "LastEvaluatedKey" not in response:
+                return filled
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+
+    def _status_index_keys(self, status: AlertStatus) -> list[dict[str, Any]]:
+        keys: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {
+            "IndexName": STATUS_INDEX,
+            "KeyConditionExpression": Key("status").eq(status.value),
+        }
+        while True:
+            response = self._table.query(**kwargs)
+            keys.extend(
+                {"partition": item["partition"], "alert_id": item["alert_id"]}
+                for item in response.get("Items", [])
+            )
+            if "LastEvaluatedKey" not in response:
+                return keys
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+
+    def _batch_get(self, keys: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        resource = get_dynamodb_resource()
+        table_name = self._table.name
+        items: list[dict[str, Any]] = []
+        for start in range(0, len(keys), _BATCH_GET_LIMIT):
+            request: dict[str, Any] = {
+                table_name: {"Keys": keys[start : start + _BATCH_GET_LIMIT]}
+            }
+            while request:
+                response = resource.batch_get_item(RequestItems=request)
+                items.extend(response.get("Responses", {}).get(table_name, []))
+                request = response.get("UnprocessedKeys") or {}
+        return items
+
+    def _list_by_status_filtered(self, status: AlertStatus) -> list[AlertRecord]:
+        # Fallback while StatusIdx is missing: a Query on the single alerts
+        # partition + filter, which still reads every alert.
         items: list[dict[str, Any]] = []
         kwargs: dict[str, Any] = {
             "KeyConditionExpression": Key("partition").eq(PARTITION),
@@ -88,11 +217,126 @@ class DynamoAlertRepository:
             kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
         return sorted((_from_item(item) for item in items), key=lambda a: a.created_at)
 
+    def list_by_created_day(self, created_day: date) -> list[AlertRecord]:
+        items: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {
+            "IndexName": CREATED_DAY_INDEX,
+            "KeyConditionExpression": Key("created_day").eq(created_day.isoformat()),
+        }
+        while True:
+            response = self._table.query(**kwargs)
+            items.extend(response.get("Items", []))
+            if "LastEvaluatedKey" not in response:
+                break
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        return sorted((_from_item(item) for item in items), key=lambda a: a.created_at)
 
-def _to_item(alert: AlertRecord) -> dict[str, Any]:
-    return {
+    def page_by_created_day(
+        self, created_day: date, *, before: datetime | None, limit: int
+    ) -> list[AlertRecord]:
+        # created_at is the index's sort key, stored as a UTC ISO string,
+        # so a lexical "<" on it is a chronological "<".
+        condition = Key("created_day").eq(created_day.isoformat())
+        if before is not None:
+            condition = condition & Key("created_at").lt(
+                before.astimezone(timezone.utc).isoformat()
+            )
+        items: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {
+            "IndexName": CREATED_DAY_INDEX,
+            "KeyConditionExpression": condition,
+            "ScanIndexForward": False,
+        }
+        while len(items) < limit:
+            kwargs["Limit"] = limit - len(items)
+            response = self._table.query(**kwargs)
+            items.extend(response.get("Items", []))
+            if "LastEvaluatedKey" not in response:
+                break
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        return [_from_item(item) for item in items[:limit]]
+
+
+def snapshot_to_item(snapshot: AlertMetricsSnapshot) -> dict[str, Any]:
+    """DynamoDB map for an AlertMetricsSnapshot (floats as Decimal,
+    datetimes as ISO strings, None attributes dropped)."""
+    raw: dict[str, Any] = {
+        "origin": snapshot.origin,
+        "segment": snapshot.segment,
+        "channel": snapshot.channel,
+        "subchannel": snapshot.subchannel,
+        "amount": Decimal(str(snapshot.amount)) if snapshot.amount is not None else None,
+        "amount_tier": snapshot.amount_tier,
+        "amount_tier_set_version": snapshot.amount_tier_set_version,
+        "configuration_id": snapshot.configuration_id,
+        "resolution_method": (
+            snapshot.resolution_method.value if snapshot.resolution_method else None
+        ),
+        "mark": snapshot.mark.value,
+        "fraud_label": snapshot.fraud_label.value,
+        "marked_at": snapshot.marked_at.isoformat() if snapshot.marked_at else None,
+        "fraud_reviewed_at": (
+            snapshot.fraud_reviewed_at.isoformat() if snapshot.fraud_reviewed_at else None
+        ),
+        "fraud_review_count": snapshot.fraud_review_count,
+        "resolution_time_seconds": (
+            Decimal(str(snapshot.resolution_time_seconds))
+            if snapshot.resolution_time_seconds is not None
+            else None
+        ),
+        "status": snapshot.status.value if snapshot.status else None,
+        "snapshot_version": snapshot.snapshot_version,
+    }
+    return {key: value for key, value in raw.items() if value is not None}
+
+
+def snapshot_from_item(item: dict[str, Any] | None) -> AlertMetricsSnapshot | None:
+    """Tolerant: missing/unknown attributes fall back to the dataclass
+    defaults, so items written before a field existed still hydrate."""
+    if not item:
+        return None
+    item = from_dynamodb(item)
+
+    def _enum(enum_cls, value, default):
+        try:
+            return enum_cls(value) if value is not None else default
+        except ValueError:
+            return default
+
+    def _dt(value):
+        return datetime.fromisoformat(value) if value else None
+
+    amount = item.get("amount")
+    resolution_time = item.get("resolution_time_seconds")
+    tier_version = item.get("amount_tier_set_version")
+    return AlertMetricsSnapshot(
+        origin=item.get("origin"),
+        segment=item.get("segment"),
+        channel=item.get("channel"),
+        subchannel=item.get("subchannel"),
+        amount=float(amount) if amount is not None else None,
+        amount_tier=item.get("amount_tier") or "unknown",
+        amount_tier_set_version=int(tier_version) if tier_version is not None else None,
+        configuration_id=item.get("configuration_id"),
+        resolution_method=_enum(AlertResolutionMethod, item.get("resolution_method"), None),
+        mark=_enum(Mark, item.get("mark"), Mark.PENDING),
+        fraud_label=_enum(Mark, item.get("fraud_label"), Mark.PENDING),
+        marked_at=_dt(item.get("marked_at")),
+        fraud_reviewed_at=_dt(item.get("fraud_reviewed_at")),
+        fraud_review_count=int(item.get("fraud_review_count") or 0),
+        resolution_time_seconds=(
+            float(resolution_time) if resolution_time is not None else None
+        ),
+        status=_enum(AlertStatus, item.get("status"), None),
+        snapshot_version=int(item.get("snapshot_version") or 0),
+    )
+
+
+def _to_item(alert: AlertRecord, timezone_name: str | None = None) -> dict[str, Any]:
+    item = {
         "partition": PARTITION,
         "alert_id": str(alert.id),
+        "created_day": created_day_for(alert.created_at, timezone_name),
         "event_id": alert.event_id,
         "event_type": alert.event_type,
         "payload": to_dynamodb(alert.payload),
@@ -109,6 +353,9 @@ def _to_item(alert: AlertRecord) -> dict[str, Any]:
         "created_at": alert.created_at.isoformat(),
         "updated_at": alert.updated_at.isoformat(),
     }
+    if alert.metrics is not None:
+        item[METRICS_ATTRIBUTE] = snapshot_to_item(alert.metrics)
+    return item
 
 
 def _from_item(item: dict[str, Any]) -> AlertRecord:
@@ -131,4 +378,5 @@ def _from_item(item: dict[str, Any]) -> AlertRecord:
         ),
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
+        metrics=snapshot_from_item(item.get(METRICS_ATTRIBUTE)),
     )
