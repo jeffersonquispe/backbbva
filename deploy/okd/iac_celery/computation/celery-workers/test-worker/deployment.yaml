@@ -18,7 +18,7 @@ spec:
         - name: artifactory-auth
       containers:
         - name: test-worker
-          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:a35181f2f32cbd73530173d887ee3cc93f869996
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:96d1a1902f30c9873f3d89c6274a6184f65a6978
           command: [celery, -A, src.infrastructure.entrypoint.worker.celery.celery_app:app, worker, --loglevel=INFO, -Q, test]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
