@@ -15,6 +15,7 @@ data:
   GENAI_ENVIRONMENT: development
   API_V0_STR: /api/v0
   COMPONENT_NAME: aria-mcp
+  MCP_PORT: "8100"
   DYNAMO_ENDPOINT: http://dynamodb:8000
   DYNAMO_REGION_NAME: us-east-1
   OBJECT_STORAGE_ENDPOINT: http://minio:9000
