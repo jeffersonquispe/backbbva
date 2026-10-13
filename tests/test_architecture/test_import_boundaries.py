@@ -157,6 +157,31 @@ def test_routers_do_not_build_persistence_adapters() -> None:
     _check("router-no-adapters", _violations("router-no-adapters", base, banned))
 
 
+_WIRING_FILES = (
+    "src/infrastructure/entrypoint/worker/celery/tasks.py",
+    "src/infrastructure/workflows/celery/alert_review_workflow.py",
+)
+_WIRING_PREFIXES = ("Dynamo", "Minio", "OpenSearch", "Celery", "Mock", "Bounded", "TimeBounded")
+_WIRING_SUFFIXES = ("UseCase", "Loader", "Agent", "Repository", "Adapter", "Dispatcher")
+
+
+def test_worker_wiring_goes_through_celery_factories() -> None:
+    """CLAUDE.md DI: tasks and the workflow runner call ``get_*`` factories
+    from ``workflows/celery/factories.py``; they never build adapters or
+    use cases inline."""
+    found: set[tuple[str, str, str]] = set()
+    for rel in _WIRING_FILES:
+        tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+            if name.startswith(_WIRING_PREFIXES) or name.endswith(_WIRING_SUFFIXES):
+                found.add(("worker-wiring-in-factories", rel, name))
+    _check("worker-wiring-in-factories", found)
+
+
 def test_tests_use_hand_written_fakes_not_unittest_mock() -> None:
     def banned(mod: str):
         return "unittest.mock" if mod.startswith(("unittest.mock", "mock")) and _top(mod) in {"unittest", "mock"} else None
