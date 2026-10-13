@@ -10,12 +10,17 @@ from src.application.dtos.adversarial_review_alert_dtos import (
     AdversarialReviewAlertOutput,
 )
 from src.application.dtos.workflow_run_state import WorkflowRunState
-from src.application.ports.alert_port import AlertStatus
-from src.application.ports.workflow_port import WorkflowExecutionRecord, WorkflowStatus
 from src.application.use_cases.alerts.run_alert_review_workflow import (
     RunAlertReviewWorkflowUseCase,
 )
+from src.domain.alerts.entities import (
+    AlertStatus,
+)
 from src.domain.alerts.exceptions import AdversarialFeedbackLimitExceededError
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+    WorkflowStatus,
+)
 
 
 class InMemoryWorkflowRepository:

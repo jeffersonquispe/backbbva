@@ -27,7 +27,9 @@ from src.application.dtos.fraud_review_dtos import (
     ReviewFraudLabelInput,
     ReviewFraudLabelOutput,
 )
-from src.application.ports.alert_port import AlertRepository, Mark
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.ports.fraud_label_review_port import (
     FraudLabelReview,
     FraudLabelReviewRepository,
@@ -42,6 +44,9 @@ from src.application.ports.monitoring_port import (
 )
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
+)
+from src.domain.alerts.entities import (
+    Mark,
 )
 from src.domain.alerts.exceptions import AlertNotFoundError, InvalidFraudLabelError
 

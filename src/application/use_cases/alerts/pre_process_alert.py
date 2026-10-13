@@ -31,7 +31,6 @@ from src.application.ports.host_service_transaction_history_port import (
     HostServiceTransactionHistoryPort,
     TransactionHistoryEntry,
 )
-from src.application.ports.workflow_port import WorkflowStepStatus
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
@@ -40,6 +39,9 @@ from src.domain.alerts.exceptions import (
     AlertFieldTypeMismatchError,
     MandatoryAlertDataMissingError,
     NoActiveAlertSchemaError,
+)
+from src.domain.workflows.entities import (
+    WorkflowStepStatus,
 )
 
 MAX_FETCH_ATTEMPTS = 3

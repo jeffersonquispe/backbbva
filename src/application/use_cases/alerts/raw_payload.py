@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from src.application.ports.alert_port import AlertRecord
 from src.application.ports.object_storage_port import ObjectStoragePort
+from src.domain.alerts.entities import (
+    AlertRecord,
+)
 
 
 class RawAlertPayloadLoader:

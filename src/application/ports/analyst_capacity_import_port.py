@@ -4,7 +4,9 @@ from abc import ABC
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from src.application.ports.configuration_port import DayProfile
+from src.domain.configurations.entities import (
+    DayProfile,
+)
 
 
 class AnalystCapacityImportStatus(StrEnum):

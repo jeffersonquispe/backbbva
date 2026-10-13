@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from datetime import UTC, datetime
 
-from src.application.ports.configuration_port import (
+from src.domain.configurations.entities import (
     AdversarialConfig,
     AgentSettings,
     AnalystConfig,
@@ -35,15 +35,19 @@ from src.application.ports.configuration_port import (
     RuleCondition,
     SamplingCriterion,
     SegmentSettings,
+    TagCategory,
     Taxonomy,
-    TestCleanupPolicy,
-    TestSettings,
     VectorStoreResearchConfig,
     VoicebotCategoryPrompt,
     VoicebotConfig,
     default_segments,
 )
-from src.application.ports.tag_catalog_port import TagCategory
+from src.domain.configurations.entities import (
+    TestCleanupPolicy as CleanupPolicy,
+)
+from src.domain.configurations.entities import (
+    TestSettings as ConfigSettings,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_item_mapping import (
     _day_profile_from_item,
     _distribution_value_from_item,
@@ -85,7 +89,7 @@ def _base_record(**overrides) -> ConfigurationRecord:
         active=False,
         general=GeneralSettings(),
         infra=InfraSettings(),
-        test=TestSettings(),
+        test=ConfigSettings(),
         created_at=now,
         updated_at=now,
     )
@@ -120,7 +124,7 @@ def test_owner_item_round_trips_through_to_item_and_from_item() -> None:
     assert restored.created_by == "carlos"
     assert restored.general == GeneralSettings()
     assert restored.infra == InfraSettings()
-    assert restored.test == TestSettings()
+    assert restored.test == ConfigSettings()
     # ConfigurationRecord.segments defaults via default_factory here since
     # _to_item/_from_item no longer carry it - DynamoConfigurationRepository
     # ._hydrate replaces this placeholder with rows queried from
@@ -462,12 +466,12 @@ def test_infra_round_trips_through_its_own_table_item() -> None:
 
 
 def test_evaluation_round_trips_through_its_own_table_item() -> None:
-    evaluation = TestSettings(
+    evaluation = ConfigSettings(
         max_test_instances=10,
         max_concurrent_experiments=5,
         experiment_timeout_minutes=60,
         max_stored_test_runs=50,
-        test_cleanup_policy=TestCleanupPolicy.FAILED_FIRST,
+        test_cleanup_policy=CleanupPolicy.FAILED_FIRST,
     )
     item = {"configuration_id": "cfg-1", "version": 1, **asdict(evaluation)}
 

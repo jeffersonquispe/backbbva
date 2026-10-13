@@ -4,7 +4,7 @@ from dataclasses import asdict, fields
 from datetime import datetime
 from typing import Any
 
-from src.application.ports.configuration_port import (
+from src.domain.configurations.entities import (
     AdversarialConfig,
     AgentSettings,
     AnalystConfig,
@@ -43,6 +43,7 @@ from src.application.ports.configuration_port import (
     SamplingIntervalUnit,
     SegmentSettings,
     ShortageBehavior,
+    TagCategory,
     Taxonomy,
     TestCleanupPolicy,
     TestSettings,
@@ -50,7 +51,6 @@ from src.application.ports.configuration_port import (
     VoicebotCategoryPrompt,
     VoicebotConfig,
 )
-from src.application.ports.tag_catalog_port import TagCategory
 from src.infrastructure.persistence.database.dynamodb.serialization import (
     from_dynamodb,
     to_dynamodb,

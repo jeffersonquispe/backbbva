@@ -13,11 +13,6 @@ from uuid import UUID, uuid4
 import pytest
 
 from src.application.dtos.reasoning_evaluation_dtos import EvaluateAlertReasoningInput
-from src.application.ports.alert_port import (
-    AlertMetricsSnapshot,
-    AlertRecord,
-    AlertStatus,
-)
 from src.application.ports.alert_reasoning_evaluation_port import (
     AlertReasoningEvaluationRecord,
     ReasoningEvaluationStatus,
@@ -30,15 +25,20 @@ from src.application.ports.llm_unit_of_work_port import (
 )
 from src.application.ports.metrics_rollup_port import MetricsDataType, RollupLevel
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
-from src.application.ports.workflow_port import (
+from src.application.use_cases.metrics.evaluate_alert_reasoning import (
+    EvaluateAlertReasoning,
+    is_sampled_for_evaluation,
+)
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertRecord,
+    AlertStatus,
+)
+from src.domain.workflows.entities import (
     WorkflowExecutionRecord,
     WorkflowStatus,
     WorkflowStepExecutionRecord,
     WorkflowStepStatus,
-)
-from src.application.use_cases.metrics.evaluate_alert_reasoning import (
-    EvaluateAlertReasoning,
-    is_sampled_for_evaluation,
 )
 
 TZ = "America/Bogota"

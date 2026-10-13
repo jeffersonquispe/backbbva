@@ -13,7 +13,6 @@ from src.application.dtos.classify_alert_dtos import (
 )
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
-from src.application.ports.alert_port import AlertRecord, AlertStatus
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -24,6 +23,10 @@ from src.application.use_cases.alerts.adversarial_review_alert import _review_co
 from src.application.use_cases.alerts.classify_alert import _alert_context
 from src.application.use_cases.test_runs.get_test_run import (
     _canonical_evaluation_labels,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
 )
 from src.infrastructure.workflows.celery.step_context import _alert_payload
 

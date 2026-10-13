@@ -6,7 +6,10 @@ escalated, voicebot not yet resolved, failed or skipped -> pending."""
 
 from __future__ import annotations
 
-from src.application.ports.alert_port import AlertResolutionMethod, Mark
+from src.domain.alerts.entities import (
+    AlertResolutionMethod,
+    Mark,
+)
 
 # Executor executed_action values (alert_review_workflow._run_executor) plus
 # "discarded" for a deterministic-rule discard.

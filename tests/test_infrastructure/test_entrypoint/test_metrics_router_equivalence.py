@@ -31,18 +31,18 @@ os.environ.setdefault("GENAI_ENVIRONMENT", "test")
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.application.ports.alert_port import (
-    AlertMetricsSnapshot,
-    AlertResolutionMethod,
-    AlertStatus,
-    Mark,
-)
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.metrics_rollup_port import RollupRow
 from src.application.use_cases.metrics.alert_rollup_contribution import diff
 from src.application.use_cases.metrics.get_agent_metrics import GetAgentMetrics
 from src.application.use_cases.metrics.get_metrics_overview import GetMetricsOverview
 from src.application.use_cases.metrics.range_planner import plan
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertResolutionMethod,
+    AlertStatus,
+    Mark,
+)
 from src.infrastructure.entrypoint.api.factories.metrics_factory import (
     get_agent_metrics_use_case,
     get_metrics_overview_use_case,

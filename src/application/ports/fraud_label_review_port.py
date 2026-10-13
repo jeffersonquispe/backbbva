@@ -6,7 +6,9 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
-from src.application.ports.alert_port import Mark
+from src.domain.alerts.entities import (
+    Mark,
+)
 
 
 class FraudLabelReviewChannel(StrEnum):

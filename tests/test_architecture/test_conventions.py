@@ -3,7 +3,7 @@
 ``test_import_boundaries`` covers who may import whom; this file covers the
 shape rules: port shapes, factory/``lru_cache`` hygiene, orphan config
 fields, fake naming + test-tree mirror, Dockerfile local/OKD parity and
-lazy-import dependency coverage of the shared worker/MCP modules.
+lazy-import dependency coverage of the shared training/MCP modules.
 
 Same ratchet as the other architecture tests: ``KNOWN_VIOLATIONS`` is the
 debt at the time of writing - a new violation fails, a resolved one must be
@@ -514,6 +514,7 @@ def test_test_tree_mirrors_src_tree() -> None:
 _DOCKER_PAIRS = [
     ("Dockerfile.api", "Dockerfile.api.okd"),
     ("Dockerfile.worker", "Dockerfile.worker.okd"),
+    ("Dockerfile.training.worker", "Dockerfile.training.worker.okd"),
     ("Dockerfile.mcp", "Dockerfile.mcp.okd"),
     ("Dockerfile.simulator.worker", "Dockerfile.simulator.worker.okd"),
 ]
@@ -563,13 +564,12 @@ def test_local_and_okd_dockerfiles_agree_on_runtime_facts() -> None:
     _check("dockerfile-parity", found)
 
 
-# ------------------------------------------------ shared-module dependencies
+# ------------------------------------------- shared model/training dependencies
 
 _SHARED_MODULES = [
     "src/infrastructure/workflows/celery/model_training.py",
-    "src/infrastructure/entrypoint/mcp/scoring.py",
 ]
-_SHARED_PYPROJECTS = ["pyproject.worker.toml", "pyproject.mcp.toml"]
+_SHARED_PYPROJECTS = ["pyproject.training-worker.toml", "pyproject.mcp.toml"]
 _ML_PACKAGES = {"pandas", "numpy", "xgboost", "sklearn", "joblib", "scipy"}
 _IMPORT_TO_DIST = {"sklearn": "scikit-learn"}
 
@@ -582,8 +582,8 @@ def _declared_names(pyproject: str) -> set[str]:
     }
 
 
-def test_shared_ml_modules_declare_lazy_imports_in_worker_and_mcp() -> None:
-    """The feature-building code is shared by worker and MCP; a lazy
+def test_shared_ml_modules_declare_lazy_imports_in_training_worker_and_mcp() -> None:
+    """The feature-building code is shared by training worker and MCP; a lazy
     ``import pandas`` inside a function never shows at container start, so
     the load-time dependency test can't see it. Check *every* import."""
     found: set[tuple[str, str, str]] = set()

@@ -5,10 +5,12 @@ from datetime import UTC, datetime
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
 from src.application.ports.configuration_port import (
-    ConfigurationRecord,
     ConfigurationRepository,
 )
 from src.application.ports.test_run_port import TestRunRepository
+from src.domain.configurations.entities import (
+    ConfigurationRecord,
+)
 
 
 class ConfigurationVersionConflictError(Exception):

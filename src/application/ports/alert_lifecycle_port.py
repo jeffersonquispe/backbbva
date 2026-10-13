@@ -11,7 +11,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 
-from src.application.ports.alert_port import AlertRecord
+from src.domain.alerts.entities import (
+    AlertRecord,
+)
 
 
 @dataclass(frozen=True)

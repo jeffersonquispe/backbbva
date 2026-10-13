@@ -4,7 +4,9 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from uuid import UUID
 
-from src.application.ports.alert_port import AlertRepository, AlertStatus
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.ports.operations_capacity_port import OperationsCapacityPort
 from src.application.ports.resource_reservation_port import (
     ReservationConflict,
@@ -15,6 +17,9 @@ from src.application.ports.resource_reservation_port import (
 from src.application.use_cases.analyst_queue.analyst_reservations import (
     active_reservation_for_alert,
     active_reservation_for_holder,
+)
+from src.domain.alerts.entities import (
+    AlertStatus,
 )
 from src.domain.alerts.exceptions import (
     AlertAlreadyTakenError,

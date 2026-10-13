@@ -11,7 +11,6 @@ from src.application.ports.alert_action_dispatcher_port import (
     AlertActionDispatcher,
     AlertActionDispatchRef,
 )
-from src.application.ports.alert_port import AlertRecord, AlertStatus
 from src.application.ports.operations_capacity_port import (
     ChannelCapacity,
     OperationsCapacityPort,
@@ -24,12 +23,6 @@ from src.application.ports.resource_reservation_port import (
     ReservationStatus,
     ReservedResource,
     ResourceReservation,
-)
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRecord,
-    WorkflowStatus,
-    WorkflowStepExecutionRecord,
-    WorkflowStepStatus,
 )
 from src.application.use_cases.analyst_queue.get_alert_detail import (
     GetAlertDetailUseCase,
@@ -49,6 +42,10 @@ from src.application.use_cases.analyst_queue.take_escalated_alert import (
 from src.application.use_cases.operations.complete_voicebot_call import (
     CompleteVoicebotCallUseCase,
 )
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+)
 from src.domain.alerts.exceptions import (
     AlertAlreadyTakenError,
     AlertNotFoundError,
@@ -57,6 +54,12 @@ from src.domain.alerts.exceptions import (
     AnalystBusyError,
     NoActiveVoicebotCallError,
     NoAnalystCapacityError,
+)
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+    WorkflowStatus,
+    WorkflowStepExecutionRecord,
+    WorkflowStepStatus,
 )
 
 NOW = datetime(2026, 9, 28, 15, 0, tzinfo=UTC)

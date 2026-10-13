@@ -5,12 +5,6 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
-from src.application.ports.alert_port import (
-    AlertMetricsSnapshot,
-    AlertResolutionMethod,
-    AlertStatus,
-    Mark,
-)
 from src.application.ports.metrics_rollup_port import (
     ALERT_DIMENSIONS,
     MetricsDataType,
@@ -20,6 +14,12 @@ from src.application.use_cases.metrics.alert_rollup_contribution import (
     contribution,
     diff,
     live_periods,
+)
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertResolutionMethod,
+    AlertStatus,
+    Mark,
 )
 
 TZ = "America/Bogota"  # UTC-5, no DST

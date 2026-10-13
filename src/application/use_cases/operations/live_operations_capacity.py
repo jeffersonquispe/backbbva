@@ -4,7 +4,6 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from src.application.ports.configuration_port import AnalystCapacity
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
 )
@@ -16,6 +15,9 @@ from src.application.ports.operations_capacity_port import (
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservationRepository,
+)
+from src.domain.configurations.entities import (
+    AnalystCapacity,
 )
 
 

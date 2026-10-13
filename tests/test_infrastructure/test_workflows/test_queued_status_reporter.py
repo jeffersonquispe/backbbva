@@ -3,8 +3,11 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID, uuid4
 
-from src.application.ports.workflow_port import WorkflowStatus, WorkflowStepStatus
 from src.application.ports.workflow_status_port import WorkflowStatusUpdate
+from src.domain.workflows.entities import (
+    WorkflowStatus,
+    WorkflowStepStatus,
+)
 from src.infrastructure.workflows.queued.queued_status_reporter import (
     QueuedWorkflowStatusReporter,
 )

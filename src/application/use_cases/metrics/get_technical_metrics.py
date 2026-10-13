@@ -324,7 +324,9 @@ def _periods(
                 research_calls=_int(research_measures.get(m.COUNT, 0)),
                 evaluated=_int(evaluation_measures.get(m.COUNT, 0)),
                 hallucinations=_int(evaluation_measures.get(m.HALLUCINATION_COUNT, 0)),
-                data_use_correct=_int(evaluation_measures.get(m.DATA_USE_CORRECT_COUNT, 0)),
+                data_use_correct=_int(
+                    evaluation_measures.get(m.DATA_USE_CORRECT_COUNT, 0)
+                ),
             )
         )
     return result

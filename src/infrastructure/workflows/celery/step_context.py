@@ -5,7 +5,9 @@ from typing import Any
 from uuid import UUID
 
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
-from src.application.ports.configuration_port import SegmentSettings
+from src.domain.configurations.entities import (
+    SegmentSettings,
+)
 from src.infrastructure.workflows.celery.factories import (
     get_enrich_profiling_fields_use_case,
 )

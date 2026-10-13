@@ -8,10 +8,15 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from src.application.dtos.metrics_maintenance_dtos import LiveAlertFunnelOutput
-from src.application.ports.alert_port import AlertRepository, AlertStatus
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservationRepository,
+)
+from src.domain.alerts.entities import (
+    AlertStatus,
 )
 
 

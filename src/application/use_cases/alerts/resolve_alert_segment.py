@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.ports.configuration_port import (
+from src.domain.configurations.entities import (
     FilterCondition,
     FilterGroup,
     LogicalOperator,
     SegmentSettings,
+    TagCategory,
 )
-from src.application.ports.tag_catalog_port import TagCategory
 
 
 def _normalize_rules(rules: Any) -> list[str]:

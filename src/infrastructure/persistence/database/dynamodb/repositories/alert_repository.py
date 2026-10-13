@@ -9,14 +9,14 @@ from zoneinfo import ZoneInfo
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
-from src.application.ports.alert_port import (
+from src.application.ports.object_storage_port import ObjectStorageRef
+from src.domain.alerts.entities import (
     AlertMetricsSnapshot,
     AlertRecord,
     AlertResolutionMethod,
     AlertStatus,
     Mark,
 )
-from src.application.ports.object_storage_port import ObjectStorageRef
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,

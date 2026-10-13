@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from src.application.ports.alert_port import AlertOrigin
 from src.application.ports.workflow_executor_port import (
     WorkflowExecutionRef,
     WorkflowExecutor,
 )
-from src.application.ports.workflow_port import WorkflowExecutionRecord
+from src.domain.alerts.entities import (
+    AlertOrigin,
+)
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+)
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.queues.celery.app import app
 

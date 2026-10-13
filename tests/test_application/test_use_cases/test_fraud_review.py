@@ -15,7 +15,6 @@ from src.application.dtos.alert_metrics_dtos import (
     RecordAlertMetricsEventInput,
 )
 from src.application.dtos.fraud_review_dtos import ReviewFraudLabelInput
-from src.application.ports.alert_port import AlertRecord, AlertStatus, Mark
 from src.application.ports.fraud_label_review_import_port import (
     FraudLabelReviewImportStatus,
     FraudLabelReviewRowStatus,
@@ -36,6 +35,11 @@ from src.application.use_cases.fraud_review.list_fraud_label_reviews import (
 from src.application.use_cases.fraud_review.review_fraud_label import ReviewFraudLabel
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+    Mark,
 )
 from src.domain.alerts.exceptions import (
     AlertNotFoundError,

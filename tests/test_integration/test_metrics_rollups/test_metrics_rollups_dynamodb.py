@@ -20,7 +20,6 @@ from src.application.dtos.alert_metrics_dtos import (
     AlertMetricsEventType,
     RecordAlertMetricsEventInput,
 )
-from src.application.ports.alert_port import AlertRecord, AlertStatus, Mark
 from src.application.ports.metrics_rollup_port import (
     AlertSnapshotGuard,
     MetricsDataType,
@@ -33,6 +32,11 @@ from src.application.ports.operational_settings_port import (
 from src.application.use_cases.metrics.alert_rollup_contribution import diff
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+    Mark,
 )
 from src.domain.alerts.exceptions import SnapshotVersionConflictError
 from src.infrastructure.persistence.database.dynamodb.client import (

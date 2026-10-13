@@ -18,9 +18,12 @@ from src.application.dtos.metrics_dtos import (
     RecommendationAcceptance,
     ResolutionMethodStats,
 )
-from src.application.ports.alert_port import AlertResolutionMethod, Mark
 from src.application.ports.metrics_rollup_port import MetricsRollupRepository
 from src.application.use_cases.metrics import alert_metrics_reader as reader
+from src.domain.alerts.entities import (
+    AlertResolutionMethod,
+    Mark,
+)
 
 RESOLUTION_METHODS = [m.value for m in AlertResolutionMethod] + ["unknown"]
 

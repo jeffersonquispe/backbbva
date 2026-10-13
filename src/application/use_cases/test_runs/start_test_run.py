@@ -6,11 +6,12 @@ from datetime import UTC, datetime
 
 from src.application.dtos.alert_dtos import StartAlertWorkflowInput
 from src.application.dtos.test_run_dtos import StartTestRunInput, StartTestRunOutput
-from src.application.ports.alert_port import AlertOrigin, AlertRepository
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.async_operation_port import AsyncOperationRepository
 from src.application.ports.configuration_port import (
-    ConfigurationRef,
     ConfigurationRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
@@ -29,6 +30,12 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
 )
 from src.application.use_cases.test_runs.dataset_sampling import sample_rows
+from src.domain.alerts.entities import (
+    AlertOrigin,
+)
+from src.domain.configurations.entities import (
+    ConfigurationRef,
+)
 
 
 class StartTestRunUseCase:

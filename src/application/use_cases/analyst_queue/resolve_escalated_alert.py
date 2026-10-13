@@ -14,7 +14,9 @@ from src.application.dtos.analyst_queue_dtos import (
     ResolveEscalatedAlertInput,
 )
 from src.application.ports.alert_action_dispatcher_port import AlertActionDispatcher
-from src.application.ports.alert_port import AlertRepository, AlertStatus
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservation,
@@ -25,6 +27,9 @@ from src.application.use_cases.analyst_queue.analyst_reservations import (
 )
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
+)
+from src.domain.alerts.entities import (
+    AlertStatus,
 )
 from src.domain.alerts.exceptions import AlertNotHeldByAnalystError
 

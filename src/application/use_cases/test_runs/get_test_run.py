@@ -8,8 +8,6 @@ from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.test_run_port import TestRunRepository, TestRunStatus
 from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
-    WorkflowStatus,
-    WorkflowStepExecutionRecord,
     WorkflowStepExecutionRepository,
 )
 from src.application.use_cases.test_runs.classification_metrics import (
@@ -26,6 +24,10 @@ from src.application.use_cases.test_runs.duration_stats import (
     workflow_duration,
 )
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
+from src.domain.workflows.entities import (
+    WorkflowStatus,
+    WorkflowStepExecutionRecord,
+)
 
 _FAILED = {WorkflowStatus.FAILED}
 _RUNNING = {WorkflowStatus.RUNNING, WorkflowStatus.DISPATCHED}

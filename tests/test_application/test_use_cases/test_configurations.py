@@ -6,25 +6,14 @@ from datetime import UTC, datetime
 import pytest
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
-from src.application.ports.configuration_port import (
-    AgentSettings,
-    ConfigurationRecord,
-    ConfigurationRef,
-    FilterCondition,
-    FilterGroup,
-    GeneralSettings,
-    InfraSettings,
-    LogicalOperator,
-    MonitoringSettings,
-    SegmentSettings,
-    TestSettings,
-    default_segments,
-)
-from src.application.ports.tag_catalog_port import TagCategory
 from src.application.ports.test_run_port import (
-    TestRunConfig,
-    TestRunRecord,
-    TestRunStatus,
+    TestRunConfig as RunConfig,
+)
+from src.application.ports.test_run_port import (
+    TestRunRecord as RunRecord,
+)
+from src.application.ports.test_run_port import (
+    TestRunStatus as RunStatus,
 )
 from src.application.use_cases.configurations.activate_configuration import (
     ActivateConfigurationUseCase,
@@ -46,6 +35,23 @@ from src.application.use_cases.configurations.list_configuration_versions import
 )
 from src.application.use_cases.configurations.list_configurations import (
     ListConfigurationsUseCase,
+)
+from src.domain.configurations.entities import (
+    AgentSettings,
+    ConfigurationRecord,
+    ConfigurationRef,
+    FilterCondition,
+    FilterGroup,
+    GeneralSettings,
+    InfraSettings,
+    LogicalOperator,
+    MonitoringSettings,
+    SegmentSettings,
+    TagCategory,
+    default_segments,
+)
+from src.domain.configurations.entities import (
+    TestSettings as ConfigSettings,
 )
 
 
@@ -133,35 +139,35 @@ def _with_active(
 
 class InMemoryTestRunRepository:
     def __init__(self) -> None:
-        self._runs: list[TestRunRecord] = []
+        self._runs: list[RunRecord] = []
 
     def add_succeeded(self, configuration_id: str, version: int) -> None:
         self._runs.append(
-            TestRunRecord(
+            RunRecord(
                 id=uuid.uuid4(),
                 name="run",
                 dataset_name="dataset",
-                config=TestRunConfig(
+                config=RunConfig(
                     configuration_ref=ConfigurationRef(configuration_id, version)
                 ),
-                status=TestRunStatus.SUCCEEDED,
+                status=RunStatus.SUCCEEDED,
                 total=1,
                 created_at=datetime.now(UTC),
                 updated_at=datetime.now(UTC),
             )
         )
 
-    def create(self, run: TestRunRecord) -> TestRunRecord:
+    def create(self, run: RunRecord) -> RunRecord:
         self._runs.append(run)
         return run
 
-    def get(self, run_id: uuid.UUID) -> TestRunRecord | None:
+    def get(self, run_id: uuid.UUID) -> RunRecord | None:
         return next((r for r in self._runs if r.id == run_id), None)
 
     def update(self, run_id, *, status=None, finished_at=None):
         raise NotImplementedError
 
-    def list(self) -> list[TestRunRecord]:
+    def list(self) -> list[RunRecord]:
         return list(self._runs)
 
     def delete(self, run_id: uuid.UUID) -> None:
@@ -193,7 +199,7 @@ def test_create_configuration_starts_new_lineage_at_version_1_inactive() -> None
     assert record.active is False
     assert record.general == GeneralSettings()
     assert record.infra == InfraSettings()
-    assert record.test == TestSettings()
+    assert record.test == ConfigSettings()
     assert record.segments == default_segments()
     assert set(record.segments) == {"canales_digitales", "tarjetas"}
     assert all(not s.enabled for s in record.segments.values())
@@ -491,7 +497,7 @@ def test_legacy_test_run_protects_only_its_configuration_version() -> None:
     create = CreateConfigurationUseCase(repo, runs)
     original = create.execute(CreateConfigurationInput(name="Protected"))
     runs.add_succeeded(original.configuration_id, 1)
-    runs._runs[0].status = TestRunStatus.FAILED
+    runs._runs[0].status = RunStatus.FAILED
     saved = create.execute(
         CreateConfigurationInput(
             name="Changed",

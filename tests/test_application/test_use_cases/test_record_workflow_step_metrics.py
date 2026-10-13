@@ -12,12 +12,6 @@ from uuid import UUID, uuid4
 import pytest
 
 from src.application.dtos.technical_metrics_dtos import RecordWorkflowStepMetricsInput
-from src.application.ports.alert_port import (
-    AlertMetricsSnapshot,
-    AlertRecord,
-    AlertResolutionMethod,
-    AlertStatus,
-)
 from src.application.ports.metrics_rollup_port import (
     LLM_CALL_DIMENSIONS,
     RESEARCH_CALL_DIMENSIONS,
@@ -25,10 +19,6 @@ from src.application.ports.metrics_rollup_port import (
     MetricsDataType,
     RollupLevel,
     RollupRow,
-)
-from src.application.ports.workflow_port import (
-    WorkflowStepExecutionRecord,
-    WorkflowStepStatus,
 )
 from src.application.use_cases.metrics.record_workflow_step_metrics import (
     RecordWorkflowStepMetrics,
@@ -40,6 +30,16 @@ from src.application.use_cases.metrics.technical_rollup_contribution import (
     technical_deltas,
 )
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertRecord,
+    AlertResolutionMethod,
+    AlertStatus,
+)
+from src.domain.workflows.entities import (
+    WorkflowStepExecutionRecord,
+    WorkflowStepStatus,
+)
 
 TZ = "America/Bogota"
 NOW = datetime(2026, 10, 1, 15, 30, tzinfo=UTC)

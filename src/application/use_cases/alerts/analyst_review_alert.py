@@ -19,7 +19,6 @@ from src.application.ports.operations_capacity_port import (
     OperationsCapacityPort,
     OperationsCapacityRecord,
 )
-from src.application.ports.workflow_port import WorkflowStepStatus
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
@@ -29,6 +28,9 @@ from src.application.use_cases.alerts.resolve_analyst_playbook import (
     ResolvedPlaybook,
 )
 from src.domain.models.prompt_template import substitute_variables
+from src.domain.workflows.entities import (
+    WorkflowStepStatus,
+)
 
 _SAFE_DEFAULT_DECISION = "scale_to_analyst"
 

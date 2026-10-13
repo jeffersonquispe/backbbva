@@ -27,7 +27,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, tzinfo
 from typing import Any
 
-from src.application.ports.alert_port import AlertMetricsSnapshot, AlertStatus
 from src.application.ports.metrics_rollup_port import (
     EVALUATION_DIMENSIONS,
     LLM_CALL_DIMENSIONS,
@@ -40,10 +39,6 @@ from src.application.ports.metrics_rollup_port import (
     RollupKey,
 )
 from src.application.ports.monitoring_port import ResearchCallOutcome
-from src.application.ports.workflow_port import (
-    WorkflowStepExecutionRecord,
-    WorkflowStepStatus,
-)
 from src.application.use_cases.metrics.alert_rollup_contribution import (
     _bucket,
     _dim,
@@ -51,6 +46,14 @@ from src.application.use_cases.metrics.alert_rollup_contribution import (
     live_periods,
 )
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertStatus,
+)
+from src.domain.workflows.entities import (
+    WorkflowStepExecutionRecord,
+    WorkflowStepStatus,
+)
 
 # --- measure names (all additive) -------------------------------------------
 

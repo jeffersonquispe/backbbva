@@ -7,10 +7,8 @@ from uuid import UUID
 import pytest
 
 from src.application.dtos.test_run_dtos import StartTestRunInput
-from src.application.ports.alert_port import AlertRecord
 from src.application.ports.alert_schema_port import AlertSchemaVersion
 from src.application.ports.async_operation_port import AsyncOperationRecord
-from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.dataset_port import DatasetRecord
 from src.application.ports.test_run_port import (
     TestRunConfig,
@@ -21,11 +19,19 @@ from src.application.ports.workflow_executor_port import (
     WorkflowExecutionRef,
     WorkflowExecutor,
 )
-from src.application.ports.workflow_port import WorkflowExecutionRecord
 from src.application.use_cases.test_runs.dataset_sampling import (
     InsufficientSampleDataError,
 )
 from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
+from src.domain.alerts.entities import (
+    AlertRecord,
+)
+from src.domain.configurations.entities import (
+    ConfigurationRef,
+)
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+)
 
 
 class InMemoryAlertRepository:

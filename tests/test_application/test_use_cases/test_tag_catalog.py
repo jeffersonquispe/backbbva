@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import pytest
 
-from src.application.ports.tag_catalog_port import TagCategory, TagEntry
+from src.application.ports.tag_catalog_port import (
+    TagEntry,
+)
 from src.application.use_cases.tag_catalog.create_tag import CreateTagUseCase
 from src.application.use_cases.tag_catalog.delete_tag import DeleteTagUseCase
 from src.application.use_cases.tag_catalog.list_tags import ListTagsUseCase
 from src.application.use_cases.tag_catalog.update_tag import (
     TagNotFoundError,
     UpdateTagUseCase,
+)
+from src.domain.configurations.entities import (
+    TagCategory,
 )
 
 

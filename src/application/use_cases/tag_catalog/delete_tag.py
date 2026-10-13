@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from src.application.ports.tag_catalog_port import TagCatalogRepository, TagCategory
+from src.application.ports.tag_catalog_port import (
+    TagCatalogRepository,
+)
+from src.domain.configurations.entities import (
+    TagCategory,
+)
 
 
 class DeleteTagUseCase:

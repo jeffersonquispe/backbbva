@@ -3,11 +3,11 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from src.application.ports.workflow_port import (
+from src.application.use_cases.test_runs.token_usage import sum_step_tokens
+from src.domain.workflows.entities import (
     WorkflowStepExecutionRecord,
     WorkflowStepStatus,
 )
-from src.application.use_cases.test_runs.token_usage import sum_step_tokens
 
 
 def _step(output: dict | None) -> WorkflowStepExecutionRecord:

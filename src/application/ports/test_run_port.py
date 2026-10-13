@@ -6,7 +6,9 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
-from src.application.ports.configuration_port import ConfigurationRef
+from src.domain.configurations.entities import (
+    ConfigurationRef,
+)
 
 
 class TestRunStatus(StrEnum):

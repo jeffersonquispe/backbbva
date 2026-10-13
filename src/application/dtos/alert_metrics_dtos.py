@@ -5,7 +5,10 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from src.application.ports.alert_port import AlertStatus, Mark
+from src.domain.alerts.entities import (
+    AlertStatus,
+    Mark,
+)
 
 
 class AlertMetricsEventType(StrEnum):

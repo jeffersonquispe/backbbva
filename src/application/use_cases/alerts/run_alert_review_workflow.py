@@ -30,9 +30,7 @@ from src.application.dtos.run_alert_review_workflow_dtos import (
 from src.application.dtos.technical_metrics_dtos import RecordWorkflowStepMetricsInput
 from src.application.dtos.workflow_run_state import WorkflowRunState
 from src.application.ports.alert_port import (
-    AlertOrigin,
     AlertRepository,
-    AlertStatus,
 )
 from src.application.ports.alert_review_step_executor_port import (
     AlertReviewStepExecutor,
@@ -65,12 +63,8 @@ from src.application.ports.reasoning_evaluation_dispatcher_port import (
     ReasoningEvaluationDispatcher,
 )
 from src.application.ports.workflow_port import (
-    WorkflowExecutionRecord,
     WorkflowExecutionRepository,
-    WorkflowStatus,
-    WorkflowStepExecutionRecord,
     WorkflowStepExecutionRepository,
-    WorkflowStepStatus,
 )
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
@@ -99,7 +93,17 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
 from src.application.use_cases.metrics.record_workflow_step_metrics import (
     RecordWorkflowStepMetrics,
 )
+from src.domain.alerts.entities import (
+    AlertOrigin,
+    AlertStatus,
+)
 from src.domain.alerts.exceptions import AdversarialFeedbackLimitExceededError
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+    WorkflowStatus,
+    WorkflowStepExecutionRecord,
+    WorkflowStepStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -277,6 +281,12 @@ class RunAlertReviewWorkflowUseCase:
                             configuration_version=config.version,
                         )
                     pre_processed: PreProcessAlertOutput = context["pre_process"]
+                    # Persist the canonical schema result before recording its
+                    # metrics event. The recorder reloads the alert to derive
+                    # channel/subchannel/amount from schema roles; recording
+                    # first leaves the CREATED snapshot in the provisional
+                    # unknown bucket because it still sees the pre-intake alert.
+                    self._persist_pre_process(workflow, context)
                     self._record_metrics(
                         workflow,
                         AlertMetricsEventType.PRE_PROCESSED,
@@ -286,7 +296,6 @@ class RunAlertReviewWorkflowUseCase:
                             config.configuration_id if config is not None else None
                         ),
                     )
-                    self._persist_pre_process(workflow, context)
                 if step_name == "deterministic":
                     match: DeterministicRuleMatch = context["deterministic"]
                     if match.matched:

@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from src.application.ports.alert_port import AlertMetricsSnapshot
+    from src.domain.alerts.entities import AlertMetricsSnapshot
 
 # --- Span attribute names (T2) -----------------------------------------------
 # The single source for the alert-dimension attributes put on spans. Same

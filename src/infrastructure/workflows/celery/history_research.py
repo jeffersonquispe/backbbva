@@ -6,10 +6,12 @@ from typing import Any
 
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.research_dtos import ResearchRequest, ResearchSource
-from src.application.ports.configuration_port import AgentToolsConfig
 from src.domain.alerts.transaction_history_selection import (
     parse_event_time,
     select_transaction_history,
+)
+from src.domain.configurations.entities import (
+    AgentToolsConfig,
 )
 from src.infrastructure.workflows.celery.research_adapters import (
     HeuristicHistoryResearchPlanner,

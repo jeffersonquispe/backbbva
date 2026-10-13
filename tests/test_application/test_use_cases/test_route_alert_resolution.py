@@ -6,12 +6,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from src.application.ports.configuration_port import (
-    AnalystCapacity,
-    DayProfile,
-    ResolutionTag,
-    ShortageBehavior,
-)
 from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
 from src.application.ports.operational_settings_port import OperationalSettings
 from src.application.ports.operations_capacity_port import (
@@ -34,6 +28,12 @@ from src.application.use_cases.alerts.route_alert_resolution import (
 from src.application.use_cases.operations.live_operations_capacity import (
     LiveOperationsCapacity,
     analysts_scheduled,
+)
+from src.domain.configurations.entities import (
+    AnalystCapacity,
+    DayProfile,
+    ResolutionTag,
+    ShortageBehavior,
 )
 
 # 2026-09-15 14:30 in Bogotá (UTC-5) - day 15, hour 14.

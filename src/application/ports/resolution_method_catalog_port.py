@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from src.application.ports.configuration_port import ResolutionTag
+from src.domain.configurations.entities import (
+    ResolutionTag,
+)
 
 
 @dataclass

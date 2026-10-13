@@ -16,12 +16,12 @@ from src.application.dtos.classify_alert_dtos import (
     ClassifyAlertInput,
     ClassifyAlertOutput,
 )
-from src.application.ports.configuration_port import (
+from src.application.use_cases.alerts.alert_review_policy import active_segment
+from src.domain.configurations.entities import (
     AdversarialConfig,
     AgentToolsConfig,
     ClassificationConfig,
 )
-from src.application.use_cases.alerts.alert_review_policy import active_segment
 from src.domain.models.prompt_template import substitute_variables
 from src.infrastructure.workflows.celery.factories import (
     get_adversarial_review_alert_use_case,

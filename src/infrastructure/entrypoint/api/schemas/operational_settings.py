@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from src.application.ports.configuration_port import (
+from src.domain.configurations.entities import (
     ListMembershipMode,
     SamplingIntervalUnit,
     TestCleanupPolicy,

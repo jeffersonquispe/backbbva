@@ -16,21 +16,12 @@ from src.application.dtos.alert_metrics_dtos import (
 )
 from src.application.dtos.analyst_queue_dtos import ResolveEscalatedAlertInput
 from src.application.ports.alert_action_dispatcher_port import AlertActionDispatchRef
-from src.application.ports.alert_port import (
-    AlertMetricsSnapshot,
-    AlertOrigin,
-    AlertRecord,
-    AlertResolutionMethod,
-    AlertStatus,
-    Mark,
-)
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
     AlertSchemaFieldType,
     AlertSchemaVersion,
 )
-from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.metrics_rollup_port import (
     AlertSnapshotGuard,
     RollupDelta,
@@ -60,7 +51,18 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
 from src.application.use_cases.operations.complete_voicebot_call import (
     CompleteVoicebotCallUseCase,
 )
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertOrigin,
+    AlertRecord,
+    AlertResolutionMethod,
+    AlertStatus,
+    Mark,
+)
 from src.domain.alerts.exceptions import SnapshotVersionConflictError
+from src.domain.configurations.entities import (
+    ConfigurationRef,
+)
 
 TZ = "America/Bogota"
 CREATED_AT = datetime(2026, 10, 1, 14, 0, tzinfo=UTC)  # 09:00 Bogota
@@ -297,6 +299,37 @@ def test_flat_csv_payload_aliases_and_no_tiers_classify_unknown() -> None:
         120000.5,
         "unknown",
     )
+
+
+def test_preprocessed_event_rebases_provisional_metrics_to_canonical_schema() -> None:
+    alerts, rollups, _, recorder = _setup()
+    alert = _alert(alerts)
+    alerts.alerts[alert.id] = dataclasses.replace(alert, schema_version=None, input={})
+
+    provisional = recorder.execute(
+        _event(alert.id, AlertMetricsEventType.CREATED, origin="manual")
+    )
+    assert provisional.schema_version is None
+    assert provisional.channel is None
+
+    current = alerts.get(alert.id)
+    alerts.alerts[alert.id] = dataclasses.replace(
+        current,
+        schema_version=1,
+        input={"channel": "MOBILE", "entrypoint": "QR", "amount": 1500000},
+    )
+    canonical = recorder.execute(
+        _event(alert.id, AlertMetricsEventType.PRE_PROCESSED, segment="s1")
+    )
+
+    assert (canonical.channel, canonical.subchannel, canonical.amount) == (
+        "MOBILE",
+        "QR",
+        1_500_000,
+    )
+    assert (canonical.amount_tier, canonical.schema_version) == ("mid", 1)
+    assert rollups.total("count", channel="unknown") == 0
+    assert rollups.total("count", channel="MOBILE", subchannel="QR") == 1
 
 
 def test_re_recording_the_same_event_is_a_no_op() -> None:

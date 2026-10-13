@@ -8,7 +8,9 @@ from uuid import UUID, uuid4
 import pytest
 
 from src.application.dtos.alert_dtos import CurateAlertToDatasetInput
-from src.application.ports.alert_port import AlertRecord, AlertRepository, AlertStatus
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
@@ -20,12 +22,18 @@ from src.application.ports.dataset_analysis_port import (
 from src.application.ports.dataset_port import DatasetRepository
 from src.application.ports.feedback_port import FeedbackRecord, FeedbackRepository
 from src.application.ports.workflow_port import (
-    WorkflowExecutionRecord,
     WorkflowExecutionRepository,
-    WorkflowStatus,
 )
 from src.application.use_cases.alerts.curate_alert_to_dataset import (
     CurateAlertToDatasetUseCase,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+)
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+    WorkflowStatus,
 )
 
 

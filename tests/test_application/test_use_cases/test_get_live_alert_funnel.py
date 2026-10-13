@@ -5,12 +5,14 @@ from __future__ import annotations
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 
-from src.application.ports.alert_port import AlertStatus
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservation,
 )
 from src.application.use_cases.metrics.get_live_alert_funnel import GetLiveAlertFunnel
+from src.domain.alerts.entities import (
+    AlertStatus,
+)
 
 NOW = datetime(2026, 10, 1, 15, 0, tzinfo=UTC)
 

@@ -5,7 +5,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.application.ports.configuration_port import ShortageBehavior
 from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryEntry,
     ModusOperandiPlaybook,
@@ -24,6 +23,9 @@ from src.application.use_cases.modus_operandi_library.update_modus_operandi_libr
     InvalidModusOperandiPlaybookError,
     ModusOperandiLibraryEntryNotFoundError,
     UpdateModusOperandiLibraryEntryUseCase,
+)
+from src.domain.configurations.entities import (
+    ShortageBehavior,
 )
 from src.infrastructure.entrypoint.api.authorization import require_library_access
 from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import (

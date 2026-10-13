@@ -7,11 +7,13 @@ from uuid import UUID
 from boto3.dynamodb.conditions import Key
 
 from src.application.ports.workflow_port import (
-    WorkflowExecutionRecord,
     WorkflowExecutionRepository,
+    WorkflowStepExecutionRepository,
+)
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
     WorkflowStatus,
     WorkflowStepExecutionRecord,
-    WorkflowStepExecutionRepository,
     WorkflowStepStatus,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (

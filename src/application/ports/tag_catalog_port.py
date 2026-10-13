@@ -2,14 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
 from typing import Protocol
 
-
-class TagCategory(StrEnum):
-    INTEGRATION_POINT = "integration_point"
-    TRIGGERED_RULE = "triggered_rule"
-    EVENT_TYPE = "event_type"
+from src.domain.configurations.entities import TagCategory
 
 
 @dataclass

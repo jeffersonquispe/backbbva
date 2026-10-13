@@ -8,7 +8,9 @@ from src.application.dtos.alert_dtos import (
     CurateAlertToDatasetInput,
     CurateAlertToDatasetOutput,
 )
-from src.application.ports.alert_port import AlertRecord, AlertRepository
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
@@ -18,6 +20,9 @@ from src.application.ports.feedback_port import FeedbackRecord, FeedbackReposito
 from src.application.ports.workflow_port import WorkflowExecutionRepository
 from src.application.use_cases.datasets.append_dataset_rows import (
     append_rows_and_dispatch,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
 )
 
 

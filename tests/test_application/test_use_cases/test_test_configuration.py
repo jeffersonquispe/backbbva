@@ -3,20 +3,20 @@ from datetime import UTC, datetime
 import pytest
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
-from src.application.ports.configuration_port import (
-    ConfigurationRecord,
-    GeneralSettings,
-    InfraSettings,
-)
-from src.application.ports.configuration_port import (
-    TestSettings as ConfigurationTestSettings,
-)
 from src.application.use_cases.configurations.create_configuration import (
     ConfigurationVersionConflictError,
 )
 from src.application.use_cases.configurations.test_configuration import (
     HIGH_IMPACT_WARNING,
     PreviewConfigurationUseCase,
+)
+from src.domain.configurations.entities import (
+    ConfigurationRecord,
+    GeneralSettings,
+    InfraSettings,
+)
+from src.domain.configurations.entities import (
+    TestSettings as ConfigurationTestSettings,
 )
 
 

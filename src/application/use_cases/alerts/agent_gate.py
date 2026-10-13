@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from src.application.ports.alert_port import PROCESSED_WHILE_AGENT_OFF, AlertOrigin
 from src.application.ports.operational_settings_port import OperationalSettings
+from src.domain.alerts.entities import (
+    PROCESSED_WHILE_AGENT_OFF,
+    AlertOrigin,
+)
 
 
 def agent_off_skip_reason(

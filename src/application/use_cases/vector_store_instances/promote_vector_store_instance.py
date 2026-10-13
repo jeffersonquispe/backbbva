@@ -4,7 +4,6 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import UUID
 
-from src.application.ports.configuration_port import FlagType
 from src.application.ports.flag_library_port import FlagLibraryRepository
 from src.application.ports.fraud_knowledge_port import DocumentType
 from src.application.ports.fraud_knowledge_repository_port import (
@@ -47,6 +46,9 @@ from src.application.use_cases.taxonomy_library.create_taxonomy_library_entry im
 )
 from src.application.use_cases.vector_store_instances.manage_vector_store_instance import (
     VectorStoreInstanceNotFoundError,
+)
+from src.domain.configurations.entities import (
+    FlagType,
 )
 
 

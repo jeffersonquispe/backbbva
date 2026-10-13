@@ -1,7 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from src.application.ports.configuration_port import TestCleanupPolicy as CleanupPolicy
 from src.application.ports.test_run_port import (
     TestRunConfig as RunConfig,
 )
@@ -13,6 +12,9 @@ from src.application.ports.test_run_port import (
 )
 from src.application.use_cases.test_runs.cleanup_test_runs import CleanupTestRunsUseCase
 from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsOutput
+from src.domain.configurations.entities import (
+    TestCleanupPolicy as CleanupPolicy,
+)
 
 
 class StaticListTestRuns:

@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from src.application.ports.configuration_port import (
+from src.application.use_cases.alerts.resolve_alert_segment import (
+    ResolveAlertSegmentUseCase,
+)
+from src.domain.configurations.entities import (
     AgentSettings,
     FilterCondition,
     FilterGroup,
     LogicalOperator,
     MonitoringSettings,
     SegmentSettings,
-)
-from src.application.ports.tag_catalog_port import TagCategory
-from src.application.use_cases.alerts.resolve_alert_segment import (
-    ResolveAlertSegmentUseCase,
+    TagCategory,
 )
 
 

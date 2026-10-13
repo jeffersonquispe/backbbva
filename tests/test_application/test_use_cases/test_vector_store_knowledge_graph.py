@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 
-from src.application.ports.configuration_port import FlagType
 from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
     VectorStoreInstanceAsset,
 )
 from src.application.use_cases.vector_store_instances.knowledge_graph import (
     KnowledgeGraphService,
+)
+from src.domain.configurations.entities import (
+    FlagType,
 )
 
 

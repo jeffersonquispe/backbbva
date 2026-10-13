@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from src.application.ports.configuration_port import ResolutionTag
 from src.application.ports.resolution_method_catalog_port import (
     ResolutionMethod,
     ResolutionMethodCatalogRepository,
+)
+from src.domain.configurations.entities import (
+    ResolutionTag,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from src.application.ports.configuration_port import (
-    ConfigurationRecord,
     ConfigurationRepository,
+)
+from src.domain.configurations.entities import (
+    ConfigurationRecord,
 )
 
 

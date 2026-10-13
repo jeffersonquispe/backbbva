@@ -4,7 +4,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
 from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
@@ -14,6 +13,10 @@ from src.application.ports.resource_reservation_port import (
     ReservationConflict,
     ReservedResource,
     ResourceReservationRepository,
+)
+from src.domain.configurations.entities import (
+    ResolutionTag,
+    ShortageBehavior,
 )
 
 # Fallback tag -> (executor decision, block mode). handle_by_aria is never a

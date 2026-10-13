@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from src.application.ports.alert_port import AlertMetricsSnapshot, AlertRecord
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertRecord,
+)
 
 
 @dataclass

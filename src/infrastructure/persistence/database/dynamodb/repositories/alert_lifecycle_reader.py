@@ -15,15 +15,19 @@ from src.application.ports.alert_lifecycle_port import (
     HumanResolutionFacts,
     WorkflowOutcomeFacts,
 )
-from src.application.ports.alert_port import AlertRecord
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservation,
 )
 from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
-    WorkflowStatus,
     WorkflowStepExecutionRepository,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+)
+from src.domain.workflows.entities import (
+    WorkflowStatus,
     WorkflowStepStatus,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (

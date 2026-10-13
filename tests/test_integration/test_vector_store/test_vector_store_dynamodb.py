@@ -13,7 +13,6 @@ if not os.getenv("DYNAMO_ENDPOINT"):
         allow_module_level=True,
     )
 
-from src.application.ports.configuration_port import FlagType
 from src.application.ports.embedding_port import (
     EmbeddingResult,
     EmbeddingUnitOfWork,
@@ -38,6 +37,9 @@ from src.application.use_cases.vector_store_instances.create_vector_store_instan
 )
 from src.application.use_cases.vector_store_instances.knowledge_graph import (
     KnowledgeGraphService,
+)
+from src.domain.configurations.entities import (
+    FlagType,
 )
 from src.infrastructure.persistence.database.dynamodb.manager import ensure_all_tables
 from src.infrastructure.persistence.database.dynamodb.repositories.flag_library_repository import (

@@ -9,8 +9,10 @@ from typing import Any
 from boto3.dynamodb.conditions import Attr, Key
 
 from src.application.ports.configuration_port import (
-    ConfigurationRecord,
     ConfigurationRepository,
+)
+from src.domain.configurations.entities import (
+    ConfigurationRecord,
     FilterGroup,
     LogicalOperator,
     ProfilingStrategy,

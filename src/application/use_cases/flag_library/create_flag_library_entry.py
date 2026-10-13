@@ -3,13 +3,15 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from src.application.ports.configuration_port import FlagType
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.flag_library_port import (
     FlagLibraryEntry,
     FlagLibraryRepository,
 )
 from src.application.ports.monitoring_port import MonitoringPort
+from src.domain.configurations.entities import (
+    FlagType,
+)
 
 
 def embedding_text(*, name: str, description: str) -> str:

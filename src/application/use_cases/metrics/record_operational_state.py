@@ -21,7 +21,9 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from src.application.ports.alert_port import AlertRepository, AlertStatus
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.ports.monitoring_port import (
     MonitoringPort,
     OperationalStateSnapshot,
@@ -32,6 +34,9 @@ from src.application.ports.operational_settings_port import (
 from src.application.ports.operations_capacity_port import OperationsCapacityPort
 from src.application.use_cases.operations.live_operations_capacity import (
     analysts_scheduled,
+)
+from src.domain.alerts.entities import (
+    AlertStatus,
 )
 
 

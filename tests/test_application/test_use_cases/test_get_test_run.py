@@ -10,13 +10,13 @@ from src.application.ports.test_run_port import (
     TestRunRecord,
     TestRunStatus,
 )
-from src.application.ports.workflow_port import (
+from src.application.use_cases.test_runs.get_test_run import GetTestRunUseCase
+from src.domain.workflows.entities import (
     WorkflowExecutionRecord,
     WorkflowStatus,
     WorkflowStepExecutionRecord,
     WorkflowStepStatus,
 )
-from src.application.use_cases.test_runs.get_test_run import GetTestRunUseCase
 
 
 class InMemoryTestRunRepository:

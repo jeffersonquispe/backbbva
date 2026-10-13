@@ -6,7 +6,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.application.dtos.test_run_dtos import DeleteTestRunsInput, StartTestRunInput
-from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.test_run_port import TestRunConfig
 from src.application.use_cases.test_runs.dataset_sampling import (
     InsufficientSampleDataError,
@@ -20,6 +19,9 @@ from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCa
 from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
 from src.domain.alerts.exceptions import AlertPayloadTooLargeError
+from src.domain.configurations.entities import (
+    ConfigurationRef,
+)
 from src.infrastructure.entrypoint.api.factories.test_run_factory import (
     get_delete_test_runs_use_case,
     get_get_test_case_detail_use_case,

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from src.application.ports.configuration_port import FlagType
 from src.application.ports.embedding_port import (
     EmbeddingResult,
     EmbeddingUnitOfWork,
@@ -22,6 +21,9 @@ from src.application.use_cases.flag_library.list_flag_library_entries import (
 from src.application.use_cases.flag_library.update_flag_library_entry import (
     FlagLibraryEntryNotFoundError,
     UpdateFlagLibraryEntryUseCase,
+)
+from src.domain.configurations.entities import (
+    FlagType,
 )
 
 

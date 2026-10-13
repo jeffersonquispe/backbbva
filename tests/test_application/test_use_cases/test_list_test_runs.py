@@ -9,8 +9,10 @@ from src.application.ports.test_run_port import (
     TestRunRecord,
     TestRunStatus,
 )
-from src.application.ports.workflow_port import WorkflowExecutionRecord
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+)
 
 
 class InMemoryTestRunRepository:

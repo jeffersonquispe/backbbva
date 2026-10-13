@@ -17,10 +17,14 @@ from src.application.dtos.profile_alert_dtos import (
     ProfileAlertInput,
     ProfileAlertOutput,
 )
-from src.application.ports.alert_port import AlertOrigin
-from src.application.ports.configuration_port import ProfilingStrategyKey
 from src.application.use_cases.alerts.alert_review_policy import active_segment
+from src.domain.alerts.entities import (
+    AlertOrigin,
+)
 from src.domain.alerts.rule_conditions import evaluate_condition
+from src.domain.configurations.entities import (
+    ProfilingStrategyKey,
+)
 from src.domain.configurations.exceptions import ConfigurationNotFoundError
 from src.domain.models.prompt_template import substitute_variables
 from src.infrastructure.workflows.celery.factories import (

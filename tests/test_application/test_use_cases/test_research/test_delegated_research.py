@@ -6,7 +6,6 @@ from src.application.dtos.research_dtos import (
     ResearchSource,
     ResearchStatus,
 )
-from src.application.ports.configuration_port import VectorStoreResearchConfig
 from src.application.ports.monitoring_port import (
     MonitoringPort,
     MonitoringSpan,
@@ -16,6 +15,9 @@ from src.application.use_cases.research.delegated_research import (
     ResearchDelegationCoordinator,
     TimeBoundedResearchAgent,
     VectorStoreResearchAgent,
+)
+from src.domain.configurations.entities import (
+    VectorStoreResearchConfig,
 )
 
 

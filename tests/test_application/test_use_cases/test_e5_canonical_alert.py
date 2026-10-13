@@ -5,12 +5,15 @@ from uuid import UUID
 import pytest
 
 from src.application.dtos.alert_dtos import StartAlertWorkflowInput
-from src.application.ports.alert_port import AlertRecord, AlertStatus
 from src.application.ports.object_storage_port import ObjectStorageRef
 from src.application.ports.workflow_executor_port import WorkflowExecutionRef
 from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
 from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
 )
 
 

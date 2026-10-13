@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from src.application.ports.configuration_port import (
+from src.domain.configurations.entities import (
     DocumentationStrategy,
     FilterConditionOperator,
     FlagType,
@@ -15,9 +15,9 @@ from src.application.ports.configuration_port import (
     ProfilingStrategyKey,
     ResolutionTag,
     SamplingIntervalUnit,
+    TagCategory,
     TestCleanupPolicy,
 )
-from src.application.ports.tag_catalog_port import TagCategory
 
 # --- Configuration -----------------------------------------------------
 # One schema class per sub-configuration group, reused for both request

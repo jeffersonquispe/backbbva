@@ -5,21 +5,24 @@ from datetime import UTC, datetime
 from botocore.exceptions import ClientError
 
 from src.application.ports.channel_library_port import ChannelLibraryEntry
-from src.application.ports.configuration_port import (
-    ConfigurationRecord,
-    GeneralSettings,
-    InfraSettings,
-    ResolutionTag,
-    TestSettings,
-)
 from src.application.ports.marcacion_catalog_port import MarcacionCategory, RiskLabel
 from src.application.ports.operations_capacity_port import (
     ChannelCapacity,
     OperationsCapacityRecord,
 )
 from src.application.ports.resolution_method_catalog_port import ResolutionMethod
-from src.application.ports.tag_catalog_port import TagCategory, TagEntry
+from src.application.ports.tag_catalog_port import (
+    TagEntry,
+)
 from src.application.ports.variable_catalog_port import VariableEntry
+from src.domain.configurations.entities import (
+    ConfigurationRecord,
+    GeneralSettings,
+    InfraSettings,
+    ResolutionTag,
+    TagCategory,
+    TestSettings,
+)
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )

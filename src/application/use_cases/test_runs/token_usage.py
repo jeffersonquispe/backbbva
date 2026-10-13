@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from src.application.ports.workflow_port import WorkflowStepExecutionRecord
+from src.domain.workflows.entities import (
+    WorkflowStepExecutionRecord,
+)
 
 
 def sum_step_tokens(

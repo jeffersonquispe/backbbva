@@ -30,7 +30,6 @@ from src.application.dtos.metrics_maintenance_dtos import (
     BackfillAlertMetricsInput,
     ReconcileAlertRollupsInput,
 )
-from src.application.ports.alert_port import AlertRecord, AlertStatus
 from src.application.ports.metrics_rollup_port import (
     MetricsDataType,
     RollupLevel,
@@ -42,12 +41,6 @@ from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservation,
 )
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRecord,
-    WorkflowStatus,
-    WorkflowStepExecutionRecord,
-    WorkflowStepStatus,
-)
 from src.application.use_cases.metrics.backfill_alert_metrics import (
     BackfillAlertMetrics,
 )
@@ -56,6 +49,16 @@ from src.application.use_cases.metrics.reconcile_alert_rollups import (
 )
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+)
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+    WorkflowStatus,
+    WorkflowStepExecutionRecord,
+    WorkflowStepStatus,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,

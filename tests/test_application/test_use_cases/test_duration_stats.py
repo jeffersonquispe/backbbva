@@ -3,16 +3,16 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRecord,
-    WorkflowStatus,
-    WorkflowStepExecutionRecord,
-    WorkflowStepStatus,
-)
 from src.application.use_cases.test_runs.duration_stats import (
     compute_stats,
     step_duration_stats_by_name,
     workflow_duration,
+)
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+    WorkflowStatus,
+    WorkflowStepExecutionRecord,
+    WorkflowStepStatus,
 )
 
 

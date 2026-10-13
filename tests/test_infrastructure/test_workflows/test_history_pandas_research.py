@@ -4,7 +4,9 @@ from src.application.dtos.research_dtos import (
     ResearchSource,
     ResearchStatus,
 )
-from src.application.ports.configuration_port import HistoryPandasResearchConfig
+from src.domain.configurations.entities import (
+    HistoryPandasResearchConfig,
+)
 from src.infrastructure.workflows.celery.history_pandas_research import (
     HistoryPandasResearchAgent,
 )

@@ -5,13 +5,15 @@ import dataclasses
 from src.application.ports.test_run_port import TestRunRecord, TestRunRepository
 from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
-    WorkflowStatus,
 )
 from src.application.use_cases.test_runs.get_test_run import (
     _FAILED,
     _PENDING,
     _RUNNING,
     derive_test_run_status,
+)
+from src.domain.workflows.entities import (
+    WorkflowStatus,
 )
 
 

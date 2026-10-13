@@ -7,11 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.application.dtos.operational_settings_dtos import (
     UpdateOperationalSettingsInput,
 )
-from src.application.ports.configuration_port import (
-    AnalystCapacity,
-    DayProfile,
-    ShortageBehavior,
-)
 from src.application.ports.operational_settings_port import (
     AmountTier,
     OperationalSettings,
@@ -27,6 +22,11 @@ from src.application.use_cases.operational_settings.update_operational_settings 
     UpdateOperationalSettingsUseCase,
 )
 from src.domain.alerts.amount_tiers import InvalidAmountTiersError
+from src.domain.configurations.entities import (
+    AnalystCapacity,
+    DayProfile,
+    ShortageBehavior,
+)
 from src.infrastructure.entrypoint.api.factories.operational_settings_factory import (
     get_get_operational_settings_use_case,
     get_list_operational_settings_history_use_case,

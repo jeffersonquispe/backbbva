@@ -4,13 +4,13 @@ from src.application.ports.alert_schema_port import (
     AlertSchemaStatus,
     AlertSchemaVersion,
 )
-from src.application.ports.configuration_port import (
+from src.application.use_cases.metrics.get_version_events import GetVersionEvents
+from src.domain.configurations.entities import (
     ConfigurationRecord,
     GeneralSettings,
     InfraSettings,
     TestSettings,
 )
-from src.application.use_cases.metrics.get_version_events import GetVersionEvents
 
 
 class InMemorySchemaRepository:

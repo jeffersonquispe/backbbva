@@ -4,7 +4,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from src.application.ports.configuration_port import FlagType, ResolutionTag
+from src.domain.configurations.entities import (
+    FlagType,
+    ResolutionTag,
+)
 from src.infrastructure.entrypoint.api.schemas.configuration import (
     ShortageBehaviorSchema,
 )

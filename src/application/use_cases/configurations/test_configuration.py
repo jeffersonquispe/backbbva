@@ -9,11 +9,13 @@ from src.application.dtos.configuration_dtos import (
     CreateConfigurationInput,
 )
 from src.application.ports.configuration_port import (
-    ConfigurationRecord,
     ConfigurationRepository,
 )
 from src.application.use_cases.configurations.create_configuration import (
     ConfigurationVersionConflictError,
+)
+from src.domain.configurations.entities import (
+    ConfigurationRecord,
 )
 
 

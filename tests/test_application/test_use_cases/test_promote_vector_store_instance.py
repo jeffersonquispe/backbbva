@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from src.application.ports.configuration_port import FlagType
 from src.application.ports.embedding_port import (
     EmbeddingResult,
     EmbeddingUnitOfWork,
@@ -42,6 +41,9 @@ from src.application.use_cases.vector_store_instances.manage_vector_store_instan
 from src.application.use_cases.vector_store_instances.promote_vector_store_instance import (
     EmptyVectorStoreInstanceError,
     PromoteVectorStoreInstanceUseCase,
+)
+from src.domain.configurations.entities import (
+    FlagType,
 )
 
 

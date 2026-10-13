@@ -17,10 +17,14 @@ if not os.getenv("DYNAMO_ENDPOINT"):
 
 from botocore.exceptions import ClientError
 
-from src.application.ports.alert_port import AlertRecord, AlertStatus, Mark
 from src.application.ports.fraud_label_review_port import (
     FraudLabelReview,
     FraudLabelReviewChannel,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+    Mark,
 )
 from src.infrastructure.persistence.database.dynamodb.manager import (
     create_table,

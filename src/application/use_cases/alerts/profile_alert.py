@@ -15,10 +15,12 @@ from src.application.ports.llm_unit_of_work_port import (
     LLMUnitOfWorkFactory,
 )
 from src.application.ports.monitoring_port import MonitoringPort
-from src.application.ports.workflow_port import WorkflowStepStatus
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
+)
+from src.domain.workflows.entities import (
+    WorkflowStepStatus,
 )
 
 _SYSTEM_PROMPT = (

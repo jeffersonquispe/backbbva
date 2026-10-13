@@ -4,7 +4,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
-from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
+from src.domain.configurations.entities import (
+    ResolutionTag,
+    ShortageBehavior,
+)
 
 # Tags a playbook may fall back to when its resource is short. handle_by_aria
 # is excluded: a fallback is applied by the executor without an LLM, so it

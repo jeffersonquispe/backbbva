@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from src.application.ports.alert_port import AlertRecord
 from src.application.ports.resource_reservation_port import ResourceReservation
-from src.application.ports.workflow_port import (
+from src.domain.alerts.entities import (
+    AlertRecord,
+)
+from src.domain.workflows.entities import (
     WorkflowExecutionRecord,
     WorkflowStepExecutionRecord,
 )

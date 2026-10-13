@@ -4,9 +4,11 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from src.application.ports.configuration_port import ResolutionTag
 from src.application.ports.marcacion_catalog_port import RiskLabel
-from src.application.ports.tag_catalog_port import TagCategory
+from src.domain.configurations.entities import (
+    ResolutionTag,
+    TagCategory,
+)
 
 # --- Tag catalog ---------------------------------------------------------
 

@@ -7,8 +7,12 @@ from src.application.dtos.adversarial_review_alert_dtos import (
     AdversarialReviewAlertOutput,
 )
 from src.application.dtos.workflow_run_state import WorkflowRunState
-from src.application.ports.configuration_port import SegmentSettings
-from src.application.ports.workflow_port import WorkflowExecutionRecord
+from src.domain.configurations.entities import (
+    SegmentSettings,
+)
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+)
 
 LINEAR_STEPS = (
     "pre_process",

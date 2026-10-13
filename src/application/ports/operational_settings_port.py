@@ -4,18 +4,17 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
-from src.application.ports.configuration_port import (
+# AmountTier lives in the domain (domain/alerts/amount_tiers.py) next to
+# classify_amount/validate_amount_tiers; re-exported here as part of this
+# port's contract.
+from src.domain.alerts.amount_tiers import AmountTier  # noqa: F401  (re-export)
+from src.domain.configurations.entities import (
     AnalystCapacity,
     ListMembershipMode,
     SamplingIntervalUnit,
     ShortageBehavior,
     TestCleanupPolicy,
 )
-
-# AmountTier lives in the domain (domain/alerts/amount_tiers.py) next to
-# classify_amount/validate_amount_tiers; re-exported here as part of this
-# port's contract.
-from src.domain.alerts.amount_tiers import AmountTier  # noqa: F401  (re-export)
 
 
 @dataclass

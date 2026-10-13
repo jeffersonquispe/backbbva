@@ -5,9 +5,11 @@ from src.application.ports.analyst_capacity_import_port import (
     AnalystCapacityImportStatus,
     AnalystCapacityImportStatusReader,
 )
-from src.application.ports.configuration_port import DayProfile
 from src.application.use_cases.analyst_capacity.get_analyst_capacity_import import (
     GetAnalystCapacityImportUseCase,
+)
+from src.domain.configurations.entities import (
+    DayProfile,
 )
 
 

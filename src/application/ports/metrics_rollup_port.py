@@ -6,7 +6,9 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
-from src.application.ports.alert_port import AlertMetricsSnapshot
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+)
 
 
 class MetricsDataType(StrEnum):

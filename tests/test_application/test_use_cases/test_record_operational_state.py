@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from src.application.ports.alert_port import AlertRecord, AlertStatus
-from src.application.ports.configuration_port import AnalystCapacity, DayProfile
 from src.application.ports.monitoring_port import (
     MonitoringPort,
     OperationalStateSnapshot,
@@ -19,6 +17,14 @@ from src.application.ports.operations_capacity_port import (
 )
 from src.application.use_cases.metrics.record_operational_state import (
     RecordOperationalState,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+)
+from src.domain.configurations.entities import (
+    AnalystCapacity,
+    DayProfile,
 )
 
 TZ = "America/Bogota"

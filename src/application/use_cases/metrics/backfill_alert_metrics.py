@@ -30,9 +30,15 @@ from src.application.ports.alert_lifecycle_port import (
     AlertLifecycleFacts,
     AlertLifecycleReader,
 )
-from src.application.ports.alert_port import AlertRecord, AlertRepository, AlertStatus
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
 )
 
 SCALE_TO_ANALYST = "scale_to_analyst"

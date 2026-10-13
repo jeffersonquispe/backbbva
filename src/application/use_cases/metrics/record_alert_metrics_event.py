@@ -22,12 +22,7 @@ from src.application.dtos.alert_metrics_dtos import (
     RecordAlertMetricsEventInput,
 )
 from src.application.ports.alert_port import (
-    AlertMetricsSnapshot,
-    AlertRecord,
     AlertRepository,
-    AlertResolutionMethod,
-    AlertStatus,
-    Mark,
 )
 from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.metrics_rollup_port import (
@@ -50,6 +45,13 @@ from src.application.use_cases.metrics.alert_mark_mapping import (
 )
 from src.application.use_cases.metrics.alert_rollup_contribution import diff
 from src.domain.alerts.amount_tiers import classify_amount
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertRecord,
+    AlertResolutionMethod,
+    AlertStatus,
+    Mark,
+)
 from src.domain.alerts.exceptions import SnapshotVersionConflictError
 
 MAX_ATTEMPTS = 3
@@ -231,8 +233,35 @@ class RecordAlertMetricsEvent:
                 status=snapshot.status or alert.status,
             )
         if event == AlertMetricsEventType.PRE_PROCESSED:
+            # Intake records CREATED before schema preprocessing finishes, so
+            # its first snapshot may carry unknown dimensions and no schema
+            # version. Once preprocessing updates the canonical alert, rebase
+            # the dimensions from that versioned input. The rollup diff moves
+            # the count from the provisional bucket to the canonical bucket.
+            arrival = (
+                self._arrival_snapshot(alert)
+                if (
+                    snapshot.schema_version is None
+                    and self._schemas is not None
+                    and alert.schema_version is not None
+                )
+                else None
+            )
             return dataclasses.replace(
                 snapshot,
+                channel=arrival.channel if arrival is not None else snapshot.channel,
+                subchannel=(
+                    arrival.subchannel if arrival is not None else snapshot.subchannel
+                ),
+                amount=arrival.amount if arrival is not None else snapshot.amount,
+                amount_tier=(
+                    arrival.amount_tier if arrival is not None else snapshot.amount_tier
+                ),
+                schema_version=(
+                    alert.schema_version
+                    if alert.schema_version is not None
+                    else snapshot.schema_version
+                ),
                 segment=input.segment
                 if input.segment is not None
                 else snapshot.segment,

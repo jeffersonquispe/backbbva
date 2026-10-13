@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.application.ports.configuration_port import (
+from src.domain.configurations.entities import (
     GeneralSettings,
     InfraSettings,
     SegmentSettings,

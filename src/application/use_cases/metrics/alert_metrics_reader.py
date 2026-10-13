@@ -22,7 +22,6 @@ from src.application.dtos.metrics_dtos import (
     MetricsWarning,
     ResolutionTimeStats,
 )
-from src.application.ports.alert_port import Mark
 from src.application.ports.metrics_rollup_port import (
     MetricsDataType,
     MetricsRollupRepository,
@@ -44,6 +43,9 @@ from src.application.use_cases.metrics.alert_rollup_contribution import (
 )
 from src.application.use_cases.metrics.metrics_filters import normalize_filters
 from src.application.use_cases.metrics.range_planner import PlannedRead, plan
+from src.domain.alerts.entities import (
+    Mark,
+)
 
 DEFAULT_RANGE = timedelta(hours=24)
 # rt buckets whose upper bound is <= 5 min: the exact "resolved < 5 min".

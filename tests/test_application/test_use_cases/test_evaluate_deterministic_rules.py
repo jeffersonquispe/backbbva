@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from src.application.ports.configuration_port import DeterministicRule
 from src.application.use_cases.alerts.evaluate_deterministic_rules import (
     EvaluateDeterministicRulesUseCase,
+)
+from src.domain.configurations.entities import (
+    DeterministicRule,
 )
 
 

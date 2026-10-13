@@ -8,18 +8,18 @@ from typing import Any
 
 from boto3.dynamodb.conditions import Key
 
-from src.application.ports.configuration_port import (
-    AnalystCapacity,
-    ListMembershipMode,
-    SamplingIntervalUnit,
-    TestCleanupPolicy,
-)
 from src.application.ports.operational_settings_port import (
     AmountTier,
     OperationalSettings,
     OperationalSettingsChange,
     OperationalSettingsRepository,
     SettingChange,
+)
+from src.domain.configurations.entities import (
+    AnalystCapacity,
+    ListMembershipMode,
+    SamplingIntervalUnit,
+    TestCleanupPolicy,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,

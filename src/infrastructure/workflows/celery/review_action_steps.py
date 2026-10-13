@@ -16,8 +16,10 @@ from src.application.dtos.post_process_alert_dtos import (
     PostProcessAlertInput,
     PostProcessAlertOutput,
 )
-from src.application.ports.configuration_port import DocumentationStrategy
 from src.application.use_cases.alerts.alert_review_policy import active_segment
+from src.domain.configurations.entities import (
+    DocumentationStrategy,
+)
 from src.domain.models.prompt_template import substitute_variables
 from src.infrastructure.workflows.celery.executor_text import (
     _ARIC_MARKING_SYSTEM_PROMPT,

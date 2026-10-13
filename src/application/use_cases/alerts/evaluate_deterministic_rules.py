@@ -5,10 +5,12 @@ from typing import Any
 from src.application.dtos.evaluate_deterministic_rules_dtos import (
     DeterministicRuleMatch,
 )
-from src.application.ports.configuration_port import DeterministicRule
-from src.application.ports.tag_catalog_port import TagCategory
 from src.application.use_cases.alerts.resolve_alert_segment import _alert_values
 from src.domain.alerts.rule_conditions import evaluate_condition
+from src.domain.configurations.entities import (
+    DeterministicRule,
+    TagCategory,
+)
 
 
 def _filter_group_matches(

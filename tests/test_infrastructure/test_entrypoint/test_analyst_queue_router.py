@@ -8,11 +8,14 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.application.dtos.analyst_queue_dtos import AnalystQueueItem
-from src.application.ports.alert_port import AlertRecord, AlertStatus
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservation,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
 )
 from src.domain.alerts.exceptions import (
     AnalystBusyError,

@@ -10,10 +10,12 @@ from uuid import UUID
 
 from boto3.dynamodb.conditions import Key
 
-from src.application.ports.alert_port import Mark
 from src.application.ports.fraud_label_review_port import (
     FraudLabelReview,
     FraudLabelReviewChannel,
+)
+from src.domain.alerts.entities import (
+    Mark,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,

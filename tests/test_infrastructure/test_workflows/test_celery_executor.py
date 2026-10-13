@@ -3,7 +3,9 @@ import os
 os.environ.setdefault("API_V0_STR", "/api/v0")
 os.environ.setdefault("GENAI_ENVIRONMENT", "test")
 
-from src.application.ports.alert_port import AlertOrigin
+from src.domain.alerts.entities import (
+    AlertOrigin,
+)
 from src.infrastructure.workflows.celery.executor import queue_for_origin
 
 

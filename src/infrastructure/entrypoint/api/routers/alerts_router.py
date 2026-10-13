@@ -20,7 +20,6 @@ from src.application.dtos.alert_history_dtos import (
     ListAlertHistoryInput,
 )
 from src.application.dtos.fraud_review_dtos import ReviewFraudLabelInput
-from src.application.ports.alert_port import AlertOrigin
 from src.application.ports.fraud_label_review_port import (
     FraudLabelReview,
     FraudLabelReviewChannel,
@@ -45,6 +44,9 @@ from src.application.use_cases.fraud_review.list_fraud_label_reviews import (
 from src.application.use_cases.fraud_review.review_fraud_label import ReviewFraudLabel
 from src.application.use_cases.fraud_review.upload_fraud_label_review_import import (
     UploadFraudLabelReviewImport,
+)
+from src.domain.alerts.entities import (
+    AlertOrigin,
 )
 from src.domain.alerts.exceptions import (
     AlertNotFoundError,

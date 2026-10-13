@@ -9,12 +9,14 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from src.application.dtos.metrics_dtos import MetricsOverviewOutput, MetricsQueryInput
-from src.application.ports.alert_port import AlertStatus
 from src.application.ports.metrics_rollup_port import (
     ALERT_DIMENSIONS,
     MetricsRollupRepository,
 )
 from src.application.use_cases.metrics import alert_metrics_reader as reader
+from src.domain.alerts.entities import (
+    AlertStatus,
+)
 
 
 class GetMetricsOverview:

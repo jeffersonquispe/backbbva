@@ -10,7 +10,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.application.ports.alert_port import AlertRecord, AlertStatus
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -20,6 +19,10 @@ from src.application.ports.alert_schema_port import (
 )
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.object_storage_port import ObjectStorageRef
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+)
 from src.infrastructure.entrypoint.api.routers import alert_schema_router, alerts_router
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 

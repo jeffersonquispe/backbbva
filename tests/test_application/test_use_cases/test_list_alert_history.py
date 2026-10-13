@@ -10,16 +10,16 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from src.application.dtos.alert_history_dtos import ListAlertHistoryInput
-from src.application.ports.alert_port import (
-    AlertMetricsSnapshot,
-    AlertRecord,
-    AlertStatus,
-    Mark,
-)
 from src.application.use_cases.alerts import list_alert_history as module
 from src.application.use_cases.alerts.list_alert_history import (
     InvalidHistoryCursorError,
     ListAlertHistory,
+)
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertRecord,
+    AlertStatus,
+    Mark,
 )
 
 TZ = "America/Bogota"

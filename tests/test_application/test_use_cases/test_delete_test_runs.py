@@ -5,19 +5,22 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.dtos.test_run_dtos import DeleteTestRunsInput
-from src.application.ports.alert_port import AlertRecord, AlertStatus
 from src.application.ports.async_operation_port import (
     AsyncOperationRecord,
     AsyncOperationStatus,
 )
 from src.application.ports.test_run_port import TestRunRecord
-from src.application.ports.workflow_port import (
+from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+)
+from src.domain.workflows.entities import (
     WorkflowExecutionRecord,
     WorkflowStatus,
     WorkflowStepExecutionRecord,
     WorkflowStepStatus,
 )
-from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
 
 
 class InMemoryTestRunRepository:

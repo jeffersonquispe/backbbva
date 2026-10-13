@@ -6,7 +6,7 @@ from typing import Any
 import src.infrastructure.workflows.celery.review_intake_steps as workflow_module
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
-from src.application.ports.configuration_port import (
+from src.domain.configurations.entities import (
     AgentSettings,
     ConfigurationRecord,
     GeneralSettings,

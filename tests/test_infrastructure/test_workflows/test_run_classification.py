@@ -8,7 +8,8 @@ import src.infrastructure.workflows.celery.review_agent_steps as workflow_module
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
-from src.application.ports.configuration_port import (
+from src.application.use_cases.research.research_tool import BoundedResearchTool
+from src.domain.configurations.entities import (
     AgentSettings,
     ClassificationConfig,
     ConfigurationRecord,
@@ -19,7 +20,6 @@ from src.application.ports.configuration_port import (
     TestSettings,
     VectorStoreResearchConfig,
 )
-from src.application.use_cases.research.research_tool import BoundedResearchTool
 
 
 def _config_with_segment(segment: SegmentSettings) -> ConfigurationRecord:

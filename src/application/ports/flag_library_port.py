@@ -4,7 +4,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
-from src.application.ports.configuration_port import FlagType
+from src.domain.configurations.entities import (
+    FlagType,
+)
 
 
 @dataclass

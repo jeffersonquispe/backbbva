@@ -7,8 +7,10 @@ from boto3.dynamodb.conditions import Key
 
 from src.application.ports.tag_catalog_port import (
     TagCatalogRepository,
-    TagCategory,
     TagEntry,
+)
+from src.domain.configurations.entities import (
+    TagCategory,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,

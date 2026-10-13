@@ -12,7 +12,11 @@ from src.application.dtos.post_process_alert_dtos import PostProcessAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.ports.alert_action_dispatcher_port import AlertActionDispatchRef
 from src.application.ports.analyst_escalation_port import AnalystEscalationRef
-from src.application.ports.configuration_port import (
+from src.application.use_cases.alerts.route_alert_resolution import (
+    FallbackStep,
+    ResolutionRouting,
+)
+from src.domain.configurations.entities import (
     AgentSettings,
     ConfigurationRecord,
     DocumentationConfig,
@@ -25,10 +29,6 @@ from src.application.ports.configuration_port import (
     TestSettings,
     VoicebotCategoryPrompt,
     VoicebotConfig,
-)
-from src.application.use_cases.alerts.route_alert_resolution import (
-    FallbackStep,
-    ResolutionRouting,
 )
 
 

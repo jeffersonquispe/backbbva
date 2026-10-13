@@ -25,8 +25,6 @@ from src.application.dtos.alert_history_dtos import (
     ListAlertHistoryOutput,
 )
 from src.application.ports.alert_port import (
-    AlertMetricsSnapshot,
-    AlertRecord,
     AlertRepository,
 )
 from src.application.ports.alert_schema_port import AlertSchemaRepository
@@ -37,6 +35,10 @@ from src.application.use_cases.metrics.metrics_filters import (
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     canonical_role_values,
     payload_dimensions,
+)
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertRecord,
 )
 
 DEFAULT_RANGE = timedelta(days=30)

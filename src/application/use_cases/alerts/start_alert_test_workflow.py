@@ -15,9 +15,7 @@ from src.application.dtos.alert_metrics_dtos import (
     RecordAlertMetricsEventInput,
 )
 from src.application.ports.alert_port import (
-    AlertRecord,
     AlertRepository,
-    AlertStatus,
 )
 from src.application.ports.async_operation_port import (
     AsyncOperationRecord,
@@ -27,15 +25,21 @@ from src.application.ports.async_operation_port import (
 from src.application.ports.object_storage_port import ObjectStoragePort
 from src.application.ports.workflow_executor_port import WorkflowExecutor
 from src.application.ports.workflow_port import (
-    WorkflowExecutionRecord,
     WorkflowExecutionRepository,
-    WorkflowStatus,
 )
 from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
 )
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+)
 from src.domain.alerts.exceptions import AlertPayloadTooLargeError
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+    WorkflowStatus,
+)
 
 logger = logging.getLogger(__name__)
 

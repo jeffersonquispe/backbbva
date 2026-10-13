@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from src.application.ports.configuration_port import ResolutionTag
 from src.application.ports.resolution_method_catalog_port import ResolutionMethod
 from src.application.use_cases.resolution_method_catalog.create_resolution_method import (
     CreateResolutionMethodUseCase,
@@ -16,6 +15,9 @@ from src.application.use_cases.resolution_method_catalog.list_resolution_methods
 from src.application.use_cases.resolution_method_catalog.update_resolution_method import (
     ResolutionMethodNotFoundError,
     UpdateResolutionMethodUseCase,
+)
+from src.domain.configurations.entities import (
+    ResolutionTag,
 )
 
 

@@ -13,7 +13,6 @@ from src.application.dtos.research_dtos import (
     ResearchSource,
     ResearchStatus,
 )
-from src.application.ports.configuration_port import VectorStoreResearchConfig
 from src.application.ports.monitoring_port import (
     MonitoringPort,
     ResearchCallOutcome,
@@ -21,6 +20,9 @@ from src.application.ports.monitoring_port import (
 from src.application.ports.research_port import (
     ResearchAgent,
     VectorStoreRetriever,
+)
+from src.domain.configurations.entities import (
+    VectorStoreResearchConfig,
 )
 
 

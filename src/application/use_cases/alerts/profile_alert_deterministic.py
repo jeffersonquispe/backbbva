@@ -13,10 +13,12 @@ from src.application.dtos.profile_alert_dtos import (
 from src.application.ports.host_service_transaction_history_port import (
     TransactionHistoryEntry,
 )
-from src.application.ports.workflow_port import WorkflowStepStatus
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
+)
+from src.domain.workflows.entities import (
+    WorkflowStepStatus,
 )
 
 _ARIC_FLAG_LABELS = (

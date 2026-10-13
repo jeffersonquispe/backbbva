@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, tzinfo
 from zoneinfo import ZoneInfo
 
-from src.application.ports.alert_port import AlertMetricsSnapshot, Mark
 from src.application.ports.metrics_rollup_port import (
     ALERT_DIMENSIONS,
     DAY_LEVEL_RETENTION_DAYS,
@@ -23,6 +22,10 @@ from src.application.ports.metrics_rollup_port import (
     RollupDelta,
     RollupKey,
     RollupLevel,
+)
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    Mark,
 )
 
 # --- measure names (all additive) -------------------------------------------

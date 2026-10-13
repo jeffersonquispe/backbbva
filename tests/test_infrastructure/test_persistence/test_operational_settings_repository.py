@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from src.application.ports.configuration_port import (
+from src.application.ports.operational_settings_port import (
+    OperationalSettings,
+    OperationalSettingsChange,
+    SettingChange,
+)
+from src.domain.configurations.entities import (
     AnalystCapacity,
     DayProfile,
     ListMembershipMode,
@@ -10,11 +15,6 @@ from src.application.ports.configuration_port import (
     SamplingIntervalUnit,
     ShortageBehavior,
     TestCleanupPolicy,
-)
-from src.application.ports.operational_settings_port import (
-    OperationalSettings,
-    OperationalSettingsChange,
-    SettingChange,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.operational_settings_repository import (
     _change_from_item,

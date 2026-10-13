@@ -12,16 +12,7 @@ import pytest
 
 from src.application.dtos.metrics_dtos import MetricsQueryInput
 from src.application.dtos.technical_metrics_dtos import RecordWorkflowStepMetricsInput
-from src.application.ports.alert_port import (
-    AlertMetricsSnapshot,
-    AlertRecord,
-    AlertStatus,
-)
 from src.application.ports.metrics_rollup_port import RollupRow
-from src.application.ports.workflow_port import (
-    WorkflowStepExecutionRecord,
-    WorkflowStepStatus,
-)
 from src.application.use_cases.metrics.get_technical_metrics import GetTechnicalMetrics
 from src.application.use_cases.metrics.record_workflow_step_metrics import (
     RecordWorkflowStepMetrics,
@@ -30,6 +21,15 @@ from src.application.use_cases.metrics.technical_rollup_contribution import (
     evaluation_contribution,
     technical_alert_dimensions,
     technical_deltas,
+)
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertRecord,
+    AlertStatus,
+)
+from src.domain.workflows.entities import (
+    WorkflowStepExecutionRecord,
+    WorkflowStepStatus,
 )
 
 TZ = "America/Bogota"

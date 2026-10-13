@@ -24,12 +24,6 @@ from src.application.ports.alert_lifecycle_port import (
     HumanResolutionFacts,
     WorkflowOutcomeFacts,
 )
-from src.application.ports.alert_port import (
-    AlertRecord,
-    AlertResolutionMethod,
-    AlertStatus,
-    Mark,
-)
 from src.application.ports.metrics_rollup_port import (
     RollupKey,
     RollupLevel,
@@ -46,6 +40,12 @@ from src.application.use_cases.metrics.reconcile_alert_rollups import (
 )
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertResolutionMethod,
+    AlertStatus,
+    Mark,
 )
 from src.domain.alerts.exceptions import SnapshotVersionConflictError
 

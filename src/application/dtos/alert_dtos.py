@@ -4,9 +4,13 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
-from src.application.ports.alert_port import AlertOrigin
-from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.dataset_analysis_port import DatasetAnalysisStatus
+from src.domain.alerts.entities import (
+    AlertOrigin,
+)
+from src.domain.configurations.entities import (
+    ConfigurationRef,
+)
 
 
 @dataclass

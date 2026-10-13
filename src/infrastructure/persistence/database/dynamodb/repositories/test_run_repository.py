@@ -4,12 +4,14 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.test_run_port import (
     TestRunConfig,
     TestRunRecord,
     TestRunRepository,
     TestRunStatus,
+)
+from src.domain.configurations.entities import (
+    ConfigurationRef,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,

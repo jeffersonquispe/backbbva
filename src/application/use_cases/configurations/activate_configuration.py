@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from src.application.ports.configuration_port import (
-    ConfigurationRecord,
     ConfigurationRepository,
 )
 from src.application.ports.test_run_port import TestRunRepository, TestRunStatus
+from src.domain.configurations.entities import (
+    ConfigurationRecord,
+)
 
 
 class ConfigurationNotFoundError(Exception):

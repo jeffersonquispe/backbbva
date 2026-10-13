@@ -6,10 +6,6 @@ from uuid import UUID
 import pytest
 
 from src.application.dtos.alert_dtos import StartAlertWorkflowInput
-from src.application.ports.alert_port import (
-    AlertRecord,
-    AlertStatus,
-)
 from src.application.ports.async_operation_port import (
     AsyncOperationRecord,
     AsyncOperationStatus,
@@ -18,15 +14,19 @@ from src.application.ports.workflow_executor_port import (
     WorkflowExecutionRef,
     WorkflowExecutor,
 )
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRecord,
-    WorkflowStatus,
-)
 from src.application.use_cases.alerts.start_alert_test_workflow import (
     MAX_ALERT_PAYLOAD_BYTES,
     StartAlertTestWorkflowUseCase,
 )
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
+)
 from src.domain.alerts.exceptions import AlertPayloadTooLargeError
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+    WorkflowStatus,
+)
 
 
 class InMemoryAlertRepository:

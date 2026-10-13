@@ -7,7 +7,10 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from src.application.ports.test_run_port import TestRunStatus
-from src.application.ports.workflow_port import WorkflowStatus, WorkflowStepStatus
+from src.domain.workflows.entities import (
+    WorkflowStatus,
+    WorkflowStepStatus,
+)
 
 
 class ConfigurationRefRequest(BaseModel):

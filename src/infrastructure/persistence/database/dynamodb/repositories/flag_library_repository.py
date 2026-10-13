@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from src.application.ports.configuration_port import FlagType
 from src.application.ports.flag_library_port import (
     FlagLibraryEntry,
     FlagLibraryRepository,
+)
+from src.domain.configurations.entities import (
+    FlagType,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,

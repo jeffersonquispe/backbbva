@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
     FraudKnowledgeSearchPort,
@@ -22,6 +21,10 @@ from src.application.use_cases.alerts.resolve_analyst_playbook import (
 )
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
+)
+from src.domain.configurations.entities import (
+    ResolutionTag,
+    ShortageBehavior,
 )
 
 

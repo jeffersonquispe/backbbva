@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from src.application.ports.configuration_port import FlagType
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.flag_library_port import (
     FlagLibraryEntry,
@@ -9,6 +8,9 @@ from src.application.ports.flag_library_port import (
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.use_cases.flag_library.create_flag_library_entry import (
     embedding_text,
+)
+from src.domain.configurations.entities import (
+    FlagType,
 )
 
 

@@ -5,7 +5,32 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
-from src.application.ports.configuration_port import (
+from src.application.use_cases.configurations.activate_configuration import (
+    ActivateConfigurationUseCase,
+    ConfigurationNotFoundError,
+    ConfigurationNotTestedError,
+)
+from src.application.use_cases.configurations.create_configuration import (
+    ConfigurationVersionConflictError,
+    CreateConfigurationUseCase,
+)
+from src.application.use_cases.configurations.get_active_configuration import (
+    GetActiveConfigurationUseCase,
+)
+from src.application.use_cases.configurations.get_configuration import (
+    GetConfigurationUseCase,
+)
+from src.application.use_cases.configurations.list_configuration_versions import (
+    ListConfigurationVersionsUseCase,
+)
+from src.application.use_cases.configurations.list_configurations import (
+    ListConfigurationsUseCase,
+)
+from src.application.use_cases.configurations.test_configuration import (
+    ConfigurationBaseNotFoundError,
+    PreviewConfigurationUseCase,
+)
+from src.domain.configurations.entities import (
     AdversarialConfig,
     AgentSettings,
     AnalystConfig,
@@ -40,31 +65,6 @@ from src.application.ports.configuration_port import (
     VectorStoreResearchConfig,
     VoicebotCategoryPrompt,
     VoicebotConfig,
-)
-from src.application.use_cases.configurations.activate_configuration import (
-    ActivateConfigurationUseCase,
-    ConfigurationNotFoundError,
-    ConfigurationNotTestedError,
-)
-from src.application.use_cases.configurations.create_configuration import (
-    ConfigurationVersionConflictError,
-    CreateConfigurationUseCase,
-)
-from src.application.use_cases.configurations.get_active_configuration import (
-    GetActiveConfigurationUseCase,
-)
-from src.application.use_cases.configurations.get_configuration import (
-    GetConfigurationUseCase,
-)
-from src.application.use_cases.configurations.list_configuration_versions import (
-    ListConfigurationVersionsUseCase,
-)
-from src.application.use_cases.configurations.list_configurations import (
-    ListConfigurationsUseCase,
-)
-from src.application.use_cases.configurations.test_configuration import (
-    ConfigurationBaseNotFoundError,
-    PreviewConfigurationUseCase,
 )
 from src.infrastructure.entrypoint.api.factories.configuration_factory import (
     get_activate_configuration_use_case,

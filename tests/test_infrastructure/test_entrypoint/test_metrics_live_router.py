@@ -12,9 +12,11 @@ os.environ.setdefault("GENAI_ENVIRONMENT", "test")
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.application.ports.alert_port import AlertStatus
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.use_cases.metrics.get_live_alert_funnel import GetLiveAlertFunnel
+from src.domain.alerts.entities import (
+    AlertStatus,
+)
 from src.infrastructure.entrypoint.api.factories.metrics_factory import (
     get_live_alert_funnel_use_case,
 )

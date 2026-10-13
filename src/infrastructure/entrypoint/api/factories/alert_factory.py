@@ -6,12 +6,14 @@ from src.application.ports.workflow_executor_port import (
     WorkflowExecutionRef,
     WorkflowExecutor,
 )
-from src.application.ports.workflow_port import WorkflowExecutionRecord
 from src.application.use_cases.alerts.curate_alert_to_dataset import (
     CurateAlertToDatasetUseCase,
 )
 from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
+)
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
 )
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.factories.dataset_factory import (

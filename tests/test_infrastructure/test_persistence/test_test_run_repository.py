@@ -3,11 +3,13 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.test_run_port import (
     TestRunConfig,
     TestRunRecord,
     TestRunStatus,
+)
+from src.domain.configurations.entities import (
+    ConfigurationRef,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.test_run_repository import (
     _from_item,

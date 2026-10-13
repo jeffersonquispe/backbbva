@@ -5,8 +5,10 @@ from datetime import UTC, datetime
 
 from src.application.ports.tag_catalog_port import (
     TagCatalogRepository,
-    TagCategory,
     TagEntry,
+)
+from src.domain.configurations.entities import (
+    TagCategory,
 )
 
 

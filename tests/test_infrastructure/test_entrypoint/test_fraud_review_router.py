@@ -18,13 +18,6 @@ from src.application.dtos.alert_history_dtos import (
     ListAlertHistoryOutput,
 )
 from src.application.dtos.fraud_review_dtos import ReviewFraudLabelOutput
-from src.application.ports.alert_port import (
-    AlertMetricsSnapshot,
-    AlertRecord,
-    AlertResolutionMethod,
-    AlertStatus,
-    Mark,
-)
 from src.application.ports.fraud_label_review_import_port import (
     FraudLabelReviewImportResult,
     FraudLabelReviewImportStatus,
@@ -37,6 +30,13 @@ from src.application.ports.fraud_label_review_port import (
 )
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.use_cases.fraud_review.review_fraud_label import parse_fraud_label
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
+    AlertRecord,
+    AlertResolutionMethod,
+    AlertStatus,
+    Mark,
+)
 from src.domain.alerts.exceptions import AlertNotFoundError
 from src.infrastructure.entrypoint.api.factories import (
     fraud_review_factory as factories,

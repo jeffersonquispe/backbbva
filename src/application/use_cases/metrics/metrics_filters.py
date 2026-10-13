@@ -5,9 +5,11 @@ missing - so "segment=unknown" selects alerts with no segment)."""
 
 from __future__ import annotations
 
-from src.application.ports.alert_port import AlertMetricsSnapshot
 from src.application.use_cases.metrics.alert_rollup_contribution import (
     alert_dimensions,
+)
+from src.domain.alerts.entities import (
+    AlertMetricsSnapshot,
 )
 
 FILTER_DIMENSIONS: tuple[str, ...] = (

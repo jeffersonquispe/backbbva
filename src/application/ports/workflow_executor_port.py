@@ -3,7 +3,9 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 
-from src.application.ports.workflow_port import WorkflowExecutionRecord
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+)
 
 
 @dataclass(frozen=True)

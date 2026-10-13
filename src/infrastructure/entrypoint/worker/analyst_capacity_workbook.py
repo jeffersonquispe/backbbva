@@ -6,7 +6,9 @@ from uuid import uuid4
 
 import openpyxl
 
-from src.application.ports.configuration_port import DayProfile
+from src.domain.configurations.entities import (
+    DayProfile,
+)
 
 # Two-sheet workbook: "Perfiles" defines named availability profiles (name,
 # description, 24 hourly columns), "Asignación" maps day-of-month -> a

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
 from src.application.ports.embedding_port import (
     EmbeddingResult,
     EmbeddingUnitOfWork,
@@ -26,6 +25,10 @@ from src.application.use_cases.modus_operandi_library.update_modus_operandi_libr
     InvalidModusOperandiPlaybookError,
     ModusOperandiLibraryEntryNotFoundError,
     UpdateModusOperandiLibraryEntryUseCase,
+)
+from src.domain.configurations.entities import (
+    ResolutionTag,
+    ShortageBehavior,
 )
 
 

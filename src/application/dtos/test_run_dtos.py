@@ -4,7 +4,9 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from src.application.ports.test_run_port import TestRunConfig, TestRunStatus
-from src.application.ports.workflow_port import WorkflowStatus
+from src.domain.workflows.entities import (
+    WorkflowStatus,
+)
 
 
 @dataclass

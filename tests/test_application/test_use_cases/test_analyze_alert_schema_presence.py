@@ -1,7 +1,6 @@
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
-from src.application.ports.alert_port import AlertRecord, AlertStatus
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -13,6 +12,10 @@ from src.application.ports.alert_schema_port import (
 from src.application.ports.object_storage_port import ObjectStorageRef
 from src.application.use_cases.alert_schema.analyze_presence import (
     AnalyzeAlertSchemaPresenceUseCase,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+    AlertStatus,
 )
 
 

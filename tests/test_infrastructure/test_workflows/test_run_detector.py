@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,7 +9,10 @@ import src.infrastructure.workflows.celery.review_intake_steps as intake_module
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
-from src.application.ports.configuration_port import (
+from src.application.ports.host_service_transaction_history_port import (
+    TransactionHistoryEntry,
+)
+from src.domain.configurations.entities import (
     AgentSettings,
     ConfigurationRecord,
     DelegatedResearchSettings,
@@ -22,9 +24,6 @@ from src.application.ports.configuration_port import (
     RuleCondition,
     SegmentSettings,
     TestSettings,
-)
-from src.application.ports.host_service_transaction_history_port import (
-    TransactionHistoryEntry,
 )
 
 

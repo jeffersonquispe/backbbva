@@ -36,7 +36,9 @@ from src.application.dtos.reasoning_evaluation_dtos import (
     EvaluateAlertReasoningInput,
     EvaluateAlertReasoningOutput,
 )
-from src.application.ports.alert_port import AlertRecord, AlertRepository
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.ports.alert_reasoning_evaluation_port import (
     AlertReasoningEvaluationRecord,
     AlertReasoningEvaluationRepository,
@@ -54,14 +56,19 @@ from src.application.ports.metrics_rollup_port import (
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
-    WorkflowStepExecutionRecord,
     WorkflowStepExecutionRepository,
-    WorkflowStepStatus,
 )
 from src.application.use_cases.metrics.technical_rollup_contribution import (
     evaluation_contribution,
     technical_alert_dimensions,
     technical_deltas,
+)
+from src.domain.alerts.entities import (
+    AlertRecord,
+)
+from src.domain.workflows.entities import (
+    WorkflowStepExecutionRecord,
+    WorkflowStepStatus,
 )
 
 MARKER_SCOPE = "evaluation"

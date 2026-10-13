@@ -3,7 +3,7 @@ from __future__ import annotations
 from math import ceil
 
 from src.application.dtos.test_run_dtos import DurationStats
-from src.application.ports.workflow_port import (
+from src.domain.workflows.entities import (
     WorkflowExecutionRecord,
     WorkflowStepExecutionRecord,
 )

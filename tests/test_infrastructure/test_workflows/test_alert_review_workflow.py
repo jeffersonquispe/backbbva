@@ -24,7 +24,6 @@ from src.application.ports.alert_action_dispatcher_port import (
     AlertActionDispatcher,
     AlertActionDispatchRef,
 )
-from src.application.ports.alert_port import AlertOrigin, AlertRecord, AlertStatus
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -44,19 +43,6 @@ from src.application.ports.async_operation_port import (
     AsyncOperationRecord,
     AsyncOperationStatus,
 )
-from src.application.ports.configuration_port import (
-    AgentSettings,
-    ConfigurationRecord,
-    DeterministicConfig,
-    DeterministicRule,
-    FilterGroup,
-    GeneralSettings,
-    InfraSettings,
-    ResolutionTag,
-    SegmentSettings,
-    ShortageBehavior,
-    TestSettings,
-)
 from src.application.ports.llm_unit_of_work_port import (
     LLMInvocationResult,
     LLMMessage,
@@ -73,12 +59,6 @@ from src.application.ports.operations_capacity_port import (
     ChannelCapacity,
     OperationsCapacityRecord,
 )
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRecord,
-    WorkflowStatus,
-    WorkflowStepExecutionRecord,
-    WorkflowStepStatus,
-)
 from src.application.use_cases.alerts.resolve_analyst_playbook import (
     ResolvedPlaybook,
 )
@@ -87,6 +67,30 @@ from src.application.use_cases.alerts.route_alert_resolution import (
 )
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
+)
+from src.domain.alerts.entities import (
+    AlertOrigin,
+    AlertRecord,
+    AlertStatus,
+)
+from src.domain.configurations.entities import (
+    AgentSettings,
+    ConfigurationRecord,
+    DeterministicConfig,
+    DeterministicRule,
+    FilterGroup,
+    GeneralSettings,
+    InfraSettings,
+    ResolutionTag,
+    SegmentSettings,
+    ShortageBehavior,
+    TestSettings,
+)
+from src.domain.workflows.entities import (
+    WorkflowExecutionRecord,
+    WorkflowStatus,
+    WorkflowStepExecutionRecord,
+    WorkflowStepStatus,
 )
 from src.infrastructure.monitoring.opentelemetry.monitoring import (
     OpenTelemetryMonitoring,

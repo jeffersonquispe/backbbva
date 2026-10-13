@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from src.application.ports.alert_port import (
+from src.domain.alerts.entities import (
     AlertMetricsSnapshot,
     AlertRecord,
     AlertResolutionMethod,

@@ -9,7 +9,9 @@ from numbers import Number
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from src.application.ports.alert_port import AlertRecord, AlertRepository
+from src.application.ports.alert_port import (
+    AlertRepository,
+)
 from src.application.ports.alert_schema_port import (
     AlertSchemaField,
     AlertSchemaPresenceField,
@@ -19,6 +21,9 @@ from src.application.ports.alert_schema_port import (
     AlertSchemaUnknownLocation,
 )
 from src.application.ports.object_storage_port import ObjectStoragePort
+from src.domain.alerts.entities import (
+    AlertRecord,
+)
 
 
 class AnalyzeAlertSchemaPresenceUseCase:

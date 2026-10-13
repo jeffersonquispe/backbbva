@@ -3,12 +3,8 @@ from __future__ import annotations
 from functools import lru_cache
 
 from src.application.dtos.research_dtos import ResearchSource
-from src.application.ports.configuration_port import (
-    HistoryPandasResearchConfig,
-    VectorStoreResearchConfig,
-)
-from src.application.ports.research_port import HistoryResearchPlanner
 from src.application.ports.model_scoring_port import ModelScoringPort
+from src.application.ports.research_port import HistoryResearchPlanner
 from src.application.use_cases.alerts.document_analyst_decision import (
     DocumentAnalystDecisionUseCase,
 )
@@ -42,14 +38,18 @@ from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.application.use_cases.test_runs.cleanup_test_runs import CleanupTestRunsUseCase
 from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
+from src.domain.configurations.entities import (
+    HistoryPandasResearchConfig,
+    VectorStoreResearchConfig,
+)
 from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
     MockAlertChannelActionAdapter,
 )
 from src.infrastructure.core.config import genai_config
-from src.infrastructure.entrypoint.worker.mcp_model_scoring_client import (
+from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
+from src.infrastructure.model_serving.mcp_scoring_client import (
     MCPModelScoringClient,
 )
-from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sample_repository import (
     DynamoDatasetSampleRepository,

@@ -21,7 +21,6 @@ from src.application.ports.llm_unit_of_work_port import (
 from src.application.ports.modus_operandi_port import ModusOperandiPort
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.watchlist_port import WatchlistRepository
-from src.application.ports.workflow_port import WorkflowStepStatus
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
@@ -31,6 +30,9 @@ from src.application.use_cases.watchlists.check_watchlist_membership import (
     WatchlistMatch,
 )
 from src.domain.alerts.calculator import CalculatorError, safe_calculate
+from src.domain.workflows.entities import (
+    WorkflowStepStatus,
+)
 
 # ReAct loop: model alternates Thought/Action/Action Input turns (each
 # fulfilled by us calling one of the three tools and appending an
