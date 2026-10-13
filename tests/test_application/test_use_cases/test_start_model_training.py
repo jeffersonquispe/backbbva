@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -11,7 +11,9 @@ from src.application.ports.async_operation_port import (
     AsyncOperationStatus,
 )
 from src.application.ports.model_port import ModelRecord, ModelStatus
-from src.application.use_cases.models.start_model_training import StartModelTrainingUseCase
+from src.application.use_cases.models.start_model_training import (
+    StartModelTrainingUseCase,
+)
 from src.domain.models.exceptions import ModelNotFoundError
 
 
@@ -89,7 +91,7 @@ class RecordingModelTrainingDispatcher:
 
 
 def _draft_model() -> ModelRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return ModelRecord(
         id=UUID("11111111-1111-1111-1111-111111111111"),
         tag="xus-v1",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.async_operation_dtos import (
     AsyncOperationOutput,
@@ -13,7 +13,6 @@ from src.application.ports.async_operation_port import (
     AsyncOperationRepository,
     AsyncOperationStatus,
 )
-
 
 # operation_type values the generic ``POST /async-operations`` path can run.
 # Empty on purpose: every real operation (datasets, models, workflows) creates
@@ -48,7 +47,7 @@ class CreateAsyncOperationUseCase:
             and input.operation_type not in self._supported
         ):
             raise UnsupportedAsyncOperationTypeError(input.operation_type)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         operation = AsyncOperationRecord(
             id=uuid.uuid4(),
             operation_type=input.operation_type,
@@ -74,7 +73,7 @@ class CreateAsyncOperationUseCase:
         dispatched = self._repository.update(
             saved.id,
             status=AsyncOperationStatus.DISPATCHED,
-            dispatched_at=datetime.now(timezone.utc),
+            dispatched_at=datetime.now(UTC),
             execution_backend=execution_ref.backend,
             external_id=execution_ref.external_id,
         )

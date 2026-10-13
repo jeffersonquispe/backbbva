@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from src.application.ports.local_auth_port import (
@@ -41,7 +41,7 @@ class RegisterLocalUserUseCase:
         email = email.strip().lower()
         if self._users.get_by_email(email):
             raise DuplicateEmailError("A user with this email already exists")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return self._users.create(LocalUser(
             id=uuid4(), email=email, name=name.strip(),
             password_hash=self._password_hasher.hash(password), role=role,
@@ -67,7 +67,7 @@ class ChangeLocalUserPasswordUseCase:
         if not user:
             raise LocalUserNotFoundError("User not found")
         return self._users.update(replace(
-            user, password_hash=self._password_hasher.hash(password), updated_at=datetime.now(timezone.utc),
+            user, password_hash=self._password_hasher.hash(password), updated_at=datetime.now(UTC),
         ))
 
 

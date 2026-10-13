@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -70,7 +70,7 @@ def test_analyze_dataset_persists_samples_and_ready_summary() -> None:
             status=DatasetAnalysisStatus.PENDING,
             total_rows=0,
             field_distributions={},
-            uploaded_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            uploaded_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
     )
     use_case = AnalyzeDatasetUseCase(datasets, samples, summaries)
@@ -109,7 +109,7 @@ def test_analyze_dataset_persists_samples_and_ready_summary() -> None:
         "CUSTOMER - dg_rat_score600": 1,
     }
     # uploaded_at must survive re-analysis, only updated_at moves.
-    assert summary.uploaded_at == datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert summary.uploaded_at == datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def test_analyze_dataset_profiles_non_aria_columns_on_extracted_style_dataset() -> None:

@@ -40,7 +40,7 @@ import time
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -224,7 +224,7 @@ def install_capacity_hooks(client: Any, tally: Tally, probe_rate: float) -> None
 
 class Clock:
     def __init__(self) -> None:
-        self.now = datetime.now(timezone.utc)
+        self.now = datetime.now(UTC)
 
     def __call__(self) -> datetime:
         return self.now
@@ -277,7 +277,7 @@ def _amount(rng: random.Random) -> float:
 def _created_at(rng: random.Random, day: date) -> datetime:
     hour = rng.choices(range(24), weights=HOUR_WEIGHTS)[0]
     local = datetime(day.year, day.month, day.day, hour, rng.randrange(60), rng.randrange(60), tzinfo=TZ)
-    return local.astimezone(timezone.utc)
+    return local.astimezone(UTC)
 
 
 def _steps_for(
@@ -335,6 +335,8 @@ def plan_alert(rng: random.Random, created_at: datetime, now: datetime, tech: bo
     """(AlertRecord, events in time order, step records or None)."""
     from src.application.dtos.alert_metrics_dtos import (
         AlertMetricsEventType as E,
+    )
+    from src.application.dtos.alert_metrics_dtos import (
         RecordAlertMetricsEventInput as I,
     )
     from src.application.ports.alert_port import AlertRecord, AlertStatus, Mark
@@ -442,14 +444,18 @@ def _with_retry(fn, tally: Tally, attempts: int = 8):
 
 def run_worker(args: tuple[list[str], int, float, str, str, int, float]) -> dict[str, Any]:
     day_isos, per_day, tech_sample, now_iso, tier_change_iso, seed, probe_rate = args
-    from src.application.dtos.technical_metrics_dtos import RecordWorkflowStepMetricsInput
+    from src.application.dtos.technical_metrics_dtos import (
+        RecordWorkflowStepMetricsInput,
+    )
     from src.application.use_cases.metrics.record_alert_metrics_event import (
         RecordAlertMetricsEvent,
     )
     from src.application.use_cases.metrics.record_workflow_step_metrics import (
         RecordWorkflowStepMetrics,
     )
-    from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+    from src.infrastructure.persistence.database.dynamodb.client import (
+        get_dynamodb_resource,
+    )
     from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
         DynamoAlertRepository,
     )
@@ -543,7 +549,9 @@ def item_size(item: dict[str, Any]) -> int:
 
 
 def storage_report(now: datetime) -> dict[str, Any]:
-    from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+    from src.infrastructure.persistence.database.dynamodb.client import (
+        get_dynamodb_resource,
+    )
 
     table = get_dynamodb_resource().Table("metrics_rollups")
     kwargs: dict[str, Any] = {}
@@ -653,7 +661,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     _refuse_shared_endpoint(args.i_know_this_is_shared)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     today = now.astimezone(TZ).date() - timedelta(days=args.offset_days)
     days = [today - timedelta(days=i) for i in range(args.days - 1, -1, -1)]
     result: dict[str, Any] = {"args": vars(args)}

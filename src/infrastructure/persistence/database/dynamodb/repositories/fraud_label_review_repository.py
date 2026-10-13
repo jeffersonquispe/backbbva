@@ -3,7 +3,7 @@ fraud_label_reviews, see schemas.FRAUD_LABEL_REVIEWS_TABLE). Rows are put
 conditioned on not existing and there is deliberately no update/delete."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -24,7 +24,7 @@ TABLE_NAME = "fraud_label_reviews"
 def review_key(review: FraudLabelReview) -> str:
     """Sort key: UTC review time then id - chronological, and unique even
     for two reviews in the same microsecond."""
-    return f"{review.reviewed_at.astimezone(timezone.utc).isoformat()}#{review.id}"
+    return f"{review.reviewed_at.astimezone(UTC).isoformat()}#{review.id}"
 
 
 class DynamoFraudLabelReviewRepository:

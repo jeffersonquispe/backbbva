@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from uuid import UUID
 from typing import Any
+from uuid import UUID
 
-from src.application.ports.model_port import FieldTransform, HistoricalFeature, TrainingConfig, ModelStatus
+from src.application.ports.model_port import (
+    FieldTransform,
+    HistoricalFeature,
+    ModelStatus,
+    TrainingConfig,
+)
 
 
 @dataclass

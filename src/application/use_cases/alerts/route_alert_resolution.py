@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
 from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
@@ -74,7 +74,7 @@ class RouteAlertResolutionUseCase:
         operations_capacity: OperationsCapacityPort,
         settings_repository: OperationalSettingsRepository,
         reservation_repository: ResourceReservationRepository,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._capacity = operations_capacity
         self._settings = settings_repository

@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.ports.configuration_port import FlagType
 from src.application.ports.flag_library_port import FlagLibraryRepository
 from src.application.ports.fraud_knowledge_port import DocumentType
-from src.application.ports.fraud_knowledge_repository_port import FraudKnowledgeRepository
-from src.application.ports.modus_operandi_library_port import ModusOperandiLibraryRepository
+from src.application.ports.fraud_knowledge_repository_port import (
+    FraudKnowledgeRepository,
+)
+from src.application.ports.modus_operandi_library_port import (
+    ModusOperandiLibraryRepository,
+)
 from src.application.ports.similar_case_library_port import SimilarCaseLibraryRepository
 from src.application.ports.taxonomy_library_port import TaxonomyLibraryRepository
 from src.application.ports.vector_store_instance_port import (
@@ -207,7 +211,7 @@ class PromoteVectorStoreInstanceUseCase:
         promoted = replace(
             instance,
             promoted_version=new_version,
-            promoted_at=datetime.now(timezone.utc),
+            promoted_at=datetime.now(UTC),
             promoted_by=actor,
         )
         return self._instances.update(promoted)

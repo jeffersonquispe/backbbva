@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -28,7 +28,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
 
 pytestmark = pytest.mark.docker_integration
 
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 
 
 @pytest.fixture(scope="module")

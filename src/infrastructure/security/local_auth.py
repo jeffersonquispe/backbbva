@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from src.application.ports.local_auth_port import LocalUser
@@ -45,7 +45,7 @@ class JwtService:
         self._ttl_seconds = ttl_seconds or genai_config.AUTH_JWT_TTL_SECONDS
 
     def issue(self, user: LocalUser) -> tuple[str, int]:
-        now = int(datetime.now(timezone.utc).timestamp())
+        now = int(datetime.now(UTC).timestamp())
         header = _b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
         payload = _b64encode(json.dumps({"sub": str(user.id), "jti": uuid4().hex, "email": user.email, "role": user.role.value, "iat": now, "exp": now + self._ttl_seconds}, separators=(",", ":")).encode())
         signature = _b64encode(hmac.new(self._secret, f"{header}.{payload}".encode(), hashlib.sha256).digest())
@@ -58,7 +58,7 @@ class JwtService:
             if not hmac.compare_digest(expected, _b64decode(signature)):
                 raise ValueError
             claims = json.loads(_b64decode(payload))
-            if int(claims["exp"]) <= int(datetime.now(timezone.utc).timestamp()):
+            if int(claims["exp"]) <= int(datetime.now(UTC).timestamp()):
                 raise ValueError
             UUID(claims["sub"])
             return claims

@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.application.ports.flag_library_port import FlagLibraryEntry
+from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 from src.application.use_cases.flag_library.create_flag_library_entry import (
     CreateFlagLibraryEntryUseCase,
 )
@@ -18,6 +19,7 @@ from src.application.use_cases.flag_library.update_flag_library_entry import (
     FlagLibraryEntryNotFoundError,
     UpdateFlagLibraryEntryUseCase,
 )
+from src.infrastructure.entrypoint.api.authorization import require_library_access
 from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
     get_create_flag_library_entry_use_case,
     get_delete_flag_library_entry_use_case,
@@ -25,14 +27,14 @@ from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
     get_list_flag_library_entries_use_case,
     get_update_flag_library_entry_use_case,
 )
-from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import get_knowledge_graph_service
-from src.application.ports.vector_store_instance_port import KnowledgeAssetType
+from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+    get_knowledge_graph_service,
+)
 from src.infrastructure.entrypoint.api.schemas import (
     CreateFlagLibraryEntryRequest,
     FlagLibraryEntrySchema,
     UpdateFlagLibraryEntryRequest,
 )
-from src.infrastructure.entrypoint.api.authorization import require_library_access
 
 router = APIRouter(prefix="/library/flags", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
 

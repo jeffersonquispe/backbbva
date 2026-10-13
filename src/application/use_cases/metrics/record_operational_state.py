@@ -17,7 +17,7 @@ Feeds the "stuck queue", "no capacity" and "dead man's switch" alert rules:
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from src.application.ports.alert_port import AlertRepository, AlertStatus
@@ -42,7 +42,7 @@ class RecordOperationalState:
         operations_capacity: OperationsCapacityPort,
         monitoring: MonitoringPort,
         timezone_name: str,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._settings = settings_repository
         self._alerts = alert_repository

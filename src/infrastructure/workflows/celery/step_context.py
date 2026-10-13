@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 from uuid import UUID
+
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.ports.configuration_port import SegmentSettings
 from src.application.ports.workflow_port import WorkflowExecutionRecord

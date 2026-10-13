@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
@@ -21,7 +21,7 @@ class ReleaseEscalatedAlertUseCase:
     def __init__(
         self,
         reservation_repository: ResourceReservationRepository,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._reservations = reservation_repository
         self._clock = clock

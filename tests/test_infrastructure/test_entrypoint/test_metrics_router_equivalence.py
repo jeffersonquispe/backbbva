@@ -19,7 +19,7 @@ import os
 import random
 from collections import defaultdict
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -51,7 +51,7 @@ from src.infrastructure.entrypoint.api.routers.auth_router import get_current_us
 
 TZ = "America/Bogota"
 ZONE = ZoneInfo(TZ)
-NOW = datetime(2026, 10, 1, 15, 30, tzinfo=timezone.utc)  # 10:30 Bogota
+NOW = datetime(2026, 10, 1, 15, 30, tzinfo=UTC)  # 10:30 Bogota
 
 SEGMENTS = ["retail", "pyme", None]
 CHANNELS = ["WEB", "APP", None]
@@ -273,7 +273,7 @@ def _assert_rt(actual, group):
 
 
 def _client(repo, role=LocalRole.MANAGER) -> TestClient:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     user = LocalUser(
         id=uuid4(), email="m@aria.test", name="M", password_hash="x", role=role,
         is_active=True, created_at=now, updated_at=now,

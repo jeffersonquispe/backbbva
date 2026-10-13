@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC
 
 from src.application.dtos.adversarial_review_alert_dtos import (
     AdversarialReviewAlertInput,
@@ -332,13 +333,13 @@ class InMemoryWatchlistRepository:
         return {wid for wid in watchlist_ids if value in self._matches.get(wid, set())}
 
     def get(self, watchlist_id: str):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from src.application.ports.watchlist_port import Watchlist, WatchlistType
 
         if watchlist_id not in self._names:
             return None
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return Watchlist(
             id=watchlist_id,
             name=self._names[watchlist_id],

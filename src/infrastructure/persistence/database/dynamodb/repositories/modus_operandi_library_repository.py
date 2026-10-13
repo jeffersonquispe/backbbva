@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.application.ports.modus_operandi_library_port import (
@@ -66,7 +66,7 @@ class DynamoModusOperandiLibraryRepository(ModusOperandiLibraryRepository):
             ),
             active=active if active is not None else current.active,
             created_at=current.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
             embedding=embedding if embedding is not None else current.embedding,
             playbook=playbook if playbook is not None else current.playbook,
         )

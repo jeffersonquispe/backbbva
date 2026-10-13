@@ -1,6 +1,8 @@
-import boto3
 from functools import lru_cache
+
+import boto3
 from botocore.config import Config
+
 from src.infrastructure.core.config import genai_config
 
 

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from src.application.ports.async_executor_port import (
-    AsyncExecutionRef,
-    AsyncExecutor,
-)
 from src.application.ports.async_execution_inspector_port import (
     AsyncExecutionInspector,
     AsyncExecutionSnapshot,
     AsyncExecutionState,
+)
+from src.application.ports.async_executor_port import (
+    AsyncExecutionRef,
+    AsyncExecutor,
 )
 from src.application.ports.async_operation_port import AsyncOperationRecord
 from src.application.use_cases.async_operations.create_async_operation import (

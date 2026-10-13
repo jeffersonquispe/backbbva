@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.workflow_port import (
     WorkflowStepExecutionRecord,
@@ -11,7 +11,7 @@ from src.application.use_cases.test_runs.token_usage import sum_step_tokens
 
 
 def _step(output: dict | None) -> WorkflowStepExecutionRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return WorkflowStepExecutionRecord(
         id=uuid.uuid4(),
         workflow_execution_id=uuid.uuid4(),

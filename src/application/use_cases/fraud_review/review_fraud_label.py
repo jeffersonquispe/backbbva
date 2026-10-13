@@ -15,7 +15,7 @@ on record, and re-submitting simply appends another row."""
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from src.application.dtos.alert_metrics_dtos import (
@@ -65,7 +65,7 @@ class ReviewFraudLabel:
         alert_repository: AlertRepository,
         review_repository: FraudLabelReviewRepository,
         record_metrics_event: RecordAlertMetricsEvent,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         monitoring: MonitoringPort | None = None,
     ) -> None:
         self._alerts = alert_repository

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from typing import BinaryIO
+
 import boto3
 from botocore.exceptions import ClientError
-from typing import BinaryIO
 
 from src.application.ports.object_storage_port import (
     ObjectStoragePort,

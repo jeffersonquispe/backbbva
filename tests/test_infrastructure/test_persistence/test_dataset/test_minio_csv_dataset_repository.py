@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import io
+
 import pytest
 
-from src.application.ports.object_storage_port import ObjectStoragePort, ObjectStorageRef
+from src.application.ports.object_storage_port import (
+    ObjectStoragePort,
+    ObjectStorageRef,
+)
 from src.infrastructure.persistence.dataset.minio.csv_dataset_repository import (
     MinioCsvDatasetRepository,
 )

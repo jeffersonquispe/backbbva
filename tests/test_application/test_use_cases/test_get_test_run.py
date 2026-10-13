@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -78,7 +78,7 @@ class InMemoryWorkflowStepExecutionRepository:
 def _step(
     workflow_execution_id: UUID, input_tokens: int, output_tokens: int
 ) -> WorkflowStepExecutionRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return WorkflowStepExecutionRecord(
         id=uuid.uuid4(),
         workflow_execution_id=workflow_execution_id,
@@ -96,7 +96,7 @@ def _step(
 
 
 def _workflow(status: WorkflowStatus, test_run_id: UUID) -> WorkflowExecutionRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return WorkflowExecutionRecord(
         id=uuid.uuid4(),
         alert_id=uuid.uuid4(),
@@ -116,7 +116,7 @@ def _workflow(status: WorkflowStatus, test_run_id: UUID) -> WorkflowExecutionRec
 
 
 def test_get_test_run_rolls_up_case_statuses() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     test_run_id = uuid.uuid4()
     test_run = TestRunRecord(
         id=test_run_id,
@@ -153,7 +153,7 @@ def test_get_test_run_rolls_up_case_statuses() -> None:
 
 
 def test_get_test_run_sums_tokens_across_every_case_and_step() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     test_run_id = uuid.uuid4()
     test_run = TestRunRecord(
         id=test_run_id,
@@ -196,7 +196,7 @@ def test_get_test_run_derives_status_from_cases_not_stored_field() -> None:
     # staleness: a run stuck at the stored RUNNING must report FAILED once
     # every case is terminal and at least one failed, and SUCCEEDED once
     # every case is terminal and none failed.
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     def _run(run_id: UUID, total: int) -> TestRunRecord:
         return TestRunRecord(
@@ -236,7 +236,7 @@ def test_get_test_run_derives_status_from_cases_not_stored_field() -> None:
 
 
 def test_get_test_run_computes_duration_stats_per_step_and_overall() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     test_run_id = uuid.uuid4()
     test_run = TestRunRecord(
         id=test_run_id,
@@ -294,7 +294,7 @@ def _classification_step(
 
 
 def test_get_test_run_computes_classification_metrics_for_both_comparisons() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     test_run_id = uuid.uuid4()
     test_run = TestRunRecord(
         id=test_run_id,
@@ -347,7 +347,7 @@ def test_get_test_run_computes_classification_metrics_for_both_comparisons() -> 
 
 
 def test_get_test_run_classification_metrics_use_final_attempt_only() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     test_run_id = uuid.uuid4()
     test_run = TestRunRecord(
         id=test_run_id,

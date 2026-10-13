@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.configuration_port import (
     AdversarialConfig,
@@ -9,10 +9,10 @@ from src.application.ports.configuration_port import (
     AnalystConfig,
     ClassificationConfig,
     ConfigurationRecord,
-    DeterministicConfig,
-    DelegatedResearchSettings,
-    DeterministicRule,
     DayProfile,
+    DelegatedResearchSettings,
+    DeterministicConfig,
+    DeterministicRule,
     DistributionValue,
     DocumentationConfig,
     DocumentationStrategy,
@@ -22,8 +22,8 @@ from src.application.ports.configuration_port import (
     Flag,
     FlagType,
     GeneralSettings,
-    InfraSettings,
     HistoryPandasResearchConfig,
+    InfraSettings,
     ModusOperandi,
     MonitoringSettings,
     ProfilingConfig,
@@ -44,11 +44,6 @@ from src.application.ports.configuration_port import (
     default_segments,
 )
 from src.application.ports.tag_catalog_port import TagCategory
-from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
-    _config_key,
-    _criterion_key,
-    _group_key,
-)
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_item_mapping import (
     _day_profile_from_item,
     _distribution_value_from_item,
@@ -68,6 +63,11 @@ from src.infrastructure.persistence.database.dynamodb.repositories.configuration
     _to_item,
     _voicebot_category_prompt_from_item,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
+    _config_key,
+    _criterion_key,
+    _group_key,
+)
 
 # A segment row's `id` is a real uuid (born in create()) - any opaque string
 # works to exercise the pure FK-string builders/decoders below, so tests
@@ -76,7 +76,7 @@ _SEGMENT_ID = "5d1f7e2a-2222-4b3b-9a3a-111111111111"
 
 
 def _base_record(**overrides) -> ConfigurationRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     defaults = dict(
         configuration_id="cfg-1",
         version=1,
@@ -104,7 +104,7 @@ def test_owner_item_round_trips_through_to_item_and_from_item() -> None:
         created_by="carlos",
         ever_activated=True,
         ever_tested=True,
-        activated_at=datetime(2026, 10, 9, tzinfo=timezone.utc),
+        activated_at=datetime(2026, 10, 9, tzinfo=UTC),
     )
 
     restored = _from_item(_to_item(record))

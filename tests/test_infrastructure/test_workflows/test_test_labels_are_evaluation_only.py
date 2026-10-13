@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.adversarial_review_alert_dtos import (
     AdversarialReviewAlertInput,
 )
-from src.application.dtos.classify_alert_dtos import ClassifyAlertInput, ClassifyAlertOutput
+from src.application.dtos.classify_alert_dtos import (
+    ClassifyAlertInput,
+    ClassifyAlertOutput,
+)
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
 from src.application.ports.alert_port import AlertRecord, AlertStatus
@@ -17,13 +20,12 @@ from src.application.ports.alert_schema_port import (
     AlertSchemaRepository,
     AlertSchemaVersion,
 )
-from src.application.use_cases.alerts.classify_alert import _alert_context
 from src.application.use_cases.alerts.adversarial_review_alert import _review_context
+from src.application.use_cases.alerts.classify_alert import _alert_context
 from src.application.use_cases.test_runs.get_test_run import (
     _canonical_evaluation_labels,
 )
 from src.infrastructure.workflows.celery.alert_review_workflow import _alert_payload
-
 
 LABEL_VALUE = "label-must-not-be-prompted"
 
@@ -103,7 +105,7 @@ class InMemoryAlertRepository:
 
 def test_test_run_evaluation_reads_only_schema_labels() -> None:
     alert_id = uuid.uuid4()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     schema = AlertSchemaVersion(
         version=7,
         fields=[

@@ -4,15 +4,15 @@ import dataclasses
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from src.application.dtos.alert_metrics_dtos import (
-    AlertMetricsEventType,
-    RecordAlertMetricsEventInput,
-)
 from src.application.dtos.alert_dtos import (
     StartAlertWorkflowInput,
     StartAlertWorkflowOutput,
+)
+from src.application.dtos.alert_metrics_dtos import (
+    AlertMetricsEventType,
+    RecordAlertMetricsEventInput,
 )
 from src.application.ports.alert_port import (
     AlertRecord,
@@ -24,14 +24,14 @@ from src.application.ports.async_operation_port import (
     AsyncOperationRepository,
     AsyncOperationStatus,
 )
-from src.application.ports.workflow_executor_port import WorkflowExecutor
 from src.application.ports.object_storage_port import ObjectStoragePort
-from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
+from src.application.ports.workflow_executor_port import WorkflowExecutor
 from src.application.ports.workflow_port import (
     WorkflowExecutionRecord,
     WorkflowExecutionRepository,
     WorkflowStatus,
 )
+from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
 )
@@ -77,7 +77,7 @@ class StartAlertTestWorkflowUseCase:
         payload_size = len(json.dumps(input.payload, default=str).encode("utf-8"))
         if payload_size > MAX_ALERT_PAYLOAD_BYTES:
             raise AlertPayloadTooLargeError(payload_size, MAX_ALERT_PAYLOAD_BYTES)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         alert_id = uuid.uuid4()
         raw_ref = (
             self._raw_payloads.store(str(alert_id), input.payload)
@@ -152,7 +152,7 @@ class StartAlertTestWorkflowUseCase:
             )
         )
         execution_ref = self._workflow_executor.start(workflow)
-        dispatched_at = datetime.now(timezone.utc)
+        dispatched_at = datetime.now(UTC)
         self._workflow_repository.update(
             workflow.id,
             status=WorkflowStatus.DISPATCHED,

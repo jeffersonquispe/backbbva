@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any
 
 from src.application.dtos.alert_schema_dtos import AlertSchemaComparison
-from src.application.ports.alert_schema_port import AlertSchemaField, AlertSchemaVersion
+from src.application.ports.alert_schema_port import AlertSchemaVersion
 
 
 def compare_schema(candidate: AlertSchemaVersion, active: AlertSchemaVersion | None) -> AlertSchemaComparison:

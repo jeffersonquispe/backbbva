@@ -36,14 +36,14 @@ from src.application.use_cases.event_simulation.list_simulation_scenarios import
 from src.application.use_cases.event_simulation.pause_simulation import (
     PauseSimulationUseCase,
 )
+from src.application.use_cases.event_simulation.seed_simulation_from_dataset import (
+    SeedSimulationFromDatasetUseCase,
+)
 from src.application.use_cases.event_simulation.start_simulation import (
     StartSimulationUseCase,
 )
 from src.application.use_cases.event_simulation.stop_simulation import (
     StopSimulationUseCase,
-)
-from src.application.use_cases.event_simulation.seed_simulation_from_dataset import (
-    SeedSimulationFromDatasetUseCase,
 )
 from src.application.use_cases.event_simulation.update_simulation_scenario import (
     UpdateSimulationScenarioUseCase,
@@ -56,19 +56,19 @@ from src.infrastructure.entrypoint.api.factories.simulation_scenario_factory imp
     get_get_simulation_status_use_case,
     get_list_simulation_scenarios_use_case,
     get_pause_simulation_use_case,
+    get_seed_simulation_from_dataset_use_case,
     get_start_simulation_use_case,
     get_stop_simulation_use_case,
     get_update_simulation_scenario_use_case,
-    get_seed_simulation_from_dataset_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
     CreateSimulationScenarioRequest,
     FieldGeneratorSchema,
     RateIntervalSchema,
+    SeedSimulationFromDatasetRequest,
     SimulationScenarioResponse,
     SimulationStatusResponse,
     UpdateSimulationScenarioRequest,
-    SeedSimulationFromDatasetRequest,
 )
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])

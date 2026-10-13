@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -37,7 +37,7 @@ class InMemoryConfigurationRepository:
 
 
 def _config(configuration_id: str, version: int, active: bool) -> ConfigurationRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return ConfigurationRecord(
         configuration_id=configuration_id,
         version=version,

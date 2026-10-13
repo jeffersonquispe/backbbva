@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.vector_store_instance_port import (
     VectorStoreInstance,
@@ -40,7 +40,7 @@ class CreateVectorStoreInstanceUseCase:
         version = max((item.version for item in instances), default=0) + 1
         instance = VectorStoreInstance(
             id=f"vector-store-v{version}", version=version, name=name.strip(),
-            description=description, created_at=datetime.now(timezone.utc),
+            description=description, created_at=datetime.now(UTC),
             created_by=created_by,
         )
         normalized = [

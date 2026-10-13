@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -74,7 +74,7 @@ class DynamoSimulationScenarioRepository:
         }
         # Default bump first, so an explicit updated_at in `changes` (rare,
         # but the port allows it) still wins over this default.
-        updated_fields["updated_at"] = datetime.now(timezone.utc)
+        updated_fields["updated_at"] = datetime.now(UTC)
         updated_fields.update(changes)
 
         updated = SimulationScenarioRecord(**updated_fields)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
 from src.application.ports.fraud_knowledge_port import (
@@ -45,7 +45,7 @@ def _entry(
     playbook: ModusOperandiPlaybook | None = _VOICEBOT_PLAYBOOK,
     active: bool = True,
 ) -> ModusOperandiLibraryEntry:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return ModusOperandiLibraryEntry(
         id=entry_id,
         title=f"MO {entry_id}",
@@ -90,7 +90,7 @@ def _promoted_instance(instance_id: str = "vs-1", version: int = 1) -> VectorSto
         version=1,
         name="Instancia",
         description="",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         created_by="tester",
         promoted_version=version,
     )

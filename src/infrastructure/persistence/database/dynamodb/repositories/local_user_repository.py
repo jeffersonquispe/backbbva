@@ -6,7 +6,9 @@ from uuid import UUID
 from boto3.dynamodb.conditions import Key
 
 from src.application.ports.local_auth_port import LocalRole, LocalUser
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
 
 
 class DynamoLocalUserRepository:

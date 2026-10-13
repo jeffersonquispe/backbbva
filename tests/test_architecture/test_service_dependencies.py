@@ -20,7 +20,7 @@ import ast
 import re
 import sys
 import tomllib
-from functools import lru_cache
+from functools import cache
 from importlib import metadata
 from pathlib import Path
 
@@ -112,7 +112,7 @@ def _closure(entries: list[str]) -> dict[str, str]:
     return third_party
 
 
-@lru_cache(maxsize=None)
+@cache
 def _declared(pyproject: str) -> set[str]:
     data = tomllib.loads((REQ / pyproject).read_text(encoding="utf-8"))
     deps = data["tool"]["poetry"]["dependencies"]
@@ -133,7 +133,7 @@ def _declared(pyproject: str) -> set[str]:
     return allowed
 
 
-@lru_cache(maxsize=None)
+@cache
 def _import_to_dists() -> dict[str, set[str]]:
     return {k: {_norm(d) for d in v} for k, v in metadata.packages_distributions().items()}
 

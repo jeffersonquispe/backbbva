@@ -18,10 +18,9 @@ from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.ports.model_port import (
     FieldTransform,
     FieldTransformKind,
-    ModelStatus,
     HistoricalFeature,
+    ModelStatus,
 )
-
 from src.infrastructure.workflows.celery.historical_features import build_history_frame
 
 SEED = 42
@@ -166,7 +165,10 @@ def build_feature_frame(
 
     feats = pd.concat([feats.reset_index(drop=True), build_history_frame(rows, historical_features or [], timezone)], axis=1)
     if feature_configuration is not None:
-        from src.domain.models.feature_recipe import evaluate_feature_definition, validate_feature_definition
+        from src.domain.models.feature_recipe import (
+            evaluate_feature_definition,
+            validate_feature_definition,
+        )
 
         definition = validate_feature_definition(feature_configuration)
         evaluated = []
@@ -274,7 +276,9 @@ def run_model_training(
         _progress("loading_dataset", 5)
         rows = dataset_repository.get_rows(model.dataset_name)
 
-        from src.infrastructure.workflows.celery.model_evaluation import train_model_bundle
+        from src.infrastructure.workflows.celery.model_evaluation import (
+            train_model_bundle,
+        )
 
         _progress("building_features", 25)
         bundle = train_model_bundle(rows, model, progress=_progress)

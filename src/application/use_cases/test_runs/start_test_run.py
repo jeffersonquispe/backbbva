@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import dataclasses
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.alert_dtos import StartAlertWorkflowInput
-from src.application.ports.alert_port import AlertOrigin
 from src.application.dtos.test_run_dtos import StartTestRunInput, StartTestRunOutput
-from src.application.ports.alert_port import AlertRepository
-from src.application.ports.async_operation_port import AsyncOperationRepository
-from src.application.ports.dataset_port import DatasetRepository
-from src.application.ports.configuration_port import ConfigurationRepository, ConfigurationRef
+from src.application.ports.alert_port import AlertOrigin, AlertRepository
 from src.application.ports.alert_schema_port import AlertSchemaRepository
+from src.application.ports.async_operation_port import AsyncOperationRepository
+from src.application.ports.configuration_port import (
+    ConfigurationRef,
+    ConfigurationRepository,
+)
+from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.object_storage_port import ObjectStoragePort
 from src.application.ports.test_run_port import (
     TestRunRecord,
     TestRunRepository,
@@ -19,7 +22,6 @@ from src.application.ports.test_run_port import (
 )
 from src.application.ports.workflow_executor_port import WorkflowExecutor
 from src.application.ports.workflow_port import WorkflowExecutionRepository
-from src.application.ports.object_storage_port import ObjectStoragePort
 from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
 )
@@ -81,7 +83,7 @@ class StartTestRunUseCase:
         if input.config.schema_version is not None and self._schemas is not None:
             if self._schemas.get(input.config.schema_version) is None:
                 raise ValueError("Alert schema version not found")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         test_run = self._test_runs.create(
             TestRunRecord(
                 id=uuid.uuid4(),

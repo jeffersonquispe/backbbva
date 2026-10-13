@@ -3,17 +3,17 @@ from __future__ import annotations
 
 import dataclasses
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
 
+from src.application.dtos.alert_dtos import StartAlertWorkflowInput
 from src.application.dtos.alert_metrics_dtos import (
     AlertMetricsEventType,
     RecordAlertMetricsEventInput,
 )
 from src.application.dtos.analyst_queue_dtos import ResolveEscalatedAlertInput
-from src.application.dtos.alert_dtos import StartAlertWorkflowInput
 from src.application.ports.alert_action_dispatcher_port import AlertActionDispatchRef
 from src.application.ports.alert_port import (
     AlertMetricsSnapshot,
@@ -24,9 +24,9 @@ from src.application.ports.alert_port import (
     Mark,
 )
 from src.application.ports.alert_schema_port import (
+    AlertSchemaDataSource,
     AlertSchemaField,
     AlertSchemaFieldType,
-    AlertSchemaDataSource,
     AlertSchemaVersion,
 )
 from src.application.ports.configuration_port import ConfigurationRef
@@ -62,7 +62,7 @@ from src.application.use_cases.operations.complete_voicebot_call import (
 from src.domain.alerts.exceptions import SnapshotVersionConflictError
 
 TZ = "America/Bogota"
-CREATED_AT = datetime(2026, 10, 1, 14, 0, tzinfo=timezone.utc)  # 09:00 Bogota
+CREATED_AT = datetime(2026, 10, 1, 14, 0, tzinfo=UTC)  # 09:00 Bogota
 NOW = CREATED_AT + timedelta(minutes=4)
 
 PAYLOAD = {

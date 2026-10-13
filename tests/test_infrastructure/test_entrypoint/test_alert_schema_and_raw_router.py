@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from dataclasses import replace
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -46,12 +46,12 @@ class FakeAlertRepository:
 
 
 def _user(role: LocalRole) -> LocalUser:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return LocalUser(uuid4(), "user@example.com", "User", "x", role, True, now, now)
 
 
 def _alert(schema_version: int = 1) -> AlertRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     alert_id = uuid4()
     return AlertRecord(
         id=alert_id,

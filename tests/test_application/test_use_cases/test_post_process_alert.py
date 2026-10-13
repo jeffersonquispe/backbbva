@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from src.application.dtos.post_process_alert_dtos import PostProcessAlertInput
 from src.application.use_cases.alerts.post_process_alert import (
@@ -10,7 +10,7 @@ from src.application.use_cases.alerts.post_process_alert import (
 
 
 def test_post_process_computes_duration_status_and_resolution_path() -> None:
-    started_at = datetime.now(timezone.utc) - timedelta(seconds=5)
+    started_at = datetime.now(UTC) - timedelta(seconds=5)
     use_case = PostProcessAlertUseCase()
 
     output = use_case.execute(
@@ -34,7 +34,7 @@ def test_post_process_echoes_generated_documentation() -> None:
     output = use_case.execute(
         PostProcessAlertInput(
             alert_id=uuid.uuid4(),
-            workflow_started_at=datetime.now(timezone.utc),
+            workflow_started_at=datetime.now(UTC),
             resolution_path="block",
             documentation="Alerta documentada: cliente cust-1, bloqueado por ...",
         )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.alert_field_mapping_port import (
     AlertFieldMapping,
@@ -38,7 +38,7 @@ def test_get_alert_field_mapping_returns_empty_mapping_when_none_saved() -> None
 
 
 def test_get_alert_field_mapping_returns_existing_mapping_as_is() -> None:
-    updated_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    updated_at = datetime(2024, 1, 1, tzinfo=UTC)
     repo = InMemoryAlertFieldMappingRepository(
         {
             "ds": AlertFieldMapping(

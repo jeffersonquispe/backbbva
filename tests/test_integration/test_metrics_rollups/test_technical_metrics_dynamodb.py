@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -27,7 +27,9 @@ from src.application.use_cases.metrics.technical_rollup_contribution import (
     TechnicalContribution,
     technical_deltas,
 )
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
 from src.infrastructure.persistence.database.dynamodb.manager import create_table
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_reasoning_evaluation_repository import (
     DynamoAlertReasoningEvaluationRepository,
@@ -61,7 +63,7 @@ def test_apply_once_counts_a_step_once(rollups) -> None:
     dims = tuple(
         (name, tag if name == "segment" else "unknown") for name in TECHNICAL_ALERT_DIMENSIONS
     ) + (("step_name", "classification"), ("model", "gpt-a"))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     deltas = technical_deltas(
         [TechnicalContribution(MetricsDataType.LLM_CALL, dims, {"count": 1, "input_tokens": 120})],
         now,
@@ -102,7 +104,7 @@ def test_evaluation_first_writer_wins(rollups) -> None:
         alert_id=alert_id, workflow_execution_id=uuid.uuid4(),
         status=ReasoningEvaluationStatus.EVALUATED, hallucination=True,
         data_use_correct=False, rationale="r", judge_model="m",
-        evaluated_at=datetime.now(timezone.utc), input_tokens=10, output_tokens=2,
+        evaluated_at=datetime.now(UTC), input_tokens=10, output_tokens=2,
     )
     second = AlertReasoningEvaluationRecord(
         **{**first.__dict__, "hallucination": False, "data_use_correct": True}

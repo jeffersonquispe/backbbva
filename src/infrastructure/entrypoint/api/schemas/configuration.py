@@ -418,7 +418,7 @@ class FilterGroupSchema(BaseModel):
     id: str = ""
     operator: LogicalOperator = LogicalOperator.AND
     conditions: list[FilterConditionSchema] = Field(default_factory=list)
-    groups: list["FilterGroupSchema"] = Field(default_factory=list)
+    groups: list[FilterGroupSchema] = Field(default_factory=list)
 
 
 FilterGroupSchema.model_rebuild()

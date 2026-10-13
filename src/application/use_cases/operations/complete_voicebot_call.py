@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -10,7 +10,6 @@ from src.application.dtos.alert_metrics_dtos import (
     AlertMetricsEventType,
     RecordAlertMetricsEventInput,
 )
-
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservation,
@@ -36,7 +35,7 @@ class CompleteVoicebotCallUseCase:
     def __init__(
         self,
         reservation_repository: ResourceReservationRepository,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         metrics_recorder: RecordAlertMetricsEvent | None = None,
     ) -> None:
         self._reservations = reservation_repository

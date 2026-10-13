@@ -1,4 +1,6 @@
-from src.application.ports.vector_store_instance_port import VectorStoreInstanceRepository
+from src.application.ports.vector_store_instance_port import (
+    VectorStoreInstanceRepository,
+)
 
 
 class ListVectorStoreInstancesUseCase:

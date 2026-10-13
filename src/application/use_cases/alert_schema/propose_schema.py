@@ -1,6 +1,10 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from src.application.ports.alert_schema_port import AlertSchemaRepository, AlertSchemaStatus, AlertSchemaVersion
+from src.application.ports.alert_schema_port import (
+    AlertSchemaRepository,
+    AlertSchemaStatus,
+    AlertSchemaVersion,
+)
 from src.application.use_cases.alert_schema.helpers import compare_schema
 
 
@@ -18,6 +22,6 @@ class ProposeAlertSchemaUseCase:
         comparison = compare_schema(schema, active)
         impact = self._impact_analyzer(comparison)
         proposed = AlertSchemaVersion(**{**schema.__dict__, "status": AlertSchemaStatus.PROPOSED,
-            "proposed_by": user_id, "proposed_at": datetime.now(timezone.utc),
+            "proposed_by": user_id, "proposed_at": datetime.now(UTC),
             "comparison": comparison.as_dict(), "impact": impact})
         return self._repository.update(proposed)

@@ -22,7 +22,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Hashable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Any, Generic, Protocol, TypeVar
 
@@ -77,7 +77,7 @@ class TTLCache:
 
 
 def _ceil_hour(value: datetime) -> datetime:
-    value = value.astimezone(timezone.utc)
+    value = value.astimezone(UTC)
     floor = value.replace(minute=0, second=0, microsecond=0)
     return floor if floor == value else floor + timedelta(hours=1)
 
@@ -114,7 +114,7 @@ class CachedMetricsQuery(Generic[T]):
         endpoint: str,
         inner: _MetricsQuery[T],
         cache: TTLCache,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self.endpoint = endpoint
         self.inner = inner

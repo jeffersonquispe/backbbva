@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hmac
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -10,15 +10,26 @@ from pydantic import BaseModel, Field
 
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.use_cases.auth.local_auth import (
-    AuthenticateLocalUserUseCase, ChangeLocalUserPasswordUseCase, DuplicateEmailError,
-    GetCurrentLocalUserUseCase, InvalidCredentialsError, ListLocalUsersUseCase, LocalUserNotFoundError,
-    LogoutLocalUserUseCase, RegisterLocalUserUseCase, permissions_for,
+    AuthenticateLocalUserUseCase,
+    ChangeLocalUserPasswordUseCase,
+    DuplicateEmailError,
+    GetCurrentLocalUserUseCase,
+    InvalidCredentialsError,
+    ListLocalUsersUseCase,
+    LocalUserNotFoundError,
+    LogoutLocalUserUseCase,
+    RegisterLocalUserUseCase,
+    permissions_for,
 )
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.factories.local_auth_factory import (
-    get_authenticate_local_user_use_case, get_change_local_user_password_use_case,
-    get_current_local_user_use_case, get_jwt_service, get_list_local_users_use_case,
-    get_logout_local_user_use_case, get_register_local_user_use_case,
+    get_authenticate_local_user_use_case,
+    get_change_local_user_password_use_case,
+    get_current_local_user_use_case,
+    get_jwt_service,
+    get_list_local_users_use_case,
+    get_logout_local_user_use_case,
+    get_register_local_user_use_case,
 )
 from src.infrastructure.security.local_auth import JwtService
 
@@ -145,7 +156,7 @@ def logout(
 ):
     """End the caller's session: its access token is rejected from now on,
     even though it has not reached its exp yet."""
-    use_case.execute(token_id=claims.get("jti"), expires_at=datetime.fromtimestamp(int(claims["exp"]), timezone.utc))
+    use_case.execute(token_id=claims.get("jti"), expires_at=datetime.fromtimestamp(int(claims["exp"]), UTC))
 
 
 @router.get("/me", response_model=UserResponse)

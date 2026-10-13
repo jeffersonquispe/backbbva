@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import random
+import uuid
+from datetime import UTC, datetime
 
 import pytest
 
@@ -22,8 +24,6 @@ from src.application.ports.simulation_scenario_port import (
 from src.application.use_cases.event_simulation.generate_event_batch import (
     GenerateEventBatchUseCase,
 )
-from datetime import datetime, timezone
-import uuid
 
 
 class RecordingLLMUnitOfWork(LLMUnitOfWork):
@@ -58,7 +58,7 @@ class StubDatasetReaderGateway:
 
 
 def _scenario(field_specs: dict[str, FieldGenerator], rate_schedule: list[RateInterval]) -> SimulationScenarioRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return SimulationScenarioRecord(
         id=uuid.uuid4(),
         name="scenario",

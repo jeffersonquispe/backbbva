@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from src.application.ports.alert_port import (
     AlertMetricsSnapshot,
@@ -22,7 +22,7 @@ from src.application.use_cases.metrics.alert_rollup_contribution import (
 )
 
 TZ = "America/Bogota"  # UTC-5, no DST
-NOW = datetime(2026, 10, 1, 15, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 15, 0, tzinfo=UTC)
 
 
 def _snapshot(**overrides) -> AlertMetricsSnapshot:
@@ -50,20 +50,20 @@ def _periods(deltas):
 
 def test_2330_bogota_is_next_day_in_utc_but_buckets_on_the_bogota_day() -> None:
     # 2026-10-02 04:30 UTC == 2026-10-01 23:30 Bogota
-    created = datetime(2026, 10, 2, 4, 30, tzinfo=timezone.utc)
+    created = datetime(2026, 10, 2, 4, 30, tzinfo=UTC)
     part = contribution(_snapshot(), created, TZ)
     assert part.local_date == date(2026, 10, 1)
     assert part.hour == 23
 
 
 def test_midnight_bogota_opens_the_new_day_at_hour_zero() -> None:
-    created = datetime(2026, 10, 2, 5, 0, tzinfo=timezone.utc)  # 00:00 Bogota
+    created = datetime(2026, 10, 2, 5, 0, tzinfo=UTC)  # 00:00 Bogota
     part = contribution(_snapshot(), created, TZ)
     assert (part.local_date, part.hour) == (date(2026, 10, 2), 0)
 
 
 def test_month_edge_last_utc_hours_stay_in_previous_bogota_month() -> None:
-    created = datetime(2026, 11, 1, 2, 0, tzinfo=timezone.utc)  # Oct 31 21:00 Bogota
+    created = datetime(2026, 11, 1, 2, 0, tzinfo=UTC)  # Oct 31 21:00 Bogota
     deltas = diff(None, _snapshot(), created, NOW + timedelta(days=40), TZ)
     assert _periods(deltas) == [
         ("day", "2026-10-31"),
@@ -73,8 +73,8 @@ def test_month_edge_last_utc_hours_stay_in_previous_bogota_month() -> None:
 
 
 def test_year_edge_new_year_utc_is_still_december_31_in_bogota() -> None:
-    created = datetime(2027, 1, 1, 3, 0, tzinfo=timezone.utc)  # Dec 31 22:00 Bogota
-    now = datetime(2027, 1, 2, tzinfo=timezone.utc)
+    created = datetime(2027, 1, 1, 3, 0, tzinfo=UTC)  # Dec 31 22:00 Bogota
+    now = datetime(2027, 1, 2, tzinfo=UTC)
     deltas = diff(None, _snapshot(), created, now, TZ)
     assert _periods(deltas) == [
         ("day", "2026-12-31"),
@@ -103,7 +103,7 @@ def test_day_level_lives_for_ages_0_to_89() -> None:
 
 
 def test_new_alert_adds_one_count_and_amount_on_every_live_level() -> None:
-    created = datetime(2026, 10, 1, 14, 10, tzinfo=timezone.utc)  # 09:10 Bogota
+    created = datetime(2026, 10, 1, 14, 10, tzinfo=UTC)  # 09:10 Bogota
     deltas = diff(None, _snapshot(), created, NOW, TZ)
     assert len(deltas) == 3
     for delta in deltas:

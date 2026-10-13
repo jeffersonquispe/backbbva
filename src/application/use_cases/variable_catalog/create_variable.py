@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.variable_catalog_port import (
     VariableCatalogRepository,
@@ -14,7 +14,7 @@ class CreateVariableUseCase:
         self._variables = variable_catalog_repository
 
     def execute(self, value: str, description: str = "") -> VariableEntry:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return self._variables.create(
             VariableEntry(
                 id=str(uuid.uuid4()),

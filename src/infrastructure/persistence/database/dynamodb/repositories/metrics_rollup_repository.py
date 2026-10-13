@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
 from urllib.parse import quote
@@ -47,10 +47,14 @@ from src.infrastructure.persistence.database.dynamodb.client import (
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
     METRICS_ATTRIBUTE,
-    PARTITION as ALERTS_PARTITION,
-    TABLE_NAME as ALERTS_TABLE_NAME,
     created_day_for,
     snapshot_to_item,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
+    PARTITION as ALERTS_PARTITION,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
+    TABLE_NAME as ALERTS_TABLE_NAME,
 )
 
 TABLE_NAME = "metrics_rollups"
@@ -102,7 +106,7 @@ def day_row_expiry(period: str) -> int:
     date it can still be written (age 89)."""
     day = date.fromisoformat(period)
     expiry = datetime.combine(
-        day + timedelta(days=DAY_LEVEL_RETENTION_DAYS + 1), time(), tzinfo=timezone.utc
+        day + timedelta(days=DAY_LEVEL_RETENTION_DAYS + 1), time(), tzinfo=UTC
     )
     return int(expiry.timestamp())
 
@@ -296,7 +300,7 @@ class DynamoMetricsRollupRepository:
         }
 
     def _marker_put(self, marker: RollupApplyMarker) -> dict[str, Any]:
-        expires_at = datetime.now(timezone.utc) + timedelta(days=MARKER_RETENTION_DAYS)
+        expires_at = datetime.now(UTC) + timedelta(days=MARKER_RETENTION_DAYS)
         return {
             "Put": {
                 "TableName": TABLE_NAME,

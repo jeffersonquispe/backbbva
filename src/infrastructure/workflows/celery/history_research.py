@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Callable
 from typing import Any
+
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.research_dtos import ResearchRequest, ResearchSource
 from src.application.ports.configuration_port import AgentToolsConfig

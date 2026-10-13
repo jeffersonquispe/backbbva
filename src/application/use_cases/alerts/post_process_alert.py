@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.post_process_alert_dtos import (
     PostProcessAlertInput,
@@ -10,7 +10,7 @@ from src.application.dtos.post_process_alert_dtos import (
 
 class PostProcessAlertUseCase:
     def execute(self, input: PostProcessAlertInput) -> PostProcessAlertOutput:
-        closed_at = datetime.now(timezone.utc)
+        closed_at = datetime.now(UTC)
         total_duration_seconds = (
             closed_at - input.workflow_started_at
         ).total_seconds()

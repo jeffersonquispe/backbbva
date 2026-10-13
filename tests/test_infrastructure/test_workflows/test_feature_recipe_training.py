@@ -8,7 +8,10 @@ import pytest
 
 from src.application.ports.model_port import ModelRecord, ModelStatus, TrainingConfig
 from src.infrastructure.workflows.celery.model_evaluation import train_model_bundle
-from src.infrastructure.workflows.celery.model_training import build_feature_frame, target_vector
+from src.infrastructure.workflows.celery.model_training import (
+    build_feature_frame,
+    target_vector,
+)
 
 
 def definition():
@@ -115,7 +118,9 @@ def test_target_with_one_class_is_rejected_before_training():
 
 
 def test_explicit_history_filters_match_preview_training_and_scoring():
-    from src.application.use_cases.models.feature_engineering import PreviewFeaturesUseCase
+    from src.application.use_cases.models.feature_engineering import (
+        PreviewFeaturesUseCase,
+    )
     from src.infrastructure.entrypoint.mcp.scoring import score_row
 
     config = definition()

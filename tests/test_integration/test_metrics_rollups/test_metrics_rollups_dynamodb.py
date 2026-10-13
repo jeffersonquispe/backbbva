@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -32,7 +32,9 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
 )
 from src.domain.alerts.exceptions import SnapshotVersionConflictError
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
 from src.infrastructure.persistence.database.dynamodb.manager import (
     create_table,
     ensure_global_secondary_indexes,
@@ -85,7 +87,7 @@ def cleanup():
     for alert_id in alert_ids:
         alert = alerts.get(alert_id)
         if alert is not None and alert.metrics is not None:
-            for delta in diff(None, alert.metrics, alert.created_at, datetime.now(timezone.utc), TZ):
+            for delta in diff(None, alert.metrics, alert.created_at, datetime.now(UTC), TZ):
                 rollups_table.delete_item(
                     Key={
                         "pk": partition_key(delta.key.data_type, delta.key.level, delta.key.period),
@@ -144,7 +146,7 @@ def _periods(created_at: datetime) -> dict[RollupLevel, str]:
 def test_transaction_writes_snapshot_and_all_levels_with_ttl_on_day_only(repos, cleanup):
     alerts, rollups = repos
     origin = f"itest-{uuid.uuid4()}"
-    created_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    created_at = datetime.now(UTC) - timedelta(minutes=5)
     alert = _alert(alerts, created_at, cleanup)
 
     recorder = _recorder(alerts, rollups)
@@ -186,7 +188,7 @@ def test_transaction_writes_snapshot_and_all_levels_with_ttl_on_day_only(repos, 
 def test_retry_never_double_counts(repos, cleanup):
     alerts, rollups = repos
     origin = f"itest-{uuid.uuid4()}"
-    created_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    created_at = datetime.now(UTC) - timedelta(minutes=5)
     alert = _alert(alerts, created_at, cleanup)
     recorder = _recorder(alerts, rollups)
     created = RecordAlertMetricsEventInput(alert.id, AlertMetricsEventType.CREATED, origin=origin)
@@ -196,7 +198,7 @@ def test_retry_never_double_counts(repos, cleanup):
     assert recorder.execute(created) == first
     # A raw replay of the already-committed transaction: the version guard
     # rejects it and nothing is added.
-    deltas = diff(None, first, alert.created_at, datetime.now(timezone.utc), TZ)
+    deltas = diff(None, first, alert.created_at, datetime.now(UTC), TZ)
     with pytest.raises(SnapshotVersionConflictError):
         rollups.apply(
             deltas,
@@ -209,7 +211,7 @@ def test_retry_never_double_counts(repos, cleanup):
 def test_version_race_one_writer_fails_and_retries_on_the_new_snapshot(repos, cleanup):
     alerts, rollups = repos
     origin = f"itest-{uuid.uuid4()}"
-    created_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    created_at = datetime.now(UTC) - timedelta(minutes=5)
     alert = _alert(alerts, created_at, cleanup)
     _recorder(alerts, rollups).execute(
         RecordAlertMetricsEventInput(alert.id, AlertMetricsEventType.CREATED, origin=origin)
@@ -260,8 +262,8 @@ def test_version_race_one_writer_fails_and_retries_on_the_new_snapshot(repos, cl
 def test_created_day_index_returns_only_that_bogota_day(repos, cleanup):
     alerts, _ = repos
     # 2001-03-04 23:30 Bogota (= 03-05 04:30 UTC) and 2001-03-05 00:30 Bogota.
-    late = _alert(alerts, datetime(2001, 3, 5, 4, 30, tzinfo=timezone.utc), cleanup)
-    next_day = _alert(alerts, datetime(2001, 3, 5, 5, 30, tzinfo=timezone.utc), cleanup)
+    late = _alert(alerts, datetime(2001, 3, 5, 4, 30, tzinfo=UTC), cleanup)
+    next_day = _alert(alerts, datetime(2001, 3, 5, 5, 30, tzinfo=UTC), cleanup)
 
     day = alerts.list_by_created_day(date(2001, 3, 4))
     ids = {a.id for a in day}

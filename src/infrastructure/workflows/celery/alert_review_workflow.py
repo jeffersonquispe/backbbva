@@ -5,37 +5,98 @@ import json
 import logging
 import time
 import uuid
+from datetime import UTC, datetime
 from functools import lru_cache
-from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
-from src.application.dtos.alert_metrics_dtos import AlertMetricsEventType, RecordAlertMetricsEventInput
-from src.application.dtos.technical_metrics_dtos import RecordWorkflowStepMetricsInput
-from src.application.use_cases.metrics.evaluate_alert_reasoning import is_sampled_for_evaluation
-from src.application.dtos.adversarial_review_alert_dtos import AdversarialReviewAlertInput, AdversarialReviewAlertOutput
-from src.application.dtos.analyst_review_alert_dtos import AnalystReviewAlertInput, AnalystReviewAlertOutput
-from src.application.dtos.classify_alert_dtos import ClassifyAlertInput, ClassifyAlertOutput
+
+from src.application.dtos.adversarial_review_alert_dtos import (
+    AdversarialReviewAlertInput,
+    AdversarialReviewAlertOutput,
+)
+from src.application.dtos.alert_metrics_dtos import (
+    AlertMetricsEventType,
+    RecordAlertMetricsEventInput,
+)
+from src.application.dtos.analyst_review_alert_dtos import (
+    AnalystReviewAlertInput,
+    AnalystReviewAlertOutput,
+)
+from src.application.dtos.classify_alert_dtos import (
+    ClassifyAlertInput,
+    ClassifyAlertOutput,
+)
 from src.application.dtos.discard_alert_dtos import DiscardAlertInput
-from src.application.dtos.evaluate_deterministic_rules_dtos import DeterministicRuleMatch
+from src.application.dtos.evaluate_deterministic_rules_dtos import (
+    DeterministicRuleMatch,
+)
 from src.application.dtos.generate_agent_text_dtos import GenerateAgentTextInput
-from src.application.dtos.post_process_alert_dtos import PostProcessAlertInput, PostProcessAlertOutput
-from src.application.dtos.pre_process_dtos import PreProcessAlertInput, PreProcessAlertOutput
-from src.application.dtos.profile_alert_dtos import ProfileAlertInput, ProfileAlertOutput
+from src.application.dtos.post_process_alert_dtos import (
+    PostProcessAlertInput,
+    PostProcessAlertOutput,
+)
+from src.application.dtos.pre_process_dtos import (
+    PreProcessAlertInput,
+    PreProcessAlertOutput,
+)
+from src.application.dtos.profile_alert_dtos import (
+    ProfileAlertInput,
+    ProfileAlertOutput,
+)
+from src.application.dtos.technical_metrics_dtos import RecordWorkflowStepMetricsInput
 from src.application.ports.alert_port import AlertOrigin, AlertStatus
-from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
-from src.application.ports.monitoring_port import ATTR_ALERT_ID, ATTR_WORKFLOW_ATTEMPT, ATTR_WORKFLOW_EXECUTION_ID, ATTR_WORKFLOW_OUTCOME, ATTR_WORKFLOW_STEP, WORKFLOW_TOTAL_STEP, MonitoringSpan, span_dimension_attributes
 from src.application.ports.async_operation_port import AsyncOperationStatus
-from src.application.ports.configuration_port import AdversarialConfig, AgentToolsConfig, ClassificationConfig, DocumentationStrategy, ProfilingStrategyKey
-from src.application.ports.workflow_port import WorkflowExecutionRecord, WorkflowStatus, WorkflowStepExecutionRecord, WorkflowStepStatus
-from src.application.ports.workflow_status_port import WorkflowStatusReporter, WorkflowStatusUpdate
+from src.application.ports.configuration_port import (
+    AdversarialConfig,
+    AgentToolsConfig,
+    ClassificationConfig,
+    DocumentationStrategy,
+    ProfilingStrategyKey,
+)
+from src.application.ports.monitoring_port import (
+    ATTR_ALERT_ID,
+    ATTR_WORKFLOW_ATTEMPT,
+    ATTR_WORKFLOW_EXECUTION_ID,
+    ATTR_WORKFLOW_OUTCOME,
+    ATTR_WORKFLOW_STEP,
+    WORKFLOW_TOTAL_STEP,
+    MonitoringSpan,
+    span_dimension_attributes,
+)
+from src.application.ports.workflow_port import (
+    WorkflowExecutionRecord,
+    WorkflowStatus,
+    WorkflowStepExecutionRecord,
+    WorkflowStepStatus,
+)
+from src.application.ports.workflow_status_port import (
+    WorkflowStatusReporter,
+    WorkflowStatusUpdate,
+)
+from src.application.use_cases.alerts.agent_gate import agent_off_skip_reason
+from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
+from src.application.use_cases.metrics.evaluate_alert_reasoning import (
+    is_sampled_for_evaluation,
+)
+from src.domain.alerts.rule_conditions import evaluate_condition
+from src.domain.configurations.exceptions import ConfigurationNotFoundError
+from src.domain.models.prompt_template import substitute_variables
+from src.infrastructure.workflows.celery.executor_text import (
+    _ARIC_MARKING_SYSTEM_PROMPT,
+    _DOCUMENTADOR_SYSTEM_PROMPT,
+    _executor_variables_pool,
+    _voicebot_script,
+)
 from src.infrastructure.workflows.celery.factories import (
+    get_adversarial_review_alert_use_case,
     get_alert_action_dispatcher,
+    get_alert_object_storage,
     get_alert_repository,
+    get_alert_schema_repository,
     get_analyst_decision_documenter,
     get_analyst_escalation_dispatcher,
-    get_async_operation_repository,
-    get_adversarial_review_alert_use_case,
     get_analyst_review_alert_use_case,
+    get_async_operation_repository,
     get_classify_alert_use_case,
     get_configuration_repository,
     get_discard_alert_use_case,
@@ -43,34 +104,39 @@ from src.infrastructure.workflows.celery.factories import (
     get_generate_agent_text_use_case,
     get_model_repository,
     get_model_storage,
+    get_operational_settings_repository,
     get_post_process_alert_use_case,
     get_pre_process_alert_use_case,
     get_profile_alert_use_case,
-    get_operational_settings_repository,
+    get_reasoning_evaluation_dispatcher,
     get_record_alert_metrics_event_use_case,
     get_record_workflow_step_metrics_use_case,
-    get_reasoning_evaluation_dispatcher,
-    llm_step_models,
     get_route_alert_resolution_use_case,
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
-    get_alert_object_storage,
-    get_alert_schema_repository,
+    llm_step_models,
+)
+from src.infrastructure.workflows.celery.history_research import _history_rounds
+from src.infrastructure.workflows.celery.step_context import (
+    _active_segment,
+    _alert_payload,
+    _effective_max_detector_feedback_iterations,
+    _effective_max_feedback_iterations,
+    _evaluation_labels,
+    _pre_process_comparison_value,
+    _rubric_prompt_context,
+    _step_overrides,
+    _step_reporting_ids,
+    _variables_pool,
 )
 from src.infrastructure.workflows.celery.task_factories import (
     get_raw_alert_payload_loader,
     get_resolve_alert_segment_use_case,
 )
-from src.domain.alerts.rule_conditions import evaluate_condition
-from src.application.use_cases.alerts.agent_gate import agent_off_skip_reason
-from src.domain.configurations.exceptions import ConfigurationNotFoundError
-from src.domain.models.prompt_template import substitute_variables
-from src.infrastructure.workflows.queued.queued_status_reporter import QueuedWorkflowStatusReporter
-from src.infrastructure.workflows.celery.executor_text import _ARIC_MARKING_SYSTEM_PROMPT, _DOCUMENTADOR_SYSTEM_PROMPT, _executor_variables_pool, _voicebot_script
-from src.infrastructure.workflows.celery.history_research import _history_rounds
-from src.infrastructure.workflows.celery.step_context import _active_segment, _alert_payload, _effective_max_detector_feedback_iterations, _effective_max_feedback_iterations, _evaluation_labels, _pre_process_comparison_value, _rubric_prompt_context, _step_overrides, _step_reporting_ids, _variables_pool
 from src.infrastructure.workflows.celery.xgboost_score import _XGBoostScore
-
+from src.infrastructure.workflows.queued.queued_status_reporter import (
+    QueuedWorkflowStatusReporter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +363,7 @@ class AlertReviewWorkflowRunner:
             if discarded:
                 match = context["deterministic"]
                 duration = (
-                    datetime.now(timezone.utc) - workflow.created_at
+                    datetime.now(UTC) - workflow.created_at
                 ).total_seconds()
                 output = {
                     "message": "Alert discarded by deterministic rule match",
@@ -317,7 +383,7 @@ class AlertReviewWorkflowRunner:
                     "total_duration_seconds": post_process.total_duration_seconds,
                 }
                 current_step = "post_process"
-            finished_at = datetime.now(timezone.utc)
+            finished_at = datetime.now(UTC)
             self._status.flush()
             self._workflows.update(
                 workflow.id,
@@ -353,7 +419,7 @@ class AlertReviewWorkflowRunner:
             return {"status": "ok", "workflow_execution_id": str(workflow.id)}
         except Exception as exc:
             error = str(exc)
-            finished_at = datetime.now(timezone.utc)
+            finished_at = datetime.now(UTC)
             self._status.flush()
             self._workflows.update(
                 workflow.id,
@@ -417,7 +483,7 @@ class AlertReviewWorkflowRunner:
             "origin": origin.value,
             "total_duration_seconds": 0,
         }
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self._workflows.update(
             workflow.id,
             status=WorkflowStatus.SUCCEEDED,
@@ -528,7 +594,7 @@ class AlertReviewWorkflowRunner:
         context: dict[str, Any],
         attempt: int = 1,
     ) -> dict[str, Any]:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         step = self._steps.create(
             WorkflowStepExecutionRecord(
                 id=uuid.uuid4(),
@@ -572,7 +638,7 @@ class AlertReviewWorkflowRunner:
                 if dataclasses.is_dataclass(output)
                 else output
             )
-            finished_at = datetime.now(timezone.utc)
+            finished_at = datetime.now(UTC)
             self._status.report(
                 WorkflowStatusUpdate(
                     workflow_execution_id=workflow.id,
@@ -592,7 +658,7 @@ class AlertReviewWorkflowRunner:
             self._finish_step_span(
                 step_span, step_name, WorkflowStepStatus.FAILED, step_started, str(exc)
             )
-            finished_at = datetime.now(timezone.utc)
+            finished_at = datetime.now(UTC)
             # Must go through the queue, not a direct self._steps.update():
             # a progress report from mid-step (e.g. profile_alert's
             # _report_progress) may still be pending/in-flight for this same

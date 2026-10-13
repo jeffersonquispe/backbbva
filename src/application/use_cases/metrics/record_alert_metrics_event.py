@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -28,6 +28,7 @@ from src.application.ports.alert_port import (
     AlertStatus,
     Mark,
 )
+from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.metrics_rollup_port import (
     AlertSnapshotGuard,
     MetricsRollupRepository,
@@ -41,7 +42,6 @@ from src.application.ports.monitoring_port import (
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
 )
-from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.use_cases.metrics.alert_mark_mapping import (
     analyst_resolution,
     voicebot_outcome_mark,
@@ -88,7 +88,7 @@ class RecordAlertMetricsEvent:
         settings_repository: OperationalSettingsRepository,
         timezone_name: str,
         schema_repository: AlertSchemaRepository | None = None,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         monitoring: MonitoringPort | None = None,
     ) -> None:
         self._alerts = alert_repository

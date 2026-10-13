@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from src.application.ports.async_operation_port import (
@@ -24,7 +24,7 @@ class _Repository:
 
 
 def _operation(operation_type: str) -> AsyncOperationRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return AsyncOperationRecord(
         id=uuid4(),
         operation_type=operation_type,

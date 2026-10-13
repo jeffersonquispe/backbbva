@@ -16,16 +16,16 @@ from src.application.use_cases.test_runs.classification_metrics import (
     compute_analyst_agreement_metrics,
     compute_ground_truth_metrics,
 )
+from src.application.use_cases.test_runs.dataset_sampling import (
+    MARCACION_FIELD,
+    TIPO_FIELD,
+)
 from src.application.use_cases.test_runs.duration_stats import (
     compute_stats,
     step_duration_stats_by_name,
     workflow_duration,
 )
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
-from src.application.use_cases.test_runs.dataset_sampling import (
-    MARCACION_FIELD,
-    TIPO_FIELD,
-)
 
 _FAILED = {WorkflowStatus.FAILED}
 _RUNNING = {WorkflowStatus.RUNNING, WorkflowStatus.DISPATCHED}

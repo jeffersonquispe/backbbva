@@ -1,29 +1,29 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
 import src.infrastructure.workflows.celery.factories as factories
-from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
 from src.application.ports.configuration_port import (
     AgentSettings,
     ClassificationConfig,
-    DelegatedResearchSettings,
-    VectorStoreResearchConfig,
     ConfigurationRecord,
+    DelegatedResearchSettings,
     GeneralSettings,
     InfraSettings,
     SegmentSettings,
     TestSettings,
+    VectorStoreResearchConfig,
 )
+from src.application.use_cases.research.research_tool import BoundedResearchTool
 
 
 def _config_with_segment(segment: SegmentSettings) -> ConfigurationRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return ConfigurationRecord(
         configuration_id="cfg-1",
         version=1,

@@ -4,7 +4,10 @@ import pytest
 
 from src.application.dtos.model_dtos import CreateModelInput
 from src.application.use_cases.models.create_model import CreateModelUseCase
-from src.application.use_cases.models.feature_engineering import FeatureTemplatesUseCase, PreviewFeaturesUseCase
+from src.application.use_cases.models.feature_engineering import (
+    FeatureTemplatesUseCase,
+    PreviewFeaturesUseCase,
+)
 
 
 def configuration():

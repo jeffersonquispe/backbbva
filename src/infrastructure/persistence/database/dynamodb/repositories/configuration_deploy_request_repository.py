@@ -2,10 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from src.application.ports.configuration_deploy_request_port import ConfigurationDeployRequest
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
-from src.infrastructure.persistence.database.dynamodb.serialization import from_dynamodb, to_dynamodb
-
+from src.application.ports.configuration_deploy_request_port import (
+    ConfigurationDeployRequest,
+)
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
+from src.infrastructure.persistence.database.dynamodb.serialization import (
+    from_dynamodb,
+    to_dynamodb,
+)
 
 TABLE_NAME = "configuration_deploy_requests"
 

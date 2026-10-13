@@ -4,7 +4,7 @@ warnings read back from rows written by the real writers
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -32,7 +32,7 @@ from src.application.use_cases.metrics.technical_rollup_contribution import (
 )
 
 TZ = "America/Bogota"
-NOW = datetime(2026, 10, 1, 15, 30, tzinfo=timezone.utc)  # 10:30 Bogota
+NOW = datetime(2026, 10, 1, 15, 30, tzinfo=UTC)  # 10:30 Bogota
 
 
 class InMemoryRollupRepository:
@@ -124,8 +124,8 @@ def _use_case(rollups) -> GetTechnicalMetrics:
 def seeded():
     rollups, alerts, steps = InMemoryRollupRepository(), Alerts(), Steps()
     # 08:00 Bogota today (WEB) and 20:00 Bogota yesterday (APP, tier set v2).
-    a = _record_alert(rollups, alerts, steps, created_at=datetime(2026, 10, 1, 13, tzinfo=timezone.utc), channel="WEB")
-    b = _record_alert(rollups, alerts, steps, created_at=datetime(2026, 10, 1, 1, tzinfo=timezone.utc), channel="APP", tier_version=2)
+    a = _record_alert(rollups, alerts, steps, created_at=datetime(2026, 10, 1, 13, tzinfo=UTC), channel="WEB")
+    b = _record_alert(rollups, alerts, steps, created_at=datetime(2026, 10, 1, 1, tzinfo=UTC), channel="APP", tier_version=2)
     # One judged alert: hallucinated, data used incorrectly.
     part = evaluation_contribution(
         technical_alert_dimensions(a.metrics), hallucination=True, data_use_correct=False
@@ -184,7 +184,7 @@ def test_range_excludes_hours_outside(seeded) -> None:
     rollups, _, _ = seeded
     out = _use_case(rollups).execute(
         MetricsQueryInput(
-            from_=datetime(2026, 10, 1, 12, tzinfo=timezone.utc),  # 07:00 Bogota
+            from_=datetime(2026, 10, 1, 12, tzinfo=UTC),  # 07:00 Bogota
             to=NOW,
         )
     )

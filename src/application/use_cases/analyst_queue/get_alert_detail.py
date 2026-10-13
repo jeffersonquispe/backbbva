@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.dtos.analyst_queue_dtos import AlertDetail
@@ -31,7 +31,7 @@ class GetAlertDetailUseCase:
         reservation_repository: ResourceReservationRepository,
         workflow_repository: WorkflowExecutionRepository,
         step_repository: WorkflowStepExecutionRepository,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._alerts = alert_repository
         self._reservations = reservation_repository

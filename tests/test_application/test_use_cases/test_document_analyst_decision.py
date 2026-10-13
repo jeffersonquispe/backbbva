@@ -12,7 +12,10 @@ from src.application.ports.llm_unit_of_work_port import (
     LLMUnitOfWorkFactory,
 )
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
-from src.application.ports.object_storage_port import ObjectStoragePort, ObjectStorageRef
+from src.application.ports.object_storage_port import (
+    ObjectStoragePort,
+    ObjectStorageRef,
+)
 from src.application.use_cases.alerts.document_analyst_decision import (
     DocumentAnalystDecisionUseCase,
 )

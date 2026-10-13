@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 from collections import Counter
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from numbers import Number
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -71,7 +71,7 @@ class AnalyzeAlertSchemaPresenceUseCase:
             previous_count = previous_by_field.get(schema_field.id)
             fields.append(_field_report(schema_field, values, len(alerts), previous_count, schema_field.id in role_field_ids))
 
-        generated_at = datetime.now(timezone.utc)
+        generated_at = datetime.now(UTC)
         report = AlertSchemaPresenceReport(
             report_day=report_day,
             generated_at=generated_at,

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import dataclasses
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 from uuid import UUID
 
 from src.application.dtos.classify_alert_dtos import (
@@ -25,10 +26,10 @@ from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
 )
+from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.application.use_cases.watchlists.check_watchlist_membership import (
     WatchlistMatch,
 )
-from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.domain.alerts.calculator import CalculatorError, safe_calculate
 
 # ReAct loop: model alternates Thought/Action/Action Input turns (each

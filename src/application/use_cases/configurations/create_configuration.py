@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 import uuid
-
-from datetime import datetime, timezone
-
-from src.application.ports.test_run_port import TestRunRepository
+from datetime import UTC, datetime
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
 from src.application.ports.configuration_port import (
     ConfigurationRecord,
     ConfigurationRepository,
 )
+from src.application.ports.test_run_port import TestRunRepository
 
 
 class ConfigurationVersionConflictError(Exception):
@@ -27,7 +25,7 @@ class CreateConfigurationUseCase:
         self._configurations = configuration_repository
 
     def execute(self, input: CreateConfigurationInput) -> ConfigurationRecord:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         overwrite = False
         if input.configuration_id is not None:
             latest = self._configurations.get_latest_version(input.configuration_id)

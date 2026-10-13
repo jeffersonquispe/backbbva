@@ -1,11 +1,19 @@
 from functools import lru_cache
 
 from src.application.use_cases.auth.local_auth import (
-    AuthenticateLocalUserUseCase, ChangeLocalUserPasswordUseCase, GetCurrentLocalUserUseCase,
-    ListLocalUsersUseCase, LogoutLocalUserUseCase, RegisterLocalUserUseCase,
+    AuthenticateLocalUserUseCase,
+    ChangeLocalUserPasswordUseCase,
+    GetCurrentLocalUserUseCase,
+    ListLocalUsersUseCase,
+    LogoutLocalUserUseCase,
+    RegisterLocalUserUseCase,
 )
-from src.infrastructure.persistence.database.dynamodb.repositories.local_user_repository import DynamoLocalUserRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.revoked_token_repository import DynamoRevokedTokenRepository
+from src.infrastructure.persistence.database.dynamodb.repositories.local_user_repository import (
+    DynamoLocalUserRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.revoked_token_repository import (
+    DynamoRevokedTokenRepository,
+)
 from src.infrastructure.security.local_auth import JwtService, PasswordHasher
 
 

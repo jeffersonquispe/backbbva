@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -30,7 +30,6 @@ from src.application.ports.alert_port import (
     Mark,
 )
 from src.application.ports.metrics_rollup_port import (
-    MetricsDataType,
     RollupKey,
     RollupLevel,
     RollupRow,
@@ -51,14 +50,14 @@ from src.domain.alerts.exceptions import SnapshotVersionConflictError
 
 TZ = "America/Bogota"
 BOG = ZoneInfo(TZ)
-NOW = datetime(2026, 10, 1, 7, 0, tzinfo=timezone.utc)  # 02:00 Bogota
+NOW = datetime(2026, 10, 1, 7, 0, tzinfo=UTC)  # 02:00 Bogota
 DAY = date(2026, 9, 28)
 PAYLOAD = {"channel": "WEB", "integrationPoint": "PSE", "amount": {"baseValue": 1500}}
 
 
 def at(day: date, hour: int, minute: int = 0) -> datetime:
     return datetime(day.year, day.month, day.day, hour, minute, tzinfo=BOG).astimezone(
-        timezone.utc
+        UTC
     )
 
 

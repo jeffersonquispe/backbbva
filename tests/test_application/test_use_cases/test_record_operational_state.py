@@ -1,7 +1,7 @@
 """RecordOperationalState: the 60 s operational-gauge sample, with fakes."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from src.application.ports.alert_port import AlertRecord, AlertStatus
@@ -22,7 +22,7 @@ from src.application.use_cases.metrics.record_operational_state import (
 
 TZ = "America/Bogota"
 # 15:00 UTC = 10:00 Bogota, on the 1st (no day override -> "regular").
-NOW = datetime(2026, 10, 1, 15, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 15, 0, tzinfo=UTC)
 
 
 def _staffing(hour_10: int) -> AnalystCapacity:

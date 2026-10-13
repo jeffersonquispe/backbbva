@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.dtos.alert_metrics_dtos import (
@@ -42,7 +42,7 @@ class ResolveEscalatedAlertUseCase:
         alert_repository: AlertRepository,
         reservation_repository: ResourceReservationRepository,
         action_dispatcher: AlertActionDispatcher,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         metrics_recorder: RecordAlertMetricsEvent | None = None,
     ) -> None:
         self._alerts = alert_repository

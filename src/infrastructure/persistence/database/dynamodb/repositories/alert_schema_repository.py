@@ -12,9 +12,13 @@ from src.application.ports.alert_schema_port import (
     AlertSchemaStatus,
     AlertSchemaVersion,
 )
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
-from src.infrastructure.persistence.database.dynamodb.serialization import from_dynamodb, to_dynamodb
-
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
+from src.infrastructure.persistence.database.dynamodb.serialization import (
+    from_dynamodb,
+    to_dynamodb,
+)
 
 TABLE_NAME = "alert_schema_versions"
 

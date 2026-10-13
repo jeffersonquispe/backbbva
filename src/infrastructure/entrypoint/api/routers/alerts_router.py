@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from datetime import datetime, timezone
 import hashlib
 import json
+import uuid
+from dataclasses import asdict
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
@@ -15,26 +15,26 @@ from src.application.dtos.alert_dtos import (
     CurateAlertToDatasetInput,
     StartAlertWorkflowInput,
 )
-from src.application.ports.alert_port import AlertOrigin
-from src.application.use_cases.alerts.curate_alert_to_dataset import (
-    CurateAlertToDatasetUseCase,
-)
-from src.application.use_cases.alerts.start_alert_test_workflow import (
-    StartAlertTestWorkflowUseCase,
-)
 from src.application.dtos.alert_history_dtos import (
     AlertHistoryItem,
     ListAlertHistoryInput,
 )
 from src.application.dtos.fraud_review_dtos import ReviewFraudLabelInput
+from src.application.ports.alert_port import AlertOrigin
 from src.application.ports.fraud_label_review_port import (
     FraudLabelReview,
     FraudLabelReviewChannel,
 )
 from src.application.ports.local_auth_port import LocalUser
+from src.application.use_cases.alerts.curate_alert_to_dataset import (
+    CurateAlertToDatasetUseCase,
+)
 from src.application.use_cases.alerts.list_alert_history import (
     InvalidHistoryCursorError,
     ListAlertHistory,
+)
+from src.application.use_cases.alerts.start_alert_test_workflow import (
+    StartAlertTestWorkflowUseCase,
 )
 from src.application.use_cases.fraud_review.get_fraud_label_review_import import (
     GetFraudLabelReviewImport,
@@ -52,6 +52,15 @@ from src.domain.alerts.exceptions import (
     InvalidFraudLabelError,
 )
 from src.infrastructure.entrypoint.api.authorization import require_permission
+from src.infrastructure.entrypoint.api.factories.alert_factory import (
+    get_alert_object_storage,
+    get_alert_repository,
+    get_curate_alert_to_dataset_use_case,
+    get_start_alert_test_workflow_use_case,
+)
+from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
+    get_alert_schema_repository,
+)
 from src.infrastructure.entrypoint.api.factories.fraud_review_factory import (
     get_get_fraud_label_review_import_use_case,
     get_list_alert_history_use_case,
@@ -63,13 +72,6 @@ from src.infrastructure.entrypoint.api.metrics_query_params import (
     MetricsQueryParams,
     metrics_query_params,
 )
-from src.infrastructure.entrypoint.api.factories.alert_factory import (
-    get_alert_object_storage,
-    get_alert_repository,
-    get_curate_alert_to_dataset_use_case,
-    get_start_alert_test_workflow_use_case,
-)
-from src.infrastructure.entrypoint.api.factories.alert_schema_factory import get_alert_schema_repository
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas import (
     AlertHistoryItemSchema,
@@ -131,7 +133,7 @@ def get_raw_alert(alert_id: UUID, user=Depends(get_current_user)):
         _apply_raw_sensitivity(payload, field.field_ds_loc, field.sensitivity_strategy)
     storage.put_text(
         f"alerts/{alert_id}/audit/raw-access/{uuid.uuid4()}.json",
-        json.dumps({"alert_id": str(alert_id), "user_id": str(user.id), "accessed_at": datetime.now(timezone.utc).isoformat()}),
+        json.dumps({"alert_id": str(alert_id), "user_id": str(user.id), "accessed_at": datetime.now(UTC).isoformat()}),
         "application/json",
     )
     return payload

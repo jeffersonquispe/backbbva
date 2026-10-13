@@ -5,14 +5,18 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 
 from src.application.dtos.reasoning_evaluation_dtos import EvaluateAlertReasoningInput
-from src.application.ports.alert_port import AlertMetricsSnapshot, AlertRecord, AlertStatus
+from src.application.ports.alert_port import (
+    AlertMetricsSnapshot,
+    AlertRecord,
+    AlertStatus,
+)
 from src.application.ports.alert_reasoning_evaluation_port import (
     AlertReasoningEvaluationRecord,
     ReasoningEvaluationStatus,
@@ -37,8 +41,8 @@ from src.application.use_cases.metrics.evaluate_alert_reasoning import (
 )
 
 TZ = "America/Bogota"
-NOW = datetime(2026, 10, 1, 15, 30, tzinfo=timezone.utc)
-CREATED = datetime(2026, 10, 1, 13, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 15, 30, tzinfo=UTC)
+CREATED = datetime(2026, 10, 1, 13, 0, tzinfo=UTC)
 VERDICT = '{"hallucination": true, "data_use_correct": false, "rationale": "Cita un monto que no está en el payload."}'
 
 
@@ -46,7 +50,7 @@ VERDICT = '{"hallucination": true, "data_use_correct": false, "rationale": "Cita
 
 
 class ScriptedLLMUnitOfWork(LLMUnitOfWork):
-    def __init__(self, factory: "ScriptedLLMFactory") -> None:
+    def __init__(self, factory: ScriptedLLMFactory) -> None:
         self._factory = factory
 
     def invoke(self, messages: list[LLMMessage]) -> LLMInvocationResult:

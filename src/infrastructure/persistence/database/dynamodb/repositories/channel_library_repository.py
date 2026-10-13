@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.application.ports.channel_library_port import (
@@ -53,7 +53,7 @@ class DynamoChannelLibraryRepository(ChannelLibraryRepository):
             description=description if description is not None else current.description,
             active=active if active is not None else current.active,
             created_at=current.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
         self._table.put_item(Item=_to_item(updated))
         return updated

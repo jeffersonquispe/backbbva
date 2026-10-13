@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.monitoring_port import MonitoringPort
@@ -43,7 +43,7 @@ class CreateTaxonomyLibraryEntryUseCase:
         for existing in self._entries.list():
             if " ".join(existing.name.split()).casefold() == normalized_name:
                 return existing
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         examples = examples or []
         uow = self._embedding_unit_of_work_factory.create(
             model=self._embedding_model,

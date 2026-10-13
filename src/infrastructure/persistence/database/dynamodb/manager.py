@@ -1,9 +1,10 @@
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from botocore.exceptions import ClientError
 
+from src.application.ports.channel_library_port import ChannelLibraryEntry
 from src.application.ports.configuration_port import (
     ConfigurationRecord,
     GeneralSettings,
@@ -11,42 +12,31 @@ from src.application.ports.configuration_port import (
     ResolutionTag,
     TestSettings,
 )
-from src.application.ports.channel_library_port import ChannelLibraryEntry
 from src.application.ports.marcacion_catalog_port import MarcacionCategory, RiskLabel
-from src.application.ports.resolution_method_catalog_port import ResolutionMethod
 from src.application.ports.operations_capacity_port import (
     ChannelCapacity,
     OperationsCapacityRecord,
 )
+from src.application.ports.resolution_method_catalog_port import ResolutionMethod
 from src.application.ports.tag_catalog_port import TagCategory, TagEntry
 from src.application.ports.variable_catalog_port import VariableEntry
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.channel_library_repository import (
+    DynamoChannelLibraryRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
     DynamoConfigurationRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.marcacion_catalog_repository import (
     DynamoMarcacionCatalogRepository,
 )
-from src.infrastructure.persistence.database.dynamodb.repositories.flag_library_repository import (
-    DynamoFlagLibraryRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.modus_operandi_library_repository import (
-    DynamoModusOperandiLibraryRepository,
-)
 from src.infrastructure.persistence.database.dynamodb.repositories.operations_capacity_repository import (
     DynamoOperationsCapacityRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.resolution_method_catalog_repository import (
     DynamoResolutionMethodCatalogRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.similar_case_library_repository import (
-    DynamoSimilarCaseLibraryRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.taxonomy_library_repository import (
-    DynamoTaxonomyLibraryRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.channel_library_repository import (
-    DynamoChannelLibraryRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.tag_catalog_repository import (
     DynamoTagCatalogRepository,
@@ -56,9 +46,14 @@ from src.infrastructure.persistence.database.dynamodb.repositories.variable_cata
 )
 from src.infrastructure.persistence.database.dynamodb.schemas import (
     ALERT_FIELD_MAPPINGS_TABLE,
+    ALERT_REASONING_EVALUATIONS_TABLE,
+    ALERT_SCHEMA_PRESENCE_REPORTS_TABLE,
+    ALERT_SCHEMA_SUGGESTIONS_TABLE,
+    ALERT_SCHEMA_VERSIONS_TABLE,
     ALERTS_TABLE,
     ASYNC_OPERATIONS_TABLE,
     AUDIT_LOG_TABLE,
+    CONFIGURATION_DEPLOY_REQUESTS_TABLE,
     CONFIGURATION_EVALUATION_TABLE,
     CONFIGURATION_EXAMPLES_TABLE,
     CONFIGURATION_FILTER_CONDITIONS_TABLE,
@@ -74,10 +69,6 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     CONFIGURATION_TAXONOMIES_TABLE,
     CONFIGURATION_VOICEBOT_PROMPTS_TABLE,
     CONFIGURATIONS_TABLE,
-    CONFIGURATION_DEPLOY_REQUESTS_TABLE,
-    ALERT_SCHEMA_VERSIONS_TABLE,
-    ALERT_SCHEMA_PRESENCE_REPORTS_TABLE,
-    ALERT_SCHEMA_SUGGESTIONS_TABLE,
     DATASET_SAMPLES_TABLE,
     DATASET_SUMMARIES_TABLE,
     FEEDBACK_TABLE,
@@ -87,27 +78,26 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     LIBRARY_MODUS_OPERANDI_TABLE,
     LIBRARY_SIMILAR_CASES_TABLE,
     LIBRARY_TAXONOMIES_TABLE,
-    METRICS_ROLLUPS_TABLE,
-    ALERT_REASONING_EVALUATIONS_TABLE,
-    VECTOR_STORE_INSTANCE_ASSETS_TABLE,
-    VECTOR_STORE_INSTANCES_TABLE,
     MARCACION_CATALOG_TABLE,
+    METRICS_ROLLUPS_TABLE,
     MODELS_TABLE,
     OPERATIONAL_SETTINGS_HISTORY_TABLE,
     OPERATIONAL_SETTINGS_TABLE,
     OPERATIONS_CAPACITY_TABLE,
+    RESOLUTION_METHOD_CATALOG_TABLE,
     RESOURCE_LOCKS_TABLE,
     RESOURCE_RESERVATIONS_TABLE,
     REVOKED_TOKENS_TABLE,
-    RESOLUTION_METHOD_CATALOG_TABLE,
     TAG_CATALOG_TABLE,
     TEST_RUNS_TABLE,
+    USERS_TABLE,
     VARIABLE_CATALOG_TABLE,
+    VECTOR_STORE_INSTANCE_ASSETS_TABLE,
+    VECTOR_STORE_INSTANCES_TABLE,
     WATCHLIST_ELEMENTS_TABLE,
     WATCHLIST_TABLE,
     WORKFLOW_EXECUTIONS_TABLE,
     WORKFLOW_STEP_EXECUTIONS_TABLE,
-    USERS_TABLE,
 )
 
 # Seeded once, only if missing - only its bidi entry is read today (analyst
@@ -116,7 +106,7 @@ _DEFAULT_CAPACITY = OperationsCapacityRecord(
     analysts=ChannelCapacity(available=5, status="available"),
     voicebot=ChannelCapacity(available=20, status="available"),
     bidi=ChannelCapacity(available=10, status="available"),
-    updated_at=datetime.now(timezone.utc),
+    updated_at=datetime.now(UTC),
 )
 
 # Seeded once (see seed_defaults) so a fresh environment always has exactly
@@ -377,7 +367,9 @@ def ensure_all_tables() -> None:
     create_table(RESOURCE_LOCKS_TABLE)
     create_table(RESOURCE_RESERVATIONS_TABLE)
     create_table(TEST_RUNS_TABLE)
-    from src.infrastructure.persistence.database.dynamodb.schemas import FEATURE_TEMPLATES_TABLE
+    from src.infrastructure.persistence.database.dynamodb.schemas import (
+        FEATURE_TEMPLATES_TABLE,
+    )
     create_table(FEATURE_TEMPLATES_TABLE)
     create_table(MODELS_TABLE)
     create_table(CONFIGURATIONS_TABLE)
@@ -429,7 +421,7 @@ def seed_defaults() -> None:
 
     configurations = DynamoConfigurationRepository()
     if configurations.get(_DEFAULT_CONFIGURATION_ID, 1) is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         default_config = configurations.create(
             ConfigurationRecord(
                 configuration_id=_DEFAULT_CONFIGURATION_ID,
@@ -457,7 +449,7 @@ def seed_defaults() -> None:
             {entry.value for entry in tags.list_by_category(category)},
         )
         if value not in existing_values:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             tags.create(
                 TagEntry(
                     id=str(uuid.uuid4()),
@@ -474,7 +466,7 @@ def seed_defaults() -> None:
     existing_marcacion_values = {entry.value for entry in marcacion.list()}
     for value, risk_label in _DEFAULT_MARCACION_CATEGORIES:
         if value not in existing_marcacion_values:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             marcacion.create(
                 MarcacionCategory(
                     id=str(uuid.uuid4()),
@@ -491,7 +483,7 @@ def seed_defaults() -> None:
     existing_method_values = {entry.value for entry in resolution_methods.list()}
     for value, tag in _DEFAULT_RESOLUTION_METHODS:
         if value not in existing_method_values:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             resolution_methods.create(
                 ResolutionMethod(
                     id=str(uuid.uuid4()),
@@ -517,7 +509,7 @@ def seed_defaults() -> None:
                 print(f"Variable predeterminada anterior desactivada: {entry.value}")
     for value in _DEFAULT_VARIABLES:
         if value not in existing_variable_values:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             variables.create(
                 VariableEntry(
                     id=str(uuid.uuid4()),
@@ -533,7 +525,7 @@ def seed_defaults() -> None:
     existing_channel_codes = {entry.code for entry in channels.list()}
     for code, name in _DEFAULT_CHANNELS:
         if code not in existing_channel_codes:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             channels.create(
                 ChannelLibraryEntry(
                     id=str(uuid.uuid4()),

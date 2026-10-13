@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -122,9 +122,9 @@ def _with_active(
         infra=config.infra,
         test=config.test,
         created_at=config.created_at,
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
         activated_at=(
-            datetime.now(timezone.utc)
+            datetime.now(UTC)
             if active and not config.activated_at
             else config.activated_at
         ),
@@ -148,8 +148,8 @@ class InMemoryTestRunRepository:
                 ),
                 status=TestRunStatus.SUCCEEDED,
                 total=1,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
 

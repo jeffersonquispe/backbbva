@@ -10,6 +10,7 @@ from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryEntry,
     ModusOperandiPlaybook,
 )
+from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 from src.application.use_cases.modus_operandi_library.create_modus_operandi_library_entry import (
     CreateModusOperandiLibraryEntryUseCase,
 )
@@ -24,6 +25,7 @@ from src.application.use_cases.modus_operandi_library.update_modus_operandi_libr
     ModusOperandiLibraryEntryNotFoundError,
     UpdateModusOperandiLibraryEntryUseCase,
 )
+from src.infrastructure.entrypoint.api.authorization import require_library_access
 from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import (
     get_create_modus_operandi_library_entry_use_case,
     get_delete_modus_operandi_library_entry_use_case,
@@ -31,15 +33,15 @@ from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory 
     get_modus_operandi_library_repository,
     get_update_modus_operandi_library_entry_use_case,
 )
-from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import get_knowledge_graph_service
-from src.application.ports.vector_store_instance_port import KnowledgeAssetType
+from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+    get_knowledge_graph_service,
+)
 from src.infrastructure.entrypoint.api.schemas import (
     CreateModusOperandiLibraryEntryRequest,
     ModusOperandiLibraryEntrySchema,
     ModusOperandiPlaybookSchema,
     UpdateModusOperandiLibraryEntryRequest,
 )
-from src.infrastructure.entrypoint.api.authorization import require_library_access
 
 router = APIRouter(prefix="/library/modus-operandi", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
 

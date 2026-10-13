@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.tag_catalog_port import (
     TagCatalogRepository,
@@ -15,7 +15,7 @@ class CreateTagUseCase:
         self._tags = tag_catalog_repository
 
     def execute(self, category: TagCategory, value: str) -> TagEntry:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return self._tags.create(
             TagEntry(
                 id=str(uuid.uuid4()),

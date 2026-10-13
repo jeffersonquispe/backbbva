@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -91,19 +91,19 @@ def test_logout_revokes_the_token_so_it_no_longer_resolves_a_user():
     current = GetCurrentLocalUserUseCase(users, revoked)
 
     LogoutLocalUserUseCase(revoked).execute(
-        token_id=first["jti"], expires_at=datetime.fromtimestamp(first["exp"], timezone.utc),
+        token_id=first["jti"], expires_at=datetime.fromtimestamp(first["exp"], UTC),
     )
 
     assert current.execute(registered.id, token_id=first["jti"]) is None
     # Logout ends that session only - another login (other tab/device) stays valid.
     assert current.execute(registered.id, token_id=second["jti"]) == registered
-    assert revoked.revoked[first["jti"]] == datetime.fromtimestamp(first["exp"], timezone.utc)
+    assert revoked.revoked[first["jti"]] == datetime.fromtimestamp(first["exp"], UTC)
 
 
 def test_logout_of_a_legacy_token_without_jti_is_a_no_op():
     revoked = InMemoryRevokedTokens()
 
-    LogoutLocalUserUseCase(revoked).execute(token_id=None, expires_at=datetime.now(timezone.utc))
+    LogoutLocalUserUseCase(revoked).execute(token_id=None, expires_at=datetime.now(UTC))
 
     assert revoked.revoked == {}
 

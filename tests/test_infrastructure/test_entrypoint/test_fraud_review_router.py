@@ -3,7 +3,7 @@ bulk review CSV - permissions, status codes, wire field names."""
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 os.environ.setdefault("GENAI_ENVIRONMENT", "test")
@@ -37,11 +37,13 @@ from src.application.ports.fraud_label_review_port import (
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.use_cases.fraud_review.review_fraud_label import parse_fraud_label
 from src.domain.alerts.exceptions import AlertNotFoundError
-from src.infrastructure.entrypoint.api.factories import fraud_review_factory as factories
+from src.infrastructure.entrypoint.api.factories import (
+    fraud_review_factory as factories,
+)
 from src.infrastructure.entrypoint.api.routers import alerts_router
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 
-NOW = datetime(2026, 10, 1, 15, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 15, 0, tzinfo=UTC)
 KNOWN = uuid4()
 
 

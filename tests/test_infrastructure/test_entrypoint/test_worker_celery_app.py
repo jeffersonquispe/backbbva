@@ -4,7 +4,10 @@ import os
 os.environ.setdefault("API_V0_STR", "/api/v0")
 os.environ.setdefault("GENAI_ENVIRONMENT", "test")
 
-from src.infrastructure.entrypoint.worker.celery.celery_app import app, periodic_schedule
+from src.infrastructure.entrypoint.worker.celery.celery_app import (
+    app,
+    periodic_schedule,
+)
 
 
 def test_periodic_schedule_reconciles_async_operations() -> None:

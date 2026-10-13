@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -73,7 +73,7 @@ class InMemoryAsyncOperationRepository:
             result=changes.get("result") or operation.result,
             error=changes.get("error") or operation.error,
             created_at=operation.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
             created_by=operation.created_by,
             dispatched_at=operation.dispatched_at,
             execution_backend=operation.execution_backend,
@@ -95,7 +95,7 @@ class StaticInspector(AsyncExecutionInspector):
 
 
 def _operation(status: AsyncOperationStatus) -> AsyncOperationRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return AsyncOperationRecord(
         id=uuid4(),
         operation_type="fraud.massive-review",

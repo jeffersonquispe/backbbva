@@ -1,25 +1,43 @@
 """Four disjoint partitions; fitted preprocessing and reproducible model artifact."""
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import asdict
 import hashlib
 import json
+from copy import deepcopy
+from dataclasses import asdict
 from time import monotonic
 
 import numpy as np
 import pandas as pd
-from sklearn.isotonic import IsotonicRegression
-from sklearn.metrics import (accuracy_score, average_precision_score, brier_score_loss,
-                             confusion_matrix, f1_score, log_loss, precision_score,
-                             recall_score, roc_auc_score, roc_curve, precision_recall_curve)
 from sklearn.calibration import calibration_curve
+from sklearn.isotonic import IsotonicRegression
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    brier_score_loss,
+    confusion_matrix,
+    f1_score,
+    log_loss,
+    precision_recall_curve,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+)
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
 
 from src.application.ports.model_port import ModelRecord, TrainingConfig
-from src.infrastructure.workflows.celery.historical_features import read_field, timestamp
-from src.infrastructure.workflows.celery.model_training import build_feature_frame, target_vector, XGB_PARAMS, SEED
+from src.infrastructure.workflows.celery.historical_features import (
+    read_field,
+    timestamp,
+)
+from src.infrastructure.workflows.celery.model_training import (
+    SEED,
+    XGB_PARAMS,
+    build_feature_frame,
+    target_vector,
+)
 
 
 def split_indices(rows: list[dict], y: np.ndarray, config: TrainingConfig) -> dict[str, np.ndarray]:

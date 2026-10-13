@@ -3,7 +3,7 @@ params reach the use case as filters, unknown filters answer 422."""
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 os.environ.setdefault("GENAI_ENVIRONMENT", "test")
@@ -19,7 +19,7 @@ from src.infrastructure.entrypoint.api.factories.metrics_factory import (
 from src.infrastructure.entrypoint.api.routers import metrics_router
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 
-NOW = datetime(2026, 10, 1, 15, 30, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 15, 30, tzinfo=UTC)
 
 
 class RecordingRollupRepository:

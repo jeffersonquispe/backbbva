@@ -551,7 +551,7 @@ class FilterGroup:
     id: str
     operator: LogicalOperator = LogicalOperator.AND
     conditions: list[FilterCondition] = field(default_factory=list)
-    groups: list["FilterGroup"] = field(default_factory=list)
+    groups: list[FilterGroup] = field(default_factory=list)
 
 
 @dataclass

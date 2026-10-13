@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
@@ -91,7 +91,7 @@ def _promoted_instance(instance_id: str = "vs-1", version: int = 1) -> VectorSto
         version=1,
         name="Instancia",
         description="",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         created_by="tester",
         promoted_version=version,
     )

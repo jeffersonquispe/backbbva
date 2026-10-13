@@ -5,7 +5,6 @@ from fastapi import Depends, HTTPException
 from src.application.ports.local_auth_port import ROLE_PERMISSIONS, LocalRole, LocalUser
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 
-
 LIBRARY_WRITER_ROLES = frozenset({
     LocalRole.MANAGER, LocalRole.CHANNEL_MANAGER, LocalRole.DATA_ANALYST,
 })

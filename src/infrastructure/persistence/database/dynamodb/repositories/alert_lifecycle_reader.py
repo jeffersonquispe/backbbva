@@ -30,6 +30,8 @@ from src.infrastructure.persistence.database.dynamodb.client import (
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.resource_reservation_repository import (
     RESERVATIONS_TABLE_NAME,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.resource_reservation_repository import (
     _from_item as reservation_from_item,
 )
 

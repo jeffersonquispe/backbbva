@@ -26,11 +26,11 @@ from src.infrastructure.entrypoint.api.factories.metrics_factory import (
     get_record_alert_metrics_event_use_case,
 )
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
-from src.infrastructure.persistence.database.dynamodb.repositories.fraud_label_review_repository import (
-    DynamoFraudLabelReviewRepository,
-)
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import (
     DynamoAlertSchemaRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.fraud_label_review_repository import (
+    DynamoFraudLabelReviewRepository,
 )
 
 

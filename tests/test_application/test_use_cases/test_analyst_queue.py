@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
@@ -59,7 +59,7 @@ from src.domain.alerts.exceptions import (
     NoAnalystCapacityError,
 )
 
-NOW = datetime(2026, 9, 28, 15, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 28, 15, 0, tzinfo=UTC)
 
 
 class InMemoryResourceReservationRepository:

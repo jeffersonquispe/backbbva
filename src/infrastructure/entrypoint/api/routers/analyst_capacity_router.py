@@ -5,6 +5,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 
+from src.application.ports.analyst_capacity_import_port import (
+    AnalystCapacityImportStatus,
+)
 from src.application.use_cases.analyst_capacity.get_analyst_capacity_import import (
     GetAnalystCapacityImportUseCase,
 )
@@ -14,9 +17,6 @@ from src.application.use_cases.analyst_capacity.upload_analyst_capacity_import i
 from src.infrastructure.entrypoint.api.factories.analyst_capacity_factory import (
     get_get_analyst_capacity_import_use_case,
     get_upload_analyst_capacity_import_use_case,
-)
-from src.application.ports.analyst_capacity_import_port import (
-    AnalystCapacityImportStatus,
 )
 from src.infrastructure.entrypoint.api.schemas import (
     AnalystCapacityImportProfileSchema,

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -7,6 +7,8 @@ from src.application.ports.configuration_port import (
     ConfigurationRecord,
     GeneralSettings,
     InfraSettings,
+)
+from src.application.ports.configuration_port import (
     TestSettings as ConfigurationTestSettings,
 )
 from src.application.use_cases.configurations.create_configuration import (
@@ -27,7 +29,7 @@ class InMemoryConfigurationRepository:
 
 
 def _record() -> ConfigurationRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return ConfigurationRecord(
         configuration_id="cfg-1",
         version=2,

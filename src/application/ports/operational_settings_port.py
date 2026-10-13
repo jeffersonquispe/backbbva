@@ -11,6 +11,7 @@ from src.application.ports.configuration_port import (
     ShortageBehavior,
     TestCleanupPolicy,
 )
+
 # AmountTier lives in the domain (domain/alerts/amount_tiers.py) next to
 # classify_amount/validate_amount_tiers; re-exported here as part of this
 # port's contract.

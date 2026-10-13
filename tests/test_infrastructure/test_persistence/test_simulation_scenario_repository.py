@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.simulation_scenario_port import (
     FieldGenerator,
@@ -18,7 +18,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.simulation_sc
 
 
 def _make_scenario(**overrides) -> SimulationScenarioRecord:
-    now = datetime(2026, 9, 26, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 26, tzinfo=UTC)
     defaults = dict(
         id=uuid.uuid4(),
         name="burst test",
@@ -114,7 +114,7 @@ def test_serializes_floats_as_decimal_for_dynamodb() -> None:
 def test_status_transition_round_trips() -> None:
     scenario = _make_scenario(
         status=ScenarioStatus.RUNNING,
-        started_at=datetime(2026, 9, 26, 1, 0, tzinfo=timezone.utc),
+        started_at=datetime(2026, 9, 26, 1, 0, tzinfo=UTC),
         events_emitted=42,
         last_tick_offset_seconds=120,
     )

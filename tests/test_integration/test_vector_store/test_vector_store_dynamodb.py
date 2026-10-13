@@ -17,18 +17,40 @@ from src.application.ports.embedding_port import (
 )
 from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
 from src.application.ports.vector_store_instance_port import KnowledgeAssetType
-from src.application.use_cases.flag_library.create_flag_library_entry import CreateFlagLibraryEntryUseCase
-from src.application.use_cases.modus_operandi_library.create_modus_operandi_library_entry import CreateModusOperandiLibraryEntryUseCase
-from src.application.use_cases.similar_case_library.create_similar_case_library_entry import CreateSimilarCaseLibraryEntryUseCase
-from src.application.use_cases.taxonomy_library.create_taxonomy_library_entry import CreateTaxonomyLibraryEntryUseCase
-from src.application.use_cases.vector_store_instances.create_vector_store_instance import CreateVectorStoreInstanceUseCase
-from src.application.use_cases.vector_store_instances.knowledge_graph import KnowledgeGraphService
+from src.application.use_cases.flag_library.create_flag_library_entry import (
+    CreateFlagLibraryEntryUseCase,
+)
+from src.application.use_cases.modus_operandi_library.create_modus_operandi_library_entry import (
+    CreateModusOperandiLibraryEntryUseCase,
+)
+from src.application.use_cases.similar_case_library.create_similar_case_library_entry import (
+    CreateSimilarCaseLibraryEntryUseCase,
+)
+from src.application.use_cases.taxonomy_library.create_taxonomy_library_entry import (
+    CreateTaxonomyLibraryEntryUseCase,
+)
+from src.application.use_cases.vector_store_instances.create_vector_store_instance import (
+    CreateVectorStoreInstanceUseCase,
+)
+from src.application.use_cases.vector_store_instances.knowledge_graph import (
+    KnowledgeGraphService,
+)
 from src.infrastructure.persistence.database.dynamodb.manager import ensure_all_tables
-from src.infrastructure.persistence.database.dynamodb.repositories.flag_library_repository import DynamoFlagLibraryRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.modus_operandi_library_repository import DynamoModusOperandiLibraryRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.similar_case_library_repository import DynamoSimilarCaseLibraryRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.taxonomy_library_repository import DynamoTaxonomyLibraryRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import DynamoVectorStoreInstanceRepository
+from src.infrastructure.persistence.database.dynamodb.repositories.flag_library_repository import (
+    DynamoFlagLibraryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.modus_operandi_library_repository import (
+    DynamoModusOperandiLibraryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.similar_case_library_repository import (
+    DynamoSimilarCaseLibraryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.taxonomy_library_repository import (
+    DynamoTaxonomyLibraryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import (
+    DynamoVectorStoreInstanceRepository,
+)
 
 pytestmark = pytest.mark.docker_integration
 

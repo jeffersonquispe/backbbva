@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.domain.models.feature_recipe import evaluate_feature_definition, validate_feature_definition
+from src.domain.models.feature_recipe import (
+    evaluate_feature_definition,
+    validate_feature_definition,
+)
 
 
 class EnrichProfilingFieldsUseCase:

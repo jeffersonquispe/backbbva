@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -14,9 +14,9 @@ from src.application.ports.configuration_port import (
     AgentSettings,
     ConfigurationRecord,
     DelegatedResearchSettings,
-    HistoryPandasResearchConfig,
     DetectorConfig,
     GeneralSettings,
+    HistoryPandasResearchConfig,
     InfraSettings,
     Rubric,
     RuleCondition,
@@ -29,7 +29,7 @@ from src.application.ports.host_service_transaction_history_port import (
 
 
 def _config_with_segment(segment: SegmentSettings) -> ConfigurationRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return ConfigurationRecord(
         configuration_id="cfg-1",
         version=1,

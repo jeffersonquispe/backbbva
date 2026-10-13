@@ -52,7 +52,7 @@ SNAPSHOT_SPAN_ATTRIBUTES: dict[str, str] = {
 
 
 def span_dimension_attributes(
-    snapshot: "AlertMetricsSnapshot | None",
+    snapshot: AlertMetricsSnapshot | None,
 ) -> dict[str, str]:
     """The alert's known dimensions as span attributes (unknown/None ones
     are left out). Never carries customer_id or the exact amount."""
@@ -132,7 +132,7 @@ class MonitoringSpan(ABC):
     @abstractmethod
     def finish(self, error: str | None = None) -> None: ...
 
-    def __enter__(self) -> "MonitoringSpan":
+    def __enter__(self) -> MonitoringSpan:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

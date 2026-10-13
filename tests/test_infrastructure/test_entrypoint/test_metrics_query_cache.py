@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 os.environ.setdefault("GENAI_ENVIRONMENT", "test")
 
@@ -17,7 +17,7 @@ from src.infrastructure.entrypoint.api.metrics_query_cache import (
     TTLCache,
 )
 
-NOW = datetime(2026, 10, 1, 15, 5, 12, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 15, 5, 12, tzinfo=UTC)
 
 
 class FakeMonotonic:
@@ -90,8 +90,8 @@ def test_entry_expires_after_the_ttl() -> None:
 
 def test_ranges_reading_the_same_hour_slots_share_an_entry_and_keep_their_own_range() -> None:
     inner, _, cached = _cached(FakeMonotonic())
-    a = _input(datetime(2026, 9, 30, 15, 0, 1, tzinfo=timezone.utc), datetime(2026, 10, 1, 15, 0, 1, tzinfo=timezone.utc))
-    b = _input(datetime(2026, 9, 30, 15, 40, tzinfo=timezone.utc), datetime(2026, 10, 1, 15, 40, tzinfo=timezone.utc))
+    a = _input(datetime(2026, 9, 30, 15, 0, 1, tzinfo=UTC), datetime(2026, 10, 1, 15, 0, 1, tzinfo=UTC))
+    b = _input(datetime(2026, 9, 30, 15, 40, tzinfo=UTC), datetime(2026, 10, 1, 15, 40, tzinfo=UTC))
 
     cached.execute(a)
     out_b = cached.execute(b)
@@ -103,8 +103,8 @@ def test_ranges_reading_the_same_hour_slots_share_an_entry_and_keep_their_own_ra
 def test_a_different_hour_slot_is_a_different_entry() -> None:
     inner, _, cached = _cached(FakeMonotonic())
     # from 15:00:00 reads slot 15; from 15:00:01 starts at slot 16.
-    cached.execute(_input(datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc), NOW))
-    cached.execute(_input(datetime(2026, 9, 30, 15, 0, 1, tzinfo=timezone.utc), NOW))
+    cached.execute(_input(datetime(2026, 9, 30, 15, 0, tzinfo=UTC), NOW))
+    cached.execute(_input(datetime(2026, 9, 30, 15, 0, 1, tzinfo=UTC), NOW))
 
     assert len(inner.calls) == 2
 
@@ -173,8 +173,12 @@ def test_least_recently_used_entry_is_evicted_past_max_entries() -> None:
 
 def test_read_factories_serve_through_the_shared_cache() -> None:
     from src.application.use_cases.metrics.get_agent_metrics import GetAgentMetrics
-    from src.application.use_cases.metrics.get_metrics_overview import GetMetricsOverview
-    from src.application.use_cases.metrics.get_technical_metrics import GetTechnicalMetrics
+    from src.application.use_cases.metrics.get_metrics_overview import (
+        GetMetricsOverview,
+    )
+    from src.application.use_cases.metrics.get_technical_metrics import (
+        GetTechnicalMetrics,
+    )
     from src.infrastructure.entrypoint.api.factories import metrics_factory
 
     built = {

@@ -3,13 +3,43 @@ from __future__ import annotations
 import uuid
 from collections import defaultdict
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-from boto3.dynamodb.conditions import Attr, Key
-from src.application.ports.configuration_port import ConfigurationRecord, ConfigurationRepository, FilterGroup, LogicalOperator, ProfilingStrategy, ProfilingStrategyKey, SamplingCriterion, SegmentSettings, default_segments
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
-from src.infrastructure.persistence.database.dynamodb.repositories.configuration_item_mapping import _distribution_value_from_item, _evaluation_from_item, _example_case_from_item, _filter_condition_from_item, _flag_from_item, _from_item, _general_from_item, _infra_from_item, _modus_operandi_from_item, _owned_item, _profiling_strategy_from_item, _segment_settings_from_item, _segment_to_item, _taxonomy_from_item, _to_item, _voicebot_category_prompt_from_item
 
+from boto3.dynamodb.conditions import Attr, Key
+
+from src.application.ports.configuration_port import (
+    ConfigurationRecord,
+    ConfigurationRepository,
+    FilterGroup,
+    LogicalOperator,
+    ProfilingStrategy,
+    ProfilingStrategyKey,
+    SamplingCriterion,
+    SegmentSettings,
+    default_segments,
+)
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_item_mapping import (
+    _distribution_value_from_item,
+    _evaluation_from_item,
+    _example_case_from_item,
+    _filter_condition_from_item,
+    _flag_from_item,
+    _from_item,
+    _general_from_item,
+    _infra_from_item,
+    _modus_operandi_from_item,
+    _owned_item,
+    _profiling_strategy_from_item,
+    _segment_settings_from_item,
+    _segment_to_item,
+    _taxonomy_from_item,
+    _to_item,
+    _voicebot_category_prompt_from_item,
+)
 
 CONFIGURATIONS_TABLE_NAME = "configurations"
 
@@ -233,7 +263,7 @@ class DynamoConfigurationRepository(ConfigurationRepository):
             version,
             True,
             ever_activated=True,
-            activated_at=datetime.now(timezone.utc),
+            activated_at=datetime.now(UTC),
         )
         activated = self.get(configuration_id, version)
         assert activated is not None
@@ -251,7 +281,7 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         expression = "SET active = :active, updated_at = :updated_at"
         values: dict[str, Any] = {
             ":active": active,
-            ":updated_at": datetime.now(timezone.utc).isoformat(),
+            ":updated_at": datetime.now(UTC).isoformat(),
         }
         # ever_activated is sticky - only ever set to True (going live),
         # never reset back to False when a version is later superseded.

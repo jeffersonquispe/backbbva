@@ -1,12 +1,13 @@
 """Versioned, dependency-free feature recipes shared by preview, training and scoring."""
 from __future__ import annotations
 
-from copy import deepcopy
-from datetime import datetime, timezone, timedelta
-import math
 import json
+import math
 import statistics
-from typing import Any, Iterable
+from collections.abc import Iterable
+from copy import deepcopy
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -131,7 +132,7 @@ def _date(value: Any, zone: ZoneInfo) -> datetime:
         if early.utcoffset() != late.utcoffset():
             raise ValueError('Ambiguous or nonexistent local timestamp; supply a UTC offset')
         result = early
-    return result.astimezone(timezone.utc)
+    return result.astimezone(UTC)
 
 
 def _canonical_path(path: str) -> str:

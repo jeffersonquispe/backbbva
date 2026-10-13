@@ -4,9 +4,19 @@ from uuid import uuid4
 import numpy as np
 import pytest
 
-from src.application.ports.model_port import FieldTransform, FieldTransformKind, HistoricalFeature, ModelRecord, ModelStatus, TrainingConfig
+from src.application.ports.model_port import (
+    FieldTransform,
+    FieldTransformKind,
+    HistoricalFeature,
+    ModelRecord,
+    ModelStatus,
+    TrainingConfig,
+)
 from src.infrastructure.workflows.celery.historical_features import build_history_frame
-from src.infrastructure.workflows.celery.model_evaluation import split_indices, train_model_bundle
+from src.infrastructure.workflows.celery.model_evaluation import (
+    split_indices,
+    train_model_bundle,
+)
 from src.infrastructure.workflows.celery.model_training import build_feature_frame
 
 
@@ -88,7 +98,9 @@ def test_target_leakage_and_empty_classes_rejected():
 
 def test_workflow_persists_bundle_and_report():
     from io import BytesIO
+
     import joblib
+
     from src.infrastructure.workflows.celery.model_training import run_model_training
     rows, record = rows_and_record()
 

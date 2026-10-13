@@ -1,6 +1,6 @@
 """A1 range planner + Q6 timezone bucketing tests (pure function, no fakes needed)."""
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -47,7 +47,7 @@ def test_range_crossing_midnight_splits_hours_between_days():
 
 def test_2330_bogota_belongs_to_bogota_date_not_utc_date():
     # 2026-09-20 23:30 Bogota == 2026-09-21 04:30 UTC.
-    start = datetime(2026, 9, 21, 4, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 21, 4, 0, tzinfo=UTC)
     reads = plan(start, start + timedelta(hours=1), NOW, BOG)
 
     assert summary(reads) == [(RollupLevel.DAY, "2026-09-20", (23,), False)]
@@ -55,8 +55,8 @@ def test_2330_bogota_belongs_to_bogota_date_not_utc_date():
 
 def test_utc_calendar_day_maps_to_two_bogota_days():
     reads = plan(
-        datetime(2026, 9, 21, tzinfo=timezone.utc),
-        datetime(2026, 9, 22, tzinfo=timezone.utc),
+        datetime(2026, 9, 21, tzinfo=UTC),
+        datetime(2026, 9, 22, tzinfo=UTC),
         NOW,
         BOG,
     )

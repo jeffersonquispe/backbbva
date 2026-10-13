@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from src.application.ports.configuration_port import AnalystCapacity
@@ -60,7 +60,7 @@ class LiveOperationsCapacity(OperationsCapacityPort):
         reservation_repository: ResourceReservationRepository,
         static_capacity: OperationsCapacityPort,
         timezone_name: str,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._settings = settings_repository
         self._reservations = reservation_repository

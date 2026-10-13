@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -16,11 +16,11 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
 
 import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
 import src.infrastructure.workflows.celery.factories as factories_module
-from src.application.ports.alert_action_dispatcher_port import (
-    AlertActionDispatchRef,
-    AlertActionDispatcher,
-)
 from src.application.dtos.alert_metrics_dtos import AlertMetricsEventType
+from src.application.ports.alert_action_dispatcher_port import (
+    AlertActionDispatcher,
+    AlertActionDispatchRef,
+)
 from src.application.ports.alert_port import AlertOrigin, AlertRecord, AlertStatus
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
@@ -43,15 +43,15 @@ from src.application.ports.async_operation_port import (
 )
 from src.application.ports.configuration_port import (
     AgentSettings,
-    ResolutionTag,
-    ShortageBehavior,
     ConfigurationRecord,
     DeterministicConfig,
     DeterministicRule,
     FilterGroup,
     GeneralSettings,
     InfraSettings,
+    ResolutionTag,
     SegmentSettings,
+    ShortageBehavior,
     TestSettings,
 )
 from src.application.ports.llm_unit_of_work_port import (
@@ -66,9 +66,6 @@ from src.application.ports.operational_settings_port import (
     AmountTier,
     OperationalSettings,
 )
-from src.application.use_cases.metrics.record_alert_metrics_event import (
-    RecordAlertMetricsEvent,
-)
 from src.application.ports.operations_capacity_port import (
     ChannelCapacity,
     OperationsCapacityRecord,
@@ -79,14 +76,17 @@ from src.application.ports.workflow_port import (
     WorkflowStepExecutionRecord,
     WorkflowStepStatus,
 )
-from src.infrastructure.monitoring.opentelemetry.monitoring import (
-    OpenTelemetryMonitoring,
-)
 from src.application.use_cases.alerts.resolve_analyst_playbook import (
     ResolvedPlaybook,
 )
 from src.application.use_cases.alerts.route_alert_resolution import (
     ResolutionRouting,
+)
+from src.application.use_cases.metrics.record_alert_metrics_event import (
+    RecordAlertMetricsEvent,
+)
+from src.infrastructure.monitoring.opentelemetry.monitoring import (
+    OpenTelemetryMonitoring,
 )
 from src.infrastructure.workflows.celery.alert_review_workflow import (
     AlertReviewWorkflowRunner,
@@ -625,7 +625,7 @@ def in_memory_alert_schema_repository(monkeypatch):
 
 
 def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     alerts = InMemoryAlertRepository()
     operations = InMemoryAsyncOperationRepository()
@@ -860,7 +860,7 @@ def test_alert_review_workflow_escalates_without_playbook_and_leaves_alert_escal
 
 
 def _seed_pending_workflow(alerts, operations, workflows, input: dict[str, Any]):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     alert_id, operation_id, workflow_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     alerts.create(
         AlertRecord(
@@ -987,7 +987,7 @@ def test_agent_off_still_processes_manual_and_test_run_alerts(monkeypatch, origi
 def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(
     monkeypatch, metrics_events
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     alerts = InMemoryAlertRepository()
     operations = InMemoryAsyncOperationRepository()
@@ -1203,7 +1203,7 @@ class _NotFraudLLMUnitOfWorkFactory(LLMUnitOfWorkFactory):
 
 
 def test_alert_review_workflow_skips_to_pass_when_detector_finds_no_fraud(monkeypatch):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     alerts = InMemoryAlertRepository()
     operations = InMemoryAsyncOperationRepository()
@@ -1507,7 +1507,9 @@ def test_step_metrics_recorded_on_failure(monkeypatch, step_metrics):
 
 
 def test_step_metrics_rows_and_tokens_match_token_usage(monkeypatch):
-    from src.application.dtos.technical_metrics_dtos import RecordWorkflowStepMetricsInput
+    from src.application.dtos.technical_metrics_dtos import (
+        RecordWorkflowStepMetricsInput,
+    )
     from src.application.ports.metrics_rollup_port import MetricsDataType, RollupLevel
     from src.application.use_cases.metrics.record_workflow_step_metrics import (
         RecordWorkflowStepMetrics,

@@ -25,8 +25,8 @@ from src.application.ports.workflow_status_port import (
     WorkflowStatusUpdate,
 )
 from src.application.use_cases.alerts.resolve_analyst_playbook import (
-    ResolvedPlaybook,
     ResolveAnalystPlaybookUseCase,
+    ResolvedPlaybook,
 )
 from src.domain.models.prompt_template import substitute_variables
 

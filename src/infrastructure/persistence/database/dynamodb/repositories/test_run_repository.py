@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -51,7 +51,7 @@ class DynamoTestRunRepository(TestRunRepository):
             status=status or current.status,
             total=current.total,
             created_at=current.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
             finished_at=finished_at or current.finished_at,
         )
         self._table.put_item(Item=_to_item(updated))

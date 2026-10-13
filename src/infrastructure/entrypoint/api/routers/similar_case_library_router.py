@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.application.ports.similar_case_library_port import SimilarCaseLibraryEntry
+from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 from src.application.use_cases.similar_case_library.create_similar_case_library_entry import (
     CreateSimilarCaseLibraryEntryUseCase,
 )
@@ -18,21 +19,22 @@ from src.application.use_cases.similar_case_library.update_similar_case_library_
     SimilarCaseLibraryEntryNotFoundError,
     UpdateSimilarCaseLibraryEntryUseCase,
 )
+from src.infrastructure.entrypoint.api.authorization import require_library_access
 from src.infrastructure.entrypoint.api.factories.similar_case_library_factory import (
     get_create_similar_case_library_entry_use_case,
     get_delete_similar_case_library_entry_use_case,
-    get_similar_case_library_repository,
     get_list_similar_case_library_entries_use_case,
+    get_similar_case_library_repository,
     get_update_similar_case_library_entry_use_case,
 )
-from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import get_knowledge_graph_service
-from src.application.ports.vector_store_instance_port import KnowledgeAssetType
+from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+    get_knowledge_graph_service,
+)
 from src.infrastructure.entrypoint.api.schemas import (
     CreateSimilarCaseLibraryEntryRequest,
     SimilarCaseLibraryEntrySchema,
     UpdateSimilarCaseLibraryEntryRequest,
 )
-from src.infrastructure.entrypoint.api.authorization import require_library_access
 
 router = APIRouter(prefix="/library/similar-cases", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.modus_operandi_library_port import (
@@ -39,7 +39,7 @@ class CreateModusOperandiLibraryEntryUseCase:
         for existing in self._entries.list():
             if " ".join(existing.title.split()).casefold() == normalized_title:
                 return existing
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         uow = self._embedding_unit_of_work_factory.create(
             model=self._embedding_model,
             monitoring=self._monitoring,

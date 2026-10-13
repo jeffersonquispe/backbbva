@@ -3,8 +3,13 @@ from __future__ import annotations
 from datetime import datetime
 
 from src.application.ports.feature_template_port import FeatureTemplate
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
-from src.infrastructure.persistence.database.dynamodb.serialization import from_dynamodb, to_dynamodb
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
+from src.infrastructure.persistence.database.dynamodb.serialization import (
+    from_dynamodb,
+    to_dynamodb,
+)
 
 
 class DynamoFeatureTemplateRepository:

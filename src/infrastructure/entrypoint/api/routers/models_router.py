@@ -1,32 +1,43 @@
 from __future__ import annotations
 
 from typing import Annotated, Any
-from pydantic import BaseModel, Field
-from celery import states
-from celery.result import AsyncResult
-
-from src.application.use_cases.models.feature_engineering import FeatureCapabilitiesUseCase, FeatureRecipeProblem, FeatureTemplatesUseCase, PreviewFeaturesUseCase
-from src.infrastructure.entrypoint.api.factories.model_factory import get_feature_capabilities_use_case, get_feature_templates_use_case, get_preview_features_use_case
-from src.infrastructure.queues.celery.app import app as celery_app
 from uuid import UUID
 
+from celery import states
+from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 from src.application.dtos.model_dtos import CreateModelInput
-from src.application.ports.model_port import FieldTransform, HistoricalFeature, TrainingConfig
+from src.application.ports.model_port import (
+    FieldTransform,
+    HistoricalFeature,
+    TrainingConfig,
+)
 from src.application.use_cases.models.activate_model import ActivateModelUseCase
 from src.application.use_cases.models.create_model import CreateModelUseCase
 from src.application.use_cases.models.delete_model import DeleteModelUseCase
+from src.application.use_cases.models.feature_engineering import (
+    FeatureCapabilitiesUseCase,
+    FeatureRecipeProblem,
+    FeatureTemplatesUseCase,
+    PreviewFeaturesUseCase,
+)
 from src.application.use_cases.models.get_model import GetModelUseCase
 from src.application.use_cases.models.list_models import ListModelsUseCase
-from src.application.use_cases.models.start_model_training import StartModelTrainingUseCase
+from src.application.use_cases.models.start_model_training import (
+    StartModelTrainingUseCase,
+)
 from src.domain.models.exceptions import ModelNotFoundError
 from src.infrastructure.entrypoint.api.factories.model_factory import (
     get_activate_model_use_case,
     get_create_model_use_case,
     get_delete_model_use_case,
+    get_feature_capabilities_use_case,
+    get_feature_templates_use_case,
     get_get_model_use_case,
     get_list_models_use_case,
+    get_preview_features_use_case,
     get_start_model_training_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
@@ -35,6 +46,7 @@ from src.infrastructure.entrypoint.api.schemas import (
     ModelResponse,
     StartModelTrainingResponse,
 )
+from src.infrastructure.queues.celery.app import app as celery_app
 
 router = APIRouter(prefix="/models", tags=["models"])
 

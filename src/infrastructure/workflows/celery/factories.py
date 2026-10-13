@@ -2,71 +2,169 @@ from __future__ import annotations
 
 from functools import lru_cache
 from uuid import UUID
+
+from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.workflow_status_port import WorkflowStatusReporter
-from src.application.use_cases.alerts.adversarial_review_alert import AdversarialReviewAlertUseCase
-from src.application.use_cases.alerts.analyst_review_alert import AnalystReviewAlertUseCase
+from src.application.use_cases.alert_schema.analyze_presence import (
+    AnalyzeAlertSchemaPresenceUseCase,
+)
+from src.application.use_cases.alerts.adversarial_review_alert import (
+    AdversarialReviewAlertUseCase,
+)
+from src.application.use_cases.alerts.analyst_review_alert import (
+    AnalystReviewAlertUseCase,
+)
 from src.application.use_cases.alerts.classify_alert import ClassifyAlertUseCase
-from src.application.use_cases.alerts.route_alert_resolution import RouteAlertResolutionUseCase
-from src.application.use_cases.operations.live_operations_capacity import LiveOperationsCapacity
 from src.application.use_cases.alerts.discard_alert import DiscardAlertUseCase
-from src.application.use_cases.alerts.enrich_profiling_fields import EnrichProfilingFieldsUseCase
-from src.application.use_cases.alerts.evaluate_deterministic_rules import EvaluateDeterministicRulesUseCase
-from src.application.use_cases.alerts.generate_agent_text import GenerateAgentTextUseCase
+from src.application.use_cases.alerts.enrich_profiling_fields import (
+    EnrichProfilingFieldsUseCase,
+)
+from src.application.use_cases.alerts.evaluate_deterministic_rules import (
+    EvaluateDeterministicRulesUseCase,
+)
+from src.application.use_cases.alerts.generate_agent_text import (
+    GenerateAgentTextUseCase,
+)
 from src.application.use_cases.alerts.post_process_alert import PostProcessAlertUseCase
 from src.application.use_cases.alerts.pre_process_alert import PreProcessAlertUseCase
-from src.application.use_cases.alert_schema.analyze_presence import AnalyzeAlertSchemaPresenceUseCase
-from src.application.ports.alert_schema_port import AlertSchemaRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import DynamoAlertSchemaRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_presence_repository import DynamoAlertSchemaPresenceReportRepository
-from src.infrastructure.persistence.object_storage.minio import get_object_storage
 from src.application.use_cases.alerts.profile_alert import ProfileAlertUseCase
-from src.application.use_cases.alerts.profile_alert_deterministic import DeterministicProfileAlertUseCase
-from src.application.use_cases.alerts.resolve_analyst_playbook import ResolveAnalystPlaybookUseCase
-from src.application.use_cases.metrics.record_alert_metrics_event import RecordAlertMetricsEvent
-from src.application.use_cases.metrics.backfill_alert_metrics import BackfillAlertMetrics
-from src.application.use_cases.metrics.reconcile_alert_rollups import ReconcileAlertRollups
-from src.infrastructure.persistence.database.dynamodb.repositories.alert_lifecycle_reader import DynamoAlertLifecycleReader
-from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import SearchFraudKnowledgeUseCase
-from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
+from src.application.use_cases.alerts.profile_alert_deterministic import (
+    DeterministicProfileAlertUseCase,
+)
+from src.application.use_cases.alerts.resolve_analyst_playbook import (
+    ResolveAnalystPlaybookUseCase,
+)
+from src.application.use_cases.alerts.route_alert_resolution import (
+    RouteAlertResolutionUseCase,
+)
+from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
+    SearchFraudKnowledgeUseCase,
+)
+from src.application.use_cases.metrics.backfill_alert_metrics import (
+    BackfillAlertMetrics,
+)
+from src.application.use_cases.metrics.evaluate_alert_reasoning import (
+    EvaluateAlertReasoning,
+)
+from src.application.use_cases.metrics.reconcile_alert_rollups import (
+    ReconcileAlertRollups,
+)
+from src.application.use_cases.metrics.record_alert_metrics_event import (
+    RecordAlertMetricsEvent,
+)
+from src.application.use_cases.metrics.record_workflow_step_metrics import (
+    RecordWorkflowStepMetrics,
+)
+from src.application.use_cases.operations.live_operations_capacity import (
+    LiveOperationsCapacity,
+)
 from src.application.use_cases.research.research_tool import BoundedResearchTool
+from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.embedding.langchain import get_embedding_unit_of_work_factory
-from src.infrastructure.fraud_intelligence.mock.fraud_taxonomy_adapter import MockFraudTaxonomyAdapter
-from src.infrastructure.fraud_intelligence.mock.modus_operandi_adapter import MockModusOperandiAdapter
-from src.infrastructure.fraud_intelligence.mock.similar_fraud_case_adapter import MockSimilarFraudCaseAdapter
-from src.infrastructure.fraud_intelligence.opensearch.fraud_taxonomy_adapter import OpenSearchFraudTaxonomyAdapter
-from src.infrastructure.fraud_intelligence.opensearch.modus_operandi_adapter import OpenSearchModusOperandiAdapter
-from src.infrastructure.fraud_intelligence.opensearch.similar_fraud_case_adapter import OpenSearchSimilarFraudCaseAdapter
-from src.infrastructure.host_services.mock.customer_profile_adapter import MockHostServiceCustomerProfileAdapter
-from src.infrastructure.host_services.mock.personal_data_changes_adapter import MockHostServicePersonalDataChangesAdapter
-from src.infrastructure.host_services.mock.transaction_history_adapter import MockHostServiceTransactionHistoryAdapter
+from src.infrastructure.fraud_intelligence.mock.fraud_taxonomy_adapter import (
+    MockFraudTaxonomyAdapter,
+)
+from src.infrastructure.fraud_intelligence.mock.modus_operandi_adapter import (
+    MockModusOperandiAdapter,
+)
+from src.infrastructure.fraud_intelligence.mock.similar_fraud_case_adapter import (
+    MockSimilarFraudCaseAdapter,
+)
+from src.infrastructure.fraud_intelligence.opensearch.fraud_taxonomy_adapter import (
+    OpenSearchFraudTaxonomyAdapter,
+)
+from src.infrastructure.fraud_intelligence.opensearch.modus_operandi_adapter import (
+    OpenSearchModusOperandiAdapter,
+)
+from src.infrastructure.fraud_intelligence.opensearch.similar_fraud_case_adapter import (
+    OpenSearchSimilarFraudCaseAdapter,
+)
+from src.infrastructure.host_services.mock.customer_profile_adapter import (
+    MockHostServiceCustomerProfileAdapter,
+)
+from src.infrastructure.host_services.mock.personal_data_changes_adapter import (
+    MockHostServicePersonalDataChangesAdapter,
+)
+from src.infrastructure.host_services.mock.transaction_history_adapter import (
+    MockHostServiceTransactionHistoryAdapter,
+)
 from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
-from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import DynamoAlertRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import DynamoConfigurationRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import DynamoAsyncOperationRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.metrics_rollup_repository import DynamoMetricsRollupRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.modus_operandi_library_repository import DynamoModusOperandiLibraryRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.operational_settings_repository import DynamoOperationalSettingsRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.resource_reservation_repository import DynamoResourceReservationRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.operations_capacity_repository import DynamoOperationsCapacityRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.test_run_repository import DynamoTestRunRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import DynamoVectorStoreInstanceRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.watchlist_repository import DynamoWatchlistRepository
-from src.infrastructure.persistence.database.dynamodb.repositories.model_repository import DynamoModelRepository
-from src.infrastructure.persistence.object_storage.minio import get_model_object_storage
-from src.infrastructure.persistence.object_storage.minio import get_object_storage
-from src.infrastructure.persistence.vector_store.opensearch.client import get_opensearch_client
-from src.infrastructure.persistence.vector_store.opensearch.search import OpenSearchFraudKnowledgeSearchAdapter
-from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import DynamoWorkflowExecutionRepository, DynamoWorkflowStepExecutionRepository
-from src.infrastructure.queues.celery.alert_action_dispatcher import CeleryAlertActionDispatcher
-from src.infrastructure.queues.celery.analyst_decision_documenter_dispatcher import CeleryAnalystDecisionDocumenter
-from src.infrastructure.queues.celery.analyst_escalation_dispatcher import CeleryAnalystEscalationDispatcher
-from src.infrastructure.queues.celery.reasoning_evaluation_dispatcher import CeleryReasoningEvaluationDispatcher
-from src.infrastructure.persistence.database.dynamodb.repositories.alert_reasoning_evaluation_repository import DynamoAlertReasoningEvaluationRepository
-from src.application.use_cases.metrics.evaluate_alert_reasoning import EvaluateAlertReasoning
-from src.application.use_cases.metrics.record_workflow_step_metrics import RecordWorkflowStepMetrics
-
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_lifecycle_reader import (
+    DynamoAlertLifecycleReader,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_reasoning_evaluation_repository import (
+    DynamoAlertReasoningEvaluationRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
+    DynamoAlertRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_presence_repository import (
+    DynamoAlertSchemaPresenceReportRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import (
+    DynamoAlertSchemaRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
+    DynamoAsyncOperationRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
+    DynamoConfigurationRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.metrics_rollup_repository import (
+    DynamoMetricsRollupRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.model_repository import (
+    DynamoModelRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.modus_operandi_library_repository import (
+    DynamoModusOperandiLibraryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.operational_settings_repository import (
+    DynamoOperationalSettingsRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.operations_capacity_repository import (
+    DynamoOperationsCapacityRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.resource_reservation_repository import (
+    DynamoResourceReservationRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.test_run_repository import (
+    DynamoTestRunRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import (
+    DynamoVectorStoreInstanceRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.watchlist_repository import (
+    DynamoWatchlistRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
+    DynamoWorkflowExecutionRepository,
+    DynamoWorkflowStepExecutionRepository,
+)
+from src.infrastructure.persistence.object_storage.minio import (
+    get_model_object_storage,
+    get_object_storage,
+)
+from src.infrastructure.persistence.vector_store.opensearch.client import (
+    get_opensearch_client,
+)
+from src.infrastructure.persistence.vector_store.opensearch.search import (
+    OpenSearchFraudKnowledgeSearchAdapter,
+)
+from src.infrastructure.queues.celery.alert_action_dispatcher import (
+    CeleryAlertActionDispatcher,
+)
+from src.infrastructure.queues.celery.analyst_decision_documenter_dispatcher import (
+    CeleryAnalystDecisionDocumenter,
+)
+from src.infrastructure.queues.celery.analyst_escalation_dispatcher import (
+    CeleryAnalystEscalationDispatcher,
+)
+from src.infrastructure.queues.celery.reasoning_evaluation_dispatcher import (
+    CeleryReasoningEvaluationDispatcher,
+)
 
 # --- stateless adapters: one instance per worker process ---
 

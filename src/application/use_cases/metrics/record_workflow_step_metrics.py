@@ -24,7 +24,7 @@ step_name / model / source."""
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.technical_metrics_dtos import (
     RecordWorkflowStepMetricsInput,
@@ -53,7 +53,7 @@ class RecordWorkflowStepMetrics:
         step_repository: WorkflowStepExecutionRepository,
         rollup_repository: MetricsRollupRepository,
         timezone_name: str,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._alerts = alert_repository
         self._steps = step_repository

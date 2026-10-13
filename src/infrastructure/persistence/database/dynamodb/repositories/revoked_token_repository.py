@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
 
 
 class DynamoRevokedTokenRepository:

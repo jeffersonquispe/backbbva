@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.ports.simulation_dispatcher_port import SimulationDispatcher
@@ -37,7 +37,7 @@ class StartSimulationUseCase:
         updated = self._scenarios.update(
             scenario_id,
             status=ScenarioStatus.RUNNING,
-            started_at=scenario.started_at or datetime.now(timezone.utc),
+            started_at=scenario.started_at or datetime.now(UTC),
             error=None,
         )
         self._dispatcher.dispatch(scenario_id)

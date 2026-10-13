@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -145,7 +145,7 @@ def _alert(
     *,
     labels: dict[str, Any] | None = None,
 ) -> AlertRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return AlertRecord(
         id=uuid4(),
         event_id="evt-1",
@@ -161,7 +161,7 @@ def _alert(
 
 
 def _execution(execution_id: UUID, configuration_ref: dict[str, Any] | None) -> WorkflowExecutionRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return WorkflowExecutionRecord(
         id=execution_id,
         alert_id=uuid4(),

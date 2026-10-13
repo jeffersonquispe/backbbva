@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC
 
 from src.application.dtos.classify_alert_dtos import ClassifyAlertInput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
@@ -459,13 +460,13 @@ class InMemoryWatchlistRepository:
         }
 
     def get(self, watchlist_id: str):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from src.application.ports.watchlist_port import Watchlist, WatchlistType
 
         if watchlist_id not in self._names:
             return None
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return Watchlist(
             id=watchlist_id,
             name=self._names[watchlist_id],

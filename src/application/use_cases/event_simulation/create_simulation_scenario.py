@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.simulation_dtos import CreateSimulationScenarioInput
-from src.application.ports.simulation_scenario_port import (
-    FieldGenerator,
-    OutputMode,
-    ScenarioStatus,
-    SimulationScenarioRecord,
-    SimulationScenarioRepository,
-)
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaFieldType,
     AlertSchemaRepository,
 )
-from src.application.ports.simulation_scenario_port import GeneratorKind
+from src.application.ports.simulation_scenario_port import (
+    FieldGenerator,
+    GeneratorKind,
+    OutputMode,
+    ScenarioStatus,
+    SimulationScenarioRecord,
+    SimulationScenarioRepository,
+)
 
 
 class CreateSimulationScenarioUseCase:
@@ -32,7 +32,7 @@ class CreateSimulationScenarioUseCase:
         if input.output_mode == OutputMode.DATASET and not input.target_dataset_name:
             raise ValueError("target_dataset_name is required when output_mode is DATASET")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         field_specs = input.field_specs
         if field_specs is None:
             if self._schema_repository is None:

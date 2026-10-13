@@ -15,7 +15,7 @@ import base64
 import binascii
 import json
 from collections.abc import Callable
-from datetime import date, datetime, timedelta, timezone, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from zoneinfo import ZoneInfo
 
 from src.application.dtos.alert_history_dtos import (
@@ -96,7 +96,7 @@ class ListAlertHistory:
         alert_repository: AlertRepository,
         timezone_name: str,
         schema_repository: AlertSchemaRepository | None = None,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._alerts = alert_repository
         self._schemas = schema_repository

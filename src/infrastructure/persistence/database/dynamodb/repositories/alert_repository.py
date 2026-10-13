@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -87,7 +87,7 @@ class DynamoAlertRepository:
         # separate transaction and must not be overwritten with a stale copy.
         names: dict[str, str] = {"#updated_at": "updated_at"}
         values: dict[str, Any] = {
-            ":updated_at": datetime.now(timezone.utc).isoformat()
+            ":updated_at": datetime.now(UTC).isoformat()
         }
         sets = ["#updated_at = :updated_at"]
         for field_name, value in (
@@ -256,7 +256,7 @@ class DynamoAlertRepository:
         condition = Key("created_day").eq(created_day.isoformat())
         if before is not None:
             condition = condition & Key("created_at").lt(
-                before.astimezone(timezone.utc).isoformat()
+                before.astimezone(UTC).isoformat()
             )
         items: list[dict[str, Any]] = []
         kwargs: dict[str, Any] = {

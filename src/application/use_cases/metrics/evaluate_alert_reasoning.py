@@ -27,7 +27,7 @@ import hashlib
 import json
 import re
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -126,7 +126,7 @@ class EvaluateAlertReasoning:
         evaluation_repository: AlertReasoningEvaluationRepository,
         rollup_repository: MetricsRollupRepository,
         timezone_name: str,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring

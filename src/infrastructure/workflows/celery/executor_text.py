@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from typing import Any
+
 from src.application.dtos.analyst_review_alert_dtos import AnalystReviewAlertOutput
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.ports.configuration_port import ExecutorConfig, SegmentSettings
 from src.domain.models.prompt_template import substitute_variables
 from src.infrastructure.workflows.celery.step_context import _variables_pool
-
 
 _ARIC_MARKING_SYSTEM_PROMPT = (
     "Eres un agente que redacta el comentario de marcación ARIC para una "

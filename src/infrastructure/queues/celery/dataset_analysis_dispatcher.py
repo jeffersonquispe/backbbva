@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
 from src.infrastructure.queues.celery.app import app as celery_app
-from uuid import UUID
 
 
 class CeleryDatasetAnalysisDispatcher(DatasetAnalysisDispatcher):

@@ -1,17 +1,17 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
 
 from src.application.dtos.alert_dtos import StartAlertWorkflowInput
 from src.application.ports.alert_port import AlertRecord, AlertStatus
-from src.application.ports.async_operation_port import AsyncOperationRecord
 from src.application.ports.object_storage_port import ObjectStorageRef
 from src.application.ports.workflow_executor_port import WorkflowExecutionRef
-from src.application.ports.workflow_port import WorkflowExecutionRecord
 from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
-from src.application.use_cases.alerts.start_alert_test_workflow import StartAlertTestWorkflowUseCase
+from src.application.use_cases.alerts.start_alert_test_workflow import (
+    StartAlertTestWorkflowUseCase,
+)
 
 
 class RecordingStorage:
@@ -87,7 +87,7 @@ def test_raw_loader_requires_the_canonical_object_reference():
     loader = RawAlertPayloadLoader(storage)
     alert = AlertRecord(
         UUID(int=1), "evt", "payment", AlertStatus.RECEIVED,
-        datetime.now(timezone.utc), datetime.now(timezone.utc)
+        datetime.now(UTC), datetime.now(UTC)
     )
 
     with pytest.raises(ValueError, match="raw payload reference"):

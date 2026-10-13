@@ -2,7 +2,7 @@
 index (page_by_created_day), filters on the snapshot, opaque cursor."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -23,7 +23,7 @@ from src.application.use_cases.alerts.list_alert_history import (
 
 TZ = "America/Bogota"
 ZONE = ZoneInfo(TZ)
-NOW = datetime(2026, 10, 1, 15, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 15, 0, tzinfo=UTC)
 
 
 class InMemoryAlertRepository:

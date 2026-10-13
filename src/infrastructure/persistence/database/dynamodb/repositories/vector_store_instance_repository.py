@@ -11,7 +11,9 @@ from src.application.ports.vector_store_instance_port import (
     VectorStoreInstanceAsset,
     VectorStoreInstanceRepository,
 )
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
 
 VECTOR_STORE_INSTANCES_TABLE_NAME = "vector_store_instances"
 VECTOR_STORE_INSTANCE_ASSETS_TABLE_NAME = "vector_store_instance_assets"

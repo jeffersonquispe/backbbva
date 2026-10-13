@@ -34,7 +34,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from src.application.dtos.metrics_maintenance_dtos import (
@@ -104,7 +104,7 @@ class ReconcileAlertRollups:
         monitoring: MonitoringPort,
         timezone_name: str,
         backfill: BackfillAlertMetrics | None = None,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         settle_seconds: float = 5.0,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:

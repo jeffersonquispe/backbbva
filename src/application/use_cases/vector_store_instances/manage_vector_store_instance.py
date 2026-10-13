@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
@@ -27,7 +27,7 @@ class UpdateVectorStoreInstanceUseCase:
             current,
             name=name if name is not None else current.name,
             description=description if description is not None else current.description,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
             updated_by=actor,
         ))
 
@@ -48,7 +48,7 @@ class AddVectorStoreDocumentUseCase:
             asset_id=asset_id,
             asset_version=asset_version,
         ))
-        self._repository.update(replace(instance, updated_at=datetime.now(timezone.utc), updated_by=actor))
+        self._repository.update(replace(instance, updated_at=datetime.now(UTC), updated_by=actor))
         return asset
 
 
@@ -61,4 +61,4 @@ class RemoveVectorStoreDocumentUseCase:
         if instance is None:
             raise VectorStoreInstanceNotFoundError(f"Vector store instance not found: {instance_id}")
         self._repository.remove_asset(instance_id, relation_id)
-        self._repository.update(replace(instance, updated_at=datetime.now(timezone.utc), updated_by=actor))
+        self._repository.update(replace(instance, updated_at=datetime.now(UTC), updated_by=actor))

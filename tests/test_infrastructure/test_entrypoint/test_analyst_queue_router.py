@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -36,7 +36,7 @@ from src.infrastructure.entrypoint.api.routers.operations_router import (
     router as operations_router,
 )
 
-NOW = datetime(2026, 9, 28, 15, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 28, 15, 0, tzinfo=UTC)
 
 
 def _user(role: LocalRole) -> LocalUser:

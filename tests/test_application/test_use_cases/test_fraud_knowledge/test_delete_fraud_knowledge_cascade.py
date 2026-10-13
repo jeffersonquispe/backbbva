@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 
 import pytest
-
-from dataclasses import replace
 
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,

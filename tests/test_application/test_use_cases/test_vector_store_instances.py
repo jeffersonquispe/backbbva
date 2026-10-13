@@ -7,7 +7,8 @@ from src.application.use_cases.vector_store_instances.create_vector_store_instan
     CreateVectorStoreInstanceUseCase,
 )
 from src.application.use_cases.vector_store_instances.manage_vector_store_instance import (
-    AddVectorStoreDocumentUseCase, RemoveVectorStoreDocumentUseCase,
+    AddVectorStoreDocumentUseCase,
+    RemoveVectorStoreDocumentUseCase,
 )
 
 

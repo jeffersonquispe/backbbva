@@ -1,9 +1,14 @@
 from functools import lru_cache
 
-from src.application.use_cases.vector_store_instances.create_vector_store_instance import CreateVectorStoreInstanceUseCase
-from src.application.use_cases.vector_store_instances.list_vector_store_instances import ListVectorStoreInstancesUseCase
+from src.application.use_cases.vector_store_instances.create_vector_store_instance import (
+    CreateVectorStoreInstanceUseCase,
+)
+from src.application.use_cases.vector_store_instances.list_vector_store_instances import (
+    ListVectorStoreInstancesUseCase,
+)
 from src.application.use_cases.vector_store_instances.manage_vector_store_instance import (
-    AddVectorStoreDocumentUseCase, RemoveVectorStoreDocumentUseCase,
+    AddVectorStoreDocumentUseCase,
+    RemoveVectorStoreDocumentUseCase,
     UpdateVectorStoreInstanceUseCase,
 )
 from src.application.use_cases.vector_store_instances.promote_vector_store_instance import (
@@ -16,15 +21,27 @@ from src.infrastructure.entrypoint.api.factories.fraud_knowledge_factory import 
     get_ingest_similar_case_use_case,
     get_ingest_taxonomia_use_case,
 )
-from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import DynamoVectorStoreInstanceRepository
+from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import (
+    DynamoVectorStoreInstanceRepository,
+)
 
 
 def get_knowledge_graph_service():
-    from src.application.use_cases.vector_store_instances.knowledge_graph import KnowledgeGraphService
-    from src.infrastructure.entrypoint.api.factories.flag_library_factory import get_flag_library_repository
-    from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import get_modus_operandi_library_repository
-    from src.infrastructure.entrypoint.api.factories.similar_case_library_factory import get_similar_case_library_repository
-    from src.infrastructure.entrypoint.api.factories.taxonomy_library_factory import get_taxonomy_library_repository
+    from src.application.use_cases.vector_store_instances.knowledge_graph import (
+        KnowledgeGraphService,
+    )
+    from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
+        get_flag_library_repository,
+    )
+    from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import (
+        get_modus_operandi_library_repository,
+    )
+    from src.infrastructure.entrypoint.api.factories.similar_case_library_factory import (
+        get_similar_case_library_repository,
+    )
+    from src.infrastructure.entrypoint.api.factories.taxonomy_library_factory import (
+        get_taxonomy_library_repository,
+    )
     return KnowledgeGraphService(
         instances=get_vector_store_instance_repository(), taxonomies=get_taxonomy_library_repository(),
         modus_operandi=get_modus_operandi_library_repository(), flags=get_flag_library_repository(),
@@ -58,10 +75,18 @@ def get_remove_vector_store_document_use_case() -> RemoveVectorStoreDocumentUseC
 
 
 def get_promote_vector_store_instance_use_case() -> PromoteVectorStoreInstanceUseCase:
-    from src.infrastructure.entrypoint.api.factories.flag_library_factory import get_flag_library_repository
-    from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import get_modus_operandi_library_repository
-    from src.infrastructure.entrypoint.api.factories.similar_case_library_factory import get_similar_case_library_repository
-    from src.infrastructure.entrypoint.api.factories.taxonomy_library_factory import get_taxonomy_library_repository
+    from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
+        get_flag_library_repository,
+    )
+    from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import (
+        get_modus_operandi_library_repository,
+    )
+    from src.infrastructure.entrypoint.api.factories.similar_case_library_factory import (
+        get_similar_case_library_repository,
+    )
+    from src.infrastructure.entrypoint.api.factories.taxonomy_library_factory import (
+        get_taxonomy_library_repository,
+    )
 
     return PromoteVectorStoreInstanceUseCase(
         instances=get_vector_store_instance_repository(),

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
+from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
 from src.application.ports.embedding_port import (
     EmbeddingResult,
     EmbeddingUnitOfWork,
     EmbeddingUnitOfWorkFactory,
 )
-from src.application.ports.configuration_port import ResolutionTag, ShortageBehavior
 from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryEntry,
     ModusOperandiPlaybook,

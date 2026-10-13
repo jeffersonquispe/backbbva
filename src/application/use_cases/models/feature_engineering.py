@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-from copy import deepcopy
-from datetime import datetime, timezone
 import json
+from copy import deepcopy
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from src.application.ports.feature_template_port import FeatureTemplate, FeatureTemplateRepository
-from src.domain.models.feature_recipe import describe_capabilities, evaluate_feature_definition, validate_feature_definition
+from src.application.ports.feature_template_port import (
+    FeatureTemplate,
+    FeatureTemplateRepository,
+)
+from src.domain.models.feature_recipe import (
+    describe_capabilities,
+    evaluate_feature_definition,
+    validate_feature_definition,
+)
 
 
 class FeatureRecipeProblem(ValueError):
@@ -81,7 +88,7 @@ class FeatureTemplatesUseCase:
             raise ValueError("La configuración supera el límite de 200 KB")
         return self._repository.create(FeatureTemplate(
             id=str(uuid4()), name=name.strip(), description=description,
-            configuration=deepcopy(definition), created_at=datetime.now(timezone.utc),
+            configuration=deepcopy(definition), created_at=datetime.now(UTC),
         ))
 
     def delete(self, template_id: str) -> None:

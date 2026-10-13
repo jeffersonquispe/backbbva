@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.domain.alerts.transaction_history_selection import (
     parse_event_time,
@@ -23,7 +23,7 @@ _HISTORY = [
     _Entry("e3", "2026-09-27T10:00:00Z", 30.0, "app"),
     _Entry("e4", "not-a-date", 40.0, "atm"),
 ]
-_REFERENCE = datetime(2026, 9, 28, tzinfo=timezone.utc)
+_REFERENCE = datetime(2026, 9, 28, tzinfo=UTC)
 
 
 def _select(**overrides):
@@ -60,9 +60,9 @@ def test_window_anchors_on_latest_event_without_reference_time() -> None:
 
 def test_parse_event_time_accepts_iso_and_epoch_millis() -> None:
     assert parse_event_time("2026-09-27T10:00:00Z") == datetime(
-        2026, 9, 27, 10, tzinfo=timezone.utc
+        2026, 9, 27, 10, tzinfo=UTC
     )
     assert parse_event_time(1790503200000) == datetime(
-        2026, 9, 27, 10, tzinfo=timezone.utc
+        2026, 9, 27, 10, tzinfo=UTC
     )
     assert parse_event_time("garbage") is None

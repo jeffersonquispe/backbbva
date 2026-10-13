@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.dtos.test_run_dtos import DeleteTestRunsInput
@@ -127,7 +127,7 @@ class InMemoryAsyncOperationRepository:
 def _test_run(total: int) -> TestRunRecord:
     from src.application.ports.test_run_port import TestRunConfig, TestRunStatus
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return TestRunRecord(
         id=uuid.uuid4(),
         name="run",
@@ -143,7 +143,7 @@ def _test_run(total: int) -> TestRunRecord:
 def _case(test_run_id: UUID) -> tuple[
     WorkflowExecutionRecord, list[WorkflowStepExecutionRecord], AlertRecord, AsyncOperationRecord
 ]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     alert_id = uuid.uuid4()
     operation_id = uuid.uuid4()
     workflow = WorkflowExecutionRecord(

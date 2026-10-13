@@ -1,6 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from src.application.ports.alert_schema_port import AlertSchemaStatus, AlertSchemaVersion
+from src.application.ports.alert_schema_port import (
+    AlertSchemaStatus,
+    AlertSchemaVersion,
+)
 from src.application.ports.configuration_port import (
     ConfigurationRecord,
     GeneralSettings,
@@ -27,7 +30,7 @@ class InMemoryConfigurationRepository:
 
 
 def _configuration(version: int, activated_at: datetime | None) -> ConfigurationRecord:
-    now = datetime(2026, 10, 9, tzinfo=timezone.utc)
+    now = datetime(2026, 10, 9, tzinfo=UTC)
     return ConfigurationRecord(
         configuration_id="cfg-x",
         version=version,
@@ -44,7 +47,7 @@ def _configuration(version: int, activated_at: datetime | None) -> Configuration
 
 
 def test_lists_schema_and_configuration_activations_in_range_sorted_by_time():
-    start = datetime(2026, 10, 9, 10, tzinfo=timezone.utc)
+    start = datetime(2026, 10, 9, 10, tzinfo=UTC)
     schema_at = start + timedelta(minutes=5)
     config_at = start + timedelta(minutes=10)
     use_case = GetVersionEvents(
@@ -71,7 +74,7 @@ def test_lists_schema_and_configuration_activations_in_range_sorted_by_time():
 
 
 def test_defaults_to_last_24_hours_and_excludes_events_without_activation_time():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     use_case = GetVersionEvents(
         InMemorySchemaRepository([AlertSchemaVersion(version=2)]),
         InMemoryConfigurationRepository([_configuration(1, None)]),

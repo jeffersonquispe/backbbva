@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from fastapi import FastAPI
 
@@ -12,8 +12,8 @@ from src.infrastructure.entrypoint.api.initialization.cors import (
 from src.infrastructure.entrypoint.api.initialization.startup import (
     run_startup_initializers,
 )
-from src.infrastructure.entrypoint.api.routers.async_operations_router import (
-    router as async_operations_router,
+from src.infrastructure.entrypoint.api.routers.alert_schema_router import (
+    router as alert_schema_router,
 )
 from src.infrastructure.entrypoint.api.routers.alerts_router import (
     router as alerts_router,
@@ -21,15 +21,32 @@ from src.infrastructure.entrypoint.api.routers.alerts_router import (
 from src.infrastructure.entrypoint.api.routers.analyst_capacity_router import (
     router as analyst_capacity_router,
 )
-from src.infrastructure.entrypoint.api.routers.configurations_router import (
-    configuration_test_router,
-    router as configurations_router,
+from src.infrastructure.entrypoint.api.routers.analyst_queue_router import (
+    router as analyst_queue_router,
+)
+from src.infrastructure.entrypoint.api.routers.async_operations_router import (
+    router as async_operations_router,
+)
+from src.infrastructure.entrypoint.api.routers.auth_router import (
+    router as auth_router,
+)
+from src.infrastructure.entrypoint.api.routers.channel_library_router import (
+    router as channel_library_router,
 )
 from src.infrastructure.entrypoint.api.routers.configuration_deploy_requests_router import (
     router as configuration_deploy_requests_router,
 )
+from src.infrastructure.entrypoint.api.routers.configurations_router import (
+    configuration_test_router,
+)
+from src.infrastructure.entrypoint.api.routers.configurations_router import (
+    router as configurations_router,
+)
 from src.infrastructure.entrypoint.api.routers.datasets_router import (
     router as datasets_router,
+)
+from src.infrastructure.entrypoint.api.routers.e2e_router import (
+    router as e2e_router,
 )
 from src.infrastructure.entrypoint.api.routers.flag_library_router import (
     router as flag_library_router,
@@ -52,9 +69,6 @@ from src.infrastructure.entrypoint.api.routers.modus_operandi_library_router imp
 from src.infrastructure.entrypoint.api.routers.operational_settings_router import (
     router as operational_settings_router,
 )
-from src.infrastructure.entrypoint.api.routers.analyst_queue_router import (
-    router as analyst_queue_router,
-)
 from src.infrastructure.entrypoint.api.routers.operations_router import (
     router as operations_router,
 )
@@ -63,9 +77,6 @@ from src.infrastructure.entrypoint.api.routers.resolution_method_catalog_router 
 )
 from src.infrastructure.entrypoint.api.routers.scenarios_router import (
     router as scenarios_router,
-)
-from src.infrastructure.entrypoint.api.routers.channel_library_router import (
-    router as channel_library_router,
 )
 from src.infrastructure.entrypoint.api.routers.similar_case_library_router import (
     router as similar_case_library_router,
@@ -87,15 +98,6 @@ from src.infrastructure.entrypoint.api.routers.vector_store_instances_router imp
 )
 from src.infrastructure.entrypoint.api.routers.watchlists_router import (
     router as watchlists_router,
-)
-from src.infrastructure.entrypoint.api.routers.auth_router import (
-    router as auth_router,
-)
-from src.infrastructure.entrypoint.api.routers.alert_schema_router import (
-    router as alert_schema_router,
-)
-from src.infrastructure.entrypoint.api.routers.e2e_router import (
-    router as e2e_router,
 )
 
 

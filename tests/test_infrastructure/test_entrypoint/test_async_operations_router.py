@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI
@@ -66,7 +66,7 @@ def _client(operation: AsyncOperationOutput | None) -> TestClient:
 
 
 def _operation(status: AsyncOperationStatus) -> AsyncOperationOutput:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return AsyncOperationOutput(
         id=uuid4(),
         operation_type="fraud.massive-review",

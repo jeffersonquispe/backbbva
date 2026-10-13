@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.application.ports.configuration_port import FlagType
-from src.application.ports.flag_library_port import FlagLibraryEntry, FlagLibraryRepository
+from src.application.ports.flag_library_port import (
+    FlagLibraryEntry,
+    FlagLibraryRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
@@ -62,7 +65,7 @@ class DynamoFlagLibraryRepository(FlagLibraryRepository):
             ),
             active=active if active is not None else current.active,
             created_at=current.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
             embedding=embedding if embedding is not None else current.embedding,
         )
         self._table.put_item(Item=_to_item(updated))

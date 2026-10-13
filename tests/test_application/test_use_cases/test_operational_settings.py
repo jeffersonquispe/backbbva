@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.operational_settings_dtos import (
     UpdateOperationalSettingsInput,
@@ -105,10 +105,10 @@ def test_update_operational_settings_records_no_changes_when_nothing_differs() -
 def test_list_operational_settings_history_returns_most_recent_first() -> None:
     repository = InMemoryOperationalSettingsRepository()
     older = OperationalSettingsChange(
-        id="1", changed_by=None, changed_at=datetime(2026, 1, 1, tzinfo=timezone.utc), changes=[]
+        id="1", changed_by=None, changed_at=datetime(2026, 1, 1, tzinfo=UTC), changes=[]
     )
     newer = OperationalSettingsChange(
-        id="2", changed_by=None, changed_at=datetime(2026, 1, 2, tzinfo=timezone.utc), changes=[]
+        id="2", changed_by=None, changed_at=datetime(2026, 1, 2, tzinfo=UTC), changes=[]
     )
     repository.history = [older, newer]
 

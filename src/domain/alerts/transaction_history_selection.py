@@ -7,7 +7,7 @@ transacciones").
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 
@@ -21,14 +21,14 @@ def parse_event_time(value: Any) -> datetime | None:
         number = float(value)
         # Heuristic: anything past year ~2286 in seconds is milliseconds.
         parsed = datetime.fromtimestamp(
-            number / 1000 if number > 1e10 else number, tz=timezone.utc
+            number / 1000 if number > 1e10 else number, tz=UTC
         )
     else:
         try:
             parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         except ValueError:
             return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 def select_transaction_history(
@@ -67,7 +67,7 @@ def select_transaction_history(
                 if time is not None and start <= time <= anchor
             ]
 
-    oldest = datetime.min.replace(tzinfo=timezone.utc)
+    oldest = datetime.min.replace(tzinfo=UTC)
     timed.sort(key=lambda item: item[0] or oldest, reverse=True)
     if max_transactions > 0:
         timed = timed[:max_transactions]

@@ -7,8 +7,7 @@ import json
 import os
 import sys
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, build_opener, ProxyHandler
-
+from urllib.request import ProxyHandler, Request, build_opener
 
 _HTTP_OPENER = build_opener(ProxyHandler({}))
 

@@ -1,15 +1,31 @@
 from __future__ import annotations
 
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from src.application.dtos.alert_schema_dtos import ApproveAlertSchemaInput, CreateAlertSchemaSuggestionInput, SaveAlertSchemaDraftInput
+
+from src.application.dtos.alert_schema_dtos import (
+    ApproveAlertSchemaInput,
+    CreateAlertSchemaSuggestionInput,
+    SaveAlertSchemaDraftInput,
+)
 from src.application.ports.alert_schema_port import AlertSchemaField
 from src.application.ports.local_auth_port import LocalRole, LocalUser
-from src.application.use_cases.alert_schema.approve_schema import ImpactAcknowledgementRequired, SelfApprovalError
+from src.application.use_cases.alert_schema.approve_schema import (
+    ImpactAcknowledgementRequired,
+    SelfApprovalError,
+)
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.alert_schema_factory import *
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
-from src.infrastructure.entrypoint.api.schemas import AlertSchemaPresenceResponse, AlertSchemaSuggestionResponse, AlertSchemaVersionResponse, ApproveAlertSchemaRequest, CreateAlertSchemaDraft, CreateAlertSchemaSuggestionRequest
+from src.infrastructure.entrypoint.api.schemas import (
+    AlertSchemaPresenceResponse,
+    AlertSchemaSuggestionResponse,
+    AlertSchemaVersionResponse,
+    ApproveAlertSchemaRequest,
+    CreateAlertSchemaDraft,
+    CreateAlertSchemaSuggestionRequest,
+)
 
 router = APIRouter(prefix="/alert-schema", tags=["alert schema"])
 

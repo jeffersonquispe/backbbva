@@ -1,8 +1,7 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 from src.application.ports.alert_port import AlertRecord, AlertStatus
-from src.application.ports.object_storage_port import ObjectStorageRef
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -11,7 +10,10 @@ from src.application.ports.alert_schema_port import (
     AlertSchemaPresenceReport,
     AlertSchemaVersion,
 )
-from src.application.use_cases.alert_schema.analyze_presence import AnalyzeAlertSchemaPresenceUseCase
+from src.application.ports.object_storage_port import ObjectStorageRef
+from src.application.use_cases.alert_schema.analyze_presence import (
+    AnalyzeAlertSchemaPresenceUseCase,
+)
 
 
 class InMemoryAlerts:
@@ -59,7 +61,7 @@ class InMemoryObjectStorage:
 
 
 def alert(day, payload, storage, created_hour=10):
-    created = datetime(day.year, day.month, day.day, created_hour, tzinfo=timezone.utc)
+    created = datetime(day.year, day.month, day.day, created_hour, tzinfo=UTC)
     key = f"raw/{uuid4()}"
     storage[key] = __import__("json").dumps(payload).encode()
     return AlertRecord(uuid4(), "event", "purchase", AlertStatus.CLOSED, created, created, raw_payload_ref=ObjectStorageRef("bucket", key, key))
@@ -74,7 +76,7 @@ def test_presence_distribution_trend_unknown_locations_and_sensitive_example():
     ]
     schema = AlertSchemaVersion(version=3, fields=fields, field_roles={"amount": "amount"})
     prior = AlertSchemaPresenceReport(
-        date(2026, 10, 8), datetime.now(timezone.utc), 3, 1,
+        date(2026, 10, 8), datetime.now(UTC), 3, 1,
         [AlertSchemaPresenceField("amount", "amount", "amount", 1)],
     )
     use_case = AnalyzeAlertSchemaPresenceUseCase(

@@ -26,12 +26,12 @@ from src.application.use_cases.operational_settings.list_operational_settings_hi
 from src.application.use_cases.operational_settings.update_operational_settings import (
     UpdateOperationalSettingsUseCase,
 )
+from src.domain.alerts.amount_tiers import InvalidAmountTiersError
 from src.infrastructure.entrypoint.api.factories.operational_settings_factory import (
     get_get_operational_settings_use_case,
     get_list_operational_settings_history_use_case,
     get_update_operational_settings_use_case,
 )
-from src.domain.alerts.amount_tiers import InvalidAmountTiersError
 from src.infrastructure.entrypoint.api.schemas import (
     AmountTierSchema,
     AnalystCapacitySchema,

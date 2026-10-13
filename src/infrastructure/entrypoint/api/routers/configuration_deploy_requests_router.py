@@ -1,24 +1,38 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import uuid4
 
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.application.ports.configuration_deploy_request_port import ConfigurationDeployRequest
+from src.application.ports.configuration_deploy_request_port import (
+    ConfigurationDeployRequest,
+)
 from src.application.ports.local_auth_port import LocalRole, LocalUser
-from src.application.use_cases.configurations.activate_configuration import ConfigurationNotFoundError, ConfigurationNotTestedError
-from src.application.use_cases.configurations.test_configuration import _diff, _record_values
-from src.infrastructure.entrypoint.api.factories.configuration_deploy_request_factory import get_configuration_deploy_request_repository
-from src.infrastructure.entrypoint.api.factories.configuration_factory import get_activate_configuration_use_case, get_configuration_repository
+from src.application.use_cases.configurations.activate_configuration import (
+    ConfigurationNotFoundError,
+    ConfigurationNotTestedError,
+)
+from src.application.use_cases.configurations.test_configuration import (
+    _diff,
+    _record_values,
+)
+from src.infrastructure.entrypoint.api.factories.configuration_deploy_request_factory import (
+    get_configuration_deploy_request_repository,
+)
+from src.infrastructure.entrypoint.api.factories.configuration_factory import (
+    get_activate_configuration_use_case,
+    get_configuration_repository,
+)
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas import (
-    ConfigurationChangeResponse, ConfigurationDeployRequestResponse,
-    ConfigurationDeployRequestPreviewResponse, CreateConfigurationDeployRequest,
+    ConfigurationChangeResponse,
+    ConfigurationDeployRequestPreviewResponse,
+    ConfigurationDeployRequestResponse,
+    CreateConfigurationDeployRequest,
 )
-
 
 router = APIRouter(prefix="/configuration-deploy-requests", tags=["configuration deploy requests"])
 
@@ -79,7 +93,7 @@ def create_deploy_request(
         current_version=current.version if current else None,
         title=request.title.strip(), message=request.message.strip(),
         changes=preview["changes"],
-        requested_by=user.name, requested_by_id=str(user.id), requested_at=datetime.now(timezone.utc),
+        requested_by=user.name, requested_by_id=str(user.id), requested_at=datetime.now(UTC),
     )
     return _response(get_configuration_deploy_request_repository().create(deploy_request))
 
@@ -111,7 +125,7 @@ def approve_deploy_request(
     except ConfigurationNotTestedError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
-        approved = requests.approve(request_id, user.name, datetime.now(timezone.utc), str(user.id))
+        approved = requests.approve(request_id, user.name, datetime.now(UTC), str(user.id))
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
             raise HTTPException(status_code=409, detail="Deploy request has already been processed") from exc

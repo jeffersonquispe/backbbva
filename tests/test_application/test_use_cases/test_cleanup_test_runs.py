@@ -1,10 +1,14 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from src.application.ports.configuration_port import TestCleanupPolicy as CleanupPolicy
 from src.application.ports.test_run_port import (
     TestRunConfig as RunConfig,
+)
+from src.application.ports.test_run_port import (
     TestRunRecord as RunRecord,
+)
+from src.application.ports.test_run_port import (
     TestRunStatus as RunStatus,
 )
 from src.application.use_cases.test_runs.cleanup_test_runs import CleanupTestRunsUseCase
@@ -29,7 +33,7 @@ class RecordingDeleteTestRuns:
 
 
 def _run(status, age_hours):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return RunRecord(
         id=uuid4(),
         name="run",

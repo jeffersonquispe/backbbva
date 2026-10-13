@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.configuration_port import ConfigurationRepository
@@ -19,12 +19,12 @@ class GetVersionEvents:
     def execute(
         self, from_: datetime | None = None, to: datetime | None = None
     ) -> list[VersionEvent]:
-        end = to or datetime.now(timezone.utc)
+        end = to or datetime.now(UTC)
         start = from_ or end - timedelta(days=1)
         if start.tzinfo is None:
-            start = start.replace(tzinfo=timezone.utc)
+            start = start.replace(tzinfo=UTC)
         if end.tzinfo is None:
-            end = end.replace(tzinfo=timezone.utc)
+            end = end.replace(tzinfo=UTC)
         events = [
             VersionEvent("schema", "Esquema", schema.version, None, schema.approved_at)
             for schema in self._schemas.list_versions()

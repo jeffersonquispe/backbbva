@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 
+from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
@@ -16,7 +17,6 @@ from src.application.ports.dataset_analysis_port import (
     DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
-from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.use_cases.datasets.analyze_dataset_on_demand import (
     AnalyzeDatasetOnDemandUseCase,
 )
@@ -116,8 +116,8 @@ class InMemoryAsyncOperationRepository:
 def test_analyze_dataset_on_demand_preserves_existing_summary_fields() -> None:
     summaries = InMemoryDatasetSummaryRepository()
     dispatcher = RecordingDatasetAnalysisDispatcher()
-    original_uploaded_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    original_updated_at = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    original_uploaded_at = datetime(2026, 1, 1, tzinfo=UTC)
+    original_updated_at = datetime(2026, 1, 2, tzinfo=UTC)
     summaries.upsert(
         DatasetSummaryRecord(
             dataset_name="ds1",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -37,7 +37,7 @@ from src.application.use_cases.operations.live_operations_capacity import (
 )
 
 # 2026-09-15 14:30 in Bogotá (UTC-5) - day 15, hour 14.
-NOW = datetime(2026, 9, 15, 19, 30, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 15, 19, 30, tzinfo=UTC)
 
 
 class InMemoryResourceReservationRepository:

@@ -23,7 +23,7 @@ import threading
 import time
 from collections import Counter
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 RANGES = {
@@ -115,7 +115,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", dest="json_path", default=None)
     args = parser.parse_args(argv)
 
-    from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+    from src.infrastructure.persistence.database.dynamodb.client import (
+        get_dynamodb_resource,
+    )
 
     _install_hooks(get_dynamodb_resource().meta.client)
     endpoints = _endpoints()
@@ -131,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
                 counter: Counter = Counter()
                 body = ""
                 for run in range(args.warmup + args.runs):
-                    to = datetime.now(timezone.utc)
+                    to = datetime.now(UTC)
                     # Same range for every run of a case (cache key stable
                     # within the minute, like a dashboard refresh).
                     to = to.replace(second=0, microsecond=0)

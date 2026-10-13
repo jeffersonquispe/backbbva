@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import pytest
-
 from pathlib import Path
+
+import pytest
 
 from src.infrastructure.persistence.dataset.filesystem.csv_dataset_repository import (
     FilesystemCsvDatasetRepository,

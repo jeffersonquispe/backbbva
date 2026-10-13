@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 os.environ.setdefault("GENAI_ENVIRONMENT", "test")
@@ -30,7 +30,7 @@ from src.infrastructure.entrypoint.api.routers.auth_router import get_current_us
 
 
 def _user(role: LocalRole = LocalRole.DATA_ANALYST) -> LocalUser:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return LocalUser(
         id=uuid4(), email="qa@aria.test", name="QA Analyst", password_hash="unused",
         role=role, is_active=True, created_at=now, updated_at=now,
@@ -48,7 +48,7 @@ class _CreateInstance:
     def execute(self, *, name: str, description: str, created_by: str, assets: list):
         return VectorStoreInstance(
             id="vector-store-v1", version=1, name=name, description=description,
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc), created_by=created_by,
+            created_at=datetime(2026, 1, 1, tzinfo=UTC), created_by=created_by,
         )
 
 
@@ -71,8 +71,8 @@ class _UpdateInstance:
     def execute(self, *args, **kwargs):
         return VectorStoreInstance(
             id="vector-store-v1", version=1, name="QA", description="",
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc), created_by="QA Analyst",
-            updated_at=datetime(2026, 1, 2, tzinfo=timezone.utc), updated_by="QA Analyst",
+            created_at=datetime(2026, 1, 1, tzinfo=UTC), created_by="QA Analyst",
+            updated_at=datetime(2026, 1, 2, tzinfo=UTC), updated_by="QA Analyst",
         )
 
 

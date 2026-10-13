@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from celery.result import AsyncResult
 from celery import states
+from celery.result import AsyncResult
 
 from src.application.ports.analyst_capacity_import_port import (
     AnalystCapacityImportResult,

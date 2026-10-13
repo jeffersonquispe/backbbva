@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.configuration_port import (
     AnalystCapacity,
@@ -101,7 +101,7 @@ def test_change_item_round_trips_with_json_encoded_values() -> None:
     change = OperationalSettingsChange(
         id="c1",
         changed_by="analyst@bbva.com",
-        changed_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        changed_at=datetime(2026, 1, 1, tzinfo=UTC),
         changes=[
             SettingChange("agent_enabled", True, False),
             SettingChange(

@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from src.application.ports.watchlist_port import Watchlist, WatchlistType
 from src.application.use_cases.watchlists.add_watchlist_elements import (
     AddWatchlistElementsUseCase,
+)
+from src.application.use_cases.watchlists.add_watchlist_elements import (
     WatchlistNotFoundError as AddElementsWatchlistNotFoundError,
 )
 from src.application.use_cases.watchlists.check_watchlist_membership import (

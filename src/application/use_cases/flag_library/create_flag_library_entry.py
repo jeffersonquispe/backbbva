@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.configuration_port import FlagType
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
-from src.application.ports.flag_library_port import FlagLibraryEntry, FlagLibraryRepository
+from src.application.ports.flag_library_port import (
+    FlagLibraryEntry,
+    FlagLibraryRepository,
+)
 from src.application.ports.monitoring_port import MonitoringPort
 
 
@@ -38,7 +41,7 @@ class CreateFlagLibraryEntryUseCase:
         for existing in self._entries.list():
             if " ".join(existing.name.split()).casefold() == normalized_name and existing.flag_type == flag_type:
                 return existing
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         uow = self._embedding_unit_of_work_factory.create(
             model=self._embedding_model,
             monitoring=self._monitoring,

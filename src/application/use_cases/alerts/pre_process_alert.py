@@ -4,15 +4,15 @@ import dataclasses
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 from uuid import UUID
 
 from src.application.dtos.pre_process_dtos import (
     PreProcessAlertInput,
     PreProcessAlertOutput,
 )
-from src.application.ports.aric_alert_port import AricAlertPort, AricAlertSignals
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -20,6 +20,7 @@ from src.application.ports.alert_schema_port import (
     AlertSchemaRepository,
     AlertSchemaVersion,
 )
+from src.application.ports.aric_alert_port import AricAlertPort, AricAlertSignals
 from src.application.ports.host_service_customer_port import (
     HostServiceCustomerProfilePort,
 )

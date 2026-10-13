@@ -14,22 +14,22 @@ from src.infrastructure.entrypoint.api.factories.alert_factory import (
     get_workflow_execution_repository,
     get_workflow_executor,
 )
-from src.infrastructure.persistence.object_storage.minio import get_object_storage
 from src.infrastructure.entrypoint.api.factories.async_operation_factory import (
     get_async_operation_repository,
 )
 from src.infrastructure.entrypoint.api.factories.dataset_factory import (
     get_dataset_repository,
 )
-from src.infrastructure.persistence.database.dynamodb.repositories.test_run_repository import (
-    DynamoTestRunRepository,
-)
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import (
     DynamoAlertSchemaRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.test_run_repository import (
+    DynamoTestRunRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
     DynamoWorkflowStepExecutionRepository,
 )
+from src.infrastructure.persistence.object_storage.minio import get_object_storage
 
 
 @lru_cache
@@ -43,7 +43,9 @@ def get_workflow_step_execution_repository() -> DynamoWorkflowStepExecutionRepos
 
 
 def get_start_test_run_use_case() -> StartTestRunUseCase:
-    from src.infrastructure.entrypoint.api.factories.configuration_factory import get_configuration_repository
+    from src.infrastructure.entrypoint.api.factories.configuration_factory import (
+        get_configuration_repository,
+    )
     from src.infrastructure.entrypoint.api.factories.metrics_factory import (
         get_record_alert_metrics_event_use_case,
     )

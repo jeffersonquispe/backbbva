@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from src.application.ports.test_run_port import TestRunConfig, TestRunRecord, TestRunStatus
+from src.application.ports.test_run_port import (
+    TestRunConfig,
+    TestRunRecord,
+    TestRunStatus,
+)
 from src.application.ports.workflow_port import WorkflowExecutionRecord
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
 
@@ -54,7 +58,7 @@ def _run(created_at: datetime) -> TestRunRecord:
 
 
 def test_list_test_runs_defaults_to_newest_first() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     oldest = _run(now - timedelta(days=2))
     newest = _run(now)
     middle = _run(now - timedelta(days=1))
@@ -71,7 +75,7 @@ def test_list_test_runs_defaults_to_newest_first() -> None:
 
 
 def test_list_test_runs_order_asc_is_oldest_first() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     oldest = _run(now - timedelta(days=2))
     newest = _run(now)
     use_case = ListTestRunsUseCase(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -87,7 +87,7 @@ class DynamoWorkflowExecutionRepository(WorkflowExecutionRepository):
             ),
             max_feedback_iterations=current.max_feedback_iterations,
             created_at=current.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
             finished_at=finished_at or current.finished_at,
             execution_backend=execution_backend or current.execution_backend,
             external_id=external_id or current.external_id,
@@ -181,7 +181,7 @@ class DynamoWorkflowStepExecutionRepository(WorkflowStepExecutionRepository):
             started_at=started_at or current.started_at,
             finished_at=finished_at or current.finished_at,
             created_at=current.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
         self._table.put_item(Item=_step_to_item(updated))
         return updated

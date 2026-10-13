@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.application.ports.similar_case_library_port import (
@@ -60,7 +60,7 @@ class DynamoSimilarCaseLibraryRepository(SimilarCaseLibraryRepository):
             ),
             active=active if active is not None else current.active,
             created_at=current.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
             embedding=embedding if embedding is not None else current.embedding,
         )
         self._table.put_item(Item=_to_item(updated))

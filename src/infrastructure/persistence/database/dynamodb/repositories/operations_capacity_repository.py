@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.application.ports.operations_capacity_port import (
@@ -22,7 +22,7 @@ _FALLBACK_CAPACITY = OperationsCapacityRecord(
     analysts=ChannelCapacity(available=0, status="unavailable"),
     voicebot=ChannelCapacity(available=0, status="unavailable"),
     bidi=ChannelCapacity(available=0, status="unavailable"),
-    updated_at=datetime.fromtimestamp(0, tz=timezone.utc),
+    updated_at=datetime.fromtimestamp(0, tz=UTC),
 )
 
 

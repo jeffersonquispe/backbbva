@@ -1,4 +1,8 @@
-from src.application.ports.alert_schema_port import AlertSchemaRepository, AlertSchemaStatus, AlertSchemaVersion
+from src.application.ports.alert_schema_port import (
+    AlertSchemaRepository,
+    AlertSchemaStatus,
+    AlertSchemaVersion,
+)
 
 
 class RejectAlertSchemaUseCase:

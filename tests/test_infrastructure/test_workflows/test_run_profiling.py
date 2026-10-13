@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
@@ -20,7 +20,7 @@ from src.application.ports.configuration_port import (
 
 
 def _config_with_segment(segment: SegmentSettings) -> ConfigurationRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return ConfigurationRecord(
         configuration_id="cfg-1",
         version=1,

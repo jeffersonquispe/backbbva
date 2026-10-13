@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from src.application.ports.alert_port import AlertStatus
 from src.application.ports.resource_reservation_port import (
@@ -11,7 +11,7 @@ from src.application.ports.resource_reservation_port import (
 )
 from src.application.use_cases.metrics.get_live_alert_funnel import GetLiveAlertFunnel
 
-NOW = datetime(2026, 10, 1, 15, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 1, 15, 0, tzinfo=UTC)
 
 
 class CountingAlertRepository:

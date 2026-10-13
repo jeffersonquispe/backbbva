@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.ports.model_port import ModelRecord, ModelStatus
@@ -38,7 +38,7 @@ class InMemoryModelRepository:
 
 
 def _ready_model(tag: str) -> ModelRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return ModelRecord(
         id=UUID(int=hash(tag) % (2**128)),
         tag=tag,

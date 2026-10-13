@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import dataclasses
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -41,8 +41,8 @@ from src.application.use_cases.metrics.technical_rollup_contribution import (
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
 
 TZ = "America/Bogota"
-NOW = datetime(2026, 10, 1, 15, 30, tzinfo=timezone.utc)
-CREATED = datetime(2026, 10, 1, 4, 30, tzinfo=timezone.utc)  # 23:30 Bogota, Sep 30
+NOW = datetime(2026, 10, 1, 15, 30, tzinfo=UTC)
+CREATED = datetime(2026, 10, 1, 4, 30, tzinfo=UTC)  # 23:30 Bogota, Sep 30
 
 
 class InMemoryAlertRepository:

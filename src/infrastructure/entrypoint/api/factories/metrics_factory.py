@@ -7,13 +7,13 @@ from src.application.use_cases.metrics.get_live_alert_funnel import (
     GetLiveAlertFunnel,
 )
 from src.application.use_cases.metrics.get_metrics_overview import GetMetricsOverview
-from src.application.use_cases.metrics.record_alert_metrics_event import (
-    RecordAlertMetricsEvent,
-)
 from src.application.use_cases.metrics.get_technical_metrics import (
     GetTechnicalMetrics,
 )
 from src.application.use_cases.metrics.get_version_events import GetVersionEvents
+from src.application.use_cases.metrics.record_alert_metrics_event import (
+    RecordAlertMetricsEvent,
+)
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.factories.alert_factory import (
     get_alert_repository,
@@ -24,9 +24,6 @@ from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
 from src.infrastructure.entrypoint.api.factories.configuration_factory import (
     get_configuration_repository,
 )
-from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import (
-    DynamoAlertSchemaRepository,
-)
 from src.infrastructure.entrypoint.api.factories.operational_settings_factory import (
     get_operational_settings_repository,
 )
@@ -35,6 +32,9 @@ from src.infrastructure.entrypoint.api.metrics_query_cache import (
     get_metrics_query_cache,
 )
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import (
+    DynamoAlertSchemaRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.metrics_rollup_repository import (
     DynamoMetricsRollupRepository,
 )

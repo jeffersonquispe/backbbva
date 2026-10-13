@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -43,8 +43,8 @@ from src.domain.alerts.exceptions import (
 )
 
 TZ = "America/Bogota"
-CREATED_AT = datetime(2026, 9, 28, 14, 0, tzinfo=timezone.utc)
-NOW = datetime(2026, 10, 1, 15, 0, tzinfo=timezone.utc)
+CREATED_AT = datetime(2026, 9, 28, 14, 0, tzinfo=UTC)
+NOW = datetime(2026, 10, 1, 15, 0, tzinfo=UTC)
 
 
 class InMemoryAlertRepository:
@@ -234,7 +234,7 @@ def test_csv_import_reports_each_row_and_bad_rows_do_not_abort_the_batch() -> No
         "\n"
         f"{missing};fraud;\n"
         f"{b.id};fraud;contracargo\n"
-    ).encode("utf-8")
+    ).encode()
 
     result = ImportFraudLabelReviews(use_case).execute(content, reviewed_by="bulk@aria.test")
 

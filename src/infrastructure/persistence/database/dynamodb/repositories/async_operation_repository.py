@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -99,7 +99,7 @@ class DynamoAsyncOperationRepository:
             result=result if result is not None else current.result,
             error=error if error is not None else current.error,
             created_at=current.created_at,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
             created_by=current.created_by,
             dispatched_at=dispatched_at or current.dispatched_at,
             execution_backend=(

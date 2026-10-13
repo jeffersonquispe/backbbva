@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from src.application.use_cases.research.research_tool import BoundedResearchTool
-from src.infrastructure.core.config import genai_config
-from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
-from src.infrastructure.monitoring.opentelemetry import get_monitoring
+
+from src.application.dtos.research_dtos import ResearchSource
+from src.application.ports.configuration_port import (
+    HistoryPandasResearchConfig,
+    VectorStoreResearchConfig,
+)
+from src.application.ports.research_port import HistoryResearchPlanner
 from src.application.use_cases.alerts.document_analyst_decision import (
     DocumentAnalystDecisionUseCase,
 )
@@ -14,6 +17,10 @@ from src.application.use_cases.alerts.escalate_alert_to_analyst import (
 from src.application.use_cases.alerts.execute_alert_action import (
     ExecuteAlertActionUseCase,
 )
+from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
+from src.application.use_cases.alerts.resolve_alert_segment import (
+    ResolveAlertSegmentUseCase,
+)
 from src.application.use_cases.async_operations.reconcile_async_operations import (
     ReconcileAsyncOperationsUseCase,
 )
@@ -22,12 +29,21 @@ from src.application.use_cases.datasets.analyze_fraud_marking import (
     AnalyzeFraudMarkingUseCase,
 )
 from src.application.use_cases.datasets.delete_dataset import DeleteDatasetUseCase
+from src.application.use_cases.research.delegated_research import (
+    ResearchDelegationCoordinator,
+    TimeBoundedResearchAgent,
+    VectorStoreResearchAgent,
+)
+from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.application.use_cases.test_runs.cleanup_test_runs import CleanupTestRunsUseCase
 from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
 from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
     MockAlertChannelActionAdapter,
 )
+from src.infrastructure.core.config import genai_config
+from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
+from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sample_repository import (
     DynamoDatasetSampleRepository,
 )
@@ -41,24 +57,6 @@ from src.infrastructure.persistence.object_storage.minio import (
     get_dataset_object_storage,
 )
 from src.infrastructure.queues.celery.inspector import CeleryAsyncExecutionInspector
-from src.application.dtos.research_dtos import ResearchSource
-from src.application.ports.configuration_port import (
-    HistoryPandasResearchConfig,
-    VectorStoreResearchConfig,
-)
-from src.application.ports.research_port import HistoryResearchPlanner
-from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
-from src.application.use_cases.alerts.resolve_alert_segment import (
-    ResolveAlertSegmentUseCase,
-)
-from src.application.use_cases.research.delegated_research import (
-    ResearchDelegationCoordinator,
-    TimeBoundedResearchAgent,
-    VectorStoreResearchAgent,
-)
-from src.infrastructure.workflows.celery.research_adapters import (
-    WorkflowVectorStoreRetriever,
-)
 from src.infrastructure.workflows.celery.factories import (
     get_alert_object_storage,
     get_alert_repository,
@@ -69,7 +67,9 @@ from src.infrastructure.workflows.celery.factories import (
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
 )
-
+from src.infrastructure.workflows.celery.research_adapters import (
+    WorkflowVectorStoreRetriever,
+)
 
 # --- task-level wiring: everything entrypoint/worker/celery/tasks.py runs ---
 

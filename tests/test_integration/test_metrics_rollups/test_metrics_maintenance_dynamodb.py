@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import random
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -54,7 +54,9 @@ from src.application.use_cases.metrics.reconcile_alert_rollups import (
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
 )
-from src.infrastructure.persistence.database.dynamodb.client import get_dynamodb_resource
+from src.infrastructure.persistence.database.dynamodb.client import (
+    get_dynamodb_resource,
+)
 from src.infrastructure.persistence.database.dynamodb.manager import (
     create_table,
     ensure_global_secondary_indexes,
@@ -67,14 +69,16 @@ from src.infrastructure.persistence.database.dynamodb.repositories.alert_reposit
     DynamoAlertRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.metrics_rollup_repository import (
-    DynamoMetricsRollupRepository,
     REVISION_ATTRIBUTE,
+    DynamoMetricsRollupRepository,
     measure_attribute,
     partition_key,
     sort_key,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.resource_reservation_repository import (
     RESERVATIONS_TABLE_NAME,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.resource_reservation_repository import (
     _to_item as reservation_to_item,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
@@ -130,7 +134,7 @@ def world(tables):
     """A random past year: DAY is two days before the fake NOW."""
     year = random.randint(1950, 1999)
     day = date(year, 3, 10)
-    now = datetime(year, 3, 12, 7, 0, tzinfo=timezone.utc)
+    now = datetime(year, 3, 12, 7, 0, tzinfo=UTC)
     created: dict[str, list] = {"alerts": [], "workflows": [], "reservations": []}
     yield day, now, created
     resource = get_dynamodb_resource()
@@ -161,7 +165,7 @@ def world(tables):
 
 
 def _at(day: date, hour: int) -> datetime:
-    return datetime(day.year, day.month, day.day, hour, tzinfo=BOG).astimezone(timezone.utc)
+    return datetime(day.year, day.month, day.day, hour, tzinfo=BOG).astimezone(UTC)
 
 
 def _new_alert(created_at: datetime, status: AlertStatus, workflow_id=None) -> AlertRecord:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.channel_library_port import (
     ChannelLibraryEntry,
@@ -19,7 +19,7 @@ class CreateChannelLibraryEntryUseCase:
         name: str,
         description: str = "",
     ) -> ChannelLibraryEntry:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return self._entries.create(
             ChannelLibraryEntry(
                 id=str(uuid.uuid4()),

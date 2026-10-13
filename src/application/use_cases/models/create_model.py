@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.model_dtos import CreateModelInput, ModelOutput
 from src.application.ports.model_port import (
@@ -44,7 +44,7 @@ class CreateModelUseCase:
         if input.feature_configuration is not None:
             from src.domain.models.feature_recipe import validate_feature_definition
             validate_feature_definition(input.feature_configuration, forbidden_paths=(input.target_field,))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         model = ModelRecord(
             id=uuid.uuid4(),
             tag=input.tag,

@@ -2,7 +2,7 @@
 metrics snapshot existed."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -21,7 +21,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.alert_reposit
     snapshot_to_item,
 )
 
-CREATED = datetime(2026, 10, 2, 3, 30, tzinfo=timezone.utc)  # Oct 1 22:30 Bogota
+CREATED = datetime(2026, 10, 2, 3, 30, tzinfo=UTC)  # Oct 1 22:30 Bogota
 
 
 def _alert(**overrides) -> AlertRecord:

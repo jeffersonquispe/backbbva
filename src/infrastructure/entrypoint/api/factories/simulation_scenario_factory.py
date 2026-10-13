@@ -28,20 +28,20 @@ from src.application.use_cases.event_simulation.list_simulation_scenarios import
 from src.application.use_cases.event_simulation.pause_simulation import (
     PauseSimulationUseCase,
 )
+from src.application.use_cases.event_simulation.seed_simulation_from_dataset import (
+    SeedSimulationFromDatasetUseCase,
+)
 from src.application.use_cases.event_simulation.start_simulation import (
     StartSimulationUseCase,
 )
 from src.application.use_cases.event_simulation.stop_simulation import (
     StopSimulationUseCase,
 )
-from src.application.use_cases.event_simulation.seed_simulation_from_dataset import (
-    SeedSimulationFromDatasetUseCase,
+from src.application.use_cases.event_simulation.update_simulation_scenario import (
+    UpdateSimulationScenarioUseCase,
 )
 from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
     get_alert_schema_repository,
-)
-from src.application.use_cases.event_simulation.update_simulation_scenario import (
-    UpdateSimulationScenarioUseCase,
 )
 from src.infrastructure.entrypoint.api.factories.dataset_factory import (
     get_dataset_repository,

@@ -8,30 +8,52 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.vector_store_instance_port import (
-    KnowledgeAssetType, VectorStoreInstance, VectorStoreInstanceAsset,
+    KnowledgeAssetType,
+    VectorStoreInstance,
+    VectorStoreInstanceAsset,
 )
-from src.application.use_cases.vector_store_instances.create_vector_store_instance import DuplicateVectorStoreInstanceNameError
-from src.application.use_cases.vector_store_instances.create_vector_store_instance import CreateVectorStoreInstanceUseCase
-from src.application.use_cases.vector_store_instances.manage_vector_store_instance import VectorStoreInstanceNotFoundError
-from src.application.use_cases.vector_store_instances.knowledge_graph import KnowledgeGraphService
+from src.application.use_cases.vector_store_instances.create_vector_store_instance import (
+    CreateVectorStoreInstanceUseCase,
+    DuplicateVectorStoreInstanceNameError,
+)
+from src.application.use_cases.vector_store_instances.knowledge_graph import (
+    KnowledgeGraphService,
+)
+from src.application.use_cases.vector_store_instances.manage_vector_store_instance import (
+    VectorStoreInstanceNotFoundError,
+)
 from src.application.use_cases.vector_store_instances.promote_vector_store_instance import (
     EmptyVectorStoreInstanceError,
     PromoteVectorStoreInstanceUseCase,
 )
-from src.infrastructure.entrypoint.api.factories.flag_library_factory import get_flag_library_repository
-from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import get_modus_operandi_library_repository
-from src.infrastructure.entrypoint.api.factories.similar_case_library_factory import get_similar_case_library_repository
-from src.infrastructure.entrypoint.api.factories.taxonomy_library_factory import get_taxonomy_library_repository
+from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
+    get_flag_library_repository,
+)
+from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import (
+    get_modus_operandi_library_repository,
+)
+from src.infrastructure.entrypoint.api.factories.similar_case_library_factory import (
+    get_similar_case_library_repository,
+)
+from src.infrastructure.entrypoint.api.factories.taxonomy_library_factory import (
+    get_taxonomy_library_repository,
+)
 from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
-    get_add_vector_store_document_use_case, get_create_vector_store_instance_use_case,
-    get_knowledge_graph_service, get_list_vector_store_instances_use_case,
-    get_promote_vector_store_instance_use_case, get_remove_vector_store_document_use_case,
-    get_update_vector_store_instance_use_case, get_vector_store_instance_repository,
+    get_create_vector_store_instance_use_case,
+    get_knowledge_graph_service,
+    get_list_vector_store_instances_use_case,
+    get_promote_vector_store_instance_use_case,
+    get_remove_vector_store_document_use_case,
+    get_update_vector_store_instance_use_case,
+    get_vector_store_instance_repository,
 )
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas import (
-    AddVectorStoreDocumentRequest, CreateVectorStoreInstanceRequest,
-    UpdateVectorStoreInstanceRequest, VectorStoreDocumentSchema, VectorStoreInstanceSchema,
+    AddVectorStoreDocumentRequest,
+    CreateVectorStoreInstanceRequest,
+    UpdateVectorStoreInstanceRequest,
+    VectorStoreDocumentSchema,
+    VectorStoreInstanceSchema,
 )
 
 router = APIRouter(prefix="/vector-store-instances", tags=["vector-store-instances"])

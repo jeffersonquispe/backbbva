@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
-
-import pytest
 
 from src.application.dtos.simulation_dtos import GenerateEventBatchOutput
 from src.application.ports.simulation_scenario_port import (
@@ -87,7 +85,7 @@ class RecordingApplyAsync:
 
 
 def _scenario(**overrides) -> SimulationScenarioRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     defaults = dict(
         id=uuid4(),
         name="scenario",

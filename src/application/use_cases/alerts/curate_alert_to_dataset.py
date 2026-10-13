@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -75,7 +75,7 @@ class CurateAlertToDatasetUseCase:
             alert_id=input.alert_id,
             justification=input.justification,
             dataset_name=input.dataset_name,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         self._feedback.create(feedback)
 

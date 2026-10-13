@@ -1,17 +1,31 @@
-from datetime import datetime, timezone
 
 import pytest
 
-from src.application.dtos.alert_schema_dtos import ApproveAlertSchemaInput
-from src.application.dtos.alert_schema_dtos import CreateAlertSchemaSuggestionInput
-from src.application.ports.alert_schema_port import AlertSchemaDataSource, AlertSchemaField, AlertSchemaStatus, AlertSchemaVersion
-from src.application.use_cases.alert_schema.approve_schema import ApproveAlertSchemaUseCase, ImpactAcknowledgementRequired, SelfApprovalError
-from src.application.use_cases.alert_schema.propose_schema import ProposeAlertSchemaUseCase
+from src.application.dtos.alert_schema_dtos import (
+    ApproveAlertSchemaInput,
+    CreateAlertSchemaSuggestionInput,
+)
+from src.application.ports.alert_schema_port import (
+    AlertSchemaDataSource,
+    AlertSchemaField,
+    AlertSchemaStatus,
+    AlertSchemaVersion,
+)
+from src.application.use_cases.alert_schema.approve_schema import (
+    ApproveAlertSchemaUseCase,
+    ImpactAcknowledgementRequired,
+    SelfApprovalError,
+)
 from src.application.use_cases.alert_schema.create_suggestion import (
     CreateAlertSchemaSuggestionUseCase,
     ListAlertSchemaSuggestionsUseCase,
 )
-from src.application.use_cases.alert_schema.reject_schema import RejectAlertSchemaUseCase
+from src.application.use_cases.alert_schema.propose_schema import (
+    ProposeAlertSchemaUseCase,
+)
+from src.application.use_cases.alert_schema.reject_schema import (
+    RejectAlertSchemaUseCase,
+)
 
 
 class InMemorySchemaRepository:

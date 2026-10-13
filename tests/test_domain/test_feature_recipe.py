@@ -3,8 +3,11 @@ from copy import deepcopy
 import pytest
 
 from src.domain.models.feature_recipe import (
-    FeatureRecipeValidationError, describe_capabilities, describe_operations,
-    evaluate_feature_definition, validate_feature_definition,
+    FeatureRecipeValidationError,
+    describe_capabilities,
+    describe_operations,
+    evaluate_feature_definition,
+    validate_feature_definition,
 )
 
 

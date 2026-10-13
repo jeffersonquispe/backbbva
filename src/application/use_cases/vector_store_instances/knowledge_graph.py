@@ -9,7 +9,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from src.application.ports.vector_store_instance_port import (
-    KnowledgeAssetType, VectorStoreInstanceAsset, VectorStoreInstanceRepository,
+    KnowledgeAssetType,
+    VectorStoreInstanceAsset,
+    VectorStoreInstanceRepository,
 )
 
 

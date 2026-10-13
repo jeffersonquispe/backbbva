@@ -12,13 +12,13 @@ from src.application.use_cases.test_runs.dataset_sampling import (
     InsufficientSampleDataError,
 )
 from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
-from src.application.use_cases.test_runs.token_usage import sum_step_tokens
 from src.application.use_cases.test_runs.get_test_case_detail import (
     GetTestCaseDetailUseCase,
 )
 from src.application.use_cases.test_runs.get_test_run import GetTestRunUseCase
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
 from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
+from src.application.use_cases.test_runs.token_usage import sum_step_tokens
 from src.domain.alerts.exceptions import AlertPayloadTooLargeError
 from src.infrastructure.entrypoint.api.factories.test_run_factory import (
     get_delete_test_runs_use_case,

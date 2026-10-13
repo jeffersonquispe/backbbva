@@ -1,4 +1,7 @@
-from src.application.ports.alert_schema_port import AlertSchemaRepository, AlertSchemaVersion
+from src.application.ports.alert_schema_port import (
+    AlertSchemaRepository,
+    AlertSchemaVersion,
+)
 
 
 class GetActiveAlertSchemaUseCase:

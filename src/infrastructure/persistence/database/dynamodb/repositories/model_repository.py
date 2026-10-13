@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from dataclasses import asdict
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from src.application.ports.model_port import (
     FieldTransform,
-    HistoricalFeature,
-    TrainingConfig,
     FieldTransformKind,
+    HistoricalFeature,
     ModelRecord,
     ModelRepository,
     ModelStatus,
+    TrainingConfig,
 )
 from src.domain.models.exceptions import ModelNotFoundError
 from src.infrastructure.persistence.database.dynamodb.client import (
@@ -52,7 +52,7 @@ class DynamoModelRepository(ModelRepository):
         return None
 
     def update(self, model: ModelRecord) -> ModelRecord:
-        model.updated_at = datetime.now(timezone.utc)
+        model.updated_at = datetime.now(UTC)
         self._table.put_item(Item=_to_item(model))
         return model
 

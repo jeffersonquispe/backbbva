@@ -5,7 +5,6 @@ import uuid
 import pytest
 
 from src.application.dtos.pre_process_dtos import PreProcessAlertInput
-from src.application.ports.aric_alert_port import AricAlertPort, AricAlertSignals
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -13,6 +12,7 @@ from src.application.ports.alert_schema_port import (
     AlertSchemaStatus,
     AlertSchemaVersion,
 )
+from src.application.ports.aric_alert_port import AricAlertPort, AricAlertSignals
 from src.application.ports.host_service_customer_port import (
     HostCustomerProfile,
     HostServiceCustomerProfilePort,

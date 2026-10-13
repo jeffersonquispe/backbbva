@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.application.ports.taxonomy_library_port import TaxonomyLibraryEntry
+from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 from src.application.use_cases.taxonomy_library.create_taxonomy_library_entry import (
     CreateTaxonomyLibraryEntryUseCase,
 )
@@ -18,23 +19,30 @@ from src.application.use_cases.taxonomy_library.update_taxonomy_library_entry im
     TaxonomyLibraryEntryNotFoundError,
     UpdateTaxonomyLibraryEntryUseCase,
 )
+from src.infrastructure.entrypoint.api.authorization import require_library_access
+from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
+    get_flag_library_repository,
+)
+from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import (
+    get_modus_operandi_library_repository,
+)
+from src.infrastructure.entrypoint.api.factories.similar_case_library_factory import (
+    get_similar_case_library_repository,
+)
 from src.infrastructure.entrypoint.api.factories.taxonomy_library_factory import (
     get_create_taxonomy_library_entry_use_case,
     get_delete_taxonomy_library_entry_use_case,
     get_list_taxonomy_library_entries_use_case,
     get_update_taxonomy_library_entry_use_case,
 )
-from src.infrastructure.entrypoint.api.factories.flag_library_factory import get_flag_library_repository
-from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import get_modus_operandi_library_repository
-from src.infrastructure.entrypoint.api.factories.similar_case_library_factory import get_similar_case_library_repository
-from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import get_knowledge_graph_service
-from src.application.ports.vector_store_instance_port import KnowledgeAssetType
+from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+    get_knowledge_graph_service,
+)
 from src.infrastructure.entrypoint.api.schemas import (
     CreateTaxonomyLibraryEntryRequest,
     TaxonomyLibraryEntrySchema,
     UpdateTaxonomyLibraryEntryRequest,
 )
-from src.infrastructure.entrypoint.api.authorization import require_library_access
 
 router = APIRouter(prefix="/library/taxonomies", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
 

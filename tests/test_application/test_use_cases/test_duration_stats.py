@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from src.application.ports.workflow_port import (
     WorkflowExecutionRecord,
@@ -17,7 +17,7 @@ from src.application.use_cases.test_runs.duration_stats import (
 
 
 def _step(step_name: str, duration_seconds: float | None) -> WorkflowStepExecutionRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     finished = now + timedelta(seconds=duration_seconds) if duration_seconds is not None else None
     return WorkflowStepExecutionRecord(
         id=uuid.uuid4(),
@@ -68,7 +68,7 @@ def test_step_duration_stats_by_name_groups_by_stage_and_skips_unfinished() -> N
 
 
 def test_workflow_duration_none_when_not_finished() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     workflow = WorkflowExecutionRecord(
         id=uuid.uuid4(),
         alert_id=uuid.uuid4(),

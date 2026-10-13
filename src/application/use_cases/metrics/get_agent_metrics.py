@@ -9,7 +9,7 @@ so no rollup holds it - the response says so (available = false)."""
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.metrics_dtos import (
     AgentMetricsOutput,
@@ -35,7 +35,7 @@ class GetAgentMetrics:
         self,
         rollup_repository: MetricsRollupRepository,
         timezone_name: str,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._rollups = rollup_repository
         self._timezone_name = timezone_name

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.watchlist_port import (
     Watchlist,
@@ -21,7 +21,7 @@ class CreateWatchlistUseCase:
         list_type: WatchlistType,
         elements: list[str] | None = None,
     ) -> Watchlist:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         watchlist = self._watchlists.create(
             Watchlist(
                 id=str(uuid.uuid4()),

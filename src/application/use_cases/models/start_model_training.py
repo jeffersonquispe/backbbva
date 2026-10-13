@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.dtos.model_dtos import StartModelTrainingOutput
@@ -47,7 +47,7 @@ class StartModelTrainingUseCase:
             from src.domain.models.feature_recipe import validate_feature_definition
             validate_feature_definition(model.feature_configuration, forbidden_paths=(model.target_field,))
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         operation = self._async_operations.create(
             AsyncOperationRecord(
                 id=uuid.uuid4(),

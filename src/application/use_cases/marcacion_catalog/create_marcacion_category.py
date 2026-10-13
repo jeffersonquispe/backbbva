@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.ports.marcacion_catalog_port import (
     MarcacionCatalogRepository,
@@ -15,7 +15,7 @@ class CreateMarcacionCategoryUseCase:
         self._categories = marcacion_catalog_repository
 
     def execute(self, value: str, risk_label: RiskLabel) -> MarcacionCategory:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return self._categories.create(
             MarcacionCategory(
                 id=str(uuid.uuid4()),

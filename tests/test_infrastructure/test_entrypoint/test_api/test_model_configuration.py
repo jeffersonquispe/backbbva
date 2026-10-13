@@ -4,10 +4,18 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.application.ports.model_port import ModelRecord, ModelStatus, HistoricalFeature, TrainingConfig
-from src.infrastructure.entrypoint.api.schemas import CreateModelRequest, ModelResponse
+from src.application.ports.model_port import (
+    HistoricalFeature,
+    ModelRecord,
+    ModelStatus,
+    TrainingConfig,
+)
 from src.application.use_cases.models.create_model import _to_output
-from src.infrastructure.persistence.database.dynamodb.repositories.model_repository import _to_item, _from_item
+from src.infrastructure.entrypoint.api.schemas import CreateModelRequest, ModelResponse
+from src.infrastructure.persistence.database.dynamodb.repositories.model_repository import (
+    _from_item,
+    _to_item,
+)
 
 
 def valid_request():

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI
@@ -35,7 +35,7 @@ from src.infrastructure.entrypoint.api.routers.scenarios_router import router
 
 
 def _scenario(**overrides) -> SimulationScenarioRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     defaults = dict(
         id=uuid4(),
         name="scenario",

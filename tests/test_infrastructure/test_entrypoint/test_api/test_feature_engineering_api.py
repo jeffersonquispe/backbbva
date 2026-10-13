@@ -8,12 +8,21 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from src.application.ports.model_port import ModelRecord, ModelStatus
-from src.application.use_cases.models.feature_engineering import FeatureTemplatesUseCase, PreviewFeaturesUseCase
+from src.application.use_cases.models.feature_engineering import (
+    FeatureTemplatesUseCase,
+    PreviewFeaturesUseCase,
+)
 from src.domain.models.feature_recipe import describe_capabilities
-from src.infrastructure.entrypoint.api.factories.model_factory import get_feature_templates_use_case, get_preview_features_use_case
+from src.infrastructure.entrypoint.api.factories.model_factory import (
+    get_feature_templates_use_case,
+    get_preview_features_use_case,
+)
 from src.infrastructure.entrypoint.api.routers.models_router import router
 from src.infrastructure.entrypoint.api.schemas import CreateModelRequest
-from src.infrastructure.persistence.database.dynamodb.repositories.model_repository import _from_item, _to_item
+from src.infrastructure.persistence.database.dynamodb.repositories.model_repository import (
+    _from_item,
+    _to_item,
+)
 
 
 def configuration():
@@ -143,6 +152,7 @@ def test_preview_validation_identifies_the_invalid_mapping():
 
 def test_preview_poll_returns_pending_ready_and_failed(monkeypatch):
     from celery import states
+
     from src.infrastructure.entrypoint.api.routers import models_router
 
     class Result:

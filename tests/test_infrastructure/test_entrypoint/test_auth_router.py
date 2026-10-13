@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -52,7 +52,7 @@ class InMemoryRevokedTokens:
 
 
 def _user() -> LocalUser:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return LocalUser(
         id=uuid4(), email="ana@aria.local", name="Ana", password_hash="x",
         role=LocalRole.FRAUD_ANALYST, is_active=True, created_at=now, updated_at=now,

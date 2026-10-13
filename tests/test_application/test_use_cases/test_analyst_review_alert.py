@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.analyst_review_alert_dtos import AnalystReviewAlertInput
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
@@ -139,7 +139,7 @@ def _capacity(
         analysts=ChannelCapacity(available=analysts, status="available"),
         voicebot=ChannelCapacity(available=voicebot, status="available"),
         bidi=ChannelCapacity(available=bidi, status="available"),
-        updated_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(UTC),
     )
 
 

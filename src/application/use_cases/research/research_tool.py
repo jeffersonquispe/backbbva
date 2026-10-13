@@ -22,7 +22,6 @@ from src.application.dtos.research_dtos import (
 )
 from src.application.ports.research_port import ResearchAgent
 
-
 DEFAULT_MAX_FAILURES = 2
 
 

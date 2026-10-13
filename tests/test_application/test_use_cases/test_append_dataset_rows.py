@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -112,7 +112,7 @@ def test_append_dataset_rows_preserves_provenance_from_prior_summary() -> None:
     datasets = FakeDatasetRepository(new_total=10)
     summaries = InMemoryDatasetSummaryRepository()
     dispatcher = RecordingDatasetAnalysisDispatcher()
-    original_uploaded_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    original_uploaded_at = datetime(2026, 1, 1, tzinfo=UTC)
     summaries.upsert(
         DatasetSummaryRecord(
             dataset_name="ds2",

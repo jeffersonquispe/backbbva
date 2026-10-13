@@ -1,7 +1,11 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.dtos.alert_schema_dtos import ApproveAlertSchemaInput
-from src.application.ports.alert_schema_port import AlertSchemaRepository, AlertSchemaStatus, AlertSchemaVersion
+from src.application.ports.alert_schema_port import (
+    AlertSchemaRepository,
+    AlertSchemaStatus,
+    AlertSchemaVersion,
+)
 
 
 class SelfApprovalError(PermissionError):
@@ -30,7 +34,7 @@ class ApproveAlertSchemaUseCase:
         if schema.impact and not input.impact_acknowledged:
             raise ImpactAcknowledgementRequired("Impact acknowledgement is required")
         approved = AlertSchemaVersion(**{**schema.__dict__, "status": AlertSchemaStatus.ACTIVE,
-            "approved_by": input.approver_id, "approved_at": datetime.now(timezone.utc),
+            "approved_by": input.approver_id, "approved_at": datetime.now(UTC),
             "impact_acknowledged": bool(schema.impact) and input.impact_acknowledged})
         if active is not None:
             self._repository.update(AlertSchemaVersion(**{**active.__dict__, "status": AlertSchemaStatus.HISTORICAL}))

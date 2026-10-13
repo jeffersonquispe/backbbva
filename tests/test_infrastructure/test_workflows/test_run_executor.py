@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -12,10 +12,6 @@ from src.application.dtos.post_process_alert_dtos import PostProcessAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.ports.alert_action_dispatcher_port import AlertActionDispatchRef
 from src.application.ports.analyst_escalation_port import AnalystEscalationRef
-from src.application.use_cases.alerts.route_alert_resolution import (
-    FallbackStep,
-    ResolutionRouting,
-)
 from src.application.ports.configuration_port import (
     AgentSettings,
     ConfigurationRecord,
@@ -30,10 +26,14 @@ from src.application.ports.configuration_port import (
     VoicebotCategoryPrompt,
     VoicebotConfig,
 )
+from src.application.use_cases.alerts.route_alert_resolution import (
+    FallbackStep,
+    ResolutionRouting,
+)
 
 
 def _config_with_segment(segment: SegmentSettings) -> ConfigurationRecord:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return ConfigurationRecord(
         configuration_id="cfg-1",
         version=1,
@@ -53,7 +53,7 @@ def _context(segment: SegmentSettings | None, decision: str, **extra: Any) -> di
     base: dict[str, Any] = {
         "alert_id": str(uuid4()),
         "workflow_execution_id": str(uuid4()),
-        "workflow_started_at": datetime.now(timezone.utc).isoformat(),
+        "workflow_started_at": datetime.now(UTC).isoformat(),
         "input": {},
         "pre_process": PreProcessAlertOutput(
             mandatory_fields={"customer_id": "cust-1"},
@@ -349,6 +349,6 @@ class _EchoingPostProcessAlertUseCase:
             status="success",
             resolution_path=input.resolution_path,
             total_duration_seconds=0.0,
-            closed_at=datetime.now(timezone.utc).isoformat(),
+            closed_at=datetime.now(UTC).isoformat(),
             documentation=input.documentation,
         )

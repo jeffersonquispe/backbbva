@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from src.application.ports.dataset_analysis_port import (
@@ -21,7 +21,7 @@ def test_fraud_marking_analysis_serializes_float_metrics_for_dynamodb() -> None:
         fraud_marking_analysis={
             "maturation": {"avg_days": 1.25, "p95_days": 2.5},
         },
-        updated_at=datetime(2026, 9, 26, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 9, 26, tzinfo=UTC),
     )
 
     item = _to_item(record)

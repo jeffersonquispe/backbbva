@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -154,7 +154,7 @@ class NullMonitoringPort(MonitoringPort):
 def _instance(promoted_version: int | None = None) -> VectorStoreInstance:
     return VectorStoreInstance(
         id="vector-store-v1", version=1, name="Producción", description="",
-        created_at=datetime.now(timezone.utc), created_by="tester",
+        created_at=datetime.now(UTC), created_by="tester",
         promoted_version=promoted_version,
     )
 
@@ -219,7 +219,7 @@ def _seed_full_tree(now):
 
 
 def test_promote_loads_full_tree_and_recycles_every_embedding() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     taxonomy, mo, flag, case, assets = _seed_full_tree(now)
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, fraud_repo, instances = _full_tree_use_case(
@@ -250,7 +250,7 @@ def test_promote_loads_full_tree_and_recycles_every_embedding() -> None:
 
 
 def test_repromoting_deletes_previous_generation_after_loading_the_new_one() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     taxonomy, mo, flag, case, assets = _seed_full_tree(now)
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, fraud_repo, instances = _full_tree_use_case(
@@ -267,7 +267,7 @@ def test_repromoting_deletes_previous_generation_after_loading_the_new_one() -> 
 
 
 def test_promote_unknown_instance_raises() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     taxonomy, mo, flag, case, assets = _seed_full_tree(now)
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, _, _ = _full_tree_use_case(
@@ -280,7 +280,7 @@ def test_promote_unknown_instance_raises() -> None:
 
 
 def test_promote_empty_instance_raises() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     taxonomy, mo, flag, case, _ = _seed_full_tree(now)
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, _, _ = _full_tree_use_case(
@@ -293,7 +293,7 @@ def test_promote_empty_instance_raises() -> None:
 
 
 def test_promote_modus_operandi_without_its_taxonomy_raises() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     taxonomy, mo, flag, case, _ = _seed_full_tree(now)
     assets = [VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.MODUS_OPERANDI, "mo-1", 1, embedding=mo.embedding)]
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
@@ -307,7 +307,7 @@ def test_promote_modus_operandi_without_its_taxonomy_raises() -> None:
 
 
 def test_promote_flag_without_its_modus_operandi_drops_the_reference() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     taxonomy, mo, flag, case, _ = _seed_full_tree(now)
     assets = [VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.RED_FLAG, "flag-1", 1, embedding=flag.embedding)]
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
@@ -323,7 +323,7 @@ def test_promote_flag_without_its_modus_operandi_drops_the_reference() -> None:
 
 
 def test_promote_similar_case_without_its_modus_operandi_raises() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     taxonomy, mo, flag, case, _ = _seed_full_tree(now)
     assets = [
         VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.TAXONOMY, "tax-1", 1, embedding=taxonomy.embedding),
@@ -340,7 +340,7 @@ def test_promote_similar_case_without_its_modus_operandi_raises() -> None:
 
 
 def test_promote_falls_back_to_embedding_when_asset_relation_lacks_a_cached_one() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     taxonomy, mo, flag, case, _ = _seed_full_tree(now)
     # Relation row has no embedding, but the Library entry does - Library
     # entry embedding is the fallback, still no re-embedding needed.

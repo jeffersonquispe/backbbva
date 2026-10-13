@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import uuid
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.application.dtos.operational_settings_dtos import (
@@ -33,7 +33,7 @@ class UpdateOperationalSettingsUseCase:
         change = OperationalSettingsChange(
             id=str(uuid.uuid4()),
             changed_by=input.changed_by,
-            changed_at=datetime.now(timezone.utc),
+            changed_at=datetime.now(UTC),
             changes=changes,
         )
         return self._repository.update(proposed, change)
