@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aria-worker-training
+  labels:
+    app.kubernetes.io/name: aria-worker-training
+    app.kubernetes.io/component: celery-training-worker
+    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: aria-worker-training}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: aria-worker-training, app.kubernetes.io/component: celery-training-worker, app.kubernetes.io/part-of: aria}}
+    spec:
+      serviceAccountName: aria-worker-main
+      imagePullSecrets:
+        - name: artifactory-auth
+      containers:
+        - name: aria-worker-training
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-training-worker:96d1a1902f30c9873f3d89c6274a6184f65a6978
+          command: [celery, -A, src.infrastructure.entrypoint.worker.celery.celery_app:app, worker, --loglevel=INFO, -Q, model-training, --concurrency=1]
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
+          resources: {requests: {cpu: "1", memory: 2Gi}, limits: {cpu: "2", memory: 4Gi}}
+          envFrom:
+            - configMapRef: {name: aria-worker-main-config}
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: AWS_ACCESS_KEY_ID}}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: AWS_SECRET_ACCESS_KEY}}
+            - name: DYNAMO_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: DYNAMO_ACCESS_KEY}}
+            - name: DYNAMO_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: DYNAMO_SECRET_KEY}}
+            - name: OBJECT_STORAGE_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: OBJECT_STORAGE_ACCESS_KEY}}
+            - name: OBJECT_STORAGE_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: OBJECT_STORAGE_SECRET_KEY}}
+            - name: OPENAI_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: OPENAI_KEY}}

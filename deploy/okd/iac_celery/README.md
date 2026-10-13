@@ -5,10 +5,12 @@ namespaces, registry access, and TLS trust are platform-managed prerequisites an
 are intentionally absent. Runtime secrets are plain Kubernetes `Secret`s created
 out-of-band (see below) — there is no OpenBao / Secrets Store CSI dependency.
 
-Backend images (`api`, `worker`, `scheduler`, `test-worker`, `simulator-worker`,
-`mcp`) are pulled from
-`artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-{api|worker|event-simulator-worker|mcp}:latest`,
-built from `deploy/local/docker/Dockerfile.*.okd`. The frontend image is
+Backend images (`api`, `aria-worker-main`, `aria-worker-training`,
+`aria-worker-scheduler`, `aria-worker-test`, `aria-worker-simulator`, `mcp`)
+are pulled from
+`artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-{api|worker|training-worker|event-simulator-worker|mcp}:latest`,
+built from `deploy/local/docker/Dockerfile.*.okd`. The training worker has
+its own dependency set and image. The frontend image is
 `.../aria-genai/co-frontend-app-aria-frontend:latest`, same repo. Third-party images are pulled
 straight from public registries (the cluster has internet egress):
 
@@ -40,10 +42,11 @@ so Argo CD never commits, syncs, or overwrites real values.
 | --- | --- | --- |
 | API | `aria-api-runtime` | `AUTH_JWT_SECRET`, `AUTH_BOOTSTRAP_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY`, `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`, `OPENAI_KEY` |
 | MCP | `aria-mcp-runtime` | AWS, Dynamo, and object-storage keys |
-| worker | `aria-worker-runtime` | AWS, Dynamo, and object-storage keys, `OPENAI_KEY` |
-| test worker | `aria-test-worker-runtime` | AWS, Dynamo, and object-storage keys, `OPENAI_KEY` |
-| scheduler | — | no application secret required |
-| simulator worker | `aria-simulator-worker-runtime` | `EVENT_SIMULATOR_ARIA_API_TOKEN`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY`, `OPENAI_KEY` |
+| `aria-worker-main` | `aria-worker-main-runtime` | AWS, Dynamo, and object-storage keys, `OPENAI_KEY` |
+| `aria-worker-training` | `aria-worker-main-runtime` | AWS, Dynamo, and object-storage keys, `OPENAI_KEY` |
+| `aria-worker-test` | `aria-worker-test-runtime` | AWS, Dynamo, and object-storage keys, `OPENAI_KEY` |
+| `aria-worker-scheduler` | — | no application secret required |
+| `aria-worker-simulator` | `aria-worker-simulator-runtime` | `EVENT_SIMULATOR_ARIA_API_TOKEN`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY`, `OPENAI_KEY` |
 | MinIO | `aria-minio-runtime` | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` |
 | OpenSearch | `aria-opensearch-runtime` | `OPENSEARCH_INITIAL_ADMIN_PASSWORD` |
 

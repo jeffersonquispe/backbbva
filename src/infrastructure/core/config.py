@@ -102,6 +102,8 @@ class Config(BaseSettings):
 
     # MCP model-serving service
     MCP_PORT: int = 8100
+    MCP_BASE_URL: str = "http://mcp:8100"
+    MCP_TIMEOUT_SECONDS: float = 15.0
 
     # DYNAMODB
     DYNAMO_REGION_NAME: str = "us-east-1"

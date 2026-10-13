@@ -76,10 +76,11 @@ File: `src/infrastructure/workflows/celery/alert_review_workflow.py` (705 lines)
 port (`CeleryWorkerStepExecutor` + `review_{intake,agent,action}_steps.py`),
 `AdversarialFeedbackLimitExceededError` in `src/domain/alerts/exceptions.py`,
 wired by `task_factories.get_run_alert_review_workflow_use_case()`.
-**Open:** typed `WorkflowRunState` replacing the `context` dict, and
-`tests/test_application/.../test_run_alert_review_workflow.py` with
-in-memory fakes (the existing end-to-end tests still live under
-`tests/test_infrastructure/test_workflows/` and run the real step wiring).
+**Closed 2026-10-13:** typed `WorkflowRunState`
+(`application/dtos/workflow_run_state.py`) replaces the `context` dict and
+`tests/test_application/test_use_cases/test_run_alert_review_workflow.py`
+covers feedback/escalation with in-memory fakes (`1cab521`). The end-to-end
+step tests remain under `tests/test_infrastructure/test_workflows/`.
 
 - [x] Read `LINEAR_STEPS` tuple and `class AlertReviewWorkflowRunner`
       fully before implementation planning (verified 2026-10-13; the file
@@ -110,7 +111,7 @@ in-memory fakes (the existing end-to-end tests still live under
       currently call `_execute_placeholder_step` (line 647), keep the
       placeholder behavior for now (see CLAUDE.md: steps are still
       placeholder logic, not in scope to implement real step logic here).
-- [ ] Replace raw `context: dict[str, Any]` threaded through all of the
+- [x] Replace raw `context: dict[str, Any]` threaded through all of the
       above with a typed dataclass (e.g. `WorkflowRunState`) — define it
       in `src/application/dtos/` or promote to
       `src/domain/alerts/` if CA-005 lands first for this bounded
@@ -121,7 +122,7 @@ in-memory fakes (the existing end-to-end tests still live under
       `RunAlertReviewWorkflowUseCase.execute(...)`, serialize output,
       apply Celery retry (`self.retry(...)`) based on the use case's
       returned/raised outcome.
-- [ ] Move tests: any existing feedback-loop/escalation test currently
+- [x] Move tests: any existing feedback-loop/escalation test currently
       under `tests/test_infrastructure/test_workflows/` (grep for
       `feedback_iterations\|AdversarialFeedbackLimitExceededError` under
       `tests/`) → `tests/test_application/test_use_cases/test_run_alert_review_workflow.py`,
@@ -129,6 +130,10 @@ in-memory fakes (the existing end-to-end tests still live under
       (no Celery, no monkeypatching factories).
 
 ### CA-003 — Complete worker composition root, thin out tasks.py
+
+*Closed 2026-10-13: handler tests in
+`tests/test_infrastructure/test_entrypoint/test_worker_celery_tasks.py`
+(`b553cd5`).*
 
 File: `src/infrastructure/entrypoint/worker/celery/tasks.py` (276 lines),
 factories: `src/infrastructure/workflows/celery/factories.py`.
@@ -163,12 +168,15 @@ factories: `src/infrastructure/workflows/celery/factories.py`.
       `grep -n "Dynamo\|Minio\|UseCase(" src/infrastructure/entrypoint/worker/celery/tasks.py`
       (should only match imports, not calls). *(verified 2026-10-13: no
       inline constructors left; all go through `task_factories.py`)*
-- [ ] Add one focused test per task handler under
+- [x] Add one focused test per task handler under
       `tests/test_infrastructure/test_worker/` using an injected fake
       use case (per CLAUDE.md testing convention — hand-written
       in-memory fake, not `unittest.mock`).
 
 ### CA-004 — Stop adapters importing worker entrypoint
+
+*Closed 2026-10-13: dispatcher task-name contract and API-router isolation
+tests in `test_worker_dispatch_contracts.py` (`b553cd5`).*
 
 Formerly affected files (verified 2026-10-13 to dispatch through the neutral
 Celery app): `inspector.py`, `dispatcher.py`, `dataset_analysis_dispatcher.py`,
@@ -184,13 +192,13 @@ Celery app): `inspector.py`, `dispatcher.py`, `dataset_analysis_dispatcher.py`,
       enforced. Task-name contract and API-router smoke tests remain open.
 - [x] Task registration (the actual `@app.task def ...` functions) stays
       exclusively in `src/infrastructure/entrypoint/worker/celery/tasks.py`.
-- [ ] Add one test asserting each dispatcher's task-name string matches
+- [x] Add one test asserting each dispatcher's task-name string matches
       an actually-registered task name in `tasks.py` (string-contract
       test, not an import) — this is the "tested contract" the
       acceptance criteria asks for.
 - [x] Enforce CA-010 Rule 3 as a ratchet; `KNOWN_VIOLATIONS` for this rule
       is empty (verified 2026-10-13).
-- [ ] Add the smoke test the acceptance criteria names: import every API
+- [x] Add the smoke test the acceptance criteria names: import every API
       router module and assert `sys.modules` contains no
       `src.infrastructure.entrypoint.worker` entry afterward.
 
@@ -198,24 +206,31 @@ Celery app): `inspector.py`, `dispatcher.py`, `dataset_analysis_dispatcher.py`,
 
 ## Phase 3 — CA-005 (incremental domain migration, start with alert/workflow)
 
+*Closed 2026-10-13 (`73fffdf`): `src/domain/alerts/entities.py`,
+`src/domain/workflows/entities.py` and `src/domain/configurations/entities.py`;
+ports keep only the Protocols and re-export the entities. Domain tests:
+`tests/test_domain/test_{alert,workflow,configuration}_entities.py`.
+One consumer still imports through the port re-export
+(`entrypoint/worker/metrics_synthetic_load.py:407`).*
+
 Domain currently: `src/domain/__init__.py` (6 lines),
 `src/domain/configurations/exceptions.py` (20 lines),
 `src/domain/alerts/exceptions.py` (27 lines) — no entity/state files yet.
 Application: `src/application/ports/` has 38 port files; several mix
 entities with contracts.
 
-- [ ] **Alerts first** (needed for CA-002 anyway):
-  - [ ] New `src/domain/alerts/entities.py`: move `AlertRecord`,
+- [x] **Alerts first** (needed for CA-002 anyway):
+  - [x] New `src/domain/alerts/entities.py`: move `AlertRecord`,
         `AlertStatus` out of `src/application/ports/alert_port.py`
         (49 lines total — the whole file is small, read it fully before
         splitting).
-  - [ ] Leave `AlertRepository` Protocol in `alert_port.py`, importing
+  - [x] Leave `AlertRepository` Protocol in `alert_port.py`, importing
         `AlertRecord`/`AlertStatus` from the new domain module.
-  - [ ] Grep every consumer of `from src.application.ports.alert_port import AlertRecord`
+  - [x] Grep every consumer of `from src.application.ports.alert_port import AlertRecord`
         (and `AlertStatus`) and repoint to
         `from src.domain.alerts.entities import AlertRecord, AlertStatus`:
         `grep -rln "ports.alert_port import.*AlertRecord\|ports.alert_port import.*AlertStatus" src/ tests/`.
-- [ ] **Workflow next**: same split for
+- [x] **Workflow next**: same split for
       `src/application/ports/workflow_port.py` (124 lines) →
       `src/domain/alerts/workflow_entities.py` (or
       `src/domain/workflows/entities.py` if workflows deserve their own
@@ -223,23 +238,23 @@ entities with contracts.
       alert-specific only; current code suggests yes, keep it under
       `domain/alerts/` unless another bounded context needs
       `WorkflowExecutionRecord`/`WorkflowStatus` independently).
-- [ ] **Configuration** (largest, do last, most consumers):
+- [x] **Configuration** (largest, do last, most consumers):
       `src/application/ports/configuration_port.py` is now 557 lines
       (grew since backlog's 349-line reference — multi-segment configs +
       channel library work landed since). Read the whole file before
       planning the split; do not reuse the backlog's old line numbers.
-  - [ ] New `src/domain/configurations/entities.py` for the stable
+  - [x] New `src/domain/configurations/entities.py` for the stable
         object graph and enums; keep `ConfigurationRepository` Protocol
         in the port file.
-  - [ ] This is the highest-blast-radius split (backlog: "avoid a
+  - [x] This is the highest-blast-radius split (backlog: "avoid a
         single repository-wide rename") — grep consumer count first:
         `grep -rln "ports.configuration_port import" src/ tests/ | wc -l`
         and budget the task accordingly; consider splitting into its own
         follow-up sub-list rather than doing it inline with this pass.
-- [ ] Skip test runs / fraud knowledge / operations capacity /
+- [x] Skip test runs / fraud knowledge / operations capacity /
       auth splits until Phase 5 (CA-009 may delete auth/session
       entirely — don't do domain work on code that might be deleted).
-- [ ] Add domain tests for whatever moves: state-transition/invariant
+- [x] Add domain tests for whatever moves: state-transition/invariant
       tests under `tests/test_domain/` for each entity now living there.
 
 ---

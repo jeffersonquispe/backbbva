@@ -45,10 +45,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR ${APP_DIR}
 
-# xgboost's Linux wheel dynamically links against libgomp1.
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 COPY --chown=www-data:www-data src ./src
 USER www-data

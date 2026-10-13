@@ -402,26 +402,55 @@ local-auth-up:  ## Start/rebuild only the local API with interactive auth secret
 		up -d --build api
 
 .PHONY: local-docker-build
-local-docker-build:  ## Build local API/worker images. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
+local-docker-build:  ## Build local API, worker and MCP images. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api worker
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-worker-training mcp
+
+.PHONY: local-worker-refresh
+local-worker-refresh:  ## Recreate local alert/test/training workers and MCP from current images.
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		up -d --force-recreate aria-worker-main aria-worker-test aria-worker-training mcp
+
+.PHONY: local-test-queue-purge
+local-test-queue-purge:  ## Purge queued test-run tasks after stopping the local test worker.
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		up -d --force-recreate aria-worker-test
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		exec -T aria-worker-test python -c "from src.infrastructure.entrypoint.worker.celery.celery_app import app; connection = app.connection_for_write(); channel = connection.channel(); print('Purged queued test tasks:', channel.queue_purge('test')); connection.close()"
+
+.PHONY: local-e2e-logs
+local-e2e-logs:  ## Show recent local API and E2E worker logs.
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		logs --tail=120 --no-color api aria-worker-main aria-worker-test
+
+.PHONY: local-worker-stats
+local-worker-stats:  ## Show a point-in-time CPU/RAM reading for local worker services.
+	@$(DOCKER) stats --no-stream aria-worker-main aria-worker-training aria-worker-test aria-worker-scheduler aria-worker-simulator
 
 .PHONY: local-docker-run
 local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, default ../frontend_mockup). LLM/other app config comes from config/$(LOCAL_DOCKER_ENV)/config.cfg, mounted read-only - edit it and re-run this to pick up changes. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		up -d
+		up -d --remove-orphans
 	@# config.cfg is a mounted file, not a compose-level env var - `up -d`
-	@# alone won't notice its content changed, so always restart the two
+	@# alone won't notice its content changed, so always restart the services
 	@# services that read it. Cheap (no rebuild, no image pull) and a no-op
 	@# on freshly-created containers.
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		restart api worker
+		restart api aria-worker-main aria-worker-training mcp
 	@if [ -d "$(FRONTEND_DIR)" ]; then \
 		$(MAKE) -C $(FRONTEND_DIR) run; \
 	else \
@@ -509,16 +538,49 @@ db-prune:  ## Delete all records from DynamoDB, OpenSearch, and object storage (
 
 .PHONY: e2e-clean
 e2e-clean:  ## Destructive: clean E2E data through nginx/API, preserving users and tables.
-	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://127.0.0.1) E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) $(PYTHON) scripts/e2e_api_clean.py --yes
+	@$(MAKE) -C ../frontend_mockup down
+	@$(MAKE) -C ../frontend_mockup run
+	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) $(PYTHON) scripts/e2e_api_clean.py --yes
+	@# API startup restores the local baseline configuration and reference catalogs.
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) restart api aria-worker-main
+	@$(MAKE) -C ../frontend_mockup down
+	@$(MAKE) -C ../frontend_mockup run
+
+.PHONY: e2e-seed
+e2e-seed:  ## Seed the reusable alert-schema E2E baseline through nginx/API.
+	@test -n "$(E2E_MANAGER_EMAIL)" -a -n "$(E2E_MANAGER_PASSWORD)" -a -n "$(E2E_RELEASE_MANAGER_EMAIL)" -a -n "$(E2E_RELEASE_MANAGER_PASSWORD)" || (echo "ERROR: set E2E_MANAGER_EMAIL/E2E_MANAGER_PASSWORD/E2E_RELEASE_MANAGER_EMAIL/E2E_RELEASE_MANAGER_PASSWORD"; exit 1)
+	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
+		E2E_RELEASE_MANAGER_EMAIL=$(E2E_RELEASE_MANAGER_EMAIL) E2E_RELEASE_MANAGER_PASSWORD=$(E2E_RELEASE_MANAGER_PASSWORD) \
+		$(PYTHON) scripts/e2e_api_seed.py
+
+.PHONY: e2e-presence
+e2e-presence:  ## Dispatch and verify today's schema-presence analysis via the local worker and API.
+	@test -n "$(E2E_MANAGER_EMAIL)" -a -n "$(E2E_MANAGER_PASSWORD)" || (echo "ERROR: set E2E_MANAGER_EMAIL/E2E_MANAGER_PASSWORD"; exit 1)
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		exec -T aria-worker-main python -c "from src.infrastructure.entrypoint.worker.celery.celery_app import app; app.send_task('alert_schema.analyze_presence')"
+	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
+		$(PYTHON) scripts/e2e_api_wait_presence.py
 
 .PHONY: e2e-real
 e2e-real:  ## Clean through API, then run Playwright against the real local API/frontend.
 	@test -n "$(E2E_MANAGER_EMAIL)" -a -n "$(E2E_MANAGER_PASSWORD)" -a -n "$(E2E_RELEASE_MANAGER_EMAIL)" -a -n "$(E2E_RELEASE_MANAGER_PASSWORD)" || (echo "ERROR: set E2E_MANAGER_EMAIL/E2E_MANAGER_PASSWORD/E2E_RELEASE_MANAGER_EMAIL/E2E_RELEASE_MANAGER_PASSWORD"; exit 1)
-	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://127.0.0.1) E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) $(PYTHON) scripts/e2e_api_clean.py --yes
-	@ARIA_E2E_REAL=1 ARIA_E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://127.0.0.1) \
+	@$(MAKE) -C ../frontend_mockup down
+	@$(MAKE) -C ../frontend_mockup run
+	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) $(PYTHON) scripts/e2e_api_clean.py --yes
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) restart api aria-worker-main
+	@$(MAKE) -C ../frontend_mockup down
+	@$(MAKE) -C ../frontend_mockup run
+	@$(MAKE) e2e-seed E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
+		E2E_RELEASE_MANAGER_EMAIL=$(E2E_RELEASE_MANAGER_EMAIL) E2E_RELEASE_MANAGER_PASSWORD=$(E2E_RELEASE_MANAGER_PASSWORD)
+	@ARIA_E2E_REAL=1 ARIA_E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
 		E2E_RELEASE_MANAGER_EMAIL=$(E2E_RELEASE_MANAGER_EMAIL) E2E_RELEASE_MANAGER_PASSWORD=$(E2E_RELEASE_MANAGER_PASSWORD) \
-		npm --prefix ../frontend_mockup run test:e2e:real
+		npm --prefix ../frontend_mockup run test:e2e:real -- $(if $(E2E_GREP),--grep "$(E2E_GREP)")
+	@$(MAKE) e2e-presence E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD)
 
 .PHONY: sample-docs
 sample-docs:  ## Wipe lupita-documents/ and copy N random files from lupita-documents$(SRC)/. Vars: SRC(2) N(10) MINSIZE(0, bytes) ORDER(random|name|size)

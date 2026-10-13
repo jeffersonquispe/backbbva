@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: aria-worker-config
+  name: aria-worker-main-config
   labels:
-    app.kubernetes.io/name: worker
+    app.kubernetes.io/name: aria-worker-main
     app.kubernetes.io/component: celery-worker
     app.kubernetes.io/part-of: aria
     app.kubernetes.io/managed-by: argocd
@@ -14,7 +14,7 @@ data:
   OPERATIONS_TIMEZONE: America/Bogota
   GENAI_ENVIRONMENT: development
   API_V0_STR: /api/v0
-  COMPONENT_NAME: aria-worker
+  COMPONENT_NAME: aria-worker-main
   DEFAULT_LOGGING_LEVEL: INFO
   DYNAMO_ENDPOINT: http://dynamodb:8000
   DYNAMO_REGION_NAME: us-east-1
@@ -22,6 +22,8 @@ data:
   CELERY_RESULT_BACKEND: redis://redis:6379/1
   CELERY_DEFAULT_QUEUE: default
   CELERY_TEST_QUEUE: test
+  MCP_BASE_URL: http://mcp:8100
+  MCP_TIMEOUT_SECONDS: "15"
   OBJECT_STORAGE_ENDPOINT: http://minio:9000
   OBJECT_STORAGE_REGION: us-east-1
   OBJECT_STORAGE_BUCKET: aria-reports

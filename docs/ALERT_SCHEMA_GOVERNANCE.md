@@ -368,9 +368,9 @@ crear al arrancar.
 | --- | --- | --- | --- |
 | A1 | ✅ 2026-10-11. Revisión focalizada de E2–E17: se corrigió `raw` para aplicar sensibilidad sólo a ARIC y atravesar listas tomando el primer elemento; se verificó el gobierno por ids y los límites de permiso. | Claude | — |
 | A2 | ✅ 2026-10-11. Tests HTTP para `raw` (roles, 404, sensibilidad y auditoría) y `/alert-schema/*` (acceso al activo, historial y roles). | Claude | A1 |
-| A3 | Decidir la desviación de E3: las propuestas de esquema usan su propio flujo y no `/configuration-deploy-requests`. Aceptar o unificar. | Usuario | — |
+| A3 | ✅ 2026-10-12. Aceptada la desviación de E3: las propuestas de esquema siguen su propio flujo, separado de `/configuration-deploy-requests` (ver `ALERT_SCHEMA_E2E_DELEGATION.md`). | Usuario | — |
 | A4 | ✅ 2026-10-11. `index.html` del nginx local queda con `Cache-Control: no-cache`; el variant OKD ya lo tenía. | Claude | — |
-| A5 | Commit en rama propia en backend y frontend, separando los cambios previos del usuario (`Makefile`, Dockerfiles, `.claude/settings.local.json`). | Usuario + Claude | A1, A2, A4 |
+| A5 | ⏳ Parcial (2026-10-13). Backend commiteado en `feature/version_0_0_3` (`b943cff`); falta el frontend (componentes `alert/`, `configuracion/schema/`, `SchemaComparison`, specs E2E) y en backend `e2e-seed`/`e2e-presence` + `scripts/e2e_api_seed.py`/`e2e_api_wait_presence.py`. | Usuario + Claude | A1, A2, A4 |
 
 ### Bloque B — Puesta en marcha local
 
@@ -378,17 +378,17 @@ crear al arrancar.
 | --- | --- | --- | --- |
 | B1 | Definir el contenido de la v1: campos, ubicaciones, tipos, obligatorios, núcleo, sensibles, historial y asignación de los 7 roles obligatorios. | Usuario + equipo | — |
 | B2 | Cargar la v1 por Configuración → Esquema: propone un `manager`/`release_manager`, aprueba otro distinto. | Usuario | B1 |
-| B3 | Datos antiguos: decidir si se vacían (`make db-prune`) o se conservan sin vista canónica. Antes, arreglar `make db-backup` (`scripts/db_backup.py` no existe). | Usuario (decisión) + Claude (arreglo) | — |
+| B3 | Pendiente (2026-10-13: `scripts/db_backup.py` sigue sin existir; la delegación E2E no lo requiere). Datos antiguos: decidir si se vacían (`make db-prune`) o se conservan sin vista canónica. Antes, arreglar `make db-backup` (`scripts/db_backup.py` no existe). | Usuario (decisión) + Claude (arreglo) | — |
 
 ### Bloque C — Verificación de punta a punta (con la v1 activa)
 
 | # | Tarea | Responsable | Depende de |
 | --- | --- | --- | --- |
-| C1 | Con `manager`/`release_manager`: editor y sus 4 sub-pestañas, aprobación bloqueada para quien propuso, aviso de impacto, "Evento original" enmascarado y auditado. | Usuario (sesión) + Claude | B2 |
+| C1 | ⏳ Parcial: E2E real cubre gobierno y bloqueo de autoaprobación (`alert-schema-real-api.spec.ts`). Falta: 4 sub-pestañas, aviso de impacto, "Evento original" enmascarado y auditado. | Usuario (sesión) + Claude | B2 |
 | C2 | Procesar alertas nuevas (simulador o manual): canónica guardada, cola y detalle con formato, historial, `agent_output`, "Al dataset". | Claude | B2 |
 | C3 | Métricas desde roles y corte de versión en `/dashboard`. | Claude | C2 |
-| C4 | Testing: run con esquema candidato, desenlace separado y comparación activo vs candidato. | Claude | B2 |
-| C5 | Análisis diario: ejecutar el job a mano y revisar Sugerencias y Campos de sistema. | Claude | C2 |
+| C4 | ⏳ Parcial: E2E real procesa 5 filas del CSV y verifica labels fuera del input. Falta: comparación activo vs candidato (campos/roles agregados, modificados y retirados). | Claude | B2 |
+| C5 | ⏳ Parcial: `make e2e-presence` despacha el job y espera el reporte por API (sin commit). Falta revisar Sugerencias y Campos de sistema en UI. | Claude | C2 |
 | C6 | Simulador: "Sembrar desde dataset" y generación con campos sensibles sintéticos. | Claude | B2 |
 
 ### Bloque D — Despliegue (OKD)

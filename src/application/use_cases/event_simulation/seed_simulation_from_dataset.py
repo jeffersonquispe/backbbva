@@ -5,6 +5,7 @@ import statistics
 from collections import Counter
 from typing import Any
 
+from src.application.dtos.simulation_dtos import SeedSimulationFromDatasetInput
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -32,10 +33,17 @@ class SeedSimulationFromDatasetUseCase:
         self._datasets = datasets
         self._schemas = schemas
 
-    def execute(self, dataset_name: str) -> dict[str, FieldGenerator]:
+    def execute(
+        self, input: SeedSimulationFromDatasetInput | str
+    ) -> dict[str, FieldGenerator]:
         schema = self._schemas.get_active()
         if schema is None:
             raise ValueError("No active alert schema is available")
+        dataset_name = (
+            input.dataset_name
+            if isinstance(input, SeedSimulationFromDatasetInput)
+            else input
+        )
         rows = self._datasets.get_rows(dataset_name)
         fields = [
             field
@@ -63,7 +71,14 @@ class SeedSimulationFromDatasetUseCase:
         if field.type == AlertSchemaFieldType.NUMBER:
             numeric = [_as_number(value) for value in values]
             numeric = [value for value in numeric if value is not None]
+            if not numeric:
+                return _synthetic_generator(field)
             return _numeric_generator(numeric)
+        if not values:
+            # Optional schema fields are often absent from reduced E2E and
+            # training extracts. Keep the simulator previewable by generating
+            # synthetic values instead of an unusable empty distribution.
+            return _synthetic_generator(field)
         return FieldGenerator(
             kind=GeneratorKind.CATEGORICAL,
             weights={

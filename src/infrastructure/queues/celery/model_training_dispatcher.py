@@ -8,8 +8,13 @@ from src.application.ports.model_training_dispatcher_port import (
 from src.infrastructure.queues.celery.app import app
 
 _TASK_NAME = "models.train"
+_TRAINING_QUEUE = "model-training"
 
 
 class CeleryModelTrainingDispatcher(ModelTrainingDispatcher):
     def dispatch(self, model_id: UUID, async_operation_id: UUID) -> None:
-        app.send_task(_TASK_NAME, args=[str(model_id), str(async_operation_id)])
+        app.send_task(
+            _TASK_NAME,
+            args=[str(model_id), str(async_operation_id)],
+            queue=_TRAINING_QUEUE,
+        )

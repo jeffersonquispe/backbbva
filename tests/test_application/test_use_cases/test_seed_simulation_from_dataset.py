@@ -1,5 +1,6 @@
 from typing import Any
 
+from src.application.dtos.simulation_dtos import SeedSimulationFromDatasetInput
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -61,7 +62,7 @@ def test_seed_uses_frequencies_numeric_criterion_and_excludes_labels() -> None:
 
     specs = SeedSimulationFromDatasetUseCase(
         InMemoryDatasetRepository(rows), InMemorySchemaRepository(schema)
-    ).execute("training")
+    ).execute(SeedSimulationFromDatasetInput(dataset_name="training"))
 
     assert specs["event.channel"].weights == {"app": 2.0, "web": 1.0}
     assert specs["amount"].kind.value == "POISSON"
@@ -93,3 +94,40 @@ def test_sensitive_field_gets_synthetic_values_not_dataset_values() -> None:
         value.startswith("synthetic_customer_id_")
         for value in specs["customer.id"].weights
     )
+
+
+def test_absent_optional_fields_get_usable_synthetic_generators() -> None:
+    schema = AlertSchemaVersion(
+        version=2,
+        fields=[
+            AlertSchemaField(
+                "optional-text",
+                AlertSchemaDataSource.ARIC,
+                "optional_text",
+                field_ds_loc="optional_text",
+            ),
+            AlertSchemaField(
+                "optional-number",
+                AlertSchemaDataSource.ARIC,
+                "optional_number",
+                field_ds_loc="optional_number",
+                type=AlertSchemaFieldType.NUMBER,
+            ),
+            AlertSchemaField(
+                "optional-boolean",
+                AlertSchemaDataSource.ARIC,
+                "optional_boolean",
+                field_ds_loc="optional_boolean",
+                type=AlertSchemaFieldType.BOOL,
+            ),
+        ],
+    )
+
+    specs = SeedSimulationFromDatasetUseCase(
+        InMemoryDatasetRepository([{"event_id": "e2e"}]),
+        InMemorySchemaRepository(schema),
+    ).execute("reduced-training")
+
+    assert specs["optional_text"].weights
+    assert specs["optional_number"].params == {"mu": 0.0, "sigma": 1.0}
+    assert specs["optional_boolean"].weights == {"true": 1.0, "false": 1.0}

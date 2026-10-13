@@ -1,41 +1,41 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: test-worker
+  name: aria-worker-test
   labels:
-    app.kubernetes.io/name: test-worker
+    app.kubernetes.io/name: aria-worker-test
     app.kubernetes.io/component: celery-worker
     app.kubernetes.io/part-of: aria
     app.kubernetes.io/managed-by: argocd
 spec:
   replicas: 1
-  selector: {matchLabels: {app.kubernetes.io/name: test-worker}}
+  selector: {matchLabels: {app.kubernetes.io/name: aria-worker-test}}
   template:
-    metadata: {labels: {app.kubernetes.io/name: test-worker, app.kubernetes.io/component: celery-worker, app.kubernetes.io/part-of: aria}}
+    metadata: {labels: {app.kubernetes.io/name: aria-worker-test, app.kubernetes.io/component: celery-worker, app.kubernetes.io/part-of: aria}}
     spec:
-      serviceAccountName: aria-test-worker
+      serviceAccountName: aria-worker-test
       imagePullSecrets:
         - name: artifactory-auth
       containers:
-        - name: test-worker
+        - name: aria-worker-test
           image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:96d1a1902f30c9873f3d89c6274a6184f65a6978
-          command: [celery, -A, src.infrastructure.entrypoint.worker.celery.celery_app:app, worker, --loglevel=INFO, -Q, test]
+          command: [celery, -A, src.infrastructure.entrypoint.worker.celery.celery_app:app, worker, --loglevel=INFO, --concurrency=1, -Q, test]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: "1", memory: 2Gi}, limits: {cpu: "2", memory: 4Gi}}
           envFrom:
-            - configMapRef: {name: aria-test-worker-config}
+            - configMapRef: {name: aria-worker-test-config}
           env:
             - name: AWS_ACCESS_KEY_ID
-              valueFrom: {secretKeyRef: {name: aria-test-worker-runtime, key: AWS_ACCESS_KEY_ID}}
+              valueFrom: {secretKeyRef: {name: aria-worker-test-runtime, key: AWS_ACCESS_KEY_ID}}
             - name: AWS_SECRET_ACCESS_KEY
-              valueFrom: {secretKeyRef: {name: aria-test-worker-runtime, key: AWS_SECRET_ACCESS_KEY}}
+              valueFrom: {secretKeyRef: {name: aria-worker-test-runtime, key: AWS_SECRET_ACCESS_KEY}}
             - name: DYNAMO_ACCESS_KEY
-              valueFrom: {secretKeyRef: {name: aria-test-worker-runtime, key: DYNAMO_ACCESS_KEY}}
+              valueFrom: {secretKeyRef: {name: aria-worker-test-runtime, key: DYNAMO_ACCESS_KEY}}
             - name: DYNAMO_SECRET_KEY
-              valueFrom: {secretKeyRef: {name: aria-test-worker-runtime, key: DYNAMO_SECRET_KEY}}
+              valueFrom: {secretKeyRef: {name: aria-worker-test-runtime, key: DYNAMO_SECRET_KEY}}
             - name: OBJECT_STORAGE_ACCESS_KEY
-              valueFrom: {secretKeyRef: {name: aria-test-worker-runtime, key: OBJECT_STORAGE_ACCESS_KEY}}
+              valueFrom: {secretKeyRef: {name: aria-worker-test-runtime, key: OBJECT_STORAGE_ACCESS_KEY}}
             - name: OBJECT_STORAGE_SECRET_KEY
-              valueFrom: {secretKeyRef: {name: aria-test-worker-runtime, key: OBJECT_STORAGE_SECRET_KEY}}
+              valueFrom: {secretKeyRef: {name: aria-worker-test-runtime, key: OBJECT_STORAGE_SECRET_KEY}}
             - name: OPENAI_KEY
-              valueFrom: {secretKeyRef: {name: aria-test-worker-runtime, key: OPENAI_KEY}}
+              valueFrom: {secretKeyRef: {name: aria-worker-test-runtime, key: OPENAI_KEY}}

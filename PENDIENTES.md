@@ -94,6 +94,7 @@ Decisiones: **nada de esto vive en la config versionada**. On/off, slots de voic
 ## 7. Esquema de alerta y versionamiento
 
 - [ ] Diseño, gobierno, tareas (E1–E15) y pendientes en `docs/ALERT_SCHEMA_GOVERNANCE.md` (2026-10-09).
+  - Estado 2026-10-13: E1–E17 y A1–A4 hechos (backend commiteado en `b943cff`). Pendiente: commit del frontend (A5), v1 real (B1/B2), `db_backup.py` (B3), E2E C1–C6 (C1, C4 y C5 parciales; spec en `docs/ALERT_SCHEMA_E2E_DELEGATION.md`) y despliegue OKD (D1–D4).
 
 ---
 

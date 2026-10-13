@@ -9,4 +9,5 @@ spec:
   ingress:
     - from:
         - podSelector: {matchLabels: {app.kubernetes.io/name: api}}
+        - podSelector: {matchLabels: {app.kubernetes.io/name: aria-worker-main}}
       ports: [{protocol: TCP, port: 8100}]

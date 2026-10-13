@@ -14,7 +14,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR ${APP_DIR}
 
 RUN pip install --no-cache-dir poetry==${POETRY_VERSION}
-COPY deploy/requirements/pyproject.worker.toml ./pyproject.toml
+COPY deploy/requirements/pyproject.training-worker.toml ./pyproject.toml
 RUN poetry install --no-root
 
 COPY src ./src

@@ -17,5 +17,5 @@ select = [
     "DTZ",             # naive datetimes
 ]
 ignore = [
-    "UP038",  # deprecated upstream: isinstance(x, A | B) is slower than a tuple
+    "UP038",  # Retained to preserve the current lint baseline.
 ]

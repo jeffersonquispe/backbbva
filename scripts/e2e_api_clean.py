@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
 
@@ -13,26 +14,36 @@ _HTTP_OPENER = build_opener(ProxyHandler({}))
 
 
 def _json_request(url: str, payload: dict[str, str], token: str | None = None) -> dict:
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    request = Request(
-        url,
-        data=json.dumps(payload).encode(),
-        headers=headers,
-        method="POST",
-    )
-    try:
-        with _HTTP_OPENER.open(request, timeout=30) as response:
-            return json.loads(response.read())
-    except HTTPError as exc:
-        body = exc.read().decode(errors="replace")
-        raise SystemExit(f"E2E clean: API respondió HTTP {exc.code}: {body}") from exc
-    except URLError as exc:
-        raise SystemExit(
-            f"E2E clean: no se pudo conectar a {url}. "
-            "Levanta nginx/API y vuelve a intentar."
-        ) from exc
+    deadline = time.monotonic() + 120
+    while True:
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        request = Request(
+            url,
+            data=json.dumps(payload).encode(),
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with _HTTP_OPENER.open(request, timeout=30) as response:
+                return json.loads(response.read())
+        except HTTPError as exc:
+            body = exc.read().decode(errors="replace")
+            if exc.code == 502 and time.monotonic() < deadline:
+                time.sleep(2)
+                continue
+            raise SystemExit(
+                f"E2E clean: API respondió HTTP {exc.code}: {body}"
+            ) from exc
+        except URLError as exc:
+            if time.monotonic() < deadline:
+                time.sleep(2)
+                continue
+            raise SystemExit(
+                f"E2E clean: no se pudo conectar a {url}. "
+                "Levanta nginx/API y vuelve a intentar."
+            ) from exc
 
 
 def main() -> None:
@@ -46,7 +57,7 @@ def main() -> None:
             "Refusing to clean without --yes (this deletes E2E data through the API)."
         )
 
-    base_url = os.getenv("E2E_BASE_URL", "http://127.0.0.1").rstrip("/")
+    base_url = os.getenv("E2E_BASE_URL", "http://localhost").rstrip("/")
     email = os.getenv("E2E_MANAGER_EMAIL")
     password = os.getenv("E2E_MANAGER_PASSWORD")
     if not email or not password:

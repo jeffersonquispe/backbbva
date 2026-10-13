@@ -1,34 +1,35 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: simulator-worker
+  name: aria-worker-simulator
   labels:
-    app.kubernetes.io/name: simulator-worker
+    app.kubernetes.io/name: aria-worker-simulator
     app.kubernetes.io/component: celery-worker
     app.kubernetes.io/part-of: aria
     app.kubernetes.io/managed-by: argocd
 spec:
   replicas: 1
-  selector: {matchLabels: {app.kubernetes.io/name: simulator-worker}}
+  selector: {matchLabels: {app.kubernetes.io/name: aria-worker-simulator}}
   template:
-    metadata: {labels: {app.kubernetes.io/name: simulator-worker, app.kubernetes.io/component: celery-worker, app.kubernetes.io/part-of: aria}}
+    metadata: {labels: {app.kubernetes.io/name: aria-worker-simulator, app.kubernetes.io/component: celery-worker, app.kubernetes.io/part-of: aria}}
     spec:
-      serviceAccountName: aria-simulator-worker
+      serviceAccountName: aria-worker-simulator
       imagePullSecrets:
         - name: artifactory-auth
       containers:
-        - name: simulator-worker
+        - name: aria-worker-simulator
           image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-event-simulator-worker:a35181f2f32cbd73530173d887ee3cc93f869996
+          command: [celery, -A, src.infrastructure.entrypoint.simulator.celery.celery_app:app, worker, --loglevel=INFO, --concurrency=1, -Q, event_simulation]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 500m, memory: 1Gi}, limits: {cpu: "2", memory: 2Gi}}
           envFrom:
-            - configMapRef: {name: aria-simulator-worker-config}
+            - configMapRef: {name: aria-worker-simulator-config}
           env:
             - name: EVENT_SIMULATOR_ARIA_API_TOKEN
-              valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: EVENT_SIMULATOR_ARIA_API_TOKEN}}
+              valueFrom: {secretKeyRef: {name: aria-worker-simulator-runtime, key: EVENT_SIMULATOR_ARIA_API_TOKEN}}
             - name: DYNAMO_ACCESS_KEY
-              valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: DYNAMO_ACCESS_KEY}}
+              valueFrom: {secretKeyRef: {name: aria-worker-simulator-runtime, key: DYNAMO_ACCESS_KEY}}
             - name: DYNAMO_SECRET_KEY
-              valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: DYNAMO_SECRET_KEY}}
+              valueFrom: {secretKeyRef: {name: aria-worker-simulator-runtime, key: DYNAMO_SECRET_KEY}}
             - name: OPENAI_KEY
-              valueFrom: {secretKeyRef: {name: aria-simulator-worker-runtime, key: OPENAI_KEY}}
+              valueFrom: {secretKeyRef: {name: aria-worker-simulator-runtime, key: OPENAI_KEY}}

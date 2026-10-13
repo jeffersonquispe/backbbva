@@ -153,15 +153,16 @@ services:
       retries: 12
       start_period: 20s
 
-  worker:
+  aria-worker-main:
     build:
       context: ../../..
       dockerfile: deploy/local/docker/Dockerfile.worker
       no_cache: true
       args:
         GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
-    image: aria-worker:${LOCAL_IMAGE_TAG:-local}
-    container_name: aria-worker
+    image: aria-worker-main:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-worker-main
+    command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=${CELERY_WORKER_CONCURRENCY:-10}", "-Q", "${CELERY_DEFAULT_QUEUE:-default}"]
     volumes:
       # LLM backend/credentials live here, not in environment: below - see
       # config/local/config.cfg, read directly by Config._env_file.
@@ -169,11 +170,11 @@ services:
     environment:
       GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
       API_V0_STR: ${API_V0_STR:-/api/v0}
-      COMPONENT_NAME: ${COMPONENT_NAME:-aria-worker}
+      COMPONENT_NAME: ${COMPONENT_NAME:-aria-worker-main}
       COMPONENT_VERSION: ${COMPONENT_VERSION:-0.1.0}
       COMPONENT_DESCRIPTION: ${COMPONENT_DESCRIPTION:-Async worker}
       GENAI_PRODUCT: ${GENAI_PRODUCT:-aria}
-      GENAI_NAME: ${GENAI_NAME:-aria-worker}
+      GENAI_NAME: ${GENAI_NAME:-aria-worker-main}
       GENAI_APPLICATION: ${GENAI_APPLICATION:-aria}
       DEFAULT_LOGGING_LEVEL: ${DEFAULT_LOGGING_LEVEL:-INFO}
       AWS_REGION_NAME: ${AWS_REGION_NAME:-us-east-1}
@@ -187,6 +188,8 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
+      MCP_BASE_URL: http://mcp:8100
+      MCP_TIMEOUT_SECONDS: ${MCP_TIMEOUT_SECONDS:-15}
       OBJECT_STORAGE_ENDPOINT: http://minio:9000
       OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
       OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
@@ -205,15 +208,58 @@ services:
         condition: service_healthy
       api:
         condition: service_healthy
+      mcp:
+        condition: service_healthy
     networks:
       - aria-net
 
+  aria-worker-training:
+    build:
+      context: ../../..
+      dockerfile: deploy/local/docker/Dockerfile.training.worker
+      args:
+        GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+    image: aria-training-worker:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-worker-training
+    command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=1", "-Q", "model-training"]
+    volumes:
+      - ../../../config:/code/config:ro
+    environment:
+      GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      API_V0_STR: ${API_V0_STR:-/api/v0}
+      AWS_REGION_NAME: ${AWS_REGION_NAME:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      DYNAMO_ENDPOINT: http://dynamodb:8000
+      DYNAMO_REGION_NAME: ${DYNAMO_REGION_NAME:-us-east-1}
+      DYNAMO_ACCESS_KEY: ${DYNAMO_ACCESS_KEY:-dummy}
+      DYNAMO_SECRET_KEY: ${DYNAMO_SECRET_KEY:-dummy}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
+      OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
+      OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
+      OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-dummy123}
+      MODEL_STORAGE_BUCKET: ${MODEL_STORAGE_BUCKET:-models}
+    depends_on:
+      dynamodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - aria-net
+    restart: unless-stopped
+
   # Dedicated capacity for CSV/batch test runs. Production traffic is only
   # consumed by `worker` on CELERY_DEFAULT_QUEUE.
-  test-worker:
-    image: aria-worker:${LOCAL_IMAGE_TAG:-local}
-    container_name: aria-test-worker
-    command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "worker", "--loglevel=INFO", "-Q", "${CELERY_TEST_QUEUE:-test}"]
+  aria-worker-test:
+    image: aria-worker-main:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-worker-test
+    command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=${CELERY_TEST_WORKER_CONCURRENCY:-1}", "-Q", "${CELERY_TEST_QUEUE:-test}"]
     volumes:
       - ../../../config:/code/config:ro
     environment:
@@ -250,9 +296,9 @@ services:
 
   # Exactly one scheduler process must run per environment.  It only
   # publishes periodic maintenance tasks; workers execute them normally.
-  scheduler:
-    image: aria-worker:${LOCAL_IMAGE_TAG:-local}
-    container_name: aria-scheduler
+  aria-worker-scheduler:
+    image: aria-worker-main:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-worker-scheduler
     command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
     volumes:
       - ../../../config:/code/config:ro
@@ -272,7 +318,7 @@ services:
       - aria-net
     restart: unless-stopped
 
-  simulator-worker:
+  aria-worker-simulator:
     build:
       context: ../../..
       dockerfile: deploy/local/docker/Dockerfile.simulator.worker
@@ -280,7 +326,8 @@ services:
       args:
         GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
     image: aria-event-simulator-worker:${LOCAL_IMAGE_TAG:-local}
-    container_name: aria-simulator-worker
+    container_name: aria-worker-simulator
+    command: ["celery", "-A", "src.infrastructure.entrypoint.simulator.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=${CELERY_SIMULATOR_WORKER_CONCURRENCY:-1}", "-Q", "${EVENT_SIMULATOR_CELERY_QUEUE:-event_simulation}"]
     volumes:
       # LLM backend/credentials live here, not in environment: below - see
       # config/local/config.cfg, read directly by Config._env_file.
@@ -360,6 +407,12 @@ services:
       OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-dummy123}
       MODEL_STORAGE_BUCKET: ${MODEL_STORAGE_BUCKET:-models}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8100), timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
     depends_on:
       dynamodb:
         condition: service_healthy

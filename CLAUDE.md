@@ -81,33 +81,26 @@ for the template.
   `infrastructure/`, not under `entrypoint/api/factories/`: both the API and
   the worker need to import them without pulling in FastAPI.
 
-## Two (really three) separate poetry projects — deps must go in the right ones
+## Separate Poetry projects — deps must go in the right ones
 
-`deploy/requirements/pyproject.toml` (API) and `pyproject.worker.toml`
-(Celery worker) are independent Poetry projects with **separate lock
-files**. A dependency used by code that runs inside a Celery task (e.g. the
-LLM/monitoring adapters) must be added to **both** files or the worker
-container `ImportError`s at task runtime. `poetry lock` needs Python 3.11
-(`pyenv shell 3.11.9` locally) and BBVA's `bbvarepo` Artifactory source
-configured — neither is available in a bare sandbox, expect to run it
-yourself.
+`deploy/requirements/pyproject.toml` (API), `pyproject.worker.toml` (main
+Celery worker), `pyproject.training-worker.toml` (training worker),
+`pyproject.mcp.toml` (model serving), and `pyproject.simulator.toml` (event
+simulator) are independent Poetry projects with separate dependencies. The
+main worker delegates scoring to MCP and training to the training worker;
+keep XGBoost, scikit-learn, NumPy, and joblib out of its runtime. Pandas
+remains for the optional history research task. Training dependencies belong
+in both the training worker and MCP projects, which share feature-building
+code. `poetry lock` needs Python 3.11 (`pyenv shell 3.11.9` locally) and
+BBVA's `bbvarepo` Artifactory source configured.
 
-`pyproject.mcp.toml` is a **third** independent project (`infrastructure/
-entrypoint/mcp/`, the FastMCP model-serving service) — an explicit, agreed
-exception to "two projects": it needs the ML inference stack (xgboost/
-sklearn/pandas/joblib) that neither the API nor the worker's other code
-needs, and runs as neither FastAPI nor Celery. It does share the
-feature-building code in `infrastructure/workflows/celery/model_training.py`
-with the worker (training and scoring must build features identically), so a
-dependency that module needs (pandas/numpy/xgboost/scikit-learn/joblib) goes
-in **both** `pyproject.worker.toml` and `pyproject.mcp.toml`. The worker's
-Detector step scores alerts in-process with the trained bundle
-(`_score_with_xgboost` → `entrypoint/mcp/scoring.py`'s `score_row`), and
-feature explanations come from XGBoost's native TreeSHAP
-(`pred_contribs=True`) — **don't re-add the `shap` package**, it was removed
-on purpose (heavy numba/llvmlite tree) to slim the images.
+`pyproject.mcp.toml` is the FastMCP model-serving service project. It owns
+the ML inference stack and loads model bundles. The training worker owns
+training and evaluation. The main alert worker calls MCP over HTTP and does
+not load the model runtime. XGBoost's native TreeSHAP (`pred_contribs=True`)
+provides explanations — don't add the heavy `shap` package.
 
-Each service has two Dockerfiles in `deploy/local/docker/`: `Dockerfile.<svc>`
+Each service has Dockerfiles in `deploy/local/docker/`: `Dockerfile.<svc>`
 (local, public PyPI/Docker Hub) and `Dockerfile.<svc>.okd` (OKD: base image
 and Python libs pulled through BBVA Artifactory, needs `ARTIFACTORY_USER`/
 `ARTIFACTORY_PASSWORD` build args). Both are multi-stage (Poetry and

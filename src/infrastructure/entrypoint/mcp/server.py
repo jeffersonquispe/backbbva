@@ -6,37 +6,73 @@ from typing import Any
 from uuid import UUID
 
 from fastmcp import FastMCP
+from starlette.concurrency import run_in_threadpool
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.mcp.bundle import (
-    get_loaded_bundle,
+    get_loaded_model,
+    get_model_bundle,
     reload_active_model,
 )
-from src.infrastructure.entrypoint.mcp.factories import get_alert_repository
+from src.infrastructure.entrypoint.mcp.factories import (
+    get_alert_repository,
+    get_model_repository,
+)
 from src.infrastructure.entrypoint.mcp.scoring import score_row
 
 mcp = FastMCP("aria-xgboost-scoring")
 
 
+def _score_alert(alert_id: str, model_id: str | None = None) -> dict[str, Any]:
+    loaded_storage_ref, loaded_model_id, loaded_tag = get_loaded_model()
+    if model_id is None:
+        if loaded_storage_ref is None or loaded_model_id is None:
+            return {"error": "no active model is loaded"}
+        model_id = loaded_model_id
+        model_tag = loaded_tag or "unknown"
+        storage_ref = loaded_storage_ref
+    else:
+        model = get_model_repository().get(UUID(model_id))
+        if model is None or model.storage_ref is None:
+            return {"error": "requested model is not trained or does not exist"}
+        model_id = str(model.id)
+        model_tag = model.tag
+        storage_ref = model.storage_ref
+    bundle = get_model_bundle(storage_ref)
+    alert = get_alert_repository().get(UUID(alert_id))
+    if alert is None:
+        return {"error": f"alert {alert_id} not found"}
+    result = score_row(bundle, alert.input)
+    result["model_id"] = model_id
+    result["model_tag"] = model_tag
+    return result
+
+
 @mcp.tool()
-def score_alert(alert_id: str) -> dict[str, Any]:
+def score_alert(alert_id: str, model_id: str | None = None) -> dict[str, Any]:
     """Scores one alert with the currently active XGBoost model. The caller
     (an agent) only ever passes the alert id - never the alert's own field
     values - the tool fetches the canonical alert input itself and builds the
     feature row internally, so no agent prompt has to carry a long
     parameter list of raw alert fields."""
-    bundle, model_id, tag = get_loaded_bundle()
-    if bundle is None:
-        return {"error": "no active model is loaded - call reload_active_model first"}
+    return _score_alert(alert_id, model_id)
 
-    alert = get_alert_repository().get(UUID(alert_id))
-    if alert is None:
-        return {"error": f"alert {alert_id} not found"}
 
-    result = score_row(bundle, alert.input)
-    result["model_id"] = model_id
-    result["model_tag"] = tag
-    return result
+@mcp.custom_route("/internal/score", methods=["POST"])
+async def score_alert_http(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+        alert_id = str(UUID(body["alert_id"]))
+        model_id = str(UUID(body["model_id"])) if body.get("model_id") else None
+    except (KeyError, TypeError, ValueError):
+        return JSONResponse(
+            {"error": "alert_id and optional model_id must be UUIDs"},
+            status_code=422,
+        )
+    result = await run_in_threadpool(_score_alert, alert_id, model_id)
+    return JSONResponse(result, status_code=404 if "error" in result else 200)
 
 
 @mcp.tool()
