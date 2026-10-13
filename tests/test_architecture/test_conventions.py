@@ -31,7 +31,6 @@ KNOWN_VIOLATIONS: set[tuple[str, str, str]] = {
     # Several Protocol/ABC in one port file; split or fold into one.
     ('port-one-per-file', 'src/application/ports/alert_schema_port.py', '3 Protocol/ABC classes'),
     ('port-one-per-file', 'src/application/ports/analyst_capacity_import_port.py', '2 Protocol/ABC classes'),
-    ('port-one-per-file', 'src/application/ports/auth_port.py', '6 Protocol/ABC classes'),
     ('port-one-per-file', 'src/application/ports/dataset_analysis_port.py', '2 Protocol/ABC classes'),
     ('port-one-per-file', 'src/application/ports/embedding_port.py', '2 Protocol/ABC classes'),
     ('port-one-per-file', 'src/application/ports/fraud_label_review_import_port.py', '2 Protocol/ABC classes'),
@@ -169,6 +168,7 @@ def test_ports_are_protocol_abc_or_value_objects() -> None:
 _FACTORY_FILES = [
     *sorted((SRC / "infrastructure/entrypoint/api/factories").glob("*.py")),
     SRC / "infrastructure/workflows/celery/factories.py",
+    SRC / "infrastructure/workflows/celery/task_factories.py",
     SRC / "infrastructure/entrypoint/mcp/factories.py",
     SRC / "infrastructure/entrypoint/simulator/celery/factories.py",
 ]

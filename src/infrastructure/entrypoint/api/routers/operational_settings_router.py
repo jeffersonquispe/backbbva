@@ -45,7 +45,7 @@ from src.infrastructure.entrypoint.api.schemas import (
 
 # No permission Depends here - intentional, not an oversight: this codebase
 # has no auth/permission system wired anywhere yet (see AUDIT_FINDINGS.md;
-# OrganizationRole.ADMIN in auth_port.py is defined but unused). changed_by
+# the old auth_port.py was removed in CA-009). changed_by
 # below is captured as free text for traceability only, not a verified
 # identity.
 router = APIRouter(prefix="/operational-settings", tags=["operational-settings"])
