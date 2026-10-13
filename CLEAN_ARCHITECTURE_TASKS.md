@@ -50,6 +50,9 @@ concrete edit. Check off in place; don't renumber.
         exemption only after confirming — grep first,
         `application/dtos` may currently use `@dataclass` not pydantic,
         confirm before asserting).
+- [x] Rule 5: no test under `tests/test_application/` or `tests/test_domain/`
+      imports `src.infrastructure` *(2026-10-12, `test_application_tests_do_not_import_infrastructure`;
+      `test_local_auth.py` moved to `tests/test_infrastructure/test_security/`)*
 - [x] New test `tests/test_architecture/test_composition_smoke.py`: *(2026-10-12)*
   - [x] Import `src.infrastructure.entrypoint.api.fastapi_app` and call
         `create_app()`, assert it does not raise.
@@ -346,17 +349,9 @@ File: `src/infrastructure/entrypoint/api/factories/alert_factory.py`.
 
 ### CA-009 — Decide and clean up orphaned capabilities
 
-- [ ] Confirmed still zero consumers of
-      `application/dtos/audit_dtos.py`, `application/dtos/auth_dtos.py`,
-      `application/dtos/session_dtos.py`,
-      `application/ports/auth_port.py`,
-      `application/ports/session_port.py`
-      (re-verified via grep this session — no hits outside their own
-      definition files). Bring this to the user/team for a decision:
-      delete, or mark planned with an owner + milestone. **Don't delete
-      unilaterally — ask first**, this is a scope decision per
-      CLAUDE.md's own note that `audit_port.py` "is an unrelated, older
-      concept" worth asking about before merging/removing.
+- [x] Deleted `application/dtos/{audit,auth,session}_dtos.py` and
+      `application/ports/{auth,session}_port.py` *(2026-10-12; zero
+      consumers re-verified, user approved; `audit_port.py` kept)*
 - [ ] `src/persistence/database/dynamodb/manager.py` line ~135 (re-grep,
       confirm still creates an audit table): decide whether to keep
       table creation gated behind the same decision as `audit_port.py`
@@ -446,3 +441,24 @@ trust old line-range citations here at all.
 - CA-005 (configuration split) and CA-009 (orphan capability decision)
   both explicitly require a human decision before code changes — don't
   auto-execute those two, surface them first.
+
+---
+
+## Large-file split (2026-10-12, behavior-preserving, no logic changes)
+
+- [x] `api/schemas.py` (2011 lines) -> package `api/schemas/` by domain
+      (17 modules, `__init__` re-exports, same import path).
+- [x] `configuration_repository.py` (944) -> repository (504) +
+      `configuration_item_mapping.py` (484, pure item<->dataclass codecs).
+- [x] `workflows/celery/factories.py` (924) -> `factories.py` (610) +
+      `task_factories.py` (task-level wiring).
+- [x] `alert_review_workflow.py` (1857) -> 1459 lines + `step_context.py`,
+      `history_research.py`, `xgboost_score.py`, `executor_text.py`.
+- [ ] **Still large**: `alert_review_workflow.py` (runner class + the
+      `_run_*` step functions) and `configuration.py` (538, pydantic
+      schemas). Splitting the `_run_*` functions further means moving the
+      `get_*` call sites tests monkeypatch on `workflow_module`
+      (`get_alert_repository`, `get_configuration_repository`,
+      `get_generate_agent_text_use_case`, `get_model_repository`, ...) -
+      do it together with CA-002 (typed step contracts replacing
+      `context: dict[str, Any]`), not before.

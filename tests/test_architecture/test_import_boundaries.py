@@ -108,6 +108,21 @@ def test_application_and_domain_avoid_framework_and_heavy_libs() -> None:
     _check("application-no-heavy-libs", found)
 
 
+def test_application_tests_do_not_import_infrastructure() -> None:
+    """Tests under ``tests/test_application`` and ``tests/test_domain`` run
+    against ports with in-memory fakes; a test that needs a real adapter
+    belongs in ``tests/test_infrastructure/test_<domain>/``."""
+
+    def banned(mod: str):
+        return "src.infrastructure" if mod.startswith("src.infrastructure") else None
+
+    found: set[tuple[str, str, str]] = set()
+    for base in (TESTS / "test_application", TESTS / "test_domain"):
+        if base.exists():
+            found |= _violations("application-tests-no-infra", base, banned)
+    _check("application-tests-no-infra", found)
+
+
 def test_domain_does_not_import_application_or_infrastructure() -> None:
     def banned(mod: str):
         return mod if mod.startswith(("src.application", "src.infrastructure")) else None
@@ -177,7 +192,7 @@ _WIRING_SUFFIXES = ("UseCase", "Loader", "Agent", "Repository", "Adapter", "Disp
 
 def test_worker_wiring_goes_through_celery_factories() -> None:
     """CLAUDE.md DI: tasks and the workflow runner call ``get_*`` factories
-    from ``workflows/celery/factories.py``; they never build adapters or
+    from ``workflows/celery/factories.py`` / ``task_factories.py``; they never build adapters or
     use cases inline."""
     found: set[tuple[str, str, str]] = set()
     for rel in _WIRING_FILES:

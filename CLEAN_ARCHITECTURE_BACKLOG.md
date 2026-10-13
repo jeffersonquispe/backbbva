@@ -5,6 +5,11 @@ Scope: current `src/` tree, API and Celery entrypoints, composition factories,
 adapters, and architecture-related tests. The assessment includes the current
 working tree, including uncommitted changes present at the time of review.
 
+> **Status tracking:** this file is the assessment as of 2026-08-21 and is
+> not updated task by task. The live per-task checklist is
+> `CLEAN_ARCHITECTURE_TASKS.md`; the per-CA `Status` lines below were last
+> synced on 2026-10-12.
+
 ## Executive verdict
 
 The project has a recognizable clean/hexagonal architecture skeleton, but it
@@ -75,7 +80,7 @@ No P0 clean-architecture issue was identified in this review.
 ### CA-001 - Remove LangChain from the domain layer
 
 **Priority:** P1  
-**Status:** [ ] Not started
+**Status:** [x] Done (2026-10-12, `1477d44`; `src/domain/persistence/` removed, enforced by `test_domain_is_framework_free`)
 
 **Evidence**
 
@@ -402,7 +407,7 @@ lifecycle rules harder to reason about.
 
 - `application/dtos/audit_dtos.py`, `application/dtos/auth_dtos.py`,
   `application/dtos/session_dtos.py`, `application/ports/auth_port.py`, and
-  `application/ports/session_port.py` have no source consumers.
+  `application/ports/session_port.py` have no source consumers. **Deleted 2026-10-12.**
 - Dynamo table initialization still creates an audit table at
   `persistence/database/dynamodb/manager.py:135`, but there is no current
   audit port/repository/use case/entrypoint flow.
@@ -435,7 +440,7 @@ unregistered capabilities create an incomplete entrypoint surface.
 ### CA-010 - Add executable architecture fitness tests
 
 **Priority:** P2  
-**Status:** [ ] Not started
+**Status:** [x] Done (2026-10-12; `tests/test_architecture/`, ratcheted, `make test-architecture`, runs as the Jenkins `Architecture` stage)
 
 **Evidence**
 

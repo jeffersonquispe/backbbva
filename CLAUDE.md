@@ -68,6 +68,8 @@ for the template.
 - **API**: factories live in `infrastructure/entrypoint/api/factories/`,
   wired via FastAPI `Depends()` **at the router**, not in `fastapi_app.py`.
 - **Celery**: factories live in `infrastructure/workflows/celery/factories.py`
+  (adapters + workflow use cases) and `task_factories.py` (task-level wiring:
+  datasets, escalation/documenter, research collaborators)
   — worker-only, not shared with the API's `entrypoint/api/factories/` (the
   two run as separate poetry projects, see below). Same rules as the API:
   `@lru_cache` singleton functions for stateless adapters, plain functions
@@ -142,10 +144,19 @@ like `libgomp1`, CMD, ports) must be mirrored in the other.
    orphan `Config` fields, fake naming + test-tree mirror, Dockerfile
    local/OKD parity, shared worker/MCP deps). Ratcheted: a new violation
    fails, a resolved one must be deleted from its `KNOWN_VIOLATIONS`.
+   **Baseline policy: a new violation is fixed, never added to
+   `KNOWN_VIOLATIONS`** — the set only shrinks (the same applies to
+   `.lint-baseline.json`).
 3. `GENAI_ENVIRONMENT=test pytest` for the code you touched.
 
 Jenkins runs 1 and 2 as the `Lint` and `Architecture` stages (see
 `Jenkinsfile`); a red stage blocks the build.
+
+`pre-commit install` (config: `.pre-commit-config.yaml`) runs `make
+test-architecture` and ruff on every commit, so 1–2 fail locally before CI.
+Tests under `tests/test_application/` and `tests/test_domain/` must not import
+`src.infrastructure` (use an in-memory fake; a test that needs the real
+adapter goes in `tests/test_infrastructure/`).
 
 ## Directory hygiene — check before creating
 

@@ -1,0 +1,17 @@
+# Local gate mirroring the Jenkins `Lint` and `Architecture` stages.
+# Install once: `pip install pre-commit && pre-commit install`.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (ratcheted, see .lint-baseline.json)
+        entry: python scripts/lint_ratchet.py ruff
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: architecture
+        name: make test-architecture
+        entry: make test-architecture
+        language: system
+        pass_filenames: false
+        types: [python]
