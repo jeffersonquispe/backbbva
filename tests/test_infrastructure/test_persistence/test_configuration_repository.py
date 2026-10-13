@@ -47,6 +47,9 @@ from src.application.ports.tag_catalog_port import TagCategory
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
     _config_key,
     _criterion_key,
+    _group_key,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_item_mapping import (
     _day_profile_from_item,
     _distribution_value_from_item,
     _evaluation_from_item,
@@ -55,7 +58,6 @@ from src.infrastructure.persistence.database.dynamodb.repositories.configuration
     _flag_from_item,
     _from_item,
     _general_from_item,
-    _group_key,
     _infra_from_item,
     _modus_operandi_from_item,
     _profiling_strategy_from_item,

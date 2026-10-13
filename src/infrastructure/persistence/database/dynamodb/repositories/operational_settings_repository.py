@@ -24,7 +24,7 @@ from src.application.ports.operational_settings_port import (
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
-from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_item_mapping import (
     _day_profile_from_item,
     _shortage_behavior_from_item,
 )
@@ -175,7 +175,7 @@ def _change_to_item(change: OperationalSettingsChange) -> dict[str, Any]:
     # types - a diff entry's value can be a bool, int, str, or a nested
     # dict/list (e.g. the whole analyst_capacity subtree), and this keeps
     # the item schema-agnostic of which. Same "value as JSON string"
-    # convention audit_dtos.CreateAuditLogInput.arguments already uses.
+    # convention the audit log (audit_port.py) uses for tool-call arguments.
     return {
         "record_id": SETTINGS_RECORD_ID,
         "changed_at": change.changed_at.isoformat(),

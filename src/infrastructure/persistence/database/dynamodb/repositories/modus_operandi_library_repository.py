@@ -12,7 +12,7 @@ from src.application.ports.modus_operandi_library_port import (
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
-from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_item_mapping import (
     _shortage_behavior_from_item,
 )
 
