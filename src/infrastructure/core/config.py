@@ -101,6 +101,9 @@ class Config(BaseSettings):
     # back to REPORT_LLM_MODEL (see workflows/celery/factories.py).
     JUDGE_LLM_MODEL: str = ""
 
+    # MCP model-serving service
+    MCP_PORT: int = 8100
+
     # DYNAMODB
     DYNAMO_REGION_NAME: str = "us-east-1"
     DYNAMO_ENDPOINT: str = "http://dynamodb-lupita:8000"

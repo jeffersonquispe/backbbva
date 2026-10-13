@@ -2,12 +2,12 @@
 # @mcp.tool()'s schema by eval()-ing the function's annotations at import
 # time, and that eval loses `typing.Any` out of this module's globals when
 # annotations are deferred to strings, raising NameError at import.
-import os
 from typing import Any
 from uuid import UUID
 
 from fastmcp import FastMCP
 
+from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.mcp.bundle import (
     get_loaded_bundle,
     reload_active_model,
@@ -58,8 +58,7 @@ def main() -> None:
         reload_active_model()
     except Exception as exc:  # noqa: BLE001
         print(f"reload_active_model failed at startup, starting without a loaded model: {exc}")
-    port = int(os.environ.get("MCP_PORT", "8100"))
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=genai_config.MCP_PORT)
 
 
 if __name__ == "__main__":
