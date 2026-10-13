@@ -23,9 +23,7 @@ _FORBIDDEN_ATTRIBUTES = {"customer_id", "amount", "aria.amount"}
 def _build_monitoring():
     reader = InMemoryMetricReader()
     meter = build_meter_provider([reader]).get_meter("test")
-    monitoring = OpenTelemetryMonitoring(
-        TracerProvider().get_tracer("test"), meter
-    )
+    monitoring = OpenTelemetryMonitoring(TracerProvider().get_tracer("test"), meter)
     return monitoring, reader
 
 
@@ -37,9 +35,7 @@ def _points(reader: InMemoryMetricReader) -> dict[str, list]:
     for resource_metrics in data.resource_metrics:
         for scope_metrics in resource_metrics.scope_metrics:
             for metric in scope_metrics.metrics:
-                points.setdefault(metric.name, []).extend(
-                    metric.data.data_points
-                )
+                points.setdefault(metric.name, []).extend(metric.data.data_points)
     return points
 
 
@@ -114,7 +110,10 @@ def test_workflow_research_and_drift_instruments():
 
     points = _points(reader)
     workflow = {
-        p.attributes["aria.workflow.step"]: (p.attributes["aria.workflow.outcome"], p.sum)
+        p.attributes["aria.workflow.step"]: (
+            p.attributes["aria.workflow.outcome"],
+            p.sum,
+        )
         for p in points["aria.workflow.duration"]
     }
     assert workflow == {

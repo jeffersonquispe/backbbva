@@ -245,9 +245,7 @@ class ProfilingConfig:
     # alert_review_workflow.py) - not yet to the other agent prompts
     # (classification/adversarial/analyst), which don't resolve {variable}
     # tokens at all today.
-    field_enrichment: dict[str, Any] = field(
-        default_factory=_default_field_enrichment
-    )
+    field_enrichment: dict[str, Any] = field(default_factory=_default_field_enrichment)
     # Fixed 3-step chain (usuario -> transaccion -> transaccional), run in
     # this order - variable availability no longer depends on that order.
     strategies: list[ProfilingStrategy] = field(
@@ -335,9 +333,7 @@ class VectorStoreResearchConfig(ResearchAgentConfig):
     similarity_threshold: float = 0.7
     max_documents_per_query: int = 8
     allowed_asset_types: list[str] = field(
-        default_factory=lambda: [
-            "taxonomy", "modus_operandi", "similar_case", "flag"
-        ]
+        default_factory=lambda: ["taxonomy", "modus_operandi", "similar_case", "flag"]
     )
 
 
@@ -355,8 +351,13 @@ class HistoryPandasResearchConfig(ResearchAgentConfig):
     allowed_columns: list[str] = field(default_factory=list)
     allowed_operations: list[str] = field(
         default_factory=lambda: [
-            "filter", "group_by", "aggregate", "distribution", "trend",
-            "outlier", "comparison",
+            "filter",
+            "group_by",
+            "aggregate",
+            "distribution",
+            "trend",
+            "outlier",
+            "comparison",
         ]
     )
 
@@ -373,7 +374,7 @@ class DelegatedResearchSettings:
 
 @dataclass
 class AgentToolsConfig:
-    """"Herramientas del agente" - identical for every ReAct step with a
+    """ "Herramientas del agente" - identical for every ReAct step with a
     tool picker (Detector, Adversarial (detector), Clasificación,
     Adversarial (clasificador)); each step reads its own copy."""
 
@@ -498,7 +499,9 @@ class AgentSettings:
     profiling: ProfilingConfig = field(default_factory=ProfilingConfig)
     rubrics: list[Rubric] = field(default_factory=list)
     detector: DetectorConfig = field(default_factory=DetectorConfig)
-    detector_adversarial: DetectorAdversarialConfig = field(default_factory=DetectorAdversarialConfig)
+    detector_adversarial: DetectorAdversarialConfig = field(
+        default_factory=DetectorAdversarialConfig
+    )
     classification: ClassificationConfig = field(default_factory=ClassificationConfig)
     adversarial: AdversarialConfig = field(default_factory=AdversarialConfig)
     analyst: AnalystConfig = field(default_factory=AnalystConfig)
@@ -622,11 +625,9 @@ class ConfigurationRecord:
 
 
 class ConfigurationRepository(Protocol):
-    def create(self, config: ConfigurationRecord) -> ConfigurationRecord:
-        ...
+    def create(self, config: ConfigurationRecord) -> ConfigurationRecord: ...
 
-    def mark_tested(self, configuration_id: str, version: int) -> None:
-        ...
+    def mark_tested(self, configuration_id: str, version: int) -> None: ...
 
     def update(self, config: ConfigurationRecord) -> ConfigurationRecord:
         """Overwrite an existing (configuration_id, version) in place -
@@ -638,25 +639,18 @@ class ConfigurationRepository(Protocol):
 
     def get(
         self, configuration_id: str, version: int
-    ) -> ConfigurationRecord | None:
-        ...
+    ) -> ConfigurationRecord | None: ...
 
     def get_latest_version(
         self, configuration_id: str
-    ) -> ConfigurationRecord | None:
-        ...
+    ) -> ConfigurationRecord | None: ...
 
-    def get_active(self) -> ConfigurationRecord | None:
-        ...
+    def get_active(self) -> ConfigurationRecord | None: ...
 
-    def list_latest(self) -> list[ConfigurationRecord]:
-        ...
+    def list_latest(self) -> list[ConfigurationRecord]: ...
 
-    def list_versions(self, configuration_id: str) -> list[ConfigurationRecord]:
-        ...
+    def list_versions(self, configuration_id: str) -> list[ConfigurationRecord]: ...
 
-    def list_all_versions(self) -> list[ConfigurationRecord]:
-        ...
+    def list_all_versions(self) -> list[ConfigurationRecord]: ...
 
-    def activate(self, configuration_id: str, version: int) -> ConfigurationRecord:
-        ...
+    def activate(self, configuration_id: str, version: int) -> ConfigurationRecord: ...

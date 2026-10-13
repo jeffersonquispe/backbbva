@@ -27,7 +27,9 @@ _REFERENCE = datetime(2026, 9, 28, tzinfo=UTC)
 
 
 def _select(**overrides):
-    kwargs = dict(columns=[], window_days=0, max_transactions=0, reference_time=_REFERENCE)
+    kwargs = dict(
+        columns=[], window_days=0, max_transactions=0, reference_time=_REFERENCE
+    )
     kwargs.update(overrides)
     return select_transaction_history(_HISTORY, **kwargs)
 
@@ -62,7 +64,5 @@ def test_parse_event_time_accepts_iso_and_epoch_millis() -> None:
     assert parse_event_time("2026-09-27T10:00:00Z") == datetime(
         2026, 9, 27, 10, tzinfo=UTC
     )
-    assert parse_event_time(1790503200000) == datetime(
-        2026, 9, 27, 10, tzinfo=UTC
-    )
+    assert parse_event_time(1790503200000) == datetime(2026, 9, 27, 10, tzinfo=UTC)
     assert parse_event_time("garbage") is None

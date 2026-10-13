@@ -21,9 +21,7 @@ class FakePreviewConfigurationUseCase:
         self.received = input
         return ConfigurationPreviewOutput(
             changes=[
-                ConfigurationChange(
-                    path="infra.max_instances", previous=8, proposed=12
-                )
+                ConfigurationChange(path="infra.max_instances", previous=8, proposed=12)
             ],
             warnings=["Cambio de alto impacto"],
         )
@@ -43,9 +41,7 @@ def test_configuration_test_endpoint_returns_preview_without_saving() -> None:
     assert response.status_code == 200
     assert response.json() == {
         "valid": True,
-        "changes": [
-            {"path": "infra.max_instances", "previous": 8, "proposed": 12}
-        ],
+        "changes": [{"path": "infra.max_instances", "previous": 8, "proposed": 12}],
         "warnings": ["Cambio de alto impacto"],
     }
     assert fake.received is not None
@@ -64,8 +60,13 @@ def _request_with_rubric(scores: list[float]) -> dict:
                             "id": "r1",
                             "name": "estafa_score",
                             "conditions": [
-                                {"id": f"c{i}", "variable": "amount", "comparison": "gt",
-                                 "values": ["1"], "score": score}
+                                {
+                                    "id": f"c{i}",
+                                    "variable": "amount",
+                                    "comparison": "gt",
+                                    "values": ["1"],
+                                    "score": score,
+                                }
                                 for i, score in enumerate(scores)
                             ],
                         }

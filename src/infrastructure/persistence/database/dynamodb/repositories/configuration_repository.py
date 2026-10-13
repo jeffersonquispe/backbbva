@@ -202,18 +202,14 @@ class DynamoConfigurationRepository(ConfigurationRepository):
             )
         return config
 
-    def get(
-        self, configuration_id: str, version: int
-    ) -> ConfigurationRecord | None:
+    def get(self, configuration_id: str, version: int) -> ConfigurationRecord | None:
         response = self._table.get_item(
             Key={"configuration_id": configuration_id, "version": version}
         )
         item = response.get("Item")
         return self._hydrate(item) if item else None
 
-    def get_latest_version(
-        self, configuration_id: str
-    ) -> ConfigurationRecord | None:
+    def get_latest_version(self, configuration_id: str) -> ConfigurationRecord | None:
         versions = self.list_versions(configuration_id)
         if not versions:
             return None
@@ -413,7 +409,9 @@ class DynamoConfigurationRepository(ConfigurationRepository):
                 _criterion_key(segment_id, item["id"]),
                 _distribution_value_from_item,
             )
-            criteria.append(SamplingCriterion(id=item["id"], name=item["name"], values=values))
+            criteria.append(
+                SamplingCriterion(id=item["id"], name=item["name"], values=values)
+            )
         return criteria
 
     def _load_profiling_strategies(self, segment_id: str) -> list[ProfilingStrategy]:
@@ -430,9 +428,9 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         # fall back to full defaults if nothing was ever written (e.g. a
         # pre-migration record).
         by_key = {strategy.key: strategy for strategy in rows}
-        return [
-            by_key[key] for key in ProfilingStrategyKey if key in by_key
-        ] or [ProfilingStrategy(key=key) for key in ProfilingStrategyKey]
+        return [by_key[key] for key in ProfilingStrategyKey if key in by_key] or [
+            ProfilingStrategy(key=key) for key in ProfilingStrategyKey
+        ]
 
     def _put_filter_group(
         self, segment_id: str, group: FilterGroup, parent_group_id: str | None
@@ -497,14 +495,18 @@ class DynamoConfigurationRepository(ConfigurationRepository):
             self._delete_segment_children(row["id"])
 
     def _delete_segment_children(self, segment_id: str) -> None:
-        self._delete_query(self._profiling_strategies, "segment_id", segment_id, range_attr="key")
+        self._delete_query(
+            self._profiling_strategies, "segment_id", segment_id, range_attr="key"
+        )
         self._delete_query(self._taxonomies, "segment_id", segment_id)
         self._delete_query(self._modus_operandi, "segment_id", segment_id)
         self._delete_query(self._flags, "segment_id", segment_id)
         self._delete_query(self._examples, "segment_id", segment_id)
         self._delete_query(self._voicebot_prompts, "segment_id", segment_id)
 
-        criteria_rows = self._delete_query(self._sampling_criteria, "segment_id", segment_id)
+        criteria_rows = self._delete_query(
+            self._sampling_criteria, "segment_id", segment_id
+        )
         for criterion in criteria_rows:
             self._delete_query(
                 self._sampling_criteria_values,
@@ -515,7 +517,9 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         group_rows = self._delete_query(self._filter_groups, "segment_id", segment_id)
         for group in group_rows:
             self._delete_query(
-                self._filter_conditions, "group_key", _group_key(segment_id, group["id"])
+                self._filter_conditions,
+                "group_key",
+                _group_key(segment_id, group["id"]),
             )
 
     def _delete_query(

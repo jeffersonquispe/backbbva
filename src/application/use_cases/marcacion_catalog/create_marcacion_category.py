@@ -11,7 +11,9 @@ from src.application.ports.marcacion_catalog_port import (
 
 
 class CreateMarcacionCategoryUseCase:
-    def __init__(self, marcacion_catalog_repository: MarcacionCatalogRepository) -> None:
+    def __init__(
+        self, marcacion_catalog_repository: MarcacionCatalogRepository
+    ) -> None:
         self._categories = marcacion_catalog_repository
 
     def execute(self, value: str, risk_label: RiskLabel) -> MarcacionCategory:

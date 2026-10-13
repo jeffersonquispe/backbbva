@@ -44,13 +44,18 @@ from src.infrastructure.entrypoint.api.schemas import (
     UpdateTaxonomyLibraryEntryRequest,
 )
 
-router = APIRouter(prefix="/library/taxonomies", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
+router = APIRouter(
+    prefix="/library/taxonomies",
+    tags=["knowledge-library"],
+    dependencies=[Depends(require_library_access)],
+)
 
 
 @router.get("", response_model=list[TaxonomyLibraryEntrySchema])
 def list_taxonomy_library_entries(
     use_case: Annotated[
-        ListTaxonomyLibraryEntriesUseCase, Depends(get_list_taxonomy_library_entries_use_case)
+        ListTaxonomyLibraryEntriesUseCase,
+        Depends(get_list_taxonomy_library_entries_use_case),
     ],
     active_only: bool = False,
 ):
@@ -63,17 +68,20 @@ def list_taxonomy_library_entries(
 def create_taxonomy_library_entry(
     request: CreateTaxonomyLibraryEntryRequest,
     use_case: Annotated[
-        CreateTaxonomyLibraryEntryUseCase, Depends(get_create_taxonomy_library_entry_use_case)
+        CreateTaxonomyLibraryEntryUseCase,
+        Depends(get_create_taxonomy_library_entry_use_case),
     ],
 ):
     entry = use_case.execute(
-            request.code,
-            request.name,
-            request.description,
-            request.variables,
-            request.examples,
-        )
-    get_knowledge_graph_service().synchronize_new_asset(KnowledgeAssetType.TAXONOMY, entry.id)
+        request.code,
+        request.name,
+        request.description,
+        request.variables,
+        request.examples,
+    )
+    get_knowledge_graph_service().synchronize_new_asset(
+        KnowledgeAssetType.TAXONOMY, entry.id
+    )
     return _to_schema(entry)
 
 
@@ -82,7 +90,8 @@ def update_taxonomy_library_entry(
     entry_id: str,
     request: UpdateTaxonomyLibraryEntryRequest,
     use_case: Annotated[
-        UpdateTaxonomyLibraryEntryUseCase, Depends(get_update_taxonomy_library_entry_use_case)
+        UpdateTaxonomyLibraryEntryUseCase,
+        Depends(get_update_taxonomy_library_entry_use_case),
     ],
 ):
     try:
@@ -104,7 +113,8 @@ def update_taxonomy_library_entry(
 def delete_taxonomy_library_entry(
     entry_id: str,
     use_case: Annotated[
-        DeleteTaxonomyLibraryEntryUseCase, Depends(get_delete_taxonomy_library_entry_use_case)
+        DeleteTaxonomyLibraryEntryUseCase,
+        Depends(get_delete_taxonomy_library_entry_use_case),
     ],
 ):
     # A taxonomy is the only removable root.  Descendants are removed in a
@@ -118,7 +128,11 @@ def delete_taxonomy_library_entry(
     modus_operandi = get_modus_operandi_library_repository()
     similar_cases = get_similar_case_library_repository()
     flags = get_flag_library_repository()
-    descendants = [entry for entry in modus_operandi.list() if entry.taxonomy_library_id == entry_id]
+    descendants = [
+        entry
+        for entry in modus_operandi.list()
+        if entry.taxonomy_library_id == entry_id
+    ]
     descendant_ids = {entry.id for entry in descendants}
     for case in similar_cases.list():
         if case.modus_operandi_library_id in descendant_ids:
@@ -127,7 +141,11 @@ def delete_taxonomy_library_entry(
         matching = set(flag.modus_operandi_library_ids) & descendant_ids
         if not matching:
             continue
-        remaining = [mo_id for mo_id in flag.modus_operandi_library_ids if mo_id not in descendant_ids]
+        remaining = [
+            mo_id
+            for mo_id in flag.modus_operandi_library_ids
+            if mo_id not in descendant_ids
+        ]
         if remaining:
             flags.update(flag.id, modus_operandi_library_ids=remaining)
         else:

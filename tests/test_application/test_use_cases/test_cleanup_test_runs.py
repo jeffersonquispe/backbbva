@@ -29,7 +29,9 @@ class RecordingDeleteTestRuns:
 
     def execute_for_ids(self, ids):
         self.ids = ids
-        return DeleteTestRunsOutput(deleted_test_runs=len(ids), deleted_cases=len(ids) * 2)
+        return DeleteTestRunsOutput(
+            deleted_test_runs=len(ids), deleted_cases=len(ids) * 2
+        )
 
 
 def _run(status, age_hours):
@@ -51,7 +53,9 @@ def test_failed_first_preserves_active_runs_and_removes_failed_first():
     succeeded = _run(RunStatus.SUCCEEDED, 10)
     running = _run(RunStatus.RUNNING, 2)
     delete = RecordingDeleteTestRuns()
-    use_case = CleanupTestRunsUseCase(StaticListTestRuns([failed, succeeded, running]), delete)
+    use_case = CleanupTestRunsUseCase(
+        StaticListTestRuns([failed, succeeded, running]), delete
+    )
 
     output = use_case.execute(2, CleanupPolicy.FAILED_FIRST)
 

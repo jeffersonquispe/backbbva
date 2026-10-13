@@ -33,7 +33,8 @@ class HistoryPandasResearchAgent:
         self,
         planner: HistoryResearchPlanner,
         config: HistoryPandasResearchConfig,
-        history_provider: Callable[[ResearchRequest], Iterable[dict[str, Any]]] | None = None,
+        history_provider: Callable[[ResearchRequest], Iterable[dict[str, Any]]]
+        | None = None,
     ) -> None:
         self._planner = planner
         self._config = config
@@ -59,7 +60,9 @@ class HistoryPandasResearchAgent:
             ]
             frame = pd.DataFrame(rows)
             if self._config.allowed_columns:
-                permitted = [c for c in self._config.allowed_columns if c in frame.columns]
+                permitted = [
+                    c for c in self._config.allowed_columns if c in frame.columns
+                ]
                 frame = frame.loc[:, permitted]
             operations = self._planner.plan(request)
             if len(operations) > self._config.max_analysis_operations:
@@ -72,14 +75,20 @@ class HistoryPandasResearchAgent:
                 if operation.name not in self._config.allowed_operations:
                     raise ValueError(f"operation is not allowed: {operation.name}")
                 missing = [
-                    column for column in (operation.column, operation.group_by)
+                    column
+                    for column in (operation.column, operation.group_by)
                     if column and column not in working.columns
                 ]
                 if missing:
                     # Column outside the configured selection (or absent
                     # from this history): skip just this operation rather
                     # than failing the whole investigation.
-                    trace.append({"operation": asdict(operation), "skipped": f"columns not available: {missing}"})
+                    trace.append(
+                        {
+                            "operation": asdict(operation),
+                            "skipped": f"columns not available: {missing}",
+                        }
+                    )
                     continue
                 working, finding = self._execute(working, operation)
                 trace.append({"operation": asdict(operation)})
@@ -108,14 +117,20 @@ class HistoryPandasResearchAgent:
                 raise ValueError("invalid filter")
             series = frame[op.column]
             checks = {
-                "eq": series == op.value, "ne": series != op.value,
-                "gt": series > op.value, "gte": series >= op.value,
-                "lt": series < op.value, "lte": series <= op.value,
-                "in": series.isin(op.value if isinstance(op.value, list) else [op.value]),
+                "eq": series == op.value,
+                "ne": series != op.value,
+                "gt": series > op.value,
+                "gte": series >= op.value,
+                "lt": series < op.value,
+                "lte": series <= op.value,
+                "in": series.isin(
+                    op.value if isinstance(op.value, list) else [op.value]
+                ),
             }
             filtered = frame.loc[checks[op.operator]].copy()
             return filtered, ResearchFinding(
-                metric="filtered_rows", value=len(filtered),
+                metric="filtered_rows",
+                value=len(filtered),
                 evidence=f"{len(filtered)} rows match {op.column} {op.operator}",
             )
         if op.name == "aggregate":
@@ -126,18 +141,26 @@ class HistoryPandasResearchAgent:
             elif op.aggregate == "nunique":
                 value = int(frame[op.column].nunique(dropna=True))
             else:
-                value = getattr(pd.to_numeric(frame[op.column], errors="coerce"), op.aggregate)()
+                value = getattr(
+                    pd.to_numeric(frame[op.column], errors="coerce"), op.aggregate
+                )()
                 value = None if pd.isna(value) else float(value)
             return frame, ResearchFinding(
-                metric=f"{op.aggregate}_{op.column}", value=value,
+                metric=f"{op.aggregate}_{op.column}",
+                value=value,
                 evidence=f"{op.aggregate} calculated over {len(frame)} history rows",
             )
         if op.name == "distribution":
             if not op.column:
                 raise ValueError("distribution requires a column")
             counts = frame[op.column].value_counts(dropna=False).head(10)
-            value = [{"value": str(key), "count": int(count)} for key, count in counts.items()]
-            return frame, ResearchFinding("distribution_" + op.column, value, "Top values in history")
+            value = [
+                {"value": str(key), "count": int(count)}
+                for key, count in counts.items()
+            ]
+            return frame, ResearchFinding(
+                "distribution_" + op.column, value, "Top values in history"
+            )
         if op.name == "group_by":
             if not op.group_by:
                 raise ValueError("group_by requires a grouping column")
@@ -146,9 +169,13 @@ class HistoryPandasResearchAgent:
                 grouped = values.groupby(frame[op.group_by]).agg(op.aggregate).head(10)
             else:
                 grouped = frame.groupby(op.group_by, dropna=False).size().head(10)
-            value = [{"group": str(key), "value": float(count)} for key, count in grouped.items()]
+            value = [
+                {"group": str(key), "value": float(count)}
+                for key, count in grouped.items()
+            ]
             return frame, ResearchFinding(
-                metric=f"group_by_{op.group_by}", value=value,
+                metric=f"group_by_{op.group_by}",
+                value=value,
                 evidence="Grouped historical values",
             )
         if op.name == "comparison":
@@ -161,7 +188,11 @@ class HistoryPandasResearchAgent:
             ratio = None if median == 0 else float(op.current_value) / float(median)
             return frame, ResearchFinding(
                 metric=f"current_vs_median_{op.column}",
-                value={"current": op.current_value, "median": float(median), "ratio": ratio},
+                value={
+                    "current": op.current_value,
+                    "median": float(median),
+                    "ratio": ratio,
+                },
                 evidence="Current value compared to historical median",
             )
         if op.name == "outlier":
@@ -171,9 +202,12 @@ class HistoryPandasResearchAgent:
             q1, q3 = numeric.quantile([0.25, 0.75])
             iqr = q3 - q1
             lower, upper = float(q1 - 1.5 * iqr), float(q3 + 1.5 * iqr)
-            is_outlier = float(op.current_value) < lower or float(op.current_value) > upper
+            is_outlier = (
+                float(op.current_value) < lower or float(op.current_value) > upper
+            )
             return frame, ResearchFinding(
-                metric=f"outlier_{op.column}", value=is_outlier,
+                metric=f"outlier_{op.column}",
+                value=is_outlier,
                 evidence=f"IQR bounds are [{lower}, {upper}]",
                 metadata={"lower_bound": lower, "upper_bound": upper},
             )
@@ -181,14 +215,26 @@ class HistoryPandasResearchAgent:
             if not op.column or not op.group_by:
                 raise ValueError("trend requires a date column and group_by frequency")
             dates = pd.to_datetime(frame[op.column], errors="coerce", utc=True)
-            counts = dates.dropna().dt.to_period(op.group_by).value_counts().sort_index()
-            value = [{"period": str(k), "count": int(v)} for k, v in counts.head(20).items()]
-            return frame, ResearchFinding("trend_" + op.column, value, "Historical frequency trend")
+            counts = (
+                dates.dropna().dt.to_period(op.group_by).value_counts().sort_index()
+            )
+            value = [
+                {"period": str(k), "count": int(v)} for k, v in counts.head(20).items()
+            ]
+            return frame, ResearchFinding(
+                "trend_" + op.column, value, "Historical frequency trend"
+            )
         raise ValueError(f"unsupported operation: {op.name}")
 
     def _column_allowed(self, column: str | None) -> None:
-        if column and self._config.allowed_columns and column not in self._config.allowed_columns:
+        if (
+            column
+            and self._config.allowed_columns
+            and column not in self._config.allowed_columns
+        ):
             raise ValueError(f"column is not allowed: {column}")
 
     def _skipped(self, reason: str) -> ResearchResult:
-        return ResearchResult(ResearchSource.HISTORY_PANDAS, ResearchStatus.SKIPPED, error=reason)
+        return ResearchResult(
+            ResearchSource.HISTORY_PANDAS, ResearchStatus.SKIPPED, error=reason
+        )

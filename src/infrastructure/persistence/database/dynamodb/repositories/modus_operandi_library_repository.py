@@ -59,10 +59,14 @@ class DynamoModusOperandiLibraryRepository(ModusOperandiLibraryRepository):
             title=title if title is not None else current.title,
             narrative=narrative if narrative is not None else current.narrative,
             taxonomy_library_id=(
-                taxonomy_library_id if taxonomy_library_id is not None else current.taxonomy_library_id
+                taxonomy_library_id
+                if taxonomy_library_id is not None
+                else current.taxonomy_library_id
             ),
             evolved_variables=(
-                evolved_variables if evolved_variables is not None else current.evolved_variables
+                evolved_variables
+                if evolved_variables is not None
+                else current.evolved_variables
             ),
             active=active if active is not None else current.active,
             created_at=current.created_at,
@@ -102,7 +106,9 @@ def _from_item(item: dict[str, Any]) -> ModusOperandiLibraryEntry:
         active=bool(item.get("active", True)),
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
-        embedding=[float(v) for v in item["embedding"]] if item.get("embedding") is not None else None,
+        embedding=[float(v) for v in item["embedding"]]
+        if item.get("embedding") is not None
+        else None,
         playbook=_playbook_from_item(item.get("playbook")),
     )
 

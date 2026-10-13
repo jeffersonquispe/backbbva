@@ -31,5 +31,7 @@ class UpdateChannelLibraryEntryUseCase:
             active=active,
         )
         if updated is None:
-            raise ChannelLibraryEntryNotFoundError(f"Channel library entry not found: {entry_id}")
+            raise ChannelLibraryEntryNotFoundError(
+                f"Channel library entry not found: {entry_id}"
+            )
         return updated

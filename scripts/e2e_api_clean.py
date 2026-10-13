@@ -37,10 +37,14 @@ def _json_request(url: str, payload: dict[str, str], token: str | None = None) -
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--yes", action="store_true", help="confirm destructive cleanup")
+    parser.add_argument(
+        "--yes", action="store_true", help="confirm destructive cleanup"
+    )
     args = parser.parse_args()
     if not args.yes:
-        raise SystemExit("Refusing to clean without --yes (this deletes E2E data through the API).")
+        raise SystemExit(
+            "Refusing to clean without --yes (this deletes E2E data through the API)."
+        )
 
     base_url = os.getenv("E2E_BASE_URL", "http://127.0.0.1").rstrip("/")
     email = os.getenv("E2E_MANAGER_EMAIL")

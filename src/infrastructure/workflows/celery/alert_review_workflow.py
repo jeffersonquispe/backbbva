@@ -362,9 +362,7 @@ class AlertReviewWorkflowRunner:
 
             if discarded:
                 match = context["deterministic"]
-                duration = (
-                    datetime.now(UTC) - workflow.created_at
-                ).total_seconds()
+                duration = (datetime.now(UTC) - workflow.created_at).total_seconds()
                 output = {
                     "message": "Alert discarded by deterministic rule match",
                     "final_step": "deterministic",
@@ -525,7 +523,9 @@ class AlertReviewWorkflowRunner:
                     self._workflow_span.write_operation_metas(self._dimensions)
         except Exception:
             logger.exception(
-                "Metrics event %s failed for alert %s", event_type.value, workflow.alert_id
+                "Metrics event %s failed for alert %s",
+                event_type.value,
+                workflow.alert_id,
             )
 
     def _record_step_metrics(self, workflow: WorkflowExecutionRecord) -> None:
@@ -553,7 +553,11 @@ class AlertReviewWorkflowRunner:
         # deterministic per alert and the judge is idempotent, so a
         # duplicate dispatch can't double count.
         try:
-            rate = get_operational_settings_repository().get().reasoning_evaluation_sample_rate
+            rate = (
+                get_operational_settings_repository()
+                .get()
+                .reasoning_evaluation_sample_rate
+            )
             if is_sampled_for_evaluation(workflow.alert_id, rate):
                 get_reasoning_evaluation_dispatcher().dispatch(
                     workflow.alert_id, workflow.id
@@ -762,9 +766,7 @@ class AlertReviewWorkflowRunner:
             context,
             effective_max,
         ):
-            context["feedback_iterations"] = (
-                context.get("feedback_iterations", 0) + 1
-            )
+            context["feedback_iterations"] = context.get("feedback_iterations", 0) + 1
             self._workflows.update(
                 workflow.id,
                 feedback_iterations=context["feedback_iterations"],
@@ -781,8 +783,7 @@ class AlertReviewWorkflowRunner:
         adversarial: AdversarialReviewAlertOutput = context["adversarial"]
         if (
             adversarial.requires_classification_feedback
-            and context.get("feedback_iterations", 0)
-            >= effective_max
+            and context.get("feedback_iterations", 0) >= effective_max
         ):
             raise AdversarialFeedbackLimitExceededError(
                 f"Adversarial review still flagged issues after "
@@ -942,9 +943,7 @@ def _segment_tool_kwargs(cfg: AgentToolsConfig) -> dict[str, Any]:
             get_vector_store_research_tool,
         )
 
-        kwargs["vector_store_research"] = get_vector_store_research_tool(
-            vector_store
-        )
+        kwargs["vector_store_research"] = get_vector_store_research_tool(vector_store)
     return kwargs
 
 
@@ -1121,7 +1120,11 @@ def _run_classify_step(
     output = run(segment_kwargs)
     if cfg is not None:
         output = _history_rounds(
-            context, cfg, segment_kwargs, output, run,
+            context,
+            cfg,
+            segment_kwargs,
+            output,
+            run,
             is_open=lambda out: out.is_fraud == "unknown",
             reasoning_of=lambda out: out.reasoning,
         )
@@ -1200,7 +1203,11 @@ def _run_adversarial_step(
     output = run(segment_kwargs)
     if cfg is not None:
         output = _history_rounds(
-            context, cfg, segment_kwargs, output, run,
+            context,
+            cfg,
+            segment_kwargs,
+            output,
+            run,
             is_open=lambda out: out.requires_classification_feedback,
             reasoning_of=lambda out: out.feedback or out.reasoning,
         )
@@ -1223,16 +1230,19 @@ def _run_rubrics(context: dict[str, Any]) -> dict[str, Any]:
     scores: list[dict[str, Any]] = []
     for rubric in segment.agent.rubrics:
         matched = [
-            condition for condition in rubric.conditions
+            condition
+            for condition in rubric.conditions
             if evaluate_condition(condition, fields)
         ]
-        scores.append({
-            "id": rubric.id,
-            "name": rubric.name,
-            "score": sum(condition.score for condition in matched),
-            "max_score": sum(condition.score for condition in rubric.conditions),
-            "matched_condition_ids": [condition.id for condition in matched],
-        })
+        scores.append(
+            {
+                "id": rubric.id,
+                "name": rubric.name,
+                "score": sum(condition.score for condition in matched),
+                "max_score": sum(condition.score for condition in rubric.conditions),
+                "matched_condition_ids": [condition.id for condition in matched],
+            }
+        )
     return {"scores": scores, "evaluated": len(scores)}
 
 
@@ -1272,7 +1282,8 @@ def _score_with_xgboost(
         logger.warning(
             "XGBoost enabled but model %s is not trained or does not exist; "
             "alert %s continues LLM-only.",
-            model_id or "<active>", context.get("alert_id"),
+            model_id or "<active>",
+            context.get("alert_id"),
         )
         return None
     cache: dict[str, dict[str, Any]] = context.setdefault("_xgboost_results", {})
@@ -1280,7 +1291,9 @@ def _score_with_xgboost(
     if result is None:
         from src.infrastructure.entrypoint.mcp.scoring import score_row
 
-        result = score_row(_load_model_bundle(model.storage_ref), _alert_payload(context))
+        result = score_row(
+            _load_model_bundle(model.storage_ref), _alert_payload(context)
+        )
         cache[str(model.id)] = result
     score = float(result["score"])
     if score >= cfg.xgboost_fraud_threshold:
@@ -1388,9 +1401,7 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
         reason = analyst.reasoning
         if executor_cfg is not None and executor_cfg.analyst_escalation.prompt:
             pool = _executor_variables_pool(context, segment)
-            reason = substitute_variables(
-                executor_cfg.analyst_escalation.prompt, pool
-            )
+            reason = substitute_variables(executor_cfg.analyst_escalation.prompt, pool)
         ref = get_analyst_escalation_dispatcher().dispatch(
             alert_id=alert_id,
             workflow_execution_id=UUID(context["workflow_execution_id"]),
@@ -1421,7 +1432,9 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
                     )
                     or None
                 )
-        ref = get_alert_action_dispatcher().dispatch(decision, alert_id, content=content)
+        ref = get_alert_action_dispatcher().dispatch(
+            decision, alert_id, content=content
+        )
         return {
             "executed_action": decision,
             "dispatch_backend": ref.backend,
@@ -1453,9 +1466,7 @@ def _run_post_process(context: dict[str, Any]) -> PostProcessAlertOutput:
     return use_case.execute(
         PostProcessAlertInput(
             alert_id=UUID(context["alert_id"]),
-            workflow_started_at=datetime.fromisoformat(
-                context["workflow_started_at"]
-            ),
+            workflow_started_at=datetime.fromisoformat(context["workflow_started_at"]),
             resolution_path=analyst.decision,
             documentation=documentation,
         )

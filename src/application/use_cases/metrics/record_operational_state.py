@@ -14,6 +14,7 @@ Feeds the "stuck queue", "no capacity" and "dead man's switch" alert rules:
                              (only listed when the queue is non-empty)
 - analysts / voicebot     <- LiveOperationsCapacity's available slots
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable

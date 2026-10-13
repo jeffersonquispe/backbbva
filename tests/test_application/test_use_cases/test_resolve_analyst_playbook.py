@@ -84,7 +84,9 @@ class InMemoryVectorStoreInstanceRepository:
         raise NotImplementedError
 
 
-def _promoted_instance(instance_id: str = "vs-1", version: int = 1) -> VectorStoreInstance:
+def _promoted_instance(
+    instance_id: str = "vs-1", version: int = 1
+) -> VectorStoreInstance:
     return VectorStoreInstance(
         id=instance_id,
         version=1,
@@ -148,7 +150,8 @@ def _use_case(
 ) -> tuple[ResolveAnalystPlaybookUseCase, ScriptedFraudKnowledgeSearchPort]:
     search_port = ScriptedFraudKnowledgeSearchPort(results)
     search_use_case = SearchFraudKnowledgeUseCase(
-        search_port, InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=2)])
+        search_port,
+        InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=2)]),
     )
     return (
         ResolveAnalystPlaybookUseCase(
@@ -163,7 +166,9 @@ def test_resolves_the_library_playbook_of_the_top_hit() -> None:
         [_mo_document("mo-1", score=0.9)], [_entry("mo-1")]
     )
 
-    resolved = use_case.execute("cambio de dispositivo", vector_store_instance_id="vs-1")
+    resolved = use_case.execute(
+        "cambio de dispositivo", vector_store_instance_id="vs-1"
+    )
 
     assert resolved == ResolvedPlaybook(
         modus_operandi_id="mo-1",
@@ -201,7 +206,9 @@ def test_skips_hits_whose_modus_operandi_has_no_playbook_or_is_inactive() -> Non
 
 
 def test_returns_none_without_a_vector_store_instance_id() -> None:
-    use_case, search_port = _use_case([_mo_document("mo-1", score=0.9)], [_entry("mo-1")])
+    use_case, search_port = _use_case(
+        [_mo_document("mo-1", score=0.9)], [_entry("mo-1")]
+    )
 
     resolved = use_case.execute("query", vector_store_instance_id=None)
 

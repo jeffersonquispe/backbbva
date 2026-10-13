@@ -20,7 +20,10 @@ class InMemoryDatasetRepository(DatasetRepository):
         self._rows_by_name = rows_by_name
 
     def list(self) -> list[DatasetRecord]:
-        return [DatasetRecord(name=n, row_count=len(r)) for n, r in self._rows_by_name.items()]
+        return [
+            DatasetRecord(name=n, row_count=len(r))
+            for n, r in self._rows_by_name.items()
+        ]
 
     def get_rows(self, name: str) -> list[dict]:
         return self._rows_by_name[name]
@@ -55,11 +58,20 @@ class InMemoryDatasetSummaryRepository(DatasetSummaryRepository):
 
 def test_analyze_dataset_persists_samples_and_ready_summary() -> None:
     rows = [
-        {"marcacion_final": "no-risk", "tipo": "NoFraude", "razon_marcacion": "[NF___ANLISIS]",
-         "integrationpoint": "00 - Compra", "triggered_rules": "[CUSTOMER - Score1000Net]"},
-        {"marcacion_final": "risk", "tipo": "Fraude", "razon_marcacion": "[FR___ESTAFA, RECLAMO]",
-         "integrationpoint": "00 - Compra",
-         "triggered_rules": "[CUSTOMER - Score1000Net, CUSTOMER - dg_rat_score600]"},
+        {
+            "marcacion_final": "no-risk",
+            "tipo": "NoFraude",
+            "razon_marcacion": "[NF___ANLISIS]",
+            "integrationpoint": "00 - Compra",
+            "triggered_rules": "[CUSTOMER - Score1000Net]",
+        },
+        {
+            "marcacion_final": "risk",
+            "tipo": "Fraude",
+            "razon_marcacion": "[FR___ESTAFA, RECLAMO]",
+            "integrationpoint": "00 - Compra",
+            "triggered_rules": "[CUSTOMER - Score1000Net, CUSTOMER - dg_rat_score600]",
+        },
     ]
     datasets = InMemoryDatasetRepository({"ds": rows})
     samples = InMemoryDatasetSampleRepository()
@@ -85,7 +97,10 @@ def test_analyze_dataset_persists_samples_and_ready_summary() -> None:
     # Raw bracketed string is kept as-is on the per-sample record - only the
     # aggregate distribution splits it into members.
     assert stored[1].razon_marcacion == "[FR___ESTAFA, RECLAMO]"
-    assert stored[1].triggered_rules == "[CUSTOMER - Score1000Net, CUSTOMER - dg_rat_score600]"
+    assert (
+        stored[1].triggered_rules
+        == "[CUSTOMER - Score1000Net, CUSTOMER - dg_rat_score600]"
+    )
 
     summary = summaries.get("ds")
     assert summary.status == DatasetAnalysisStatus.READY

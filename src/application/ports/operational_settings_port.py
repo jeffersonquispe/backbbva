@@ -59,9 +59,7 @@ class OperationalSettings:
     queue_allowed_triggered_rules: list[str] = field(default_factory=list)
     # What to do with an alert instead of queuing it normally, whenever any
     # of the queue-discard paths above trigger.
-    queue_discard_behavior: ShortageBehavior = field(
-        default_factory=ShortageBehavior
-    )
+    queue_discard_behavior: ShortageBehavior = field(default_factory=ShortageBehavior)
 
     max_test_instances: int = 4
     max_concurrent_experiments: int = 3
@@ -109,5 +107,4 @@ class OperationalSettingsRepository(Protocol):
         here - this repository just persists what it's given."""
         ...
 
-    def list_changes(self, limit: int = 50) -> list[OperationalSettingsChange]:
-        ...
+    def list_changes(self, limit: int = 50) -> list[OperationalSettingsChange]: ...

@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class Config(BaseSettings):
-
     API_V0_STR: str
 
     AWS_REGION_NAME: str = "eu-west-1"
@@ -200,31 +199,18 @@ class Config(BaseSettings):
     model_config = ConfigDict(extra="ignore")
 
     def model_post_init(self, __context):
-        parameter_store_path = self.model_dump().get(
-            "PARAMETER_STORE_CONFIG", ""
-        )
+        parameter_store_path = self.model_dump().get("PARAMETER_STORE_CONFIG", "")
         parameters = {}
-        if (
-            parameter_store_path is not None
-            and parameter_store_path.strip() != ""
-        ):
-            parameters = self._get_parameters_from_parameter_store(
-                parameter_store_path
-            )
+        if parameter_store_path is not None and parameter_store_path.strip() != "":
+            parameters = self._get_parameters_from_parameter_store(parameter_store_path)
         for attribute, value in self.model_dump().items():
             if attribute in parameters:
                 attribute_type = type(getattr(self, attribute))
                 value = parameters[attribute]
                 setattr(self, attribute, attribute_type(value))
-                logger.info(
-                    f"se ha cambiado el atributo {attribute} al valor {value}"
-                )
-            if isinstance(value, str) and value.startswith(
-                "arn:aws:secretsmanager"
-            ):
-                setattr(
-                    self, attribute, self._get_value_from_secret_manager(value)
-                )
+                logger.info(f"se ha cambiado el atributo {attribute} al valor {value}")
+            if isinstance(value, str) and value.startswith("arn:aws:secretsmanager"):
+                setattr(self, attribute, self._get_value_from_secret_manager(value))
 
     @staticmethod
     def _get_parameters_from_parameter_store(parameter_store_config):
@@ -256,9 +242,7 @@ class Config(BaseSettings):
         session = boto3.session.Session()
         client = session.client(service_name="secretsmanager")
         try:
-            get_secret_value_response = client.get_secret_value(
-                SecretId=secret_arn
-            )
+            get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
         except ClientError as e:
             # For a list of exceptions thrown, see
             # https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html

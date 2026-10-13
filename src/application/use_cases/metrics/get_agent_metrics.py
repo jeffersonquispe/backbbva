@@ -6,6 +6,7 @@ quality (mark x fraud_label) and resolution-time histogram, plus the
 "% analyst recommendations accepted" is NOT derivable: ARIA's
 recommendation to the analyst is not part of the alert metrics snapshot,
 so no rollup holds it - the response says so (available = false)."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -58,7 +59,9 @@ class GetAgentMetrics:
                     resolution_method=method,
                     alerts=reader.totals(group).alerts,
                     fraud_marks=reader.count_where(group, "mark", Mark.FRAUD.value),
-                    no_fraud_marks=reader.count_where(group, "mark", Mark.NO_FRAUD.value),
+                    no_fraud_marks=reader.count_where(
+                        group, "mark", Mark.NO_FRAUD.value
+                    ),
                     fraud_quality=quality,
                     resolution_time=reader.resolution_time(group),
                 )
@@ -73,6 +76,9 @@ class GetAgentMetrics:
             resolution_time=reader.resolution_time(rows),
             hourly_profile=reader.hourly_profile(rows),
             recommendations=RecommendationAcceptance(
-                available=False, accepted=None, ignored=None, reason=RECOMMENDATIONS_UNAVAILABLE
+                available=False,
+                accepted=None,
+                ignored=None,
+                reason=RECOMMENDATIONS_UNAVAILABLE,
             ),
         )

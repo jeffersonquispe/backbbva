@@ -13,6 +13,7 @@ planned read (period_start..period_end, hours) - that is what the API
 promises: beyond 90 days months are read whole and flagged `partial`. For
 plans without a partial read, the test also checks that coverage is exactly
 "hour slot starts in [from, min(to, now))"."""
+
 from __future__ import annotations
 
 import os
@@ -58,7 +59,12 @@ CHANNELS = ["WEB", "APP", None]
 SUBCHANNELS = ["PSE", "BREB", None]
 TIERS = ["low", "mid", "high", "unknown"]
 CONFIGS = ["cfg-1", "cfg-2", None]
-STATUSES = [AlertStatus.CLOSED, AlertStatus.ESCALATED, AlertStatus.FAILED, AlertStatus.PROCESSING]
+STATUSES = [
+    AlertStatus.CLOSED,
+    AlertStatus.ESCALATED,
+    AlertStatus.FAILED,
+    AlertStatus.PROCESSING,
+]
 METHODS = [*AlertResolutionMethod, None]
 FILTER_POOLS = {
     "segment": ["retail", "pyme", "unknown"],
@@ -69,7 +75,13 @@ FILTER_POOLS = {
     "configuration_id": ["cfg-1", "cfg-2", "unknown"],
     "resolution_method": [m.value for m in AlertResolutionMethod] + ["unknown"],
 }
-RT_BUCKETS = [("rt_lt_1m", 60), ("rt_1_5m", 300), ("rt_5_15m", 900), ("rt_15_30m", 1800), ("rt_gt_30m", None)]
+RT_BUCKETS = [
+    ("rt_lt_1m", 60),
+    ("rt_1_5m", 300),
+    ("rt_5_15m", 900),
+    ("rt_15_30m", 1800),
+    ("rt_gt_30m", None),
+]
 MAT_BUCKETS = [
     ("mat_lt_1d", 86400),
     ("mat_1_4d", 4 * 86400),
@@ -100,11 +112,20 @@ class InMemoryMetricsRollupRepository:
         wanted = set(periods)
         result = []
         for key, measures in self.rows.items():
-            if key.data_type != data_type or key.level != level or key.period not in wanted:
+            if (
+                key.data_type != data_type
+                or key.level != level
+                or key.period not in wanted
+            ):
                 continue
-            if any(key.dimension(name) not in values for name, values in (filters or {}).items()):
+            if any(
+                key.dimension(name) not in values
+                for name, values in (filters or {}).items()
+            ):
                 continue
-            result.append(RollupRow(key=key, measures={m: list(s) for m, s in measures.items()}))
+            result.append(
+                RollupRow(key=key, measures={m: list(s) for m, s in measures.items()})
+            )
         return result
 
 
@@ -140,7 +161,9 @@ def _random_alert(rng: random.Random):
     final = base
     if rng.random() < 0.4:
         label = rng.choice([Mark.FRAUD, Mark.NO_FRAUD])
-        reviewed_at = (marked_at or created_at) + timedelta(seconds=rng.choice([3600, 3 * 86400, 20 * 86400, 90 * 86400, 300 * 86400]))
+        reviewed_at = (marked_at or created_at) + timedelta(
+            seconds=rng.choice([3600, 3 * 86400, 20 * 86400, 90 * 86400, 300 * 86400])
+        )
         final = replace(
             base,
             fraud_label=label,
@@ -168,7 +191,11 @@ def _random_query(rng: random.Random):
     days_back = rng.randint(0, 89) if rng.random() < 0.5 else rng.randint(0, 560)
     start = NOW - timedelta(days=days_back, minutes=rng.randint(0, 1439))
     span = rng.choice(
-        [timedelta(hours=rng.randint(1, 30)), timedelta(days=rng.randint(1, 45)), timedelta(days=rng.randint(30, 420))]
+        [
+            timedelta(hours=rng.randint(1, 30)),
+            timedelta(days=rng.randint(1, 45)),
+            timedelta(days=rng.randint(30, 420)),
+        ]
     )
     filters = {}
     for name in rng.sample(list(FILTER_POOLS), rng.randint(0, 3)):
@@ -197,10 +224,13 @@ def _selected(alerts, reads, filters):
     for created_at, s in alerts:
         local = created_at.astimezone(ZONE)
         if not any(
-            r.period_start <= local.date() <= r.period_end and local.hour in r.hours for r in reads
+            r.period_start <= local.date() <= r.period_end and local.hour in r.hours
+            for r in reads
         ):
             continue
-        if any(_dim(getattr(s, name)) not in values for name, values in filters.items()):
+        if any(
+            _dim(getattr(s, name)) not in values for name, values in filters.items()
+        ):
             continue
         covered.append((created_at, s))
     return covered
@@ -227,9 +257,17 @@ def _quality(group):
             q["reviewed"] += 1
             q["review_events"] += s.fraud_review_count
             if s.mark != Mark.PENDING:
-                q["reviewed_changed" if s.fraud_label != s.mark else "reviewed_confirmed"] += 1
+                q[
+                    "reviewed_changed"
+                    if s.fraud_label != s.mark
+                    else "reviewed_confirmed"
+                ] += 1
             if s.marked_at is not None:
-                q[_bucket(MAT_BUCKETS, (s.fraud_reviewed_at - s.marked_at).total_seconds())] += 1
+                q[
+                    _bucket(
+                        MAT_BUCKETS, (s.fraud_reviewed_at - s.marked_at).total_seconds()
+                    )
+                ] += 1
     q["pending"] = len(group) - q["decided"]
     return q
 
@@ -248,11 +286,23 @@ def _rt(group):
 def _assert_quality(actual, group):
     q = _quality(group)
     for name in (
-        "decided", "pending", "true_positives", "true_negatives", "false_positives",
-        "undetected_fraud", "reviewed", "reviewed_changed", "reviewed_confirmed", "review_events",
+        "decided",
+        "pending",
+        "true_positives",
+        "true_negatives",
+        "false_positives",
+        "undetected_fraud",
+        "reviewed",
+        "reviewed_changed",
+        "reviewed_confirmed",
+        "review_events",
     ):
         assert actual[name] == q[name], name
-    for name in ("true_positive_amount_sum", "false_positive_amount_sum", "undetected_fraud_amount_sum"):
+    for name in (
+        "true_positive_amount_sum",
+        "false_positive_amount_sum",
+        "undetected_fraud_amount_sum",
+    ):
         assert actual[name] == pytest.approx(q[name], abs=1e-3), name
     assert {b["bucket"]: b["count"] for b in actual["maturation_histogram"]} == {
         name: q[name] for name, _ in MAT_BUCKETS
@@ -275,14 +325,20 @@ def _assert_rt(actual, group):
 def _client(repo, role=LocalRole.MANAGER) -> TestClient:
     now = datetime.now(UTC)
     user = LocalUser(
-        id=uuid4(), email="m@aria.test", name="M", password_hash="x", role=role,
-        is_active=True, created_at=now, updated_at=now,
+        id=uuid4(),
+        email="m@aria.test",
+        name="M",
+        password_hash="x",
+        role=role,
+        is_active=True,
+        created_at=now,
+        updated_at=now,
     )
     app = FastAPI()
     app.include_router(metrics_router.router, prefix="/api/v0")
     app.dependency_overrides[get_current_user] = lambda: user
-    app.dependency_overrides[get_metrics_overview_use_case] = lambda: GetMetricsOverview(
-        repo, TZ, clock=lambda: NOW
+    app.dependency_overrides[get_metrics_overview_use_case] = (
+        lambda: GetMetricsOverview(repo, TZ, clock=lambda: NOW)
     )
     app.dependency_overrides[get_agent_metrics_use_case] = lambda: GetAgentMetrics(
         repo, TZ, clock=lambda: NOW
@@ -298,7 +354,9 @@ def _params(from_, to, filters):
 
 
 @pytest.mark.parametrize("seed", range(6))
-def test_endpoint_numbers_equal_a_direct_recomputation_from_the_snapshots(seed: int) -> None:
+def test_endpoint_numbers_equal_a_direct_recomputation_from_the_snapshots(
+    seed: int,
+) -> None:
     rng = random.Random(seed)
     repo, alerts = _populate(rng, 400)
     client = _client(repo)
@@ -318,7 +376,9 @@ def test_endpoint_numbers_equal_a_direct_recomputation_from_the_snapshots(seed: 
                     in_slots.append((created_at, s))
             assert len(in_slots) == len(selected)
 
-        overview = client.get("/api/v0/metrics/overview", params=_params(from_, to, filters))
+        overview = client.get(
+            "/api/v0/metrics/overview", params=_params(from_, to, filters)
+        )
         assert overview.status_code == 200, overview.text
         body = overview.json()
 
@@ -326,14 +386,18 @@ def test_endpoint_numbers_equal_a_direct_recomputation_from_the_snapshots(seed: 
         assert body["totals"]["amount_sum"] == pytest.approx(
             sum(s.amount or 0 for _, s in selected), abs=1e-3
         )
-        assert body["totals"]["amount_count"] == sum(1 for _, s in selected if s.amount is not None)
+        assert body["totals"]["amount_count"] == sum(
+            1 for _, s in selected if s.amount is not None
+        )
         _assert_quality(body["fraud_quality"], selected)
         _assert_rt(body["resolution_time"], selected)
 
         hourly = defaultdict(int)
         for created_at, _ in selected:
             hourly[created_at.astimezone(ZONE).hour] += 1
-        assert [slot["alerts"] for slot in body["hourly_profile"]] == [hourly[h] for h in range(24)]
+        assert [slot["alerts"] for slot in body["hourly_profile"]] == [
+            hourly[h] for h in range(24)
+        ]
 
         for name, buckets in body["distributions"].items():
             expected = defaultdict(int)
@@ -341,15 +405,20 @@ def test_endpoint_numbers_equal_a_direct_recomputation_from_the_snapshots(seed: 
                 expected[_dim(getattr(s, name))] += 1
             assert {b["value"]: b["alerts"] for b in buckets} == dict(expected), name
             for b in buckets:
-                group = [(c, s) for c, s in selected if _dim(getattr(s, name)) == b["value"]]
+                group = [
+                    (c, s) for c, s in selected if _dim(getattr(s, name)) == b["value"]
+                ]
                 q = _quality(group)
                 assert (b["false_positives"], b["undetected_fraud"]) == (
-                    q["false_positives"], q["undetected_fraud"],
+                    q["false_positives"],
+                    q["undetected_fraud"],
                 )
 
         funnel = {b["value"]: b["alerts"] for b in body["funnel_by_status"]}
         for status in AlertStatus:
-            assert funnel[status.value] == sum(1 for _, s in selected if s.status == status)
+            assert funnel[status.value] == sum(
+                1 for _, s in selected if s.status == status
+            )
 
         assert [p["period"] for p in body["periods"]] == [r.period for r in reads]
         for period, read in zip(body["periods"], reads):
@@ -371,10 +440,18 @@ def test_endpoint_numbers_equal_a_direct_recomputation_from_the_snapshots(seed: 
         assert agent_body["totals"]["alerts"] == len(selected)
         assert agent_body["recommendations"]["available"] is False
         for stats in agent_body["by_resolution_method"]:
-            group = [(c, s) for c, s in selected if _dim(s.resolution_method) == stats["resolution_method"]]
+            group = [
+                (c, s)
+                for c, s in selected
+                if _dim(s.resolution_method) == stats["resolution_method"]
+            ]
             assert stats["alerts"] == len(group)
-            assert stats["fraud_marks"] == sum(1 for _, s in group if s.mark == Mark.FRAUD)
-            assert stats["no_fraud_marks"] == sum(1 for _, s in group if s.mark == Mark.NO_FRAUD)
+            assert stats["fraud_marks"] == sum(
+                1 for _, s in group if s.mark == Mark.FRAUD
+            )
+            assert stats["no_fraud_marks"] == sum(
+                1 for _, s in group if s.mark == Mark.NO_FRAUD
+            )
             _assert_quality(stats["fraud_quality"], group)
             _assert_rt(stats["resolution_time"], group)
 
@@ -399,7 +476,8 @@ def test_inverted_range_and_naive_datetimes() -> None:
     assert bad.status_code == 422
     # No offset = operations timezone (Bogota).
     ok = client.get(
-        "/api/v0/metrics/overview", params={"from": "2026-09-30T00:00:00", "to": "2026-10-01T00:00:00"}
+        "/api/v0/metrics/overview",
+        params={"from": "2026-09-30T00:00:00", "to": "2026-10-01T00:00:00"},
     )
     assert ok.status_code == 200
     body = ok.json()

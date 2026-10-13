@@ -8,9 +8,7 @@ from src.application.ports.host_service_personal_data_changes_port import (
 )
 
 
-class MockHostServicePersonalDataChangesAdapter(
-    HostServicePersonalDataChangesPort
-):
+class MockHostServicePersonalDataChangesAdapter(HostServicePersonalDataChangesPort):
     def fetch_personal_data_changes(
         self,
         customer_id: str,

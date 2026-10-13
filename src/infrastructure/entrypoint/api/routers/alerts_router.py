@@ -118,22 +118,38 @@ def _apply_raw_sensitivity(payload: Any, path: str, strategy: str) -> None:
         current[parts[-1]] = _sensitive_value(current[parts[-1]], strategy)
 
 
-@router.get("/{alert_id}/raw", dependencies=[Depends(require_permission("alert_schema"))])
+@router.get(
+    "/{alert_id}/raw", dependencies=[Depends(require_permission("alert_schema"))]
+)
 def get_raw_alert(alert_id: UUID, user=Depends(get_current_user)):
     alert = get_alert_repository().get(alert_id)
     if alert is None or alert.raw_payload_ref is None:
         raise HTTPException(status_code=404, detail="Alert raw payload not found")
     storage = get_alert_object_storage()
     payload = json.loads(storage.get_bytes(alert.raw_payload_ref.key))
-    schema = get_alert_schema_repository().get(alert.schema_version) if alert.schema_version is not None else None
+    schema = (
+        get_alert_schema_repository().get(alert.schema_version)
+        if alert.schema_version is not None
+        else None
+    )
     for field in schema.fields if schema else []:
-        if (field.data_source.value != "aric" or not field.is_sensible
-                or not field.sensitivity_strategy or not field.field_ds_loc):
+        if (
+            field.data_source.value != "aric"
+            or not field.is_sensible
+            or not field.sensitivity_strategy
+            or not field.field_ds_loc
+        ):
             continue
         _apply_raw_sensitivity(payload, field.field_ds_loc, field.sensitivity_strategy)
     storage.put_text(
         f"alerts/{alert_id}/audit/raw-access/{uuid.uuid4()}.json",
-        json.dumps({"alert_id": str(alert_id), "user_id": str(user.id), "accessed_at": datetime.now(UTC).isoformat()}),
+        json.dumps(
+            {
+                "alert_id": str(alert_id),
+                "user_id": str(user.id),
+                "accessed_at": datetime.now(UTC).isoformat(),
+            }
+        ),
         "application/json",
     )
     return payload

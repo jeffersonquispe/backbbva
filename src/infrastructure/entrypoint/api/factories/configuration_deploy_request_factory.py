@@ -6,5 +6,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.configuration
 
 
 @lru_cache
-def get_configuration_deploy_request_repository() -> DynamoConfigurationDeployRequestRepository:
+def get_configuration_deploy_request_repository() -> (
+    DynamoConfigurationDeployRequestRepository
+):
     return DynamoConfigurationDeployRequestRepository()

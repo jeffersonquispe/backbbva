@@ -16,8 +16,12 @@ def test_empty_v1_schema_is_valid_until_fields_are_defined():
 
 def test_schema_rejects_duplicate_source_locations():
     fields = [
-        AlertSchemaField("first", AlertSchemaDataSource.ARIC, "one", field_ds_loc="event.id"),
-        AlertSchemaField("second", AlertSchemaDataSource.ARIC, "two", field_ds_loc="event.id"),
+        AlertSchemaField(
+            "first", AlertSchemaDataSource.ARIC, "one", field_ds_loc="event.id"
+        ),
+        AlertSchemaField(
+            "second", AlertSchemaDataSource.ARIC, "two", field_ds_loc="event.id"
+        ),
     ]
 
     with pytest.raises(AlertSchemaValidationError, match="unique"):
@@ -26,7 +30,11 @@ def test_schema_rejects_duplicate_source_locations():
 
 def test_schema_rejects_mandatory_aria_field():
     field = AlertSchemaField(
-        "score", AlertSchemaDataSource.ARIA, "score", type=AlertSchemaFieldType.NUMBER, is_mandatory=True
+        "score",
+        AlertSchemaDataSource.ARIA,
+        "score",
+        type=AlertSchemaFieldType.NUMBER,
+        is_mandatory=True,
     )
 
     with pytest.raises(AlertSchemaValidationError, match="mandatory"):

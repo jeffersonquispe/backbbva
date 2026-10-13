@@ -56,7 +56,9 @@ class DynamoFlagLibraryRepository(FlagLibraryRepository):
             name=name if name is not None else current.name,
             description=description if description is not None else current.description,
             evolved_variables=(
-                evolved_variables if evolved_variables is not None else current.evolved_variables
+                evolved_variables
+                if evolved_variables is not None
+                else current.evolved_variables
             ),
             modus_operandi_library_ids=(
                 modus_operandi_library_ids
@@ -101,5 +103,7 @@ def _from_item(item: dict[str, Any]) -> FlagLibraryEntry:
         active=bool(item.get("active", True)),
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
-        embedding=[float(v) for v in item["embedding"]] if item.get("embedding") is not None else None,
+        embedding=[float(v) for v in item["embedding"]]
+        if item.get("embedding") is not None
+        else None,
     )

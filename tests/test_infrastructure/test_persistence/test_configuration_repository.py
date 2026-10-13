@@ -138,9 +138,27 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
         ),
         agent=AgentSettings(
             deterministic=DeterministicConfig(
-                alert_filter={"id": "scope", "operator": "and", "conditions": [], "groups": []},
-                field_enrichment={"schema_version": 2, "mappings": {"timezone": "America/Bogota"}, "recipes": []},
-                rules=[DeterministicRule(id="hard-rule", variable="amount", comparison="gt", values=["3000"], score=10.5, decision="risk")],
+                alert_filter={
+                    "id": "scope",
+                    "operator": "and",
+                    "conditions": [],
+                    "groups": [],
+                },
+                field_enrichment={
+                    "schema_version": 2,
+                    "mappings": {"timezone": "America/Bogota"},
+                    "recipes": [],
+                },
+                rules=[
+                    DeterministicRule(
+                        id="hard-rule",
+                        variable="amount",
+                        comparison="gt",
+                        values=["3000"],
+                        score=10.5,
+                        decision="risk",
+                    )
+                ],
             ),
             profiling=ProfilingConfig(
                 # Unlike the other collections below, field_enrichment is a
@@ -225,7 +243,21 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
                     prompt_vars=["Última transacción"],
                 ),
             ),
-            rubrics=[Rubric(id="fraud-score", name="estafa_score", conditions=[RuleCondition(id="device", variable="device", comparison="neq", values=["iphone"], score=5.5)])],
+            rubrics=[
+                Rubric(
+                    id="fraud-score",
+                    name="estafa_score",
+                    conditions=[
+                        RuleCondition(
+                            id="device",
+                            variable="device",
+                            comparison="neq",
+                            values=["iphone"],
+                            score=5.5,
+                        )
+                    ],
+                )
+            ],
         ),
     )
     # taxonomies/modus_operandi/flags/example_cases/
@@ -253,7 +285,10 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert restored.agent.profiling.strategies == [
         ProfilingStrategy(key=key) for key in ProfilingStrategyKey
     ]
-    assert restored.agent.profiling.field_enrichment == segment.agent.profiling.field_enrichment
+    assert (
+        restored.agent.profiling.field_enrichment
+        == segment.agent.profiling.field_enrichment
+    )
     assert restored.agent.deterministic == segment.agent.deterministic
     assert restored.agent.rubrics == segment.agent.rubrics
     assert restored.agent.taxonomies == []
@@ -268,11 +303,26 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert restored.agent.classification.watchlist_compare_field == "documento"
     assert restored.agent.classification.prompt == "clasifica esta alerta"
     assert restored.agent.classification.delegated_research.vector_store.enabled is True
-    assert restored.agent.classification.delegated_research.vector_store.vector_store_instance_id == "research-vs-1"
-    assert restored.agent.classification.delegated_research.vector_store.similarity_threshold == 0.82
-    assert restored.agent.classification.delegated_research.history_pandas.allowed_columns == ["amount", "channel"]
-    assert restored.agent.classification.delegated_research.history_pandas.max_history_rows == 250
-    assert restored.agent.classification.delegated_research.history_pandas.window_days == 15
+    assert (
+        restored.agent.classification.delegated_research.vector_store.vector_store_instance_id
+        == "research-vs-1"
+    )
+    assert (
+        restored.agent.classification.delegated_research.vector_store.similarity_threshold
+        == 0.82
+    )
+    assert (
+        restored.agent.classification.delegated_research.history_pandas.allowed_columns
+        == ["amount", "channel"]
+    )
+    assert (
+        restored.agent.classification.delegated_research.history_pandas.max_history_rows
+        == 250
+    )
+    assert (
+        restored.agent.classification.delegated_research.history_pandas.window_days
+        == 15
+    )
     assert restored.agent.adversarial.max_cycles == 3
     assert restored.agent.adversarial.feed_feedback_to_classification is False
     assert restored.agent.executor.aric_marking.prompt == "marca esta alerta"
@@ -300,7 +350,9 @@ def test_segment_hydration_tolerates_pre_migration_agent_field_names() -> None:
 
     restored = _segment_settings_from_item(item)
 
-    assert restored.agent.classification.delegated_research.vector_store.enabled is False
+    assert (
+        restored.agent.classification.delegated_research.vector_store.enabled is False
+    )
 
 
 def test_legacy_direct_vector_store_selection_becomes_the_research_tool() -> None:
@@ -321,7 +373,9 @@ def test_legacy_direct_vector_store_selection_becomes_the_research_tool() -> Non
     vector_store = restored.agent.adversarial.delegated_research.vector_store
     assert vector_store.enabled is True
     assert vector_store.vector_store_instance_id == "vs-legacy"
-    assert restored.agent.classification.delegated_research.vector_store.enabled is False
+    assert (
+        restored.agent.classification.delegated_research.vector_store.enabled is False
+    )
 
 
 def test_default_segment_round_trips_through_its_own_table_item() -> None:

@@ -31,9 +31,7 @@ class DynamoSimulationScenarioRepository:
     def __init__(self) -> None:
         self._table = get_dynamodb_resource().Table(TABLE_NAME)
 
-    def create(
-        self, scenario: SimulationScenarioRecord
-    ) -> SimulationScenarioRecord:
+    def create(self, scenario: SimulationScenarioRecord) -> SimulationScenarioRecord:
         self._table.put_item(Item=_to_item(scenario))
         return scenario
 

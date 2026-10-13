@@ -52,7 +52,8 @@ class CreateConfigurationUseCase:
                 and not latest.ever_activated
                 and not any(
                     run.config.configuration_ref is not None
-                    and run.config.configuration_ref.configuration_id == configuration_id
+                    and run.config.configuration_ref.configuration_id
+                    == configuration_id
                     and run.config.configuration_ref.version == latest.version
                     for run in self._test_runs.list()
                 )

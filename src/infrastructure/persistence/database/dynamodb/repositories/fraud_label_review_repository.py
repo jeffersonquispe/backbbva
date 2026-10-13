@@ -1,6 +1,7 @@
 """DynamoDB FraudLabelReviewRepository - append-only (table
 fraud_label_reviews, see schemas.FRAUD_LABEL_REVIEWS_TABLE). Rows are put
 conditioned on not existing and there is deliberately no update/delete."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

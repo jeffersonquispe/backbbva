@@ -78,16 +78,14 @@ def _narrate_user(
         parts.append(identity + ".")
     else:
         parts.append(
-            "No se encontró un registro de identidad del cliente para "
-            "esta alerta."
+            "No se encontró un registro de identidad del cliente para " "esta alerta."
         )
     if address:
         parts.append(f"Dirección registrada: {address}.")
 
     if personal_data_changes:
         recent = ", ".join(
-            f"{c.changed_field} el {c.changed_at}"
-            for c in personal_data_changes[:5]
+            f"{c.changed_field} el {c.changed_at}" for c in personal_data_changes[:5]
         )
         parts.append(
             f"{len(personal_data_changes)} cambio(s) de datos personales "
@@ -133,8 +131,10 @@ def _narrate_transaction(
     rules = mandatory.get("rules")
     counterparty = mandatory.get("counterparty")
 
-    summary = f"Esta es una transacción de tipo {channel} por {amount}" if amount else (
-        f"Esta es una transacción de tipo {channel}"
+    summary = (
+        f"Esta es una transacción de tipo {channel} por {amount}"
+        if amount
+        else (f"Esta es una transacción de tipo {channel}")
     )
     summary += f" vía {integration_point}" if integration_point else ""
     summary += f", hacia {merchant}" if merchant else ""
@@ -152,16 +152,13 @@ def _narrate_transaction(
         parts.append("Puntajes de riesgo: " + ", ".join(scores) + ".")
 
     flags = [
-        label
-        for attr, label in _ARIC_FLAG_LABELS
-        if getattr(aric_signals, attr, None)
+        label for attr, label in _ARIC_FLAG_LABELS if getattr(aric_signals, attr, None)
     ]
     if flags:
         parts.append(f"BioCatch marcó esta sesión como: {', '.join(flags)}.")
     else:
         parts.append(
-            "No se detectaron señales anómalas de dispositivo o sesión en "
-            "BioCatch."
+            "No se detectaron señales anómalas de dispositivo o sesión en " "BioCatch."
         )
 
     if counterparty and customer_id:
@@ -195,7 +192,9 @@ def _narrate_transactional(
         if (value := _to_float(fields.get(key))) is not None
     ]
     if historical_maxima:
-        parts.append("Techos históricos por producto: " + ", ".join(historical_maxima) + ".")
+        parts.append(
+            "Techos históricos por producto: " + ", ".join(historical_maxima) + "."
+        )
 
     if not transaction_history:
         parts.append("No hay historial de transacciones disponible para este cliente.")
@@ -205,7 +204,9 @@ def _narrate_transactional(
     types = Counter(t.event_type for t in transaction_history)
     times = sorted(t.event_time for t in transaction_history if t.event_time)
 
-    summary = f"El cliente tiene {len(transaction_history)} transacción(es) registrada(s)"
+    summary = (
+        f"El cliente tiene {len(transaction_history)} transacción(es) registrada(s)"
+    )
     summary += f", entre {times[0]} y {times[-1]}" if times else ""
     parts.append(summary + ".")
 
@@ -292,7 +293,11 @@ class DeterministicProfileAlertUseCase:
         user_profile = _narrate_user(
             customer_profile=enrichment.get("customer_profile"),
             personal_data_changes=enrichment.get("personal_data_changes") or [],
-            mandatory={**fields, "device_id": fields.get("device_id"), "ip_channel": fields.get("ip_channel")},
+            mandatory={
+                **fields,
+                "device_id": fields.get("device_id"),
+                "ip_channel": fields.get("ip_channel"),
+            },
         )
 
         self._report_progress("transaction_profile")

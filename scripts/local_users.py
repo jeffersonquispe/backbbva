@@ -37,6 +37,7 @@ MIN_PASSWORD_LENGTH = 8
 
 # ─── terminal helpers ──────────────────────────────────────────────────────────
 
+
 def _read_key() -> str:
     import select as io_select
     import termios
@@ -47,7 +48,9 @@ def _read_key() -> str:
     try:
         tty.setraw(fd)
         key = os.read(fd, 1).decode(errors="ignore")
-        if key == "\x1b" and io_select.select([fd], [], [], 0.05)[0]:  # arrow keys send ESC [ A/B
+        if (
+            key == "\x1b" and io_select.select([fd], [], [], 0.05)[0]
+        ):  # arrow keys send ESC [ A/B
             key += os.read(fd, 2).decode(errors="ignore")
         return key
     finally:
@@ -89,7 +92,9 @@ def select(title: str, options: list[str]) -> int:
                 raise SystemExit("Cancelado.")
             sys.stdout.write(f"\033[{len(options)}A")
         # collapse the list to the chosen line
-        sys.stdout.write(f"\033[{len(options)}A\033[J\033[36m❯ {options[index]}\033[0m\n")
+        sys.stdout.write(
+            f"\033[{len(options)}A\033[J\033[36m❯ {options[index]}\033[0m\n"
+        )
         return index
     finally:
         sys.stdout.write("\033[?25h")
@@ -109,7 +114,10 @@ def ask_new_password() -> str:
     while True:
         password = getpass.getpass("Contraseña: ")
         if len(password) < MIN_PASSWORD_LENGTH:
-            print(f"Debe tener al menos {MIN_PASSWORD_LENGTH} caracteres.", file=sys.stderr)
+            print(
+                f"Debe tener al menos {MIN_PASSWORD_LENGTH} caracteres.",
+                file=sys.stderr,
+            )
             continue
         if getpass.getpass("Repite la contraseña: ") != password:
             print("Las contraseñas no coinciden.", file=sys.stderr)
@@ -118,6 +126,7 @@ def ask_new_password() -> str:
 
 
 # ─── API client ────────────────────────────────────────────────────────────────
+
 
 class Api:
     def __init__(self, base_url: str, token: str) -> None:
@@ -128,7 +137,10 @@ class Api:
         request = Request(
             f"{self._base_url}/api/v0/auth{path}",
             data=json.dumps(payload).encode() if payload is not None else None,
-            headers={"Content-Type": "application/json", "X-Bootstrap-Token": self._token},
+            headers={
+                "Content-Type": "application/json",
+                "X-Bootstrap-Token": self._token,
+            },
             method=method,
         )
         try:
@@ -142,10 +154,13 @@ class Api:
                 pass
             raise SystemExit(f"La API respondió HTTP {exc.code}: {body}") from exc
         except URLError as exc:
-            raise SystemExit(f"No se pudo conectar a {self._base_url}: {exc.reason}") from exc
+            raise SystemExit(
+                f"No se pudo conectar a {self._base_url}: {exc.reason}"
+            ) from exc
 
 
 # ─── commands ──────────────────────────────────────────────────────────────────
+
 
 def _role_label(role: str) -> str:
     return dict(ROLES).get(role, role).split(" — ")[0]
@@ -163,8 +178,10 @@ def cmd_list(api: Api) -> None:
         return
     print(f"{'CORREO':<36} {'NOMBRE':<24} {'ROL':<18} {'ACTIVO':<7} CREADO")
     for user in users:
-        print(f"{user['email']:<36} {user['name']:<24} {_role_label(user['role']):<18} "
-              f"{'sí' if user['is_active'] else 'no':<7} {user['created_at'][:10]}")
+        print(
+            f"{user['email']:<36} {user['name']:<24} {_role_label(user['role']):<18} "
+            f"{'sí' if user['is_active'] else 'no':<7} {user['created_at'][:10]}"
+        )
     print(f"\n{len(users)} usuario(s).")
 
 
@@ -173,7 +190,11 @@ def cmd_create(api: Api) -> None:
     email = ask("Correo")
     role = ROLES[select("Rol:", [label for _, label in ROLES])][0]
     password = ask_new_password()
-    user = api.request("POST", "/users", {"name": name, "email": email, "role": role, "password": password})
+    user = api.request(
+        "POST",
+        "/users",
+        {"name": name, "email": email, "role": role, "password": password},
+    )
     print(f"Usuario creado: {user['email']} ({_role_label(user['role'])}).")
 
 
@@ -195,16 +216,33 @@ COMMANDS = {
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Gestiona los usuarios locales de ARIA a través de la API.")
-    parser.add_argument("command", nargs="?", choices=list(COMMANDS), help="sin comando: menú interactivo")
-    parser.add_argument("--api-url", default=os.getenv("ARIA_API_URL") or None,
-                        help="URL base de la API (env ARIA_API_URL; por defecto se pregunta, http://localhost:8000)")
+    parser = argparse.ArgumentParser(
+        description="Gestiona los usuarios locales de ARIA a través de la API."
+    )
+    parser.add_argument(
+        "command",
+        nargs="?",
+        choices=list(COMMANDS),
+        help="sin comando: menú interactivo",
+    )
+    parser.add_argument(
+        "--api-url",
+        default=os.getenv("ARIA_API_URL") or None,
+        help="URL base de la API (env ARIA_API_URL; por defecto se pregunta, http://localhost:8000)",
+    )
     args = parser.parse_args()
 
     try:
-        command = args.command or list(COMMANDS)[select("¿Qué quieres hacer?", [label for label, _ in COMMANDS.values()])]
+        command = (
+            args.command
+            or list(COMMANDS)[
+                select("¿Qué quieres hacer?", [label for label, _ in COMMANDS.values()])
+            ]
+        )
         api_url = args.api_url or ask("URL de API", "http://localhost:8000")
-        token = os.getenv("ARIA_BOOTSTRAP_TOKEN") or getpass.getpass("Token de aprovisionamiento: ")
+        token = os.getenv("ARIA_BOOTSTRAP_TOKEN") or getpass.getpass(
+            "Token de aprovisionamiento: "
+        )
         COMMANDS[command][1](Api(api_url, token))
     except (KeyboardInterrupt, EOFError):
         print()

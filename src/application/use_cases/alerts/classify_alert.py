@@ -82,7 +82,7 @@ _TOOL_DESCRIPTIONS = {
         "interacciones."
     ),
     "check_watchlist": (
-        "check_watchlist: no necesita Action Input (deja un guion \"-\") - "
+        'check_watchlist: no necesita Action Input (deja un guion "-") - '
         "revisa si el valor relevante de esta alerta pertenece a alguna de "
         "las listas configuradas y devuelve las coincidencias."
     ),
@@ -106,10 +106,17 @@ _RESPONSE_FORMAT = (
 
 def _build_system_prompt(tool_names: list[str], output_labels: list[str] | None) -> str:
     tools_block = "Herramientas:\n" + "\n".join(
-        f"- {_TOOL_DESCRIPTIONS[name]}" for name in tool_names if name in _TOOL_DESCRIPTIONS
+        f"- {_TOOL_DESCRIPTIONS[name]}"
+        for name in tool_names
+        if name in _TOOL_DESCRIPTIONS
     )
-    prompt = _INTRO + tools_block + "\n\n" + _RESPONSE_FORMAT.format(
-        tool_names=", ".join(tool_names) or "ninguna - concluye directamente"
+    prompt = (
+        _INTRO
+        + tools_block
+        + "\n\n"
+        + _RESPONSE_FORMAT.format(
+            tool_names=", ".join(tool_names) or "ninguna - concluye directamente"
+        )
     )
     if output_labels:
         prompt += (
@@ -243,7 +250,11 @@ class ClassifyAlertUseCase:
             "get_similar_modus_operandi": modus_operandi_port.find_similar,
             "calculator": self._calculator_tool,
         }
-        if watchlist_repository is not None and watchlist_ids and watchlist_compare_field:
+        if (
+            watchlist_repository is not None
+            and watchlist_ids
+            and watchlist_compare_field
+        ):
             self._tools["check_watchlist"] = self._check_watchlist_tool
         self._vector_store_research = vector_store_research
         if vector_store_research is not None:
@@ -411,8 +422,7 @@ class ClassifyAlertUseCase:
             is_fraud=UNKNOWN,
             fraud_classification=UNKNOWN,
             reasoning=(
-                "Could not reach a conclusion within the allotted "
-                "reasoning steps."
+                "Could not reach a conclusion within the allotted " "reasoning steps."
             ),
             cot=_transcript(messages),
             input_tokens=input_tokens,

@@ -27,35 +27,63 @@ from src.application.ports.research_port import (
 class VectorStoreResearchAgent:
     """Bounded semantic retrieval; the retriever owns store/version scoping."""
 
-    def __init__(self, retriever: VectorStoreRetriever, config: VectorStoreResearchConfig) -> None:
+    def __init__(
+        self, retriever: VectorStoreRetriever, config: VectorStoreResearchConfig
+    ) -> None:
         self._retriever = retriever
         self._config = config
 
     def research(self, request: ResearchRequest) -> ResearchResult:
         if request.source != ResearchSource.VECTOR_STORE:
-            return ResearchResult(ResearchSource.VECTOR_STORE, ResearchStatus.SKIPPED, error="wrong research source")
+            return ResearchResult(
+                ResearchSource.VECTOR_STORE,
+                ResearchStatus.SKIPPED,
+                error="wrong research source",
+            )
         if not self._config.enabled or not self._config.vector_store_instance_id:
-            return ResearchResult(ResearchSource.VECTOR_STORE, ResearchStatus.SKIPPED, error="vector store research is disabled or unconfigured")
+            return ResearchResult(
+                ResearchSource.VECTOR_STORE,
+                ResearchStatus.SKIPPED,
+                error="vector store research is disabled or unconfigured",
+            )
         try:
             findings: list[ResearchFinding] = []
             trace: list[dict[str, Any]] = []
             for asset_type in self._config.allowed_asset_types:
-                hits = self._retriever.search(request.question, asset_type=asset_type, top_k=self._config.max_documents_per_query)
-                kept = [hit for hit in hits if float(hit.get("score", 0)) >= self._config.similarity_threshold]
+                hits = self._retriever.search(
+                    request.question,
+                    asset_type=asset_type,
+                    top_k=self._config.max_documents_per_query,
+                )
+                kept = [
+                    hit
+                    for hit in hits
+                    if float(hit.get("score", 0)) >= self._config.similarity_threshold
+                ]
                 trace.append({"asset_type": asset_type, "hits": len(kept)})
                 for hit in kept:
                     if len(findings) >= self._config.max_result_items:
                         break
-                    findings.append(ResearchFinding(
-                        metric="vector_store_match", value=hit.get("id"),
-                        evidence=str(hit.get("text", ""))[:1_000],
-                        metadata={"asset_type": asset_type, "score": hit.get("score")},
-                    ))
+                    findings.append(
+                        ResearchFinding(
+                            metric="vector_store_match",
+                            value=hit.get("id"),
+                            evidence=str(hit.get("text", ""))[:1_000],
+                            metadata={
+                                "asset_type": asset_type,
+                                "score": hit.get("score"),
+                            },
+                        )
+                    )
                 if len(findings) >= self._config.max_result_items:
                     break
-            return ResearchResult(ResearchSource.VECTOR_STORE, ResearchStatus.EXECUTED, findings, trace)
+            return ResearchResult(
+                ResearchSource.VECTOR_STORE, ResearchStatus.EXECUTED, findings, trace
+            )
         except Exception as exc:
-            return ResearchResult(ResearchSource.VECTOR_STORE, ResearchStatus.FAILED, error=str(exc))
+            return ResearchResult(
+                ResearchSource.VECTOR_STORE, ResearchStatus.FAILED, error=str(exc)
+            )
 
 
 class TimeBoundedResearchAgent:
@@ -102,7 +130,9 @@ class TimeBoundedResearchAgent:
             return self._agent.research(request), False
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="research-tool")
         # copy_context: the thread keeps the caller's OpenTelemetry span.
-        future = executor.submit(contextvars.copy_context().run, self._agent.research, request)
+        future = executor.submit(
+            contextvars.copy_context().run, self._agent.research, request
+        )
         try:
             return future.result(timeout=self._timeout_seconds), False
         except FutureTimeoutError:
@@ -142,7 +172,11 @@ class ResearchDelegationCoordinator:
                 break
             agent = self._agents.get(request.source)
             if agent is None:
-                result = ResearchResult(request.source, ResearchStatus.SKIPPED, error="research agent is unavailable")
+                result = ResearchResult(
+                    request.source,
+                    ResearchStatus.SKIPPED,
+                    error="research agent is unavailable",
+                )
             else:
                 result = agent.research(request)
             results.append(result)

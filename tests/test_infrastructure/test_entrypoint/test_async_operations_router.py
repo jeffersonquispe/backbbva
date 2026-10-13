@@ -85,9 +85,7 @@ def _operation(status: AsyncOperationStatus) -> AsyncOperationOutput:
 
 def test_poll_async_operation_returns_retry_hint_when_not_done() -> None:
     operation = _operation(AsyncOperationStatus.RUNNING)
-    response = _client(operation).get(
-        f"/async-operations/{operation.id}/poll"
-    )
+    response = _client(operation).get(f"/async-operations/{operation.id}/poll")
 
     assert response.status_code == 200
     body = response.json()
@@ -99,9 +97,7 @@ def test_poll_async_operation_returns_retry_hint_when_not_done() -> None:
 
 def test_poll_async_operation_returns_done_when_terminal() -> None:
     operation = _operation(AsyncOperationStatus.SUCCEEDED)
-    response = _client(operation).get(
-        f"/async-operations/{operation.id}/poll"
-    )
+    response = _client(operation).get(f"/async-operations/{operation.id}/poll")
 
     assert response.status_code == 200
     body = response.json()

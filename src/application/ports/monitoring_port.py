@@ -161,21 +161,15 @@ class MonitoringPort(ABC):
         `step == WORKFLOW_TOTAL_STEP`. `outcome` is the final status
         (e.g. CLOSED/ESCALATED/FAILED/SKIPPED, SUCCEEDED/FAILED)."""
 
-    def record_research_call(
-        self, source: str, outcome: ResearchCallOutcome
-    ) -> None:
+    def record_research_call(self, source: str, outcome: ResearchCallOutcome) -> None:
         """One research lookup (`source`: e.g. "vector_store",
         "alert_history")."""
 
-    def record_rollup_drift(
-        self, data_type: str, level: str, drift: float
-    ) -> None:
+    def record_rollup_drift(self, data_type: str, level: str, drift: float) -> None:
         """Result of one metrics-rollup reconciliation: how far the stored
         aggregate was from the recomputed one (0 = consistent) for a
         `data_type` (alert, workflow_step, ...) and `level` (day/month/year).
         Last value wins until the next reconciliation."""
 
-    def record_operational_state(
-        self, snapshot: OperationalStateSnapshot
-    ) -> None:
+    def record_operational_state(self, snapshot: OperationalStateSnapshot) -> None:
         """Current queue/capacity/agent state; call periodically."""

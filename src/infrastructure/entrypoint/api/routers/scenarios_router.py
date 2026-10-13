@@ -145,7 +145,8 @@ def _to_response(scenario) -> SimulationScenarioResponse:
 def create_scenario(
     request: CreateSimulationScenarioRequest,
     use_case: Annotated[
-        CreateSimulationScenarioUseCase, Depends(get_create_simulation_scenario_use_case)
+        CreateSimulationScenarioUseCase,
+        Depends(get_create_simulation_scenario_use_case),
     ],
 ):
     try:
@@ -157,7 +158,9 @@ def create_scenario(
                 field_specs={
                     name: _to_field_generator(spec)
                     for name, spec in request.field_specs.items()
-                } if request.field_specs is not None else None,
+                }
+                if request.field_specs is not None
+                else None,
                 target_dataset_name=request.target_dataset_name,
                 created_by=request.created_by,
             )
@@ -171,7 +174,8 @@ def create_scenario(
 def seed_from_dataset(
     request: SeedSimulationFromDatasetRequest,
     use_case: Annotated[
-        SeedSimulationFromDatasetUseCase, Depends(get_seed_simulation_from_dataset_use_case)
+        SeedSimulationFromDatasetUseCase,
+        Depends(get_seed_simulation_from_dataset_use_case),
     ],
 ):
     try:
@@ -221,7 +225,8 @@ def update_scenario(
     scenario_id: UUID,
     request: UpdateSimulationScenarioRequest,
     use_case: Annotated[
-        UpdateSimulationScenarioUseCase, Depends(get_update_simulation_scenario_use_case)
+        UpdateSimulationScenarioUseCase,
+        Depends(get_update_simulation_scenario_use_case),
     ],
 ):
     try:
@@ -256,7 +261,8 @@ def update_scenario(
 def delete_scenario(
     scenario_id: UUID,
     use_case: Annotated[
-        DeleteSimulationScenarioUseCase, Depends(get_delete_simulation_scenario_use_case)
+        DeleteSimulationScenarioUseCase,
+        Depends(get_delete_simulation_scenario_use_case),
     ],
 ):
     try:
@@ -268,9 +274,7 @@ def delete_scenario(
 @router.post("/{scenario_id}/start", response_model=SimulationScenarioResponse)
 def start_scenario(
     scenario_id: UUID,
-    use_case: Annotated[
-        StartSimulationUseCase, Depends(get_start_simulation_use_case)
-    ],
+    use_case: Annotated[StartSimulationUseCase, Depends(get_start_simulation_use_case)],
 ):
     try:
         scenario = use_case.execute(scenario_id)
@@ -284,9 +288,7 @@ def start_scenario(
 @router.post("/{scenario_id}/pause", response_model=SimulationScenarioResponse)
 def pause_scenario(
     scenario_id: UUID,
-    use_case: Annotated[
-        PauseSimulationUseCase, Depends(get_pause_simulation_use_case)
-    ],
+    use_case: Annotated[PauseSimulationUseCase, Depends(get_pause_simulation_use_case)],
 ):
     try:
         scenario = use_case.execute(scenario_id)
@@ -298,9 +300,7 @@ def pause_scenario(
 @router.post("/{scenario_id}/stop", response_model=SimulationScenarioResponse)
 def stop_scenario(
     scenario_id: UUID,
-    use_case: Annotated[
-        StopSimulationUseCase, Depends(get_stop_simulation_use_case)
-    ],
+    use_case: Annotated[StopSimulationUseCase, Depends(get_stop_simulation_use_case)],
 ):
     try:
         scenario = use_case.execute(scenario_id)

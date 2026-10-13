@@ -18,6 +18,7 @@ apply() is ONE TransactWriteItems: the alert's snapshot update conditioned
 on snapshot_version, plus one ADD update per touched row. Either all of it
 lands or none, so a Celery retry or a concurrent event can never count an
 alert twice."""
+
 from __future__ import annotations
 
 import re
@@ -128,7 +129,9 @@ class DynamoMetricsRollupRepository:
     def apply(self, deltas: list[RollupDelta], alert_guard: AlertSnapshotGuard) -> None:
         rows = _merge_rows(deltas)
         items = [self._alert_update(alert_guard)]
-        items.extend(self._row_update(key, increments) for key, increments in rows.items())
+        items.extend(
+            self._row_update(key, increments) for key, increments in rows.items()
+        )
         try:
             self._client.transact_write_items(TransactItems=items)
         except ClientError as exc:
@@ -148,7 +151,9 @@ class DynamoMetricsRollupRepository:
         and the whole transaction (marker + every ADD) is cancelled."""
         rows = _merge_rows(deltas)
         items = [self._marker_put(marker)]
-        items.extend(self._row_update(key, increments) for key, increments in rows.items())
+        items.extend(
+            self._row_update(key, increments) for key, increments in rows.items()
+        )
         try:
             self._client.transact_write_items(TransactItems=items)
         except ClientError as exc:
@@ -277,7 +282,9 @@ class DynamoMetricsRollupRepository:
         }
         values: dict[str, Any] = {
             ":snapshot": snapshot_to_item(guard.snapshot),
-            ":created_day": created_day_for(guard.alert_created_at, self._timezone_name),
+            ":created_day": created_day_for(
+                guard.alert_created_at, self._timezone_name
+            ),
         }
         if guard.expected_version == 0:
             condition = "attribute_exists(alert_id) AND attribute_not_exists(#metrics)"
@@ -314,7 +321,9 @@ class DynamoMetricsRollupRepository:
             }
         }
 
-    def _row_update(self, key: RollupKey, increments: dict[str, float]) -> dict[str, Any]:
+    def _row_update(
+        self, key: RollupKey, increments: dict[str, float]
+    ) -> dict[str, Any]:
         names: dict[str, str] = {
             "#data_type": "data_type",
             "#level": "level",
@@ -352,7 +361,10 @@ class DynamoMetricsRollupRepository:
                     "pk": partition_key(key.data_type, key.level, key.period),
                     "sk": sort_key(key.dimensions),
                 },
-                "UpdateExpression": "SET " + ", ".join(sets) + " ADD " + ", ".join(adds),
+                "UpdateExpression": "SET "
+                + ", ".join(sets)
+                + " ADD "
+                + ", ".join(adds),
                 "ExpressionAttributeNames": names,
                 "ExpressionAttributeValues": values,
             }
@@ -363,7 +375,9 @@ def _same(left: float, right: float) -> bool:
     return abs(left - right) <= _TOLERANCE * max(1.0, abs(right))
 
 
-def _row_static_sets(key: RollupKey) -> tuple[dict[str, str], dict[str, Any], list[str]]:
+def _row_static_sets(
+    key: RollupKey,
+) -> tuple[dict[str, str], dict[str, Any], list[str]]:
     """The descriptive attributes a row carries besides its measures, as
     if_not_exists SETs (same as _row_update) - for correct()."""
     names: dict[str, str] = {
@@ -425,8 +439,12 @@ def _row_from_item(
         slots[int(match.group("hour"))] = int(number) if number.is_integer() else number
     # Dimension order as written (dims map order isn't guaranteed; the sk
     # carries the canonical order).
-    order = [part.split("=", 1)[0] for part in str(item.get("sk", "")).split("|") if part]
-    dimensions = tuple((name, str(dims.get(name, ""))) for name in order if name in dims)
+    order = [
+        part.split("=", 1)[0] for part in str(item.get("sk", "")).split("|") if part
+    ]
+    dimensions = tuple(
+        (name, str(dims.get(name, ""))) for name in order if name in dims
+    )
     return RollupRow(
         key=RollupKey(
             data_type=data_type, level=level, period=period, dimensions=dimensions

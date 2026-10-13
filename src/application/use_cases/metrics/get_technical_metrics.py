@@ -7,6 +7,7 @@ range defaults, MetricsRange, MetricsWarning): only sums of stored additive
 measures - the client divides (avg latency = sum_seconds / count,
 hallucination % = hallucinations / evaluated). The range is over the
 alerts' arrival, the rollups' bucket."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -55,11 +56,15 @@ _EXTRA_DIMENSIONS: dict[MetricsDataType, frozenset[str]] = {
 }
 
 
-def normalize_technical_filters(filters: dict[str, list[str]] | None) -> dict[str, list[str]]:
+def normalize_technical_filters(
+    filters: dict[str, list[str]] | None,
+) -> dict[str, list[str]]:
     """Alert filters as metrics_filters.normalize_filters, plus step_name /
     model. Raises ValueError for any other name."""
     filters = dict(filters or {})
-    extra = {name: filters.pop(name) for name in TECHNICAL_EXTRA_FILTERS if name in filters}
+    extra = {
+        name: filters.pop(name) for name in TECHNICAL_EXTRA_FILTERS if name in filters
+    }
     normalized = normalize_filters(filters)
     for name, values in extra.items():
         kept = [str(v).strip() for v in values or [] if str(v).strip()]
@@ -112,7 +117,8 @@ class GetTechnicalMetrics:
             warnings=_warnings(reads, versions),
             workflow_steps=_step_stats(_sum(steps)),
             workflow_steps_by_step=[
-                _step_stats(measures, name) for name, measures in _group(steps, "step_name")
+                _step_stats(measures, name)
+                for name, measures in _group(steps, "step_name")
             ],
             llm_calls=_llm_stats(_sum(llm)),
             llm_calls_by_model=[
@@ -139,7 +145,8 @@ class GetTechnicalMetrics:
         applicable = {
             name: values
             for name, values in filters.items()
-            if name not in TECHNICAL_EXTRA_FILTERS or name in _EXTRA_DIMENSIONS[data_type]
+            if name not in TECHNICAL_EXTRA_FILTERS
+            or name in _EXTRA_DIMENSIONS[data_type]
         }
         by_level: dict[str, dict[str, PlannedRead]] = defaultdict(dict)
         for read in reads:
@@ -181,7 +188,10 @@ def _sum(rows: Rows) -> Measures:
 def _group(rows: Rows, dimension: str) -> list[tuple[str, Measures]]:
     groups: dict[str, Measures] = defaultdict(dict)
     for row, read in rows:
-        _add(groups[row.key.dimension(dimension) or UNKNOWN_DIMENSION], _row_measures(row, read))
+        _add(
+            groups[row.key.dimension(dimension) or UNKNOWN_DIMENSION],
+            _row_measures(row, read),
+        )
     return sorted(groups.items())
 
 
@@ -191,7 +201,9 @@ def _duration(measures: Measures) -> DurationStats:
         sum_seconds=measures.get(m.DURATION_SUM_SECONDS, 0.0),
         histogram=[
             HistogramBucket(
-                bucket=name, upper_bound_seconds=upper, count=_int(measures.get(name, 0))
+                bucket=name,
+                upper_bound_seconds=upper,
+                count=_int(measures.get(name, 0)),
             )
             for name, upper in m.DURATION_BUCKETS
         ],

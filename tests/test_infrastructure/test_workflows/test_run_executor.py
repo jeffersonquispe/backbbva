@@ -49,7 +49,9 @@ def _config_with_segment(segment: SegmentSettings) -> ConfigurationRecord:
     )
 
 
-def _context(segment: SegmentSettings | None, decision: str, **extra: Any) -> dict[str, Any]:
+def _context(
+    segment: SegmentSettings | None, decision: str, **extra: Any
+) -> dict[str, Any]:
     base: dict[str, Any] = {
         "alert_id": str(uuid4()),
         "workflow_execution_id": str(uuid4()),
@@ -174,7 +176,9 @@ def test_run_executor_generates_aric_marking_comment_for_block(monkeypatch) -> N
     assert content == "Comentario generado"
 
 
-def test_run_executor_skips_generation_when_aric_marking_prompt_empty(monkeypatch) -> None:
+def test_run_executor_skips_generation_when_aric_marking_prompt_empty(
+    monkeypatch,
+) -> None:
     action_dispatcher, _ = _patch_dispatchers(monkeypatch)
     segment = _executor_segment()  # aric_marking.prompt == ""
 
@@ -276,7 +280,9 @@ def test_run_executor_records_the_voicebot_reservation(monkeypatch) -> None:
     assert "fallbacks" not in output
 
 
-def test_run_executor_without_active_segment_does_not_generate_content(monkeypatch) -> None:
+def test_run_executor_without_active_segment_does_not_generate_content(
+    monkeypatch,
+) -> None:
     action_dispatcher, _ = _patch_dispatchers(monkeypatch)
 
     workflow_module._run_executor(_context(None, "block"))
@@ -327,7 +333,9 @@ def test_run_post_process_generates_agent_documentation(monkeypatch) -> None:
     assert output.documentation == "Documento redactado por el agente"
 
 
-def test_run_post_process_without_active_segment_has_no_documentation(monkeypatch) -> None:
+def test_run_post_process_without_active_segment_has_no_documentation(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(
         workflow_module,
         "get_post_process_alert_use_case",

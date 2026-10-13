@@ -98,13 +98,20 @@ class CurateAlertToDatasetUseCase:
         # alert. Alerts processed before that was stored fall back to the
         # workflow execution's explicit configuration_ref (test runs only -
         # see start_alert_test_workflow.py).
-        if alert.configuration_id is not None and alert.configuration_version is not None:
+        if (
+            alert.configuration_id is not None
+            and alert.configuration_version is not None
+        ):
             return alert.configuration_id, alert.configuration_version
         if alert.workflow_execution_id is not None:
             execution = self._workflow_executions.get(alert.workflow_execution_id)
             if execution is not None:
                 ref = execution.input.get("configuration_ref")
-                if ref and ref.get("configuration_id") and ref.get("version") is not None:
+                if (
+                    ref
+                    and ref.get("configuration_id")
+                    and ref.get("version") is not None
+                ):
                     return ref["configuration_id"], ref["version"]
 
         raise ValueError(

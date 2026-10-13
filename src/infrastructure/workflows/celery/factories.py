@@ -180,13 +180,18 @@ def get_alert_schema_repository() -> AlertSchemaRepository:
 
 
 @lru_cache
-def get_alert_schema_presence_report_repository() -> DynamoAlertSchemaPresenceReportRepository:
+def get_alert_schema_presence_report_repository() -> (
+    DynamoAlertSchemaPresenceReportRepository
+):
     return DynamoAlertSchemaPresenceReportRepository()
 
 
 def get_analyze_alert_schema_presence_use_case() -> AnalyzeAlertSchemaPresenceUseCase:
     return AnalyzeAlertSchemaPresenceUseCase(
-        get_alert_repository(), get_alert_schema_repository(), get_alert_schema_presence_report_repository(), get_object_storage()
+        get_alert_repository(),
+        get_alert_schema_repository(),
+        get_alert_schema_presence_report_repository(),
+        get_object_storage(),
     )
 
 
@@ -380,7 +385,9 @@ def get_reasoning_evaluation_dispatcher() -> CeleryReasoningEvaluationDispatcher
 
 
 @lru_cache
-def get_alert_reasoning_evaluation_repository() -> DynamoAlertReasoningEvaluationRepository:
+def get_alert_reasoning_evaluation_repository() -> (
+    DynamoAlertReasoningEvaluationRepository
+):
     return DynamoAlertReasoningEvaluationRepository()
 
 

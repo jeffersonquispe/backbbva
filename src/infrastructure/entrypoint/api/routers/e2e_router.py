@@ -25,7 +25,10 @@ def clean_e2e_state(
     The destructive operation deliberately lives behind the API so the E2E
     runner never needs DynamoDB credentials or a second network path.
     """
-    if genai_config.GENAI_ENVIRONMENT != "local" or not genai_config.E2E_CLEANUP_ENABLED:
+    if (
+        genai_config.GENAI_ENVIRONMENT != "local"
+        or not genai_config.E2E_CLEANUP_ENABLED
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="E2E cleanup is not enabled for this API environment",

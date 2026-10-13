@@ -104,7 +104,9 @@ def _from_item(item: dict[str, Any]) -> TestRunRecord:
             # dataclass's own default rather than duplicating that magic
             # number here.
             max_feedback_iterations=int(
-                item.get("max_feedback_iterations", TestRunConfig().max_feedback_iterations)
+                item.get(
+                    "max_feedback_iterations", TestRunConfig().max_feedback_iterations
+                )
             ),
             # Older items predate this field entirely - None, same as the
             # dataclass default (test against whatever is active).
@@ -116,7 +118,11 @@ def _from_item(item: dict[str, Any]) -> TestRunRecord:
                 if configuration_ref is not None
                 else None
             ),
-            schema_version=(int(item["schema_version"]) if item.get("schema_version") is not None else None),
+            schema_version=(
+                int(item["schema_version"])
+                if item.get("schema_version") is not None
+                else None
+            ),
         ),
         status=TestRunStatus(item["status"]),
         total=int(item.get("total") or 0),

@@ -33,7 +33,11 @@ def _settings(**overrides) -> OperationalSettings:
         auto_scale=True,
         voicebot_max_concurrent_calls=40,
         analyst_capacity=AnalystCapacity(
-            profiles=[DayProfile(id="regular", name="Día regular", description="", hourly=[4] * 24)],
+            profiles=[
+                DayProfile(
+                    id="regular", name="Día regular", description="", hourly=[4] * 24
+                )
+            ],
             default_profile_id="regular",
             day_overrides={15: "pago"},
         ),
@@ -104,9 +108,7 @@ def test_change_item_round_trips_with_json_encoded_values() -> None:
         changed_at=datetime(2026, 1, 1, tzinfo=UTC),
         changes=[
             SettingChange("agent_enabled", True, False),
-            SettingChange(
-                "analyst_capacity.default_profile_id", "regular", "pago"
-            ),
+            SettingChange("analyst_capacity.default_profile_id", "regular", "pago"),
         ],
     )
 

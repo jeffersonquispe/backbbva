@@ -114,11 +114,9 @@ class AlertRecord:
 
 
 class AlertRepository(Protocol):
-    def create(self, alert: AlertRecord) -> AlertRecord:
-        ...
+    def create(self, alert: AlertRecord) -> AlertRecord: ...
 
-    def get(self, alert_id: UUID) -> AlertRecord | None:
-        ...
+    def get(self, alert_id: UUID) -> AlertRecord | None: ...
 
     def update(
         self,
@@ -135,11 +133,9 @@ class AlertRepository(Protocol):
         history_prev_alerta: list[dict[str, Any]] | None = None,
         agent_output: dict[str, Any] | None = None,
         agent_output_ref: Any | None = None,
-    ) -> AlertRecord | None:
-        ...
+    ) -> AlertRecord | None: ...
 
-    def delete(self, alert_id: UUID) -> None:
-        ...
+    def delete(self, alert_id: UUID) -> None: ...
 
     def list_by_status(self, status: AlertStatus) -> list[AlertRecord]:
         """Oldest first - e.g. the ESCALATED alerts waiting in the analyst

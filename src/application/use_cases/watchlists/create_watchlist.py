@@ -33,5 +33,7 @@ class CreateWatchlistUseCase:
             )
         )
         if elements:
-            watchlist.element_count = self._watchlists.add_elements(watchlist.id, elements)
+            watchlist.element_count = self._watchlists.add_elements(
+                watchlist.id, elements
+            )
         return watchlist

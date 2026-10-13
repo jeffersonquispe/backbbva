@@ -48,9 +48,7 @@ router = APIRouter(tags=["test-runs"])
 )
 def start_test_run(
     request: StartTestRunRequest,
-    use_case: Annotated[
-        StartTestRunUseCase, Depends(get_start_test_run_use_case)
-    ],
+    use_case: Annotated[StartTestRunUseCase, Depends(get_start_test_run_use_case)],
 ):
     try:
         return use_case.execute(

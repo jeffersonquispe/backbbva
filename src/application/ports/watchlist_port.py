@@ -35,8 +35,7 @@ class Watchlist:
 class WatchlistRepository(Protocol):
     def create(self, watchlist: Watchlist) -> Watchlist: ...
 
-    def get(self, watchlist_id: str) -> Watchlist | None:
-        ...
+    def get(self, watchlist_id: str) -> Watchlist | None: ...
 
     def list(
         self,

@@ -48,9 +48,7 @@ class ReconcileAsyncOperationsUseCase:
             )
 
         updated_count = sum(
-            1
-            for item in reconciled
-            if item.current_status != item.previous_status
+            1 for item in reconciled if item.current_status != item.previous_status
         )
         return ReconcileAsyncOperationsOutput(
             inspected=len(reconciled),

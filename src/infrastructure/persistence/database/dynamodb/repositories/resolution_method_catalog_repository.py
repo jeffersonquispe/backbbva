@@ -17,7 +17,9 @@ RESOLUTION_METHOD_CATALOG_TABLE_NAME = "resolution_method_catalog"
 
 class DynamoResolutionMethodCatalogRepository(ResolutionMethodCatalogRepository):
     def __init__(self) -> None:
-        self._table = get_dynamodb_resource().Table(RESOLUTION_METHOD_CATALOG_TABLE_NAME)
+        self._table = get_dynamodb_resource().Table(
+            RESOLUTION_METHOD_CATALOG_TABLE_NAME
+        )
 
     def create(self, entry: ResolutionMethod) -> ResolutionMethod:
         self._table.put_item(Item=_to_item(entry))
@@ -49,7 +51,9 @@ class DynamoResolutionMethodCatalogRepository(ResolutionMethodCatalogRepository)
         updated = ResolutionMethod(
             id=current.id,
             value=value if value is not None else current.value,
-            resolution_tag=resolution_tag if resolution_tag is not None else current.resolution_tag,
+            resolution_tag=resolution_tag
+            if resolution_tag is not None
+            else current.resolution_tag,
             active=active if active is not None else current.active,
             created_at=current.created_at,
             updated_at=datetime.now(UTC),

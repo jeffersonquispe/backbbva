@@ -122,18 +122,14 @@ def plan(
     reads: list[PlannedRead] = []
 
     # Months that contain at least one covered out-of-window date.
-    rolled_months = sorted(
-        {(d.year, d.month) for d in covered if d < window_start}
-    )
+    rolled_months = sorted({(d.year, d.month) for d in covered if d < window_start})
     rolled_month_set = set(rolled_months)
 
     # Full years entirely outside the window collapse to a year row.
     full_years: set[int] = set()
     for year in sorted({y for y, _ in rolled_months}):
         last = date(year, 12, 31)
-        if last < window_start and _fully_covered(
-            date(year, 1, 1), last, covered
-        ):
+        if last < window_start and _fully_covered(date(year, 1, 1), last, covered):
             full_years.add(year)
 
     for year in sorted(full_years):

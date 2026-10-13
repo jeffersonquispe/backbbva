@@ -15,4 +15,6 @@ class VersionEvent:
 
 
 class VersionEventsSource(Protocol):
-    def list_version_events(self, from_: datetime, to: datetime) -> list[VersionEvent]: ...
+    def list_version_events(
+        self, from_: datetime, to: datetime
+    ) -> list[VersionEvent]: ...

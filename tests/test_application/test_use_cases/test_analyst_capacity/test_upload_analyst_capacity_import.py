@@ -26,4 +26,6 @@ def test_upload_base64_encodes_content_and_dispatches() -> None:
     task_id = use_case.execute(b"raw excel bytes")
 
     assert task_id == "task-123"
-    assert dispatcher.dispatched == [base64.b64encode(b"raw excel bytes").decode("ascii")]
+    assert dispatcher.dispatched == [
+        base64.b64encode(b"raw excel bytes").decode("ascii")
+    ]

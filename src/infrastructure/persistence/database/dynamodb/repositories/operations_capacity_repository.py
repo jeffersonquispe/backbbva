@@ -37,7 +37,9 @@ class DynamoOperationsCapacityRepository(OperationsCapacityPort):
             return _FALLBACK_CAPACITY
         return _from_item(item)
 
-    def put_capacity(self, record: OperationsCapacityRecord) -> OperationsCapacityRecord:
+    def put_capacity(
+        self, record: OperationsCapacityRecord
+    ) -> OperationsCapacityRecord:
         self._table.put_item(Item=_to_item(record))
         return record
 

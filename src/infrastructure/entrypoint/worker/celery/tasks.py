@@ -84,7 +84,9 @@ def run_async_operation(operation_id: str) -> dict[str, str]:
 
 @app.task(name="async_operations.reconcile")
 def reconcile_async_operations(limit: int = 100) -> dict:
-    output = get_reconcile_async_operations_use_case().execute(ReconcileAsyncOperationsInput(limit=limit))
+    output = get_reconcile_async_operations_use_case().execute(
+        ReconcileAsyncOperationsInput(limit=limit)
+    )
     return {
         "inspected": output.inspected,
         "updated": output.updated,
@@ -252,7 +254,9 @@ def execute_alert_action(
     retry_backoff=True,
     retry_kwargs={"max_retries": 3},
 )
-def analyze_dataset_task(self, dataset_name: str, operation_id: str | None = None) -> dict:
+def analyze_dataset_task(
+    self, dataset_name: str, operation_id: str | None = None
+) -> dict:
     operation_repository = get_async_operation_repository()
     if operation_id:
         operation_repository.update(
@@ -264,8 +268,11 @@ def analyze_dataset_task(self, dataset_name: str, operation_id: str | None = Non
         get_analyze_dataset_use_case().execute(
             dataset_name,
             progress=(
-                lambda result: operation_repository.update(UUID(operation_id), result=result)
-                if operation_id else None
+                lambda result: operation_repository.update(
+                    UUID(operation_id), result=result
+                )
+                if operation_id
+                else None
             ),
         )
     except Exception as exc:
@@ -276,7 +283,8 @@ def analyze_dataset_task(self, dataset_name: str, operation_id: str | None = Non
         raise
     if operation_id:
         operation_repository.update(
-            UUID(operation_id), status=AsyncOperationStatus.SUCCEEDED,
+            UUID(operation_id),
+            status=AsyncOperationStatus.SUCCEEDED,
             result={"stage": "done", "progress_pct": 100, "dataset_name": dataset_name},
         )
     return {"status": "ok", "dataset_name": dataset_name}
@@ -297,7 +305,9 @@ def delete_dataset_task(dataset_name: str, operation_id: str) -> dict:
         # requested twice is safe.
         get_delete_dataset_use_case().execute(dataset_name)
     except Exception as exc:
-        operations.update(operation_uuid, status=AsyncOperationStatus.FAILED, error=str(exc))
+        operations.update(
+            operation_uuid, status=AsyncOperationStatus.FAILED, error=str(exc)
+        )
         raise
     operations.update(
         operation_uuid,
@@ -338,7 +348,9 @@ def analyze_fraud_marking_task(
             progress=lambda result: operations.update(operation_uuid, result=result),
         )
     except Exception as exc:
-        operations.update(operation_uuid, status=AsyncOperationStatus.FAILED, error=str(exc))
+        operations.update(
+            operation_uuid, status=AsyncOperationStatus.FAILED, error=str(exc)
+        )
         raise
     result = asdict(output)
     operations.update(
@@ -371,7 +383,9 @@ def train_model_task(model_id: str, async_operation_id: str) -> dict:
 
 
 @app.task(name="models.preview_features")
-def preview_features_task(configuration: dict, rows: list[dict], target_field: str | None = None) -> dict:
+def preview_features_task(
+    configuration: dict, rows: list[dict], target_field: str | None = None
+) -> dict:
     """Run an untrusted feature preview away from the API process."""
     return get_preview_features_use_case().execute(configuration, rows, target_field)
 
@@ -397,7 +411,9 @@ def parse_analyst_capacity_workbook_task(content_b64: str) -> dict:
     profiles, day_overrides = parse_analyst_capacity_workbook(content)
     return {
         "profiles": [asdict(p) for p in profiles],
-        "day_overrides": {str(day): profile_id for day, profile_id in day_overrides.items()},
+        "day_overrides": {
+            str(day): profile_id for day, profile_id in day_overrides.items()
+        },
     }
 
 

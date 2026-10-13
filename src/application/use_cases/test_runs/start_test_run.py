@@ -72,14 +72,24 @@ class StartTestRunUseCase:
             )
         if self._configurations is not None:
             ref = input.config.configuration_ref
-            config = self._configurations.get(ref.configuration_id, ref.version) if ref else self._configurations.get_active()
+            config = (
+                self._configurations.get(ref.configuration_id, ref.version)
+                if ref
+                else self._configurations.get_active()
+            )
             if config is None and ref is not None:
                 raise ValueError("Configuration version not found")
             if config is not None:
-                self._configurations.mark_tested(config.configuration_id, config.version)
-                input.config = dataclasses.replace(input.config, configuration_ref=ConfigurationRef(
-                    configuration_id=config.configuration_id, version=config.version,
-                ))
+                self._configurations.mark_tested(
+                    config.configuration_id, config.version
+                )
+                input.config = dataclasses.replace(
+                    input.config,
+                    configuration_ref=ConfigurationRef(
+                        configuration_id=config.configuration_id,
+                        version=config.version,
+                    ),
+                )
         if input.config.schema_version is not None and self._schemas is not None:
             if self._schemas.get(input.config.schema_version) is None:
                 raise ValueError("Alert schema version not found")

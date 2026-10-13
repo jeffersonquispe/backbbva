@@ -2,6 +2,7 @@
 "segment=X" the same way: each is a rollup dimension (ALERT_DIMENSIONS),
 matched on the snapshot's normalized value (enum value, "unknown" when
 missing - so "segment=unknown" selects alerts with no segment)."""
+
 from __future__ import annotations
 
 from src.application.ports.alert_port import AlertMetricsSnapshot
@@ -32,6 +33,8 @@ def normalize_filters(filters: dict[str, list[str]] | None) -> dict[str, list[st
     return normalized
 
 
-def snapshot_matches(snapshot: AlertMetricsSnapshot, filters: dict[str, list[str]]) -> bool:
+def snapshot_matches(
+    snapshot: AlertMetricsSnapshot, filters: dict[str, list[str]]
+) -> bool:
     dims = dict(alert_dimensions(snapshot))
     return all(dims.get(name) in set(values) for name, values in filters.items())

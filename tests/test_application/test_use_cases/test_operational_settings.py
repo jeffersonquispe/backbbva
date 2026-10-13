@@ -26,7 +26,9 @@ class InMemoryOperationalSettingsRepository:
     def __init__(self, initial: OperationalSettings | None = None) -> None:
         self.settings = initial or OperationalSettings()
         self.history: list[OperationalSettingsChange] = []
-        self.update_calls: list[tuple[OperationalSettings, OperationalSettingsChange]] = []
+        self.update_calls: list[
+            tuple[OperationalSettings, OperationalSettingsChange]
+        ] = []
 
     def get(self) -> OperationalSettings:
         return self.settings
@@ -75,9 +77,7 @@ def test_update_operational_settings_persists_new_value_and_records_change() -> 
 def test_update_operational_settings_diffs_nested_field() -> None:
     repository = InMemoryOperationalSettingsRepository()
     use_case = UpdateOperationalSettingsUseCase(repository)
-    new_capacity = replace(
-        repository.get().analyst_capacity, default_profile_id="pago"
-    )
+    new_capacity = replace(repository.get().analyst_capacity, default_profile_id="pago")
 
     use_case.execute(
         UpdateOperationalSettingsInput(
@@ -144,14 +144,14 @@ def test_changing_amount_tiers_records_history() -> None:
     )
     paths = {c.path for c in repository.history[-1].changes}
     assert {"amount_tiers"} <= paths
-    tiers_change = next(c for c in repository.history[-1].changes if c.path == "amount_tiers")
+    tiers_change = next(
+        c for c in repository.history[-1].changes if c.path == "amount_tiers"
+    )
     assert tiers_change.previous == [] and tiers_change.new[0]["code"] == "low"
 
     # Unrelated change does not alter the tier list.
     second = use_case.execute(
-        UpdateOperationalSettingsInput(
-        settings=replace(first, agent_enabled=False)
-        )
+        UpdateOperationalSettingsInput(settings=replace(first, agent_enabled=False))
     )
 
     third = use_case.execute(

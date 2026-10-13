@@ -36,7 +36,11 @@ from src.infrastructure.entrypoint.api.schemas import (
     UpdateSimilarCaseLibraryEntryRequest,
 )
 
-router = APIRouter(prefix="/library/similar-cases", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
+router = APIRouter(
+    prefix="/library/similar-cases",
+    tags=["knowledge-library"],
+    dependencies=[Depends(require_library_access)],
+)
 
 
 @router.get("", response_model=list[SimilarCaseLibraryEntrySchema])
@@ -51,7 +55,9 @@ def list_similar_case_library_entries(
 
 
 @router.post(
-    "", response_model=SimilarCaseLibraryEntrySchema, status_code=status.HTTP_201_CREATED
+    "",
+    response_model=SimilarCaseLibraryEntrySchema,
+    status_code=status.HTTP_201_CREATED,
 )
 def create_similar_case_library_entry(
     request: CreateSimilarCaseLibraryEntryRequest,
@@ -61,9 +67,11 @@ def create_similar_case_library_entry(
     ],
 ):
     entry = use_case.execute(
-            request.text, request.modus_operandi_library_id, request.taxonomy_library_id
-        )
-    get_knowledge_graph_service().synchronize_new_asset(KnowledgeAssetType.SIMILAR_CASE, entry.id)
+        request.text, request.modus_operandi_library_id, request.taxonomy_library_id
+    )
+    get_knowledge_graph_service().synchronize_new_asset(
+        KnowledgeAssetType.SIMILAR_CASE, entry.id
+    )
     return _to_schema(entry)
 
 
@@ -78,8 +86,14 @@ def update_similar_case_library_entry(
 ):
     current = get_similar_case_library_repository().get(entry_id)
     if current and (
-        (request.modus_operandi_library_id and request.modus_operandi_library_id != current.modus_operandi_library_id)
-        or (request.taxonomy_library_id and request.taxonomy_library_id != current.taxonomy_library_id)
+        (
+            request.modus_operandi_library_id
+            and request.modus_operandi_library_id != current.modus_operandi_library_id
+        )
+        or (
+            request.taxonomy_library_id
+            and request.taxonomy_library_id != current.taxonomy_library_id
+        )
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

@@ -29,48 +29,200 @@ DOCKER = ROOT / "deploy/local/docker"
 # (rule, location, detail)
 KNOWN_VIOLATIONS: set[tuple[str, str, str]] = {
     # Several Protocol/ABC in one port file; split or fold into one.
-    ('port-one-per-file', 'src/application/ports/alert_schema_port.py', '3 Protocol/ABC classes'),
-    ('port-one-per-file', 'src/application/ports/analyst_capacity_import_port.py', '2 Protocol/ABC classes'),
-    ('port-one-per-file', 'src/application/ports/dataset_analysis_port.py', '2 Protocol/ABC classes'),
-    ('port-one-per-file', 'src/application/ports/embedding_port.py', '2 Protocol/ABC classes'),
-    ('port-one-per-file', 'src/application/ports/fraud_label_review_import_port.py', '2 Protocol/ABC classes'),
-    ('port-one-per-file', 'src/application/ports/llm_unit_of_work_port.py', '2 Protocol/ABC classes'),
-    ('port-one-per-file', 'src/application/ports/monitoring_port.py', '2 Protocol/ABC classes'),
-    ('port-one-per-file', 'src/application/ports/research_port.py', '3 Protocol/ABC classes'),
-    ('port-one-per-file', 'src/application/ports/workflow_port.py', '2 Protocol/ABC classes'),
+    (
+        "port-one-per-file",
+        "src/application/ports/alert_schema_port.py",
+        "3 Protocol/ABC classes",
+    ),
+    (
+        "port-one-per-file",
+        "src/application/ports/analyst_capacity_import_port.py",
+        "2 Protocol/ABC classes",
+    ),
+    (
+        "port-one-per-file",
+        "src/application/ports/dataset_analysis_port.py",
+        "2 Protocol/ABC classes",
+    ),
+    (
+        "port-one-per-file",
+        "src/application/ports/embedding_port.py",
+        "2 Protocol/ABC classes",
+    ),
+    (
+        "port-one-per-file",
+        "src/application/ports/fraud_label_review_import_port.py",
+        "2 Protocol/ABC classes",
+    ),
+    (
+        "port-one-per-file",
+        "src/application/ports/llm_unit_of_work_port.py",
+        "2 Protocol/ABC classes",
+    ),
+    (
+        "port-one-per-file",
+        "src/application/ports/monitoring_port.py",
+        "2 Protocol/ABC classes",
+    ),
+    (
+        "port-one-per-file",
+        "src/application/ports/research_port.py",
+        "3 Protocol/ABC classes",
+    ),
+    (
+        "port-one-per-file",
+        "src/application/ports/workflow_port.py",
+        "2 Protocol/ABC classes",
+    ),
     # Deployment metadata label set in compose/configmaps; no code reads it.
-    ('config-orphan', 'src/infrastructure/core/config.py', 'GENAI_APPLICATION'),
+    ("config-orphan", "src/infrastructure/core/config.py", "GENAI_APPLICATION"),
     # Fakes should be ``InMemoryX`` / ``RecordingX`` (CLAUDE.md Testing).
-    ('fake-naming', 'tests/test_application/test_use_cases/test_analyst_capacity/test_get_analyst_capacity_import.py', 'StubAnalystCapacityImportStatusReader'),
-    ('fake-naming', 'tests/test_application/test_use_cases/test_analyze_dataset_on_demand.py', 'FakeDatasetRepository'),
-    ('fake-naming', 'tests/test_application/test_use_cases/test_append_dataset_rows.py', 'FakeDatasetRepository'),
-    ('fake-naming', 'tests/test_application/test_use_cases/test_curate_alert_to_dataset.py', 'FakeDatasetRepository'),
-    ('fake-naming', 'tests/test_application/test_use_cases/test_generate_event_batch.py', 'StubDatasetReaderGateway'),
-    ('fake-naming', 'tests/test_application/test_use_cases/test_get_dataset_rows.py', 'FakeDatasetRepository'),
-    ('fake-naming', 'tests/test_application/test_use_cases/test_metrics_maintenance.py', 'FakeLifecycleReader'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_alert_schema_and_raw_router.py', 'FakeAlertRepository'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_alert_schema_and_raw_router.py', 'FakeSchemaUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_alert_schema_and_raw_router.py', 'FakeStorage'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_async_operations_router.py', 'FakeGetAsyncOperationUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_async_operations_router.py', 'FakeReconcileAsyncOperationsUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_configurations_test_router.py', 'FakePreviewConfigurationUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_metrics_query_cache.py', 'FakeMonotonic'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_metrics_query_cache.py', 'FakeOutput'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_scenarios_router.py', 'FakeCreateUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_scenarios_router.py', 'FakeDeleteUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_scenarios_router.py', 'FakeGenerateBatchUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_scenarios_router.py', 'FakeGetUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_scenarios_router.py', 'FakeLifecycleUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_scenarios_router.py', 'FakeListUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_scenarios_router.py', 'FakeStatusUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_scenarios_router.py', 'FakeUpdateUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_entrypoint/test_simulator_tick_task.py', 'StubGenerateEventBatchUseCase'),
-    ('fake-naming', 'tests/test_infrastructure/test_workflows/test_alert_review_workflow.py', 'FakeLLMUnitOfWork'),
-    ('fake-naming', 'tests/test_infrastructure/test_workflows/test_alert_review_workflow.py', 'FakeLLMUnitOfWorkFactory'),
-    ('fake-naming', 'tests/test_infrastructure/test_workflows/test_model_history_evaluation.py', 'FakeDatasets'),
-    ('fake-naming', 'tests/test_infrastructure/test_workflows/test_model_history_evaluation.py', 'FakeModels'),
+    (
+        "fake-naming",
+        "tests/test_application/test_use_cases/test_analyst_capacity/test_get_analyst_capacity_import.py",
+        "StubAnalystCapacityImportStatusReader",
+    ),
+    (
+        "fake-naming",
+        "tests/test_application/test_use_cases/test_analyze_dataset_on_demand.py",
+        "FakeDatasetRepository",
+    ),
+    (
+        "fake-naming",
+        "tests/test_application/test_use_cases/test_append_dataset_rows.py",
+        "FakeDatasetRepository",
+    ),
+    (
+        "fake-naming",
+        "tests/test_application/test_use_cases/test_curate_alert_to_dataset.py",
+        "FakeDatasetRepository",
+    ),
+    (
+        "fake-naming",
+        "tests/test_application/test_use_cases/test_generate_event_batch.py",
+        "StubDatasetReaderGateway",
+    ),
+    (
+        "fake-naming",
+        "tests/test_application/test_use_cases/test_get_dataset_rows.py",
+        "FakeDatasetRepository",
+    ),
+    (
+        "fake-naming",
+        "tests/test_application/test_use_cases/test_metrics_maintenance.py",
+        "FakeLifecycleReader",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_alert_schema_and_raw_router.py",
+        "FakeAlertRepository",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_alert_schema_and_raw_router.py",
+        "FakeSchemaUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_alert_schema_and_raw_router.py",
+        "FakeStorage",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_async_operations_router.py",
+        "FakeGetAsyncOperationUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_async_operations_router.py",
+        "FakeReconcileAsyncOperationsUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_configurations_test_router.py",
+        "FakePreviewConfigurationUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_metrics_query_cache.py",
+        "FakeMonotonic",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_metrics_query_cache.py",
+        "FakeOutput",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_scenarios_router.py",
+        "FakeCreateUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_scenarios_router.py",
+        "FakeDeleteUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_scenarios_router.py",
+        "FakeGenerateBatchUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_scenarios_router.py",
+        "FakeGetUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_scenarios_router.py",
+        "FakeLifecycleUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_scenarios_router.py",
+        "FakeListUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_scenarios_router.py",
+        "FakeStatusUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_scenarios_router.py",
+        "FakeUpdateUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_entrypoint/test_simulator_tick_task.py",
+        "StubGenerateEventBatchUseCase",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_workflows/test_alert_review_workflow.py",
+        "FakeLLMUnitOfWork",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_workflows/test_alert_review_workflow.py",
+        "FakeLLMUnitOfWorkFactory",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_workflows/test_model_history_evaluation.py",
+        "FakeDatasets",
+    ),
+    (
+        "fake-naming",
+        "tests/test_infrastructure/test_workflows/test_model_history_evaluation.py",
+        "FakeModels",
+    ),
     # Local compose healthcheck shells out to curl; OKD uses cluster probes.
-    ('dockerfile-parity', 'Dockerfile.api <-> Dockerfile.api.okd', 'apt: curl only in Dockerfile.api'),
+    (
+        "dockerfile-parity",
+        "Dockerfile.api <-> Dockerfile.api.okd",
+        "apt: curl only in Dockerfile.api",
+    ),
 }
 
 
@@ -92,11 +244,15 @@ def _check(rule: str, found: set[tuple[str, str, str]]) -> None:
     fixed = sorted(known - found)
     msg = []
     if new:
-        msg.append(f"[{rule}] NEW violations (fix them, don't baseline):\n  "
-                   + "\n  ".join(f"{loc}: {d}" for _, loc, d in new))
+        msg.append(
+            f"[{rule}] NEW violations (fix them, don't baseline):\n  "
+            + "\n  ".join(f"{loc}: {d}" for _, loc, d in new)
+        )
     if fixed:
-        msg.append(f"[{rule}] resolved - remove from KNOWN_VIOLATIONS:\n  "
-                   + "\n  ".join(f"{loc}: {d}" for _, loc, d in fixed))
+        msg.append(
+            f"[{rule}] resolved - remove from KNOWN_VIOLATIONS:\n  "
+            + "\n  ".join(f"{loc}: {d}" for _, loc, d in fixed)
+        )
     assert not msg, "\n".join(msg)
 
 
@@ -126,9 +282,20 @@ def _decorator_names(fn: ast.AST) -> set[str]:
 
 _PORT_BASES = {"Protocol", "ABC"}
 _VALUE_BASES = {
-    "Enum", "StrEnum", "IntEnum", "Flag", "str", "int",
-    "NamedTuple", "TypedDict", "Exception", "ValueError", "RuntimeError",
-    "KeyError", "LookupError", "TypeError",
+    "Enum",
+    "StrEnum",
+    "IntEnum",
+    "Flag",
+    "str",
+    "int",
+    "NamedTuple",
+    "TypedDict",
+    "Exception",
+    "ValueError",
+    "RuntimeError",
+    "KeyError",
+    "LookupError",
+    "TypeError",
 }
 
 
@@ -155,10 +322,18 @@ def test_ports_are_protocol_abc_or_value_objects() -> None:
                 continue
             if any(b.endswith(("Error", "Exception")) for b in bases):
                 continue
-            found.add(("port-shape", _rel(path), f"class {node.name} is neither "
-                       "dataclass/enum/exception nor Protocol/ABC"))
+            found.add(
+                (
+                    "port-shape",
+                    _rel(path),
+                    f"class {node.name} is neither "
+                    "dataclass/enum/exception nor Protocol/ABC",
+                )
+            )
         if ports > 1:
-            found.add(("port-one-per-file", _rel(path), f"{ports} Protocol/ABC classes"))
+            found.add(
+                ("port-one-per-file", _rel(path), f"{ports} Protocol/ABC classes")
+            )
     _check("port-shape", {v for v in found if v[0] == "port-shape"})
     _check("port-one-per-file", {v for v in found if v[0] == "port-one-per-file"})
 
@@ -179,8 +354,9 @@ _CACHE_DECOS = {"lru_cache", "cache"}
 
 def _get_functions(path: Path):
     for node in _tree(path).body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
-                and node.name.startswith("get_"):
+        if isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef)
+        ) and node.name.startswith("get_"):
             yield node
 
 
@@ -233,15 +409,23 @@ def test_one_factory_per_adapter_within_a_factory_module() -> None:
     for path in _FACTORY_FILES:
         seen: dict[str, str] = {}
         for fn in _get_functions(path):
-            if _required_params(fn) or fn.returns is None \
-                    or not _decorator_names(fn) & _CACHE_DECOS:
+            if (
+                _required_params(fn)
+                or fn.returns is None
+                or not _decorator_names(fn) & _CACHE_DECOS
+            ):
                 continue
             ret = ast.unparse(fn.returns)
             if ret in {"None", "bool", "str", "int", "float", "dict", "list"}:
                 continue
             if ret in seen:
-                found.add(("factory-duplicate", _rel(path),
-                           f"{seen[ret]} and {fn.name} both return {ret}"))
+                found.add(
+                    (
+                        "factory-duplicate",
+                        _rel(path),
+                        f"{seen[ret]} and {fn.name} both return {ret}",
+                    )
+                )
             else:
                 seen[ret] = fn.name
     _check("factory-duplicate", found)
@@ -252,10 +436,14 @@ def test_one_factory_per_adapter_within_a_factory_module() -> None:
 
 def test_every_config_field_is_read_somewhere() -> None:
     config_path = SRC / "infrastructure/core/config.py"
-    cls = next(n for n in _tree(config_path).body
-               if isinstance(n, ast.ClassDef) and n.name == "Config")
+    cls = next(
+        n
+        for n in _tree(config_path).body
+        if isinstance(n, ast.ClassDef) and n.name == "Config"
+    )
     fields = {
-        n.target.id for n in cls.body
+        n.target.id
+        for n in cls.body
         if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name)
     }
     used: set[str] = set()
@@ -302,12 +490,22 @@ def test_test_tree_mirrors_src_tree() -> None:
         (TESTS / "test_infrastructure", SRC / "infrastructure"),
     ]
     for test_root, src_base in pairs:
-        for d in sorted(p for p in test_root.rglob("*") if p.is_dir() and "__pycache__" not in p.parts):
+        for d in sorted(
+            p
+            for p in test_root.rglob("*")
+            if p.is_dir() and "__pycache__" not in p.parts
+        ):
             if not any(d.glob("*.py")):
                 continue
             rel_dir = d.relative_to(test_root)
             if not _mirror_dir(rel_dir, src_base):
-                found.add(("test-mirror", _rel(d), f"no matching folder under {_rel(src_base)}"))
+                found.add(
+                    (
+                        "test-mirror",
+                        _rel(d),
+                        f"no matching folder under {_rel(src_base)}",
+                    )
+                )
     _check("test-mirror", found)
 
 
@@ -324,7 +522,12 @@ _DOCKER_PAIRS = [
 def _docker_facts(path: Path) -> dict[str, set[str]]:
     """Statements that must match between the local and OKD variants."""
     text = path.read_text(encoding="utf-8").replace("\\\n", " ")
-    facts: dict[str, set[str]] = {"apt": set(), "expose": set(), "cmd": set(), "user": set()}
+    facts: dict[str, set[str]] = {
+        "apt": set(),
+        "expose": set(),
+        "cmd": set(),
+        "user": set(),
+    }
     for raw in text.splitlines():
         line = " ".join(raw.split())
         up = line.upper()
@@ -336,7 +539,9 @@ def _docker_facts(path: Path) -> dict[str, set[str]]:
             facts["user"].add(line)
         for m in re.finditer(r"apt-get install\b([^&;|]*)", line):
             facts["apt"].update(
-                t for t in m.group(1).split() if not t.startswith("-") and not t.startswith("$")
+                t
+                for t in m.group(1).split()
+                if not t.startswith("-") and not t.startswith("$")
             )
     return facts
 
@@ -348,7 +553,13 @@ def test_local_and_okd_dockerfiles_agree_on_runtime_facts() -> None:
         for kind in a:
             for item in sorted(a[kind] ^ b[kind]):
                 side = local if item in a[kind] else okd
-                found.add(("dockerfile-parity", f"{local} <-> {okd}", f"{kind}: {item} only in {side}"))
+                found.add(
+                    (
+                        "dockerfile-parity",
+                        f"{local} <-> {okd}",
+                        f"{kind}: {item} only in {side}",
+                    )
+                )
     _check("dockerfile-parity", found)
 
 
@@ -365,7 +576,10 @@ _IMPORT_TO_DIST = {"sklearn": "scikit-learn"}
 
 def _declared_names(pyproject: str) -> set[str]:
     data = tomllib.loads((REQ / pyproject).read_text(encoding="utf-8"))
-    return {re.sub(r"[-_.]+", "-", d).lower() for d in data["tool"]["poetry"]["dependencies"]}
+    return {
+        re.sub(r"[-_.]+", "-", d).lower()
+        for d in data["tool"]["poetry"]["dependencies"]
+    }
 
 
 def test_shared_ml_modules_declare_lazy_imports_in_worker_and_mcp() -> None:

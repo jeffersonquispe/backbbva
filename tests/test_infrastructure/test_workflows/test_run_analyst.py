@@ -120,7 +120,9 @@ def test_run_analyst_passes_none_vector_store_when_classification_has_none(
     assert calls[0]["vector_store_instance_id"] is None
 
 
-def test_run_analyst_omits_segment_kwargs_without_an_active_segment(monkeypatch) -> None:
+def test_run_analyst_omits_segment_kwargs_without_an_active_segment(
+    monkeypatch,
+) -> None:
     calls = _patched(monkeypatch)
     context = _context(SegmentSettings(enabled=True, agent=AgentSettings()))
     context["segment_code"] = "unknown-segment"

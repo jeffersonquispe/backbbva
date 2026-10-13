@@ -13,7 +13,17 @@ class CreateAlertSchemaSuggestionUseCase:
         self._repository = repository
 
     def execute(self, input: CreateAlertSchemaSuggestionInput) -> AlertSchemaSuggestion:
-        return self._repository.create(AlertSchemaSuggestion(str(uuid4()), input.alert_id, input.field, input.location, input.comment, input.created_by, datetime.now(UTC)))
+        return self._repository.create(
+            AlertSchemaSuggestion(
+                str(uuid4()),
+                input.alert_id,
+                input.field,
+                input.location,
+                input.comment,
+                input.created_by,
+                datetime.now(UTC),
+            )
+        )
 
 
 class ListAlertSchemaSuggestionsUseCase:

@@ -1,6 +1,7 @@
 """A2 GetTechnicalMetrics: totals, groups, 0-23 h profile, periods and
 warnings read back from rows written by the real writers
 (RecordWorkflowStepMetrics / evaluation_contribution)."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -73,7 +74,9 @@ class Steps:
         self.steps: list = []
 
     def list_by_workflow(self, workflow_execution_id):
-        return [s for s in self.steps if s.workflow_execution_id == workflow_execution_id]
+        return [
+            s for s in self.steps if s.workflow_execution_id == workflow_execution_id
+        ]
 
 
 def _record_alert(rollups, alerts, steps, *, created_at, channel, tier_version=1):
@@ -81,7 +84,7 @@ def _record_alert(rollups, alerts, steps, *, created_at, channel, tier_version=1
         id=uuid4(),
         event_id="e",
         event_type="t",
-            input={},
+        input={},
         status=AlertStatus.CLOSED,
         created_at=created_at,
         updated_at=created_at,
@@ -94,23 +97,40 @@ def _record_alert(rollups, alerts, steps, *, created_at, channel, tier_version=1
     for offset, (name, out, status) in enumerate(
         [
             ("pre_process", {}, WorkflowStepStatus.SUCCEEDED),
-            ("classification", {"input_tokens": 100, "output_tokens": 10,
-                                "vector_store_interactions": [{"status": "executed"}]},
-             WorkflowStepStatus.SUCCEEDED),
+            (
+                "classification",
+                {
+                    "input_tokens": 100,
+                    "output_tokens": 10,
+                    "vector_store_interactions": [{"status": "executed"}],
+                },
+                WorkflowStepStatus.SUCCEEDED,
+            ),
             ("analyst", None, WorkflowStepStatus.FAILED),
         ]
     ):
         started = created_at + timedelta(seconds=offset * 5)
         steps.steps.append(
             WorkflowStepExecutionRecord(
-                id=uuid4(), workflow_execution_id=workflow_id, step_name=name, status=status,
-                attempt=1, input={}, output=out, error=None, started_at=started,
-                finished_at=started + timedelta(seconds=4), created_at=started, updated_at=started,
+                id=uuid4(),
+                workflow_execution_id=workflow_id,
+                step_name=name,
+                status=status,
+                attempt=1,
+                input={},
+                output=out,
+                error=None,
+                started_at=started,
+                finished_at=started + timedelta(seconds=4),
+                created_at=started,
+                updated_at=started,
             )
         )
     RecordWorkflowStepMetrics(alerts, steps, rollups, TZ, clock=lambda: NOW).execute(
         RecordWorkflowStepMetricsInput(
-            alert.id, workflow_id, step_models={"classification": "gpt-a", "analyst": "gpt-b"}
+            alert.id,
+            workflow_id,
+            step_models={"classification": "gpt-a", "analyst": "gpt-b"},
         )
     )
     return alert
@@ -124,11 +144,26 @@ def _use_case(rollups) -> GetTechnicalMetrics:
 def seeded():
     rollups, alerts, steps = InMemoryRollupRepository(), Alerts(), Steps()
     # 08:00 Bogota today (WEB) and 20:00 Bogota yesterday (APP, tier set v2).
-    a = _record_alert(rollups, alerts, steps, created_at=datetime(2026, 10, 1, 13, tzinfo=UTC), channel="WEB")
-    b = _record_alert(rollups, alerts, steps, created_at=datetime(2026, 10, 1, 1, tzinfo=UTC), channel="APP", tier_version=2)
+    a = _record_alert(
+        rollups,
+        alerts,
+        steps,
+        created_at=datetime(2026, 10, 1, 13, tzinfo=UTC),
+        channel="WEB",
+    )
+    b = _record_alert(
+        rollups,
+        alerts,
+        steps,
+        created_at=datetime(2026, 10, 1, 1, tzinfo=UTC),
+        channel="APP",
+        tier_version=2,
+    )
     # One judged alert: hallucinated, data used incorrectly.
     part = evaluation_contribution(
-        technical_alert_dimensions(a.metrics), hallucination=True, data_use_correct=False
+        technical_alert_dimensions(a.metrics),
+        hallucination=True,
+        data_use_correct=False,
     )
     for delta in technical_deltas([part], a.created_at, NOW, TZ):
         for name, value in delta.measures.items():
@@ -144,13 +179,24 @@ def test_totals_groups_and_profile(seeded) -> None:
     assert out.workflow_steps.failed == 2
     assert out.workflow_steps.duration.count == 6
     assert out.workflow_steps.duration.sum_seconds == pytest.approx(24)
-    assert [s.step_name for s in out.workflow_steps_by_step] == ["analyst", "classification", "pre_process"]
+    assert [s.step_name for s in out.workflow_steps_by_step] == [
+        "analyst",
+        "classification",
+        "pre_process",
+    ]
     assert out.llm_calls.calls == 4 and out.llm_calls.errors == 2
     assert (out.llm_calls.input_tokens, out.llm_calls.output_tokens) == (200, 20)
-    assert {g.model: g.calls for g in out.llm_calls_by_model} == {"gpt-a": 2, "gpt-b": 2}
+    assert {g.model: g.calls for g in out.llm_calls_by_model} == {
+        "gpt-a": 2,
+        "gpt-b": 2,
+    }
     assert out.research_calls.calls == 2 and out.research_calls.ok == 2
     assert out.research_calls_by_source[0].source == "vector_store"
-    assert (out.evaluations.evaluated, out.evaluations.hallucinations, out.evaluations.data_use_correct) == (1, 1, 0)
+    assert (
+        out.evaluations.evaluated,
+        out.evaluations.hallucinations,
+        out.evaluations.data_use_correct,
+    ) == (1, 1, 0)
 
     hours = {slot.hour: slot for slot in out.hourly_profile}
     assert len(out.hourly_profile) == 24
@@ -174,7 +220,9 @@ def test_filters(seeded) -> None:
     by_model = use_case.execute(MetricsQueryInput(filters={"model": ["gpt-a"]}))
     assert by_model.llm_calls.calls == 2
     assert by_model.workflow_steps.executions == 6
-    by_step = use_case.execute(MetricsQueryInput(filters={"step_name": ["classification"]}))
+    by_step = use_case.execute(
+        MetricsQueryInput(filters={"step_name": ["classification"]})
+    )
     assert by_step.workflow_steps.executions == 2
     assert by_step.llm_calls.calls == 2
     assert by_step.evaluations.evaluated == 1

@@ -9,7 +9,9 @@ from src.infrastructure.persistence.dataset.filesystem.csv_dataset_repository im
 )
 
 
-def test_list_counts_rows_and_get_rows_unflattens_dotted_headers(tmp_path: Path) -> None:
+def test_list_counts_rows_and_get_rows_unflattens_dotted_headers(
+    tmp_path: Path,
+) -> None:
     csv_path = tmp_path / "sample.csv"
     csv_path.write_text(
         "eventId,customerId,object.triggeredRules,amount.baseValue\n"
@@ -204,9 +206,7 @@ def test_append_rows_preserves_column_alignment_with_leading_unnamed_column(
 
 def test_get_rows_page_returns_slice_and_total(tmp_path: Path) -> None:
     csv_path = tmp_path / "sample.csv"
-    csv_path.write_text(
-        "eventId\n" + "".join(f"e-{i}\n" for i in range(5))
-    )
+    csv_path.write_text("eventId\n" + "".join(f"e-{i}\n" for i in range(5)))
     repo = FilesystemCsvDatasetRepository(tmp_path)
 
     page, total = repo.get_rows_page("sample", offset=1, limit=2)

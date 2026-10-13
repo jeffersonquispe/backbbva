@@ -4,7 +4,9 @@ from src.application.ports.marcacion_catalog_port import MarcacionCatalogReposit
 
 
 class DeleteMarcacionCategoryUseCase:
-    def __init__(self, marcacion_catalog_repository: MarcacionCatalogRepository) -> None:
+    def __init__(
+        self, marcacion_catalog_repository: MarcacionCatalogRepository
+    ) -> None:
         self._categories = marcacion_catalog_repository
 
     def execute(self, entry_id: str) -> None:

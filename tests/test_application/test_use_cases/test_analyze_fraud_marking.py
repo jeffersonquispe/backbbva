@@ -194,7 +194,9 @@ def test_maturation_profile_computes_avg_min_max_p95_in_days() -> None:
     assert maturation.p95_days == round((3 + (24 - 3) * 0.9) / 24, 2)
 
 
-def test_rows_with_unparseable_or_missing_timestamps_are_excluded_from_maturation() -> None:
+def test_rows_with_unparseable_or_missing_timestamps_are_excluded_from_maturation() -> (
+    None
+):
     rows = [
         {
             "razon_marcacion": "risk",

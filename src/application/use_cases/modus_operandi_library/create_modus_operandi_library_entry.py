@@ -45,7 +45,9 @@ class CreateModusOperandiLibraryEntryUseCase:
             monitoring=self._monitoring,
             operation_name="embed_modus_operandi_library_entry",
         )
-        embedding = uow.embed([embedding_text(title=title, narrative=narrative)]).vectors[0]
+        embedding = uow.embed(
+            [embedding_text(title=title, narrative=narrative)]
+        ).vectors[0]
         return self._entries.create(
             ModusOperandiLibraryEntry(
                 id=str(uuid.uuid4()),

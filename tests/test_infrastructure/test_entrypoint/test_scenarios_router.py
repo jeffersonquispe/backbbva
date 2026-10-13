@@ -42,7 +42,9 @@ def _scenario(**overrides) -> SimulationScenarioRecord:
         status=ScenarioStatus.DRAFT,
         output_mode=OutputMode.DATASET,
         rate_schedule=[RateInterval(0, 60, events_per_minute=10)],
-        field_specs={"channel": FieldGenerator(kind=GeneratorKind.CONSTANT, value="app")},
+        field_specs={
+            "channel": FieldGenerator(kind=GeneratorKind.CONSTANT, value="app")
+        },
         target_dataset_name="synthetic_events",
         created_by="tester",
         created_at=now,

@@ -30,9 +30,7 @@ class RecordTickResultUseCase:
         if scenario is None:
             raise LookupError(f"Scenario {scenario_id} not found")
 
-        new_status = (
-            ScenarioStatus.COMPLETED if schedule_exhausted else scenario.status
-        )
+        new_status = ScenarioStatus.COMPLETED if schedule_exhausted else scenario.status
         updated = self._scenarios.update(
             scenario_id,
             events_emitted=scenario.events_emitted + events_generated,

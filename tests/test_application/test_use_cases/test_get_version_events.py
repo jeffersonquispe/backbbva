@@ -61,7 +61,9 @@ def test_lists_schema_and_configuration_activations_in_range_sorted_by_time():
                 AlertSchemaVersion(version=1),
             ]
         ),
-        InMemoryConfigurationRepository([_configuration(2, config_at), _configuration(1, None)]),
+        InMemoryConfigurationRepository(
+            [_configuration(2, config_at), _configuration(1, None)]
+        ),
     )
 
     events = use_case.execute(start, start + timedelta(hours=1))

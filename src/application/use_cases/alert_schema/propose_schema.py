@@ -21,7 +21,14 @@ class ProposeAlertSchemaUseCase:
         active = self._repository.get_active()
         comparison = compare_schema(schema, active)
         impact = self._impact_analyzer(comparison)
-        proposed = AlertSchemaVersion(**{**schema.__dict__, "status": AlertSchemaStatus.PROPOSED,
-            "proposed_by": user_id, "proposed_at": datetime.now(UTC),
-            "comparison": comparison.as_dict(), "impact": impact})
+        proposed = AlertSchemaVersion(
+            **{
+                **schema.__dict__,
+                "status": AlertSchemaStatus.PROPOSED,
+                "proposed_by": user_id,
+                "proposed_at": datetime.now(UTC),
+                "comparison": comparison.as_dict(),
+                "impact": impact,
+            }
+        )
         return self._repository.update(proposed)

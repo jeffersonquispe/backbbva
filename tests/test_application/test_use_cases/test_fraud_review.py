@@ -1,5 +1,6 @@
 """C5: ReviewFraudLabel + bulk CSV import, through the real
 RecordAlertMetricsEvent and rollup diff, with in-memory fakes."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -68,8 +69,12 @@ class InMemoryMetricsRollupRepository:
         alert = self._alerts.get(alert_guard.alert_id)
         stored = alert.metrics.snapshot_version if alert and alert.metrics else 0
         if alert is None or stored != alert_guard.expected_version:
-            raise SnapshotVersionConflictError(str(alert_guard.alert_id), alert_guard.expected_version)
-        self._alerts.alerts[alert.id] = dataclasses.replace(alert, metrics=alert_guard.snapshot)
+            raise SnapshotVersionConflictError(
+                str(alert_guard.alert_id), alert_guard.expected_version
+            )
+        self._alerts.alerts[alert.id] = dataclasses.replace(
+            alert, metrics=alert_guard.snapshot
+        )
         for delta in deltas:
             for measure, value in delta.measures.items():
                 self.rows[delta.key][measure] += value
@@ -102,7 +107,10 @@ class InMemoryFraudLabelReviewRepository:
         return review
 
     def list_by_alert(self, alert_id: UUID) -> list[FraudLabelReview]:
-        return sorted((r for r in self.rows if r.alert_id == alert_id), key=lambda r: r.reviewed_at)
+        return sorted(
+            (r for r in self.rows if r.alert_id == alert_id),
+            key=lambda r: r.reviewed_at,
+        )
 
 
 class Clock:
@@ -119,7 +127,9 @@ def _setup():
     rollups = InMemoryMetricsRollupRepository(alerts)
     reviews = InMemoryFraudLabelReviewRepository()
     clock = Clock()
-    recorder = RecordAlertMetricsEvent(alerts, rollups, InMemorySettings(), TZ, clock=clock)
+    recorder = RecordAlertMetricsEvent(
+        alerts, rollups, InMemorySettings(), TZ, clock=clock
+    )
     use_case = ReviewFraudLabel(alerts, reviews, recorder, clock=clock)
     return alerts, rollups, reviews, recorder, use_case
 
@@ -127,11 +137,18 @@ def _setup():
 def _decided_alert(alerts, recorder, action: str) -> AlertRecord:
     alert = alerts.create(
         AlertRecord(
-            id=uuid4(), event_id="e", event_type="payment", input={"channel": "WEB"},
-            status=AlertStatus.CLOSED, created_at=CREATED_AT, updated_at=CREATED_AT,
+            id=uuid4(),
+            event_id="e",
+            event_type="payment",
+            input={"channel": "WEB"},
+            status=AlertStatus.CLOSED,
+            created_at=CREATED_AT,
+            updated_at=CREATED_AT,
         )
     )
-    recorder.execute(RecordAlertMetricsEventInput(alert.id, AlertMetricsEventType.CREATED))
+    recorder.execute(
+        RecordAlertMetricsEventInput(alert.id, AlertMetricsEventType.CREATED)
+    )
     recorder.execute(
         RecordAlertMetricsEventInput(
             alert.id,
@@ -146,7 +163,11 @@ def _decided_alert(alerts, recorder, action: str) -> AlertRecord:
 
 def _review(alert_id, label, note="", channel=FraudLabelReviewChannel.UI):
     return ReviewFraudLabelInput(
-        alert_id=alert_id, fraud_label=label, reviewed_by="fraud@aria.test", channel=channel, note=note
+        alert_id=alert_id,
+        fraud_label=label,
+        reviewed_by="fraud@aria.test",
+        channel=channel,
+        note=note,
     )
 
 
@@ -154,16 +175,26 @@ def _fp(rollups) -> float:
     return rollups.total("count", mark="fraud", fraud_label="no_fraud")
 
 
-def test_reviewing_twice_leaves_two_audit_rows_and_rollups_show_only_the_last_value() -> None:
+def test_reviewing_twice_leaves_two_audit_rows_and_rollups_show_only_the_last_value() -> (
+    None
+):
     alerts, rollups, reviews, recorder, use_case = _setup()
     alert = _decided_alert(alerts, recorder, "block")  # mark = fraud
 
-    first = use_case.execute(_review(alert.id, "no_fraud", note="customer recognized it"))
-    assert (first.review.from_label, first.review.to_label) == (Mark.FRAUD, Mark.NO_FRAUD)
+    first = use_case.execute(
+        _review(alert.id, "no_fraud", note="customer recognized it")
+    )
+    assert (first.review.from_label, first.review.to_label) == (
+        Mark.FRAUD,
+        Mark.NO_FRAUD,
+    )
     assert _fp(rollups) == 1
 
     second = use_case.execute(_review(alert.id, "fraud", note="chargeback confirmed"))
-    assert (second.review.from_label, second.review.to_label) == (Mark.NO_FRAUD, Mark.FRAUD)
+    assert (second.review.from_label, second.review.to_label) == (
+        Mark.NO_FRAUD,
+        Mark.FRAUD,
+    )
 
     trail = ListFraudLabelReviews(reviews).execute(alert.id)
     assert [(r.from_label, r.to_label) for r in trail] == [
@@ -187,7 +218,9 @@ def test_reviewing_twice_leaves_two_audit_rows_and_rollups_show_only_the_last_va
     assert rollups.total("reviewed_changed_count") == 0
 
 
-def test_a_confirmation_fills_fraud_reviewed_at_without_moving_false_positives() -> None:
+def test_a_confirmation_fills_fraud_reviewed_at_without_moving_false_positives() -> (
+    None
+):
     alerts, rollups, reviews, recorder, use_case = _setup()
     alert = _decided_alert(alerts, recorder, "block")
     assert alerts.get(alert.id).metrics.fraud_reviewed_at is None
@@ -200,7 +233,10 @@ def test_a_confirmation_fills_fraud_reviewed_at_without_moving_false_positives()
     assert output.snapshot.fraud_reviewed_at is not None
     assert output.snapshot.fraud_review_count == 1
     assert _fp(rollups) == fp_before == 0
-    assert rollups.total("count", mark="no_fraud", fraud_label="fraud") == undetected_before
+    assert (
+        rollups.total("count", mark="no_fraud", fraud_label="fraud")
+        == undetected_before
+    )
     assert rollups.total("reviewed_confirmed_count") == 1
     assert len(reviews.rows) == 1
 
@@ -236,7 +272,9 @@ def test_csv_import_reports_each_row_and_bad_rows_do_not_abort_the_batch() -> No
         f"{b.id};fraud;contracargo\n"
     ).encode()
 
-    result = ImportFraudLabelReviews(use_case).execute(content, reviewed_by="bulk@aria.test")
+    result = ImportFraudLabelReviews(use_case).execute(
+        content, reviewed_by="bulk@aria.test"
+    )
 
     assert result.status == FraudLabelReviewImportStatus.READY
     assert (result.total, result.applied, result.failed) == (5, 2, 3)
@@ -257,7 +295,9 @@ def test_csv_import_reports_each_row_and_bad_rows_do_not_abort_the_batch() -> No
 
 def test_csv_without_required_columns_fails_as_a_whole() -> None:
     _, _, reviews, _, use_case = _setup()
-    result = ImportFraudLabelReviews(use_case).execute(b"id,label\n1,fraud\n", reviewed_by="x")
+    result = ImportFraudLabelReviews(use_case).execute(
+        b"id,label\n1,fraud\n", reviewed_by="x"
+    )
     assert result.status == FraudLabelReviewImportStatus.FAILED
     assert "alert_id" in result.error and "fraud_label" in result.error
     assert reviews.rows == []
@@ -296,7 +336,9 @@ class RecordingMonitoring(MonitoringPort):
 def test_each_review_emits_a_fraud_label_review_span() -> None:
     alerts, rollups, reviews, recorder, _ = _setup()
     monitoring = RecordingMonitoring()
-    use_case = ReviewFraudLabel(alerts, reviews, recorder, clock=Clock(), monitoring=monitoring)
+    use_case = ReviewFraudLabel(
+        alerts, reviews, recorder, clock=Clock(), monitoring=monitoring
+    )
     alert = _decided_alert(alerts, recorder, "block")
 
     use_case.execute(_review(alert.id, "no_fraud", channel=FraudLabelReviewChannel.CSV))

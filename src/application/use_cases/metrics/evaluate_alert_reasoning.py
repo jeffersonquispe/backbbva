@@ -21,6 +21,7 @@ Exactly-once, in this order, so any retry converges:
 Raw prompt/completion content never goes into this use case's span (only
 verdict flags and sizes); the LLM unit of work records content only when
 OTEL_CAPTURE_LLM_CONTENT is on."""
+
 from __future__ import annotations
 
 import hashlib
@@ -139,7 +140,9 @@ class EvaluateAlertReasoning:
         self._timezone_name = timezone_name
         self._clock = clock
 
-    def execute(self, input: EvaluateAlertReasoningInput) -> EvaluateAlertReasoningOutput:
+    def execute(
+        self, input: EvaluateAlertReasoningInput
+    ) -> EvaluateAlertReasoningOutput:
         alert = self._alerts.get(input.alert_id)
         if alert is None:
             return EvaluateAlertReasoningOutput(evaluation=None)
@@ -153,13 +156,17 @@ class EvaluateAlertReasoning:
             evaluation=stored, counted=self._count(alert, stored)
         )
 
-    def _count(self, alert: AlertRecord, record: AlertReasoningEvaluationRecord) -> bool:
+    def _count(
+        self, alert: AlertRecord, record: AlertReasoningEvaluationRecord
+    ) -> bool:
         part = evaluation_contribution(
             technical_alert_dimensions(alert.metrics, alert.status),
             hallucination=record.hallucination,
             data_use_correct=record.data_use_correct,
         )
-        deltas = technical_deltas([part], alert.created_at, self._clock(), self._timezone_name)
+        deltas = technical_deltas(
+            [part], alert.created_at, self._clock(), self._timezone_name
+        )
         return self._rollups.apply_once(
             deltas, RollupApplyMarker(scope=MARKER_SCOPE, key=str(record.alert_id))
         )
@@ -275,10 +282,14 @@ def _reasoning_view(output: dict[str, Any]) -> dict[str, Any]:
     """What the judge needs from one reasoning step: its conclusion and
     reasoning (the claims) plus the evidence it gathered itself."""
     return {
-        "conclusion": {k: output[k] for k in _CONCLUSION_FIELDS if output.get(k) is not None},
+        "conclusion": {
+            k: output[k] for k in _CONCLUSION_FIELDS if output.get(k) is not None
+        },
         "reasoning": output.get("reasoning"),
         "own_evidence": {
-            k: output[k] for k in _OWN_EVIDENCE_FIELDS if output.get(k) not in (None, "", [])
+            k: output[k]
+            for k in _OWN_EVIDENCE_FIELDS
+            if output.get(k) not in (None, "", [])
         },
     }
 

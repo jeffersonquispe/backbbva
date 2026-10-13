@@ -16,9 +16,7 @@ from src.infrastructure.monitoring.opentelemetry.monitoring import (
 
 def _build_monitoring():
     exporter = InMemorySpanExporter()
-    provider = TracerProvider(
-        resource=Resource.create({"service.name": "test"})
-    )
+    provider = TracerProvider(resource=Resource.create({"service.name": "test"}))
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     return OpenTelemetryMonitoring(provider.get_tracer("test")), exporter
 
@@ -62,9 +60,7 @@ def test_write_input_omits_raw_content_by_default(monkeypatch):
         span.write_input({"prompt": "sensitive data here"})
 
     (finished,) = exporter.get_finished_spans()
-    event = next(
-        e for e in finished.events if e.name == "gen_ai.content.prompt"
-    )
+    event = next(e for e in finished.events if e.name == "gen_ai.content.prompt")
     assert "prompt" not in event.attributes
     assert "content_length" in event.attributes
 
@@ -77,9 +73,7 @@ def test_write_input_includes_raw_content_when_capture_enabled(monkeypatch):
         span.write_input({"prompt": "sensitive data here"})
 
     (finished,) = exporter.get_finished_spans()
-    event = next(
-        e for e in finished.events if e.name == "gen_ai.content.prompt"
-    )
+    event = next(e for e in finished.events if e.name == "gen_ai.content.prompt")
     assert event.attributes["prompt"] == "sensitive data here"
 
 

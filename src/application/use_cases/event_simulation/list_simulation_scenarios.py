@@ -11,5 +11,7 @@ class ListSimulationScenariosUseCase:
     def __init__(self, scenario_repository: SimulationScenarioRepository) -> None:
         self._scenarios = scenario_repository
 
-    def execute(self, status: ScenarioStatus | None = None) -> list[SimulationScenarioRecord]:
+    def execute(
+        self, status: ScenarioStatus | None = None
+    ) -> list[SimulationScenarioRecord]:
         return self._scenarios.list(status=status)

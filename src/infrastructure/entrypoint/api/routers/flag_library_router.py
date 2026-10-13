@@ -36,7 +36,11 @@ from src.infrastructure.entrypoint.api.schemas import (
     UpdateFlagLibraryEntryRequest,
 )
 
-router = APIRouter(prefix="/library/flags", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
+router = APIRouter(
+    prefix="/library/flags",
+    tags=["knowledge-library"],
+    dependencies=[Depends(require_library_access)],
+)
 
 
 @router.get("", response_model=list[FlagLibraryEntrySchema])
@@ -49,7 +53,9 @@ def list_flag_library_entries(
     return [_to_schema(entry) for entry in use_case.execute(active_only=active_only)]
 
 
-@router.post("", response_model=FlagLibraryEntrySchema, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=FlagLibraryEntrySchema, status_code=status.HTTP_201_CREATED
+)
 def create_flag_library_entry(
     request: CreateFlagLibraryEntryRequest,
     use_case: Annotated[
@@ -57,13 +63,17 @@ def create_flag_library_entry(
     ],
 ):
     entry = use_case.execute(
-            request.flag_type,
-            request.name,
-            request.description,
-            request.evolved_variables,
-            request.modus_operandi_library_ids,
-        )
-    asset_type = KnowledgeAssetType.RED_FLAG if entry.flag_type.value == "red" else KnowledgeAssetType.YELLOW_FLAG
+        request.flag_type,
+        request.name,
+        request.description,
+        request.evolved_variables,
+        request.modus_operandi_library_ids,
+    )
+    asset_type = (
+        KnowledgeAssetType.RED_FLAG
+        if entry.flag_type.value == "red"
+        else KnowledgeAssetType.YELLOW_FLAG
+    )
     get_knowledge_graph_service().synchronize_new_asset(asset_type, entry.id)
     return _to_schema(entry)
 
@@ -77,7 +87,12 @@ def update_flag_library_entry(
     ],
 ):
     current = get_flag_library_repository().get(entry_id)
-    if current and request.modus_operandi_library_ids is not None and set(request.modus_operandi_library_ids) != set(current.modus_operandi_library_ids):
+    if (
+        current
+        and request.modus_operandi_library_ids is not None
+        and set(request.modus_operandi_library_ids)
+        != set(current.modus_operandi_library_ids)
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Changing a flag's modus-operandi links would break instance lineage; create an independent copy instead.",

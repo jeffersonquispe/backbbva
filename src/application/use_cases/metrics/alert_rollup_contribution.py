@@ -7,6 +7,7 @@ by when the data arrived: a fraud_label correction months later lands on
 the alert's own day/month/year rows. A delta touches every level still
 alive for that date - day while the date is < 90 days old, month and year
 always."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

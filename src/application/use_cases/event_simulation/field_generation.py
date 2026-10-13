@@ -76,7 +76,7 @@ def _draw_poisson(lam: float, rng: random.Random) -> int:
     # Normal approximation (mean=lam, variance=lam) for large lambda - not
     # exact, but accurate enough for scheduling event counts, and O(1)
     # instead of Knuth's O(lambda) draws.
-    draw = round(rng.gauss(lam, lam ** 0.5))
+    draw = round(rng.gauss(lam, lam**0.5))
     return max(draw, 0)
 
 
@@ -107,4 +107,6 @@ def due_event_count(
 
 
 def schedule_exhausted(rate_schedule: list[RateInterval], at_seconds: int) -> bool:
-    return not any(interval.end_offset_seconds > at_seconds for interval in rate_schedule)
+    return not any(
+        interval.end_offset_seconds > at_seconds for interval in rate_schedule
+    )

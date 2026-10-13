@@ -29,12 +29,17 @@ def _normalize_rules(rules: Any) -> list[str]:
     return []
 
 
-def _alert_values(input_fields: dict[str, Any], roles: dict[str, Any] | None = None) -> dict[TagCategory, list[str]]:
+def _alert_values(
+    input_fields: dict[str, Any], roles: dict[str, Any] | None = None
+) -> dict[TagCategory, list[str]]:
     roles = roles or {}
     if not roles:
         roles = {
             role: input_fields[name]
-            for role, name in (("event_type", "event_type"), ("entrypoint", "integration_point"))
+            for role, name in (
+                ("event_type", "event_type"),
+                ("entrypoint", "integration_point"),
+            )
             if name in input_fields
         }
     values: dict[TagCategory, list[str]] = {}

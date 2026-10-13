@@ -56,7 +56,9 @@ class InMemoryVectorStoreInstanceRepository:
         raise NotImplementedError
 
 
-def _promoted_instance(instance_id: str = "vs-1", version: int = 1) -> VectorStoreInstance:
+def _promoted_instance(
+    instance_id: str = "vs-1", version: int = 1
+) -> VectorStoreInstance:
     return VectorStoreInstance(
         id=instance_id,
         version=1,
@@ -109,7 +111,8 @@ def test_fraud_taxonomy_adapter_maps_search_result_and_scopes_the_call() -> None
         FraudKnowledgeSearchResult(document=document, score=0.91)
     )
     use_case = SearchFraudKnowledgeUseCase(
-        search_port, InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=2)])
+        search_port,
+        InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=2)]),
     )
     adapter = OpenSearchFraudTaxonomyAdapter(use_case, "vs-1")
 
@@ -139,12 +142,18 @@ def test_fraud_taxonomy_adapter_fails_open_when_vector_store_not_promoted() -> N
     search_port = RecordingFraudKnowledgeSearchPort(
         FraudKnowledgeSearchResult(
             document=TaxonomiaDocument(
-                id=uuid.uuid4(), text="x", text_embedded=[0.0], vector_store_id="vs-1", vector_store_version=1
+                id=uuid.uuid4(),
+                text="x",
+                text_embedded=[0.0],
+                vector_store_id="vs-1",
+                vector_store_version=1,
             ),
             score=0.5,
         )
     )
-    use_case = SearchFraudKnowledgeUseCase(search_port, InMemoryVectorStoreInstanceRepository([]))
+    use_case = SearchFraudKnowledgeUseCase(
+        search_port, InMemoryVectorStoreInstanceRepository([])
+    )
     adapter = OpenSearchFraudTaxonomyAdapter(use_case, "vs-missing")
 
     assert adapter.find_similar("query") == []
@@ -168,7 +177,8 @@ def test_modus_operandi_adapter_maps_search_result() -> None:
         FraudKnowledgeSearchResult(document=document, score=0.77)
     )
     use_case = SearchFraudKnowledgeUseCase(
-        search_port, InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=1)])
+        search_port,
+        InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=1)]),
     )
     adapter = OpenSearchModusOperandiAdapter(use_case, "vs-1")
 
@@ -200,7 +210,9 @@ def test_modus_operandi_adapter_fails_open_when_vector_store_not_promoted() -> N
             score=0.5,
         )
     )
-    use_case = SearchFraudKnowledgeUseCase(search_port, InMemoryVectorStoreInstanceRepository([]))
+    use_case = SearchFraudKnowledgeUseCase(
+        search_port, InMemoryVectorStoreInstanceRepository([])
+    )
     adapter = OpenSearchModusOperandiAdapter(use_case, "vs-missing")
 
     assert adapter.find_similar("query") == []
@@ -222,7 +234,8 @@ def test_similar_fraud_case_adapter_maps_search_result_with_blank_outcome() -> N
         FraudKnowledgeSearchResult(document=document, score=0.83)
     )
     use_case = SearchFraudKnowledgeUseCase(
-        search_port, InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=1)])
+        search_port,
+        InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=1)]),
     )
     adapter = OpenSearchSimilarFraudCaseAdapter(use_case, "vs-1")
 
@@ -230,7 +243,10 @@ def test_similar_fraud_case_adapter_maps_search_result_with_blank_outcome() -> N
 
     assert results == [
         SimilarFraudCase(
-            case_id=str(case_id), summary=document.text, outcome="", similarity_score=0.83
+            case_id=str(case_id),
+            summary=document.text,
+            outcome="",
+            similarity_score=0.83,
         )
     ]
     assert search_port.calls[0]["document_type"] == DocumentType.SIMILAR_CASE
@@ -251,7 +267,9 @@ def test_similar_fraud_case_adapter_fails_open_when_vector_store_not_promoted() 
             score=0.5,
         )
     )
-    use_case = SearchFraudKnowledgeUseCase(search_port, InMemoryVectorStoreInstanceRepository([]))
+    use_case = SearchFraudKnowledgeUseCase(
+        search_port, InMemoryVectorStoreInstanceRepository([])
+    )
     adapter = OpenSearchSimilarFraudCaseAdapter(use_case, "vs-missing")
 
     assert adapter.find_similar("query") == []

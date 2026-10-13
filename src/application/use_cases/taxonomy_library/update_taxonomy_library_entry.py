@@ -41,7 +41,9 @@ class UpdateTaxonomyLibraryEntryUseCase:
     ) -> TaxonomyLibraryEntry:
         current = self._entries.get(entry_id)
         if current is None:
-            raise TaxonomyLibraryEntryNotFoundError(f"Taxonomy library entry not found: {entry_id}")
+            raise TaxonomyLibraryEntryNotFoundError(
+                f"Taxonomy library entry not found: {entry_id}"
+            )
 
         embedding: list[float] | None = None
         text_changed = (
@@ -59,7 +61,9 @@ class UpdateTaxonomyLibraryEntryUseCase:
                 [
                     embedding_text(
                         name=name if name is not None else current.name,
-                        description=description if description is not None else current.description,
+                        description=description
+                        if description is not None
+                        else current.description,
                         examples=examples if examples is not None else current.examples,
                     )
                 ]
@@ -76,5 +80,7 @@ class UpdateTaxonomyLibraryEntryUseCase:
             embedding=embedding,
         )
         if updated is None:
-            raise TaxonomyLibraryEntryNotFoundError(f"Taxonomy library entry not found: {entry_id}")
+            raise TaxonomyLibraryEntryNotFoundError(
+                f"Taxonomy library entry not found: {entry_id}"
+            )
         return updated

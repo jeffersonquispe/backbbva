@@ -58,6 +58,8 @@ class GetAlertDetailUseCase:
             ),
             workflow=workflow,
             steps=(
-                self._steps.list_by_workflow(workflow.id) if workflow is not None else []
+                self._steps.list_by_workflow(workflow.id)
+                if workflow is not None
+                else []
             ),
         )

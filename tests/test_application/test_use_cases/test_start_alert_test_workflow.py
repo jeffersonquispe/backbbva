@@ -108,8 +108,7 @@ class InMemoryAsyncOperationRepository:
             created_at=operation.created_at,
             updated_at=operation.updated_at,
             created_by=operation.created_by,
-            dispatched_at=changes.get("dispatched_at")
-            or operation.dispatched_at,
+            dispatched_at=changes.get("dispatched_at") or operation.dispatched_at,
             execution_backend=changes.get("execution_backend")
             or operation.execution_backend,
             external_id=changes.get("external_id") or operation.external_id,
@@ -241,7 +240,9 @@ def test_start_alert_test_workflow_honors_custom_max_feedback_iterations() -> No
     assert workflows.get(output.workflow_execution_id).max_feedback_iterations == 5
 
 
-def test_start_alert_test_workflow_rejects_oversized_payload_before_persisting() -> None:
+def test_start_alert_test_workflow_rejects_oversized_payload_before_persisting() -> (
+    None
+):
     alerts = InMemoryAlertRepository()
     operations = InMemoryAsyncOperationRepository()
     workflows = InMemoryWorkflowExecutionRepository()
@@ -254,7 +255,10 @@ def test_start_alert_test_workflow_rejects_oversized_payload_before_persisting()
     )
     # A single oversized field (e.g. a customer's full transaction history
     # embedded as JSON in one dataset column) is enough to blow the budget.
-    huge_payload = {"eventId": "event-1", "transacciones_json": "x" * (MAX_ALERT_PAYLOAD_BYTES + 1)}
+    huge_payload = {
+        "eventId": "event-1",
+        "transacciones_json": "x" * (MAX_ALERT_PAYLOAD_BYTES + 1),
+    }
 
     with pytest.raises(AlertPayloadTooLargeError):
         use_case.execute(StartAlertWorkflowInput(payload=huge_payload))

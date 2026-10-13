@@ -46,11 +46,11 @@ _SYSTEM_PROMPT = (
     "le parece y la capacidad operativa actual (analistas disponibles, "
     "cupos de voicebot, cupos de bidi y el estado de cada canal). Decide la "
     "única siguiente acción para esta alerta.\n\n"
-    "El playbook trae: \"strategy\" (cómo tratar este modus operandi), "
-    "\"resolution\" (el método de resolución preferido) y los respaldos "
-    "\"if_no_voicebot\" / \"if_no_analyst\" (qué hacer si ese recurso no "
+    'El playbook trae: "strategy" (cómo tratar este modus operandi), '
+    '"resolution" (el método de resolución preferido) y los respaldos '
+    '"if_no_voicebot" / "if_no_analyst" (qué hacer si ese recurso no '
     "tiene capacidad). Sigue el playbook: usa su método preferido si el "
-    "recurso tiene capacidad y, si no, su respaldo. \"handle_by_aria\" "
+    'recurso tiene capacidad y, si no, su respaldo. "handle_by_aria" '
     "significa que decides tú entre block, pass o bidi según la evidencia.\n\n"
     "Significado de las decisiones:\n"
     "- block: el playbook indica fraude claro y confirmado - detener la "
@@ -63,8 +63,8 @@ _SYSTEM_PROMPT = (
     "voicebot.\n"
     "- scale_to_analyst: escalar a un analista humano.\n\n"
     "Solo elige bidi, voicebot o scale_to_analyst si el estado de ese "
-    "canal es \"available\" y tiene capacidad disponible mayor a cero "
-    "(\"exhausted\" = sin cupo ahora, \"unavailable\" = apagado). Si "
+    'canal es "available" y tiene capacidad disponible mayor a cero '
+    '("exhausted" = sin cupo ahora, "unavailable" = apagado). Si '
     "igual lo eliges y al ejecutar ya no hay cupo, se aplicará el respaldo "
     "del playbook automáticamente.\n\n"
     "Responde con SOLO este JSON, nada más:\n"
@@ -205,9 +205,7 @@ class AnalystReviewAlertUseCase:
                 LLMMessage(role=LLMMessageRole.SYSTEM, content=self._system_prompt),
                 LLMMessage(
                     role=LLMMessageRole.USER,
-                    content=_USER_PROMPT.format(
-                        data=json.dumps(data, default=str)
-                    ),
+                    content=_USER_PROMPT.format(data=json.dumps(data, default=str)),
                 ),
             ]
         )

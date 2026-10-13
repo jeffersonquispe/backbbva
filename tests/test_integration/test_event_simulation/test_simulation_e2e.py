@@ -5,6 +5,7 @@ locally supplied sample CSV (event type, channel, integration point, scores
 and amount).  It deliberately does not read the large CSV at test time and
 does not copy customer data into the repository.
 """
+
 from __future__ import annotations
 
 import os
@@ -14,7 +15,9 @@ from uuid import UUID
 import pytest
 
 if not os.getenv("DYNAMO_ENDPOINT"):
-    pytest.skip("Requires DynamoDB Local (set DYNAMO_ENDPOINT)", allow_module_level=True)
+    pytest.skip(
+        "Requires DynamoDB Local (set DYNAMO_ENDPOINT)", allow_module_level=True
+    )
 
 from src.application.dtos.simulation_dtos import CreateSimulationScenarioInput
 from src.application.ports.simulation_scenario_port import (
@@ -83,13 +86,13 @@ def _sampled_field_specs() -> dict[str, FieldGenerator]:
         "amount_value": FieldGenerator(
             kind=GeneratorKind.LOGNORMAL, params={"mu": 16.7, "sigma": 0.15}
         ),
-        "event_count": FieldGenerator(
-            kind=GeneratorKind.POISSON, params={"lambda": 3}
-        ),
+        "event_count": FieldGenerator(kind=GeneratorKind.POISSON, params={"lambda": 3}),
     }
 
 
-def test_live_simulation_persists_generates_and_dispatches_through_one_tick(monkeypatch) -> None:
+def test_live_simulation_persists_generates_and_dispatches_through_one_tick(
+    monkeypatch,
+) -> None:
     """Exercises Dynamo persistence -> lifecycle -> tick -> live dispatch.
 
     The external alert API is replaced with a recorder: this proves the
@@ -112,7 +115,9 @@ def test_live_simulation_persists_generates_and_dispatches_through_one_tick(monk
     )
 
     try:
-        started = StartSimulationUseCase(repository, lifecycle_dispatcher).execute(scenario.id)
+        started = StartSimulationUseCase(repository, lifecycle_dispatcher).execute(
+            scenario.id
+        )
         assert lifecycle_dispatcher.dispatched_ids == [scenario.id]
         assert started.status.value == "RUNNING"
 
@@ -127,7 +132,9 @@ def test_live_simulation_persists_generates_and_dispatches_through_one_tick(monk
         monkeypatch.setattr(
             simulator_tasks,
             "get_generate_event_batch_use_case",
-            lambda: GenerateEventBatchUseCase(llm_unit_of_work_factory=None, monitoring=None),
+            lambda: GenerateEventBatchUseCase(
+                llm_unit_of_work_factory=None, monitoring=None
+            ),
         )
         monkeypatch.setattr(
             simulator_tasks, "get_alert_dispatch_gateway", lambda: alert_dispatcher

@@ -92,7 +92,9 @@ class DynamoWorkflowExecutionRepository(WorkflowExecutionRepository):
             execution_backend=execution_backend or current.execution_backend,
             external_id=external_id or current.external_id,
             test_run_id=current.test_run_id,
-            schema_comparison=schema_comparison if schema_comparison is not None else current.schema_comparison,
+            schema_comparison=schema_comparison
+            if schema_comparison is not None
+            else current.schema_comparison,
         )
         self._table.put_item(Item=_workflow_to_item(updated))
         return updated
@@ -244,9 +246,7 @@ def _workflow_from_item(item: dict[str, Any]) -> WorkflowExecutionRecord:
         finished_at=datetime.fromisoformat(finished_at) if finished_at else None,
         execution_backend=item.get("execution_backend"),
         external_id=item.get("external_id"),
-        test_run_id=(
-            UUID(item["test_run_id"]) if item.get("test_run_id") else None
-        ),
+        test_run_id=(UUID(item["test_run_id"]) if item.get("test_run_id") else None),
         schema_comparison=from_dynamodb(item.get("schema_comparison")),
     )
 
@@ -262,9 +262,7 @@ def _step_to_item(step: WorkflowStepExecutionRecord) -> dict[str, Any]:
         "output": to_dynamodb(step.output),
         "error": step.error,
         "started_at": step.started_at.isoformat() if step.started_at else None,
-        "finished_at": (
-            step.finished_at.isoformat() if step.finished_at else None
-        ),
+        "finished_at": (step.finished_at.isoformat() if step.finished_at else None),
         "created_at": step.created_at.isoformat(),
         "updated_at": step.updated_at.isoformat(),
     }
@@ -283,9 +281,7 @@ def _step_from_item(item: dict[str, Any]) -> WorkflowStepExecutionRecord:
         output=from_dynamodb(item.get("output")),
         error=item.get("error"),
         started_at=datetime.fromisoformat(started_at) if started_at else None,
-        finished_at=(
-            datetime.fromisoformat(finished_at) if finished_at else None
-        ),
+        finished_at=(datetime.fromisoformat(finished_at) if finished_at else None),
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
     )

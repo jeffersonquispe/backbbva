@@ -16,7 +16,9 @@ class DynamoLocalUserRepository:
         self._table = get_dynamodb_resource().Table("users")
 
     def get_by_email(self, email: str) -> LocalUser | None:
-        response = self._table.query(IndexName="EmailIdx", KeyConditionExpression=Key("email").eq(email), Limit=1)
+        response = self._table.query(
+            IndexName="EmailIdx", KeyConditionExpression=Key("email").eq(email), Limit=1
+        )
         items = response.get("Items", [])
         return _from_item(items[0]) if items else None
 
@@ -25,11 +27,15 @@ class DynamoLocalUserRepository:
         return _from_item(item) if item else None
 
     def create(self, user: LocalUser) -> LocalUser:
-        self._table.put_item(Item=_to_item(user), ConditionExpression="attribute_not_exists(user_id)")
+        self._table.put_item(
+            Item=_to_item(user), ConditionExpression="attribute_not_exists(user_id)"
+        )
         return user
 
     def update(self, user: LocalUser) -> LocalUser:
-        self._table.put_item(Item=_to_item(user), ConditionExpression="attribute_exists(user_id)")
+        self._table.put_item(
+            Item=_to_item(user), ConditionExpression="attribute_exists(user_id)"
+        )
         return user
 
     def list(self) -> list[LocalUser]:
@@ -44,15 +50,26 @@ class DynamoLocalUserRepository:
 
 
 def _to_item(user: LocalUser) -> dict:
-    return {"user_id": str(user.id), "email": user.email, "name": user.name,
-            "password_hash": user.password_hash, "role": user.role.value,
-            "is_active": user.is_active, "created_at": user.created_at.isoformat(),
-            "updated_at": user.updated_at.isoformat()}
+    return {
+        "user_id": str(user.id),
+        "email": user.email,
+        "name": user.name,
+        "password_hash": user.password_hash,
+        "role": user.role.value,
+        "is_active": user.is_active,
+        "created_at": user.created_at.isoformat(),
+        "updated_at": user.updated_at.isoformat(),
+    }
 
 
 def _from_item(item: dict) -> LocalUser:
-    return LocalUser(id=UUID(item["user_id"]), email=item["email"], name=item["name"],
-                     password_hash=item["password_hash"], role=LocalRole(item["role"]),
-                     is_active=bool(item["is_active"]),
-                     created_at=datetime.fromisoformat(item["created_at"]),
-                     updated_at=datetime.fromisoformat(item["updated_at"]))
+    return LocalUser(
+        id=UUID(item["user_id"]),
+        email=item["email"],
+        name=item["name"],
+        password_hash=item["password_hash"],
+        role=LocalRole(item["role"]),
+        is_active=bool(item["is_active"]),
+        created_at=datetime.fromisoformat(item["created_at"]),
+        updated_at=datetime.fromisoformat(item["updated_at"]),
+    )

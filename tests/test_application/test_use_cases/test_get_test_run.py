@@ -253,7 +253,9 @@ def test_get_test_run_computes_duration_stats_per_step_and_overall() -> None:
     case_b = _workflow(WorkflowStatus.SUCCEEDED, test_run_id)
     case_b.finished_at = case_b.created_at + timedelta(seconds=20.0)
 
-    def _timed_step(workflow_execution_id: UUID, seconds: float) -> WorkflowStepExecutionRecord:
+    def _timed_step(
+        workflow_execution_id: UUID, seconds: float
+    ) -> WorkflowStepExecutionRecord:
         step = _step(workflow_execution_id, 0, 0)
         step.started_at = now
         step.finished_at = now + timedelta(seconds=seconds)

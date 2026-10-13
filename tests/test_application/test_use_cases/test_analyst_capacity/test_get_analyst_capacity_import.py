@@ -22,7 +22,9 @@ class StubAnalystCapacityImportStatusReader(AnalystCapacityImportStatusReader):
 
 
 def test_get_returns_ready_result_from_reader() -> None:
-    profile = DayProfile(id="imp-1", name="Día regular", description="", hourly=[4] * 24)
+    profile = DayProfile(
+        id="imp-1", name="Día regular", description="", hourly=[4] * 24
+    )
     reader = StubAnalystCapacityImportStatusReader(
         AnalystCapacityImportResult(
             status=AnalystCapacityImportStatus.READY,
@@ -43,7 +45,8 @@ def test_get_returns_ready_result_from_reader() -> None:
 def test_get_passes_through_failed_result() -> None:
     reader = StubAnalystCapacityImportStatusReader(
         AnalystCapacityImportResult(
-            status=AnalystCapacityImportStatus.FAILED, error="Hoja 'Perfiles' no tiene perfiles."
+            status=AnalystCapacityImportStatus.FAILED,
+            error="Hoja 'Perfiles' no tiene perfiles.",
         )
     )
     use_case = GetAnalystCapacityImportUseCase(reader=reader)

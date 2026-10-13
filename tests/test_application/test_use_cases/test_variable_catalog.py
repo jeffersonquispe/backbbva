@@ -100,7 +100,9 @@ def test_update_variable_changes_value_and_description() -> None:
     update = UpdateVariableUseCase(repo)
 
     entry = create.execute("old-name")
-    updated = update.execute(entry.id, value="new-name", description="nueva descripción")
+    updated = update.execute(
+        entry.id, value="new-name", description="nueva descripción"
+    )
 
     assert updated.value == "new-name"
     assert updated.description == "nueva descripción"

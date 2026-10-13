@@ -63,7 +63,9 @@ class InMemorySimilarCaseLibraryRepository:
                 else current.modus_operandi_library_id
             ),
             taxonomy_library_id=(
-                taxonomy_library_id if taxonomy_library_id is not None else current.taxonomy_library_id
+                taxonomy_library_id
+                if taxonomy_library_id is not None
+                else current.taxonomy_library_id
             ),
             active=active if active is not None else current.active,
             created_at=current.created_at,
@@ -79,26 +81,41 @@ class InMemorySimilarCaseLibraryRepository:
 
 class ScriptedEmbeddingUnitOfWork(EmbeddingUnitOfWork):
     def embed(self, texts: list[str]) -> EmbeddingResult:
-        return EmbeddingResult(vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3)
+        return EmbeddingResult(
+            vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3
+        )
 
 
 class ScriptedEmbeddingUnitOfWorkFactory(EmbeddingUnitOfWorkFactory):
     def __init__(self) -> None:
         self.calls: list[ScriptedEmbeddingUnitOfWork] = []
 
-    def create(self, *, model: str, monitoring: MonitoringPort, operation_name: str) -> EmbeddingUnitOfWork:
+    def create(
+        self, *, model: str, monitoring: MonitoringPort, operation_name: str
+    ) -> EmbeddingUnitOfWork:
         uow = ScriptedEmbeddingUnitOfWork()
         self.calls.append(uow)
         return uow
 
 
 class NullSpan(MonitoringSpan):
-    def write_input(self, data) -> None: pass
-    def write_result(self, data) -> None: pass
-    def write_inner_logs(self, entries) -> None: pass
-    def write_operation_metas(self, metadata) -> None: pass
-    def record_dependency(self, name, kind, metadata=None) -> None: pass
-    def finish(self, error=None) -> None: pass
+    def write_input(self, data) -> None:
+        pass
+
+    def write_result(self, data) -> None:
+        pass
+
+    def write_inner_logs(self, entries) -> None:
+        pass
+
+    def write_operation_metas(self, metadata) -> None:
+        pass
+
+    def record_dependency(self, name, kind, metadata=None) -> None:
+        pass
+
+    def finish(self, error=None) -> None:
+        pass
 
 
 class NullMonitoringPort(MonitoringPort):
@@ -106,25 +123,33 @@ class NullMonitoringPort(MonitoringPort):
         return NullSpan()
 
 
-def _create_use_case(repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None) -> CreateSimilarCaseLibraryEntryUseCase:
+def _create_use_case(
+    repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None
+) -> CreateSimilarCaseLibraryEntryUseCase:
     return CreateSimilarCaseLibraryEntryUseCase(
         repo,
-        embedding_unit_of_work_factory=embedding_factory or ScriptedEmbeddingUnitOfWorkFactory(),
+        embedding_unit_of_work_factory=embedding_factory
+        or ScriptedEmbeddingUnitOfWorkFactory(),
         monitoring=NullMonitoringPort(),
         embedding_model="fake-deployment",
     )
 
 
-def _update_use_case(repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None) -> UpdateSimilarCaseLibraryEntryUseCase:
+def _update_use_case(
+    repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None
+) -> UpdateSimilarCaseLibraryEntryUseCase:
     return UpdateSimilarCaseLibraryEntryUseCase(
         repo,
-        embedding_unit_of_work_factory=embedding_factory or ScriptedEmbeddingUnitOfWorkFactory(),
+        embedding_unit_of_work_factory=embedding_factory
+        or ScriptedEmbeddingUnitOfWorkFactory(),
         monitoring=NullMonitoringPort(),
         embedding_model="fake-deployment",
     )
 
 
-def test_create_similar_case_library_entry_defaults_to_active_and_computes_embedding() -> None:
+def test_create_similar_case_library_entry_defaults_to_active_and_computes_embedding() -> (
+    None
+):
     repo = InMemorySimilarCaseLibraryRepository()
     use_case = _create_use_case(repo)
 
@@ -150,7 +175,9 @@ def test_list_similar_case_library_entries_filters_active_only() -> None:
     assert len(list_entries.execute(active_only=True)) == 1
 
 
-def test_update_similar_case_library_entry_changes_fields_and_reembeds_on_text_change() -> None:
+def test_update_similar_case_library_entry_changes_fields_and_reembeds_on_text_change() -> (
+    None
+):
     repo = InMemorySimilarCaseLibraryRepository()
     embedding_factory = ScriptedEmbeddingUnitOfWorkFactory()
     create = _create_use_case(repo, embedding_factory)
@@ -158,7 +185,9 @@ def test_update_similar_case_library_entry_changes_fields_and_reembeds_on_text_c
 
     entry = create.execute("old text", "mo-1", "tx-1")
     calls_before = len(embedding_factory.calls)
-    updated = update.execute(entry.id, text="new text", modus_operandi_library_id="mo-2")
+    updated = update.execute(
+        entry.id, text="new text", modus_operandi_library_id="mo-2"
+    )
 
     assert updated.text == "new text"
     assert updated.modus_operandi_library_id == "mo-2"

@@ -105,7 +105,7 @@ def get_technical_metrics(
 def get_live_alert_funnel(
     use_case: Annotated[GetLiveAlertFunnel, Depends(get_live_alert_funnel_use_case)],
 ):
-    """"Tiempo real" funnel: alerts in each live state right now (not a
+    """ "Tiempo real" funnel: alerts in each live state right now (not a
     range - reads the status index, not the rollups)."""
     return LiveAlertFunnelResponse.model_validate(asdict(use_case.execute()))
 
@@ -120,6 +120,9 @@ def get_version_events(
     use_case: Annotated[GetVersionEvents, Depends(get_version_events_use_case)],
 ):
     try:
-        return [VersionEventResponse.model_validate(asdict(event)) for event in use_case.execute(params.from_, params.to)]
+        return [
+            VersionEventResponse.model_validate(asdict(event))
+            for event in use_case.execute(params.from_, params.to)
+        ]
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

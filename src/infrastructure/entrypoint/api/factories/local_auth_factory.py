@@ -35,11 +35,15 @@ def get_change_local_user_password_use_case() -> ChangeLocalUserPasswordUseCase:
 
 
 def get_authenticate_local_user_use_case() -> AuthenticateLocalUserUseCase:
-    return AuthenticateLocalUserUseCase(DynamoLocalUserRepository(), PasswordHasher(), JwtService())
+    return AuthenticateLocalUserUseCase(
+        DynamoLocalUserRepository(), PasswordHasher(), JwtService()
+    )
 
 
 def get_current_local_user_use_case() -> GetCurrentLocalUserUseCase:
-    return GetCurrentLocalUserUseCase(DynamoLocalUserRepository(), get_revoked_token_repository())
+    return GetCurrentLocalUserUseCase(
+        DynamoLocalUserRepository(), get_revoked_token_repository()
+    )
 
 
 def get_logout_local_user_use_case() -> LogoutLocalUserUseCase:

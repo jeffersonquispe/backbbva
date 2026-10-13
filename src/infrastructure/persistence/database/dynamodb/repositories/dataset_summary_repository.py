@@ -55,7 +55,9 @@ def _to_item(summary: DatasetSummaryRecord) -> dict[str, Any]:
         # Maturation metrics include floats. boto3 rejects native floats, so
         # recursively convert them to Decimal before persisting.
         "fraud_marking_analysis": to_dynamodb(summary.fraud_marking_analysis),
-        "fraud_marking_analysis_config": to_dynamodb(summary.fraud_marking_analysis_config),
+        "fraud_marking_analysis_config": to_dynamodb(
+            summary.fraud_marking_analysis_config
+        ),
     }
 
 
@@ -77,9 +79,13 @@ def _from_item(item: dict[str, Any]) -> DatasetSummaryRecord:
         uploaded_at=datetime.fromisoformat(uploaded_at) if uploaded_at else None,
         updated_at=datetime.fromisoformat(updated_at) if updated_at else None,
         error=item.get("error"),
-        origin=DatasetOrigin(item["origin"]) if item.get("origin") else DatasetOrigin.UPLOADED,
+        origin=DatasetOrigin(item["origin"])
+        if item.get("origin")
+        else DatasetOrigin.UPLOADED,
         source_dataset_names=list(item.get("source_dataset_names") or []),
-        extraction_filter=dict(item["extraction_filter"]) if item.get("extraction_filter") else None,
+        extraction_filter=dict(item["extraction_filter"])
+        if item.get("extraction_filter")
+        else None,
         fraud_marking_analysis=fraud_marking_analysis,
         fraud_marking_analysis_config=(
             from_dynamodb(item["fraud_marking_analysis_config"])

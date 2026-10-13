@@ -122,9 +122,7 @@ class InMemoryWatchlistRepository:
     def elements_containing(self, watchlist_ids: list[str], value: str) -> set[str]:
         normalized = value.strip().casefold()
         return {
-            wid
-            for wid in watchlist_ids
-            if normalized in self.elements.get(wid, {})
+            wid for wid in watchlist_ids if normalized in self.elements.get(wid, {})
         }
 
 
@@ -156,10 +154,15 @@ def test_list_watchlists_filters_by_type_and_active_only() -> None:
 
     assert len(list_watchlists.execute()) == 2
     assert len(list_watchlists.execute(list_type=WatchlistType.WHITELIST)) == 1
-    assert list_watchlists.execute(active_only=True)[0].list_type == WatchlistType.WHITELIST
+    assert (
+        list_watchlists.execute(active_only=True)[0].list_type
+        == WatchlistType.WHITELIST
+    )
 
 
-def test_update_watchlist_changes_name_and_description_without_touching_elements() -> None:
+def test_update_watchlist_changes_name_and_description_without_touching_elements() -> (
+    None
+):
     repo = InMemoryWatchlistRepository()
     create = CreateWatchlistUseCase(repo)
     update = UpdateWatchlistUseCase(repo)
@@ -300,5 +303,7 @@ def test_check_membership_scales_with_watchlist_count_not_element_count() -> Non
         "Negra grande", "desc", WatchlistType.BLACKLIST, [str(i) for i in range(20_000)]
     )
 
-    assert check.execute(WatchlistType.BLACKLIST, "19999")[0].watchlist_id == watchlist.id
+    assert (
+        check.execute(WatchlistType.BLACKLIST, "19999")[0].watchlist_id == watchlist.id
+    )
     assert check.execute(WatchlistType.BLACKLIST, "20000") == []

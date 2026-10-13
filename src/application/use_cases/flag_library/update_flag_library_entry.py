@@ -42,7 +42,9 @@ class UpdateFlagLibraryEntryUseCase:
     ) -> FlagLibraryEntry:
         current = self._entries.get(entry_id)
         if current is None:
-            raise FlagLibraryEntryNotFoundError(f"Flag library entry not found: {entry_id}")
+            raise FlagLibraryEntryNotFoundError(
+                f"Flag library entry not found: {entry_id}"
+            )
 
         embedding: list[float] | None = None
         text_changed = (name is not None and name != current.name) or (
@@ -58,7 +60,9 @@ class UpdateFlagLibraryEntryUseCase:
                 [
                     embedding_text(
                         name=name if name is not None else current.name,
-                        description=description if description is not None else current.description,
+                        description=description
+                        if description is not None
+                        else current.description,
                     )
                 ]
             ).vectors[0]
@@ -74,5 +78,7 @@ class UpdateFlagLibraryEntryUseCase:
             embedding=embedding,
         )
         if updated is None:
-            raise FlagLibraryEntryNotFoundError(f"Flag library entry not found: {entry_id}")
+            raise FlagLibraryEntryNotFoundError(
+                f"Flag library entry not found: {entry_id}"
+            )
         return updated

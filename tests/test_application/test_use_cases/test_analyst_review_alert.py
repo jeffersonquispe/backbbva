@@ -184,7 +184,9 @@ def _use_case(
     )
 
 
-def test_analyst_review_sends_the_modus_operandi_playbook_and_capacity_to_the_llm() -> None:
+def test_analyst_review_sends_the_modus_operandi_playbook_and_capacity_to_the_llm() -> (
+    None
+):
     llm_factory = ScriptedLLMUnitOfWorkFactory(
         ['{"decision": "voicebot", "reasoning": "playbook prefers voicebot"}']
     )
@@ -253,7 +255,9 @@ def test_analyst_review_handling_prompt_gets_playbook_and_resources() -> None:
 
 def test_analyst_review_defaults_to_scale_to_analyst_on_malformed_output() -> None:
     llm_factory = ScriptedLLMUnitOfWorkFactory(["not-json"])
-    use_case = _use_case(llm_factory, RecordingResolveAnalystPlaybookUseCase(_resolved()))
+    use_case = _use_case(
+        llm_factory, RecordingResolveAnalystPlaybookUseCase(_resolved())
+    )
 
     output = use_case.execute(_input())
 
@@ -264,7 +268,9 @@ def test_analyst_review_defaults_to_scale_to_analyst_on_invalid_decision() -> No
     llm_factory = ScriptedLLMUnitOfWorkFactory(
         ['{"decision": "delete_everything", "reasoning": "oops"}']
     )
-    use_case = _use_case(llm_factory, RecordingResolveAnalystPlaybookUseCase(_resolved()))
+    use_case = _use_case(
+        llm_factory, RecordingResolveAnalystPlaybookUseCase(_resolved())
+    )
 
     output = use_case.execute(_input())
 

@@ -52,7 +52,9 @@ class GenerateEventBatchUseCase:
         )
         count = min(count, input.max_events)
 
-        rows = [self._generate_one(input.scenario.field_specs, rng) for _ in range(count)]
+        rows = [
+            self._generate_one(input.scenario.field_specs, rng) for _ in range(count)
+        ]
 
         return GenerateEventBatchOutput(
             rows=rows,
@@ -85,11 +87,17 @@ class GenerateEventBatchUseCase:
         row: dict = {}
         for field_name, generator in field_specs.items():
             if generator.kind in STRUCTURED_KINDS:
-                _set_payload_value(row, field_name, draw_structured_value(generator, rng))
+                _set_payload_value(
+                    row, field_name, draw_structured_value(generator, rng)
+                )
             elif generator.kind == GeneratorKind.TEMPLATE_LLM:
-                _set_payload_value(row, field_name, self._generate_llm_text(generator, row))
+                _set_payload_value(
+                    row, field_name, self._generate_llm_text(generator, row)
+                )
             elif generator.kind == GeneratorKind.SEED_RECREATION:
-                _set_payload_value(row, field_name, self._recreate_seed_field(generator, row, rng))
+                _set_payload_value(
+                    row, field_name, self._recreate_seed_field(generator, row, rng)
+                )
             else:
                 raise ValueError(f"Unknown generator kind: {generator.kind}")
         return row
@@ -118,7 +126,9 @@ class GenerateEventBatchUseCase:
         seed_row = self._dataset_reader.sample_row(generator.seed_dataset_name, rng)
         seed_value = (seed_row or {}).get(generator.seed_field)
         prompt_variables = {**row, "seed_value": seed_value}
-        prompt = substitute_variables(generator.user_prompt_template or "", prompt_variables)
+        prompt = substitute_variables(
+            generator.user_prompt_template or "", prompt_variables
+        )
         return self._invoke_llm(generator, prompt)
 
     def _invoke_llm(self, generator: FieldGenerator, prompt: str) -> str:

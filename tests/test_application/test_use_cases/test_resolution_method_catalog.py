@@ -50,7 +50,9 @@ class InMemoryResolutionMethodCatalogRepository:
         updated = ResolutionMethod(
             id=current.id,
             value=value if value is not None else current.value,
-            resolution_tag=resolution_tag if resolution_tag is not None else current.resolution_tag,
+            resolution_tag=resolution_tag
+            if resolution_tag is not None
+            else current.resolution_tag,
             active=active if active is not None else current.active,
             created_at=current.created_at,
             updated_at=current.updated_at,
@@ -66,7 +68,9 @@ def test_create_resolution_method_defaults_to_active() -> None:
     repo = InMemoryResolutionMethodCatalogRepository()
     use_case = CreateResolutionMethodUseCase(repo)
 
-    entry = use_case.execute("Escalar a analista senior", ResolutionTag.SCALE_TO_ANALYST)
+    entry = use_case.execute(
+        "Escalar a analista senior", ResolutionTag.SCALE_TO_ANALYST
+    )
 
     assert entry.value == "Escalar a analista senior"
     assert entry.resolution_tag == ResolutionTag.SCALE_TO_ANALYST
@@ -92,7 +96,9 @@ def test_update_resolution_method_changes_value_and_tag() -> None:
     update = UpdateResolutionMethodUseCase(repo)
 
     entry = create.execute("old-name", ResolutionTag.SCALE_TO_ANALYST)
-    updated = update.execute(entry.id, value="new-name", resolution_tag=ResolutionTag.HANDLE_BY_ARIA)
+    updated = update.execute(
+        entry.id, value="new-name", resolution_tag=ResolutionTag.HANDLE_BY_ARIA
+    )
 
     assert updated.value == "new-name"
     assert updated.resolution_tag == ResolutionTag.HANDLE_BY_ARIA

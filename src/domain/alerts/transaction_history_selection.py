@@ -4,6 +4,7 @@ Pure function, no framework imports - configured per segment by
 DetectorConfig's history_* fields ("selector sobre la lista de
 transacciones").
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -63,7 +64,8 @@ def select_transaction_history(
         else:
             start = anchor - timedelta(days=window_days)
             timed = [
-                (time, row) for time, row in timed
+                (time, row)
+                for time, row in timed
                 if time is not None and start <= time <= anchor
             ]
 

@@ -79,7 +79,9 @@ def _parse_assignments(workbook: Any, profiles: list[DayProfile]) -> dict[int, s
                 f"Hoja '{ASSIGNMENTS_SHEET}', fila {index}: día '{day}' "
                 f"fuera de rango (1-31)."
             )
-        profile_name = str(row[1]).strip() if len(row) > 1 and row[1] is not None else ""
+        profile_name = (
+            str(row[1]).strip() if len(row) > 1 and row[1] is not None else ""
+        )
         profile_id = by_name.get(profile_name.lower())
         if profile_id is None:
             raise ValueError(

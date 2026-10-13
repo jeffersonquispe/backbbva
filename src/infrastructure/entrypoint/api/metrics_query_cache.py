@@ -15,6 +15,7 @@ lies in [from, min(to, now)), so two ranges with the same ceil-to-hour
 bounds read exactly the same slots: e.g. a dashboard asking "last 24 h" at
 10:05:12 and 10:05:47 shares one entry. The cached output's `range` is
 re-stamped with each caller's own from/to."""
+
 from __future__ import annotations
 
 import dataclasses

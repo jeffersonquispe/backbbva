@@ -9,6 +9,7 @@ strictly before it). A request reads at most MAX_DAYS_PER_PAGE days and
 MAX_EXAMINED_PER_PAGE alerts, so a very selective filter over a long range
 returns a short (possibly empty) page plus a cursor instead of reading the
 whole range at once - keep following next_cursor until it is null."""
+
 from __future__ import annotations
 
 import base64
@@ -78,13 +79,18 @@ def history_snapshot(
     roles = (
         canonical_role_values(alert, schemas)
         if schemas is not None and alert.schema_version is not None
-        else {role: alert.input.get(role) for role in ("channel", "entrypoint", "amount")}
+        else {
+            role: alert.input.get(role) for role in ("channel", "entrypoint", "amount")
+        }
     )
     channel, subchannel, amount = payload_dimensions(roles)
     return (
         AlertMetricsSnapshot(
-            channel=channel, subchannel=subchannel, amount=amount,
-            schema_version=alert.schema_version, status=alert.status
+            channel=channel,
+            subchannel=subchannel,
+            amount=amount,
+            schema_version=alert.schema_version,
+            status=alert.status,
         ),
         False,
     )
@@ -132,7 +138,9 @@ class ListAlertHistory:
                 return ListAlertHistoryOutput(items, encode_cursor(day, before))
             days_read += 1
             while True:
-                chunk = self._alerts.page_by_created_day(day, before=before, limit=_CHUNK)
+                chunk = self._alerts.page_by_created_day(
+                    day, before=before, limit=_CHUNK
+                )
                 for alert in chunk:
                     before = alert.created_at
                     examined += 1
@@ -142,7 +150,9 @@ class ListAlertHistory:
                     if snapshot_matches(snapshot, filters):
                         items.append(AlertHistoryItem(alert, snapshot, has_snapshot))
                         if len(items) == limit:
-                            return ListAlertHistoryOutput(items, encode_cursor(day, before))
+                            return ListAlertHistoryOutput(
+                                items, encode_cursor(day, before)
+                            )
                     if examined >= MAX_EXAMINED_PER_PAGE:
                         return ListAlertHistoryOutput(items, encode_cursor(day, before))
                 else:

@@ -3,6 +3,7 @@
 the filters pushed down to the repository, and fold additive measures into
 the response DTOs. Only sums of stored measures - never an average, rate
 or distinct count (the client divides numerator by denominator)."""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -48,7 +49,9 @@ DEFAULT_RANGE = timedelta(hours=24)
 # rt buckets whose upper bound is <= 5 min: the exact "resolved < 5 min".
 SLA_SECONDS = 5 * 60
 SLA_BUCKETS = tuple(
-    name for name, upper in RESOLUTION_TIME_BUCKETS if upper is not None and upper <= SLA_SECONDS
+    name
+    for name, upper in RESOLUTION_TIME_BUCKETS
+    if upper is not None and upper <= SLA_SECONDS
 )
 
 
@@ -96,7 +99,9 @@ def read_alert_rollups(
             read = periods.get(row.key.period)
             if read is not None:
                 rows.append(PlannedRow(read=read, row=row))
-    versions = sorted({r.dimension("schema_version") for r in rows if r.total(COUNT) != 0})
+    versions = sorted(
+        {r.dimension("schema_version") for r in rows if r.total(COUNT) != 0}
+    )
     return AlertRollupRead(
         range=MetricsRange(
             from_=from_, to=to, timezone=timezone_name, schema_versions=versions
@@ -121,12 +126,17 @@ def _is(rows: Iterable[PlannedRow], mark: Mark, label: Mark) -> list[PlannedRow]
     return [
         r
         for r in rows
-        if r.dimension("mark") == mark.value and r.dimension("fraud_label") == label.value
+        if r.dimension("mark") == mark.value
+        and r.dimension("fraud_label") == label.value
     ]
 
 
 def _decided(rows: Iterable[PlannedRow]) -> list[PlannedRow]:
-    return [r for r in rows if r.dimension("mark") in (Mark.FRAUD.value, Mark.NO_FRAUD.value)]
+    return [
+        r
+        for r in rows
+        if r.dimension("mark") in (Mark.FRAUD.value, Mark.NO_FRAUD.value)
+    ]
 
 
 def count_where(rows: Iterable[PlannedRow], dimension: str, value: str) -> int:
@@ -137,7 +147,9 @@ def _histogram(
     rows: list[PlannedRow], buckets: tuple[tuple[str, float | None], ...]
 ) -> list[HistogramBucket]:
     return [
-        HistogramBucket(bucket=name, upper_bound_seconds=upper, count=_int(_sum(rows, name)))
+        HistogramBucket(
+            bucket=name, upper_bound_seconds=upper, count=_int(_sum(rows, name))
+        )
         for name, upper in buckets
     ]
 
@@ -216,7 +228,13 @@ def dimension_buckets(
 def hourly_profile(rows: list[PlannedRow]) -> list[HourlyProfileSlot]:
     slots = [HourlyProfileSlot(hour=h) for h in range(24)]
     sums: list[dict[str, float]] = [dict() for _ in range(24)]
-    measures = (COUNT, AMOUNT_SUM, RESOLUTION_TIME_COUNT, RESOLUTION_TIME_SUM_SECONDS, *SLA_BUCKETS)
+    measures = (
+        COUNT,
+        AMOUNT_SUM,
+        RESOLUTION_TIME_COUNT,
+        RESOLUTION_TIME_SUM_SECONDS,
+        *SLA_BUCKETS,
+    )
     for r in rows:
         for hour in r.read.hours:
             for measure in measures:

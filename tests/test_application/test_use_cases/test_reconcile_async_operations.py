@@ -25,9 +25,7 @@ class InMemoryAsyncOperationRepository:
     def __init__(self, operations: list[AsyncOperationRecord]) -> None:
         self.operations = {operation.id: operation for operation in operations}
 
-    def create(
-        self, operation: AsyncOperationRecord
-    ) -> AsyncOperationRecord:
+    def create(self, operation: AsyncOperationRecord) -> AsyncOperationRecord:
         self.operations[operation.id] = operation
         return operation
 

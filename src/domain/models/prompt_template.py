@@ -1,4 +1,5 @@
 """Framework-free {variable} substitution for segment-authored prompt text."""
+
 from __future__ import annotations
 
 import re

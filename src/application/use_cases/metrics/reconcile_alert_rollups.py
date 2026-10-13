@@ -29,6 +29,7 @@ between changes the revision, the correction is skipped (counted in
 skipped_concurrent) and the next run retries. A correction is a SET of the
 absolute value, not an ADD, so it can never double count; a later live ADD
 lands on top of the corrected value, which is right."""
+
 from __future__ import annotations
 
 import logging
@@ -69,7 +70,9 @@ def _same(left: float, right: float) -> bool:
     return abs(left - right) <= _TOLERANCE * max(1.0, abs(right))
 
 
-def rows_differ(stored: dict[str, list[float]], expected: dict[str, list[float]]) -> bool:
+def rows_differ(
+    stored: dict[str, list[float]], expected: dict[str, list[float]]
+) -> bool:
     for measure in set(stored) | set(expected):
         left = stored.get(measure) or [0.0] * 24
         right = expected.get(measure) or [0.0] * 24
@@ -138,7 +141,9 @@ class ReconcileAlertRollups:
         # Pass 1, day level; each day's expected rows are cached so the month
         # level doesn't read the same snapshots twice.
         cache: dict[date, Expected] = {}
-        all_days = sorted(day_window | {d for days in month_days.values() for d in days})
+        all_days = sorted(
+            day_window | {d for days in month_days.values() for d in days}
+        )
         day_drift = 0
         for day in all_days:
             # Snapshots first (backfilling any missing one), then the rows:
@@ -169,7 +174,9 @@ class ReconcileAlertRollups:
             RollupLevel.MONTH.value: month_drift,
         }
         for level, drift in output.drift_by_level.items():
-            self._monitoring.record_rollup_drift(MetricsDataType.ALERT.value, level, drift)
+            self._monitoring.record_rollup_drift(
+                MetricsDataType.ALERT.value, level, drift
+            )
         log = logger.warning if output.drift else logger.info
         log(
             "Alert rollup reconciliation: drift=%s (day=%s month=%s) corrected=%s "
@@ -200,7 +207,11 @@ class ReconcileAlertRollups:
         for day in days:
             for alert in self._alerts.list_by_created_day(day):
                 snapshot = alert.metrics
-                if snapshot is None and self._backfill is not None and output is not None:
+                if (
+                    snapshot is None
+                    and self._backfill is not None
+                    and output is not None
+                ):
                     if self._backfill.backfill_alert(alert):
                         output.snapshots_backfilled += 1
                     refreshed = self._alerts.get(alert.id)

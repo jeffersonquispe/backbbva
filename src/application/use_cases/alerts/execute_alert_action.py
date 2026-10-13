@@ -41,6 +41,4 @@ class ExecuteAlertActionUseCase:
                     input.alert_id, script=input.content
                 )
             span.write_result({"action": result.action, "detail": result.detail})
-            return ExecuteAlertActionOutput(
-                action=result.action, detail=result.detail
-            )
+            return ExecuteAlertActionOutput(action=result.action, detail=result.detail)

@@ -66,10 +66,14 @@ class InMemoryModusOperandiLibraryRepository:
             title=title if title is not None else current.title,
             narrative=narrative if narrative is not None else current.narrative,
             taxonomy_library_id=(
-                taxonomy_library_id if taxonomy_library_id is not None else current.taxonomy_library_id
+                taxonomy_library_id
+                if taxonomy_library_id is not None
+                else current.taxonomy_library_id
             ),
             evolved_variables=(
-                evolved_variables if evolved_variables is not None else current.evolved_variables
+                evolved_variables
+                if evolved_variables is not None
+                else current.evolved_variables
             ),
             active=active if active is not None else current.active,
             created_at=current.created_at,
@@ -86,26 +90,41 @@ class InMemoryModusOperandiLibraryRepository:
 
 class ScriptedEmbeddingUnitOfWork(EmbeddingUnitOfWork):
     def embed(self, texts: list[str]) -> EmbeddingResult:
-        return EmbeddingResult(vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3)
+        return EmbeddingResult(
+            vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3
+        )
 
 
 class ScriptedEmbeddingUnitOfWorkFactory(EmbeddingUnitOfWorkFactory):
     def __init__(self) -> None:
         self.calls: list[ScriptedEmbeddingUnitOfWork] = []
 
-    def create(self, *, model: str, monitoring: MonitoringPort, operation_name: str) -> EmbeddingUnitOfWork:
+    def create(
+        self, *, model: str, monitoring: MonitoringPort, operation_name: str
+    ) -> EmbeddingUnitOfWork:
         uow = ScriptedEmbeddingUnitOfWork()
         self.calls.append(uow)
         return uow
 
 
 class NullSpan(MonitoringSpan):
-    def write_input(self, data) -> None: pass
-    def write_result(self, data) -> None: pass
-    def write_inner_logs(self, entries) -> None: pass
-    def write_operation_metas(self, metadata) -> None: pass
-    def record_dependency(self, name, kind, metadata=None) -> None: pass
-    def finish(self, error=None) -> None: pass
+    def write_input(self, data) -> None:
+        pass
+
+    def write_result(self, data) -> None:
+        pass
+
+    def write_inner_logs(self, entries) -> None:
+        pass
+
+    def write_operation_metas(self, metadata) -> None:
+        pass
+
+    def record_dependency(self, name, kind, metadata=None) -> None:
+        pass
+
+    def finish(self, error=None) -> None:
+        pass
 
 
 class NullMonitoringPort(MonitoringPort):
@@ -113,25 +132,33 @@ class NullMonitoringPort(MonitoringPort):
         return NullSpan()
 
 
-def _create_use_case(repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None) -> CreateModusOperandiLibraryEntryUseCase:
+def _create_use_case(
+    repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None
+) -> CreateModusOperandiLibraryEntryUseCase:
     return CreateModusOperandiLibraryEntryUseCase(
         repo,
-        embedding_unit_of_work_factory=embedding_factory or ScriptedEmbeddingUnitOfWorkFactory(),
+        embedding_unit_of_work_factory=embedding_factory
+        or ScriptedEmbeddingUnitOfWorkFactory(),
         monitoring=NullMonitoringPort(),
         embedding_model="fake-deployment",
     )
 
 
-def _update_use_case(repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None) -> UpdateModusOperandiLibraryEntryUseCase:
+def _update_use_case(
+    repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None
+) -> UpdateModusOperandiLibraryEntryUseCase:
     return UpdateModusOperandiLibraryEntryUseCase(
         repo,
-        embedding_unit_of_work_factory=embedding_factory or ScriptedEmbeddingUnitOfWorkFactory(),
+        embedding_unit_of_work_factory=embedding_factory
+        or ScriptedEmbeddingUnitOfWorkFactory(),
         monitoring=NullMonitoringPort(),
         embedding_model="fake-deployment",
     )
 
 
-def test_create_modus_operandi_library_entry_defaults_to_active_and_computes_embedding() -> None:
+def test_create_modus_operandi_library_entry_defaults_to_active_and_computes_embedding() -> (
+    None
+):
     repo = InMemoryModusOperandiLibraryRepository()
     use_case = _create_use_case(repo)
 
@@ -157,7 +184,9 @@ def test_list_modus_operandi_library_entries_filters_active_only() -> None:
     assert len(list_entries.execute(active_only=True)) == 1
 
 
-def test_update_modus_operandi_library_entry_changes_fields_and_reembeds_on_text_change() -> None:
+def test_update_modus_operandi_library_entry_changes_fields_and_reembeds_on_text_change() -> (
+    None
+):
     repo = InMemoryModusOperandiLibraryRepository()
     embedding_factory = ScriptedEmbeddingUnitOfWorkFactory()
     create = _create_use_case(repo, embedding_factory)
@@ -209,10 +238,14 @@ def test_update_sets_the_playbook_without_reembedding() -> None:
         ),
         # A resource can't fall back to itself.
         ModusOperandiPlaybook(
-            if_no_voicebot=ShortageBehavior(resolution_tag=ResolutionTag.SEND_TO_VOICEBOT)
+            if_no_voicebot=ShortageBehavior(
+                resolution_tag=ResolutionTag.SEND_TO_VOICEBOT
+            )
         ),
         ModusOperandiPlaybook(
-            if_no_analyst=ShortageBehavior(resolution_tag=ResolutionTag.SCALE_TO_ANALYST)
+            if_no_analyst=ShortageBehavior(
+                resolution_tag=ResolutionTag.SCALE_TO_ANALYST
+            )
         ),
         # The primary method routes; blocks only exist as fallbacks.
         ModusOperandiPlaybook(

@@ -82,9 +82,7 @@ def test_execute_alert_action_dispatches_to_matching_port_method(
     use_case = ExecuteAlertActionUseCase(alert_action_port=port, monitoring=monitoring)
     alert_id = uuid.uuid4()
 
-    output = use_case.execute(
-        ExecuteAlertActionInput(action=action, alert_id=alert_id)
-    )
+    output = use_case.execute(ExecuteAlertActionInput(action=action, alert_id=alert_id))
 
     assert output.action == action
     assert output.detail == expected_detail
@@ -114,6 +112,4 @@ def test_execute_alert_action_rejects_unsupported_action() -> None:
     )
 
     with pytest.raises(ValueError):
-        use_case.execute(
-            ExecuteAlertActionInput(action="pass", alert_id=uuid.uuid4())
-        )
+        use_case.execute(ExecuteAlertActionInput(action="pass", alert_id=uuid.uuid4()))

@@ -15,6 +15,7 @@ Days are operations-timezone (Bogota) calendar days, inclusive. Steps:
 
 Runs where the worker runs (it uses the worker factories): on the host
 against the local stack (the Make target), or inside a worker pod in OKD."""
+
 from __future__ import annotations
 
 import argparse
@@ -34,7 +35,9 @@ from src.infrastructure.workflows.celery.factories import (
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--from", dest="from_day", required=True, type=date.fromisoformat)
+    parser.add_argument(
+        "--from", dest="from_day", required=True, type=date.fromisoformat
+    )
     parser.add_argument("--to", dest="to_day", required=True, type=date.fromisoformat)
     args = parser.parse_args(argv)
     if args.to_day < args.from_day:

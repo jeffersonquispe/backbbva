@@ -14,6 +14,7 @@ request, and the ConsumedCapacity DynamoDB reports.
 `--cached` goes through the factories' 60 s per-query cache
 (metrics_query_cache.CachedMetricsQuery) to measure warm hits; the first
 (warm-up) run of each case is the cold miss."""
+
 from __future__ import annotations
 
 import argparse
@@ -52,7 +53,9 @@ def _install_hooks(client: Any) -> None:
             return
         counter["queries"] += 1
         counter["items"] += int(parsed.get("Count", 0))
-        counter["rcu"] += float((parsed.get("ConsumedCapacity") or {}).get("CapacityUnits", 0))
+        counter["rcu"] += float(
+            (parsed.get("ConsumedCapacity") or {}).get("CapacityUnits", 0)
+        )
         counter["bytes"] += len(getattr(http_response, "content", b"") or b"")
 
     client.meta.events.register("provide-client-params.dynamodb.Query", add_rcc)
@@ -89,7 +92,9 @@ def _serve(factory, response_model, from_, to, filters, cached: bool) -> str:
     if not cached:
         use_case = getattr(use_case, "inner", use_case)
     output = use_case.execute(
-        MetricsQueryInput(from_=from_, to=to, filters={k: list(v) for k, v in filters.items()})
+        MetricsQueryInput(
+            from_=from_, to=to, filters={k: list(v) for k, v in filters.items()}
+        )
     )
     return response_model.model_validate(asdict(output)).model_dump_json()
 
@@ -122,8 +127,10 @@ def main(argv: list[str] | None = None) -> int:
     _install_hooks(get_dynamodb_resource().meta.client)
     endpoints = _endpoints()
     results = []
-    print(f"{'endpoint':<10}{'range':<6}{'filters':<17}{'p50 ms':>9}{'p95 ms':>9}{'max ms':>9}"
-          f"{'queries':>9}{'items':>9}{'MB':>7}{'RCU':>8}{'resp KB':>9}")
+    print(
+        f"{'endpoint':<10}{'range':<6}{'filters':<17}{'p50 ms':>9}{'p95 ms':>9}{'max ms':>9}"
+        f"{'queries':>9}{'items':>9}{'MB':>7}{'RCU':>8}{'resp KB':>9}"
+    )
     for name in args.endpoints.split(","):
         factory, response_model = endpoints[name]
         for range_name in args.ranges.split(","):
@@ -140,7 +147,9 @@ def main(argv: list[str] | None = None) -> int:
                     from_ = to - RANGES[range_name]
                     _tally.counter = Counter()
                     started = time.perf_counter()
-                    body = _serve(factory, response_model, from_, to, filters, args.cached)
+                    body = _serve(
+                        factory, response_model, from_, to, filters, args.cached
+                    )
                     elapsed = (time.perf_counter() - started) * 1000
                     if run >= args.warmup:
                         timings.append(elapsed)
@@ -162,9 +171,12 @@ def main(argv: list[str] | None = None) -> int:
                     "response_kb": round(len(body) / 1024, 1),
                 }
                 results.append(row)
-                print(f"{name:<10}{range_name:<6}{filter_name:<17}{row['p50_ms']:>9}{row['p95_ms']:>9}"
-                      f"{row['max_ms']:>9}{row['queries']:>9}{row['items']:>9}{row['mb_read']:>7}"
-                      f"{row['rcu']:>8}{row['response_kb']:>9}", flush=True)
+                print(
+                    f"{name:<10}{range_name:<6}{filter_name:<17}{row['p50_ms']:>9}{row['p95_ms']:>9}"
+                    f"{row['max_ms']:>9}{row['queries']:>9}{row['items']:>9}{row['mb_read']:>7}"
+                    f"{row['rcu']:>8}{row['response_kb']:>9}",
+                    flush=True,
+                )
     if args.json_path:
         with open(args.json_path, "w") as fh:
             json.dump(results, fh, indent=2)

@@ -143,8 +143,7 @@ def test_transaction_profile_reports_no_flags_when_clean() -> None:
 
     assert (
         "No se detectaron señales anómalas de dispositivo o sesión en "
-        "BioCatch."
-        in output.transaction_profile
+        "BioCatch." in output.transaction_profile
     )
 
 

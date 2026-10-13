@@ -44,4 +44,3 @@ class CreateAlertSchemaSuggestionInput:
     location: str
     comment: str
     created_by: str
-

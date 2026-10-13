@@ -23,9 +23,7 @@ def analysts_scheduled(capacity: AnalystCapacity, local_now: datetime) -> int:
     """How many analysts the staffing matrix plans for this exact hour: the
     day-of-month override's profile if there is one, else the default
     profile, indexed by the local hour."""
-    profile_id = capacity.day_overrides.get(
-        local_now.day, capacity.default_profile_id
-    )
+    profile_id = capacity.day_overrides.get(local_now.day, capacity.default_profile_id)
     profile = next((p for p in capacity.profiles if p.id == profile_id), None)
     if profile is None or len(profile.hourly) <= local_now.hour:
         return 0

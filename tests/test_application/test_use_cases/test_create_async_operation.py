@@ -23,9 +23,7 @@ class InMemoryAsyncOperationRepository:
     def __init__(self) -> None:
         self.operations: dict[UUID, AsyncOperationRecord] = {}
 
-    def create(
-        self, operation: AsyncOperationRecord
-    ) -> AsyncOperationRecord:
+    def create(self, operation: AsyncOperationRecord) -> AsyncOperationRecord:
         self.operations[operation.id] = operation
         return operation
 
@@ -61,12 +59,9 @@ class InMemoryAsyncOperationRepository:
             created_at=operation.created_at,
             updated_at=operation.updated_at,
             created_by=operation.created_by,
-            dispatched_at=(
-                changes.get("dispatched_at") or operation.dispatched_at
-            ),
+            dispatched_at=(changes.get("dispatched_at") or operation.dispatched_at),
             execution_backend=(
-                changes.get("execution_backend")
-                or operation.execution_backend
+                changes.get("execution_backend") or operation.execution_backend
             ),
             external_id=changes.get("external_id") or operation.external_id,
         )

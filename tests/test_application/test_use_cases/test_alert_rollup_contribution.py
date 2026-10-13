@@ -1,4 +1,5 @@
 """R2 contribution/diff + Q6 Bogota bucket edges."""
+
 from __future__ import annotations
 
 from dataclasses import replace
@@ -128,8 +129,16 @@ def test_dimension_change_moves_the_alert_between_rows() -> None:
     deltas = diff(old, new, created, NOW, TZ)
     day = [d for d in deltas if d.key.level == RollupLevel.DAY]
     by_segment = {d.key.dimension("segment"): d.measures for d in day}
-    assert by_segment["unknown"] == {"count": -1, "amount_sum": -1500.0, "amount_count": -1}
-    assert by_segment["tarjetas"] == {"count": 1, "amount_sum": 1500.0, "amount_count": 1}
+    assert by_segment["unknown"] == {
+        "count": -1,
+        "amount_sum": -1500.0,
+        "amount_count": -1,
+    }
+    assert by_segment["tarjetas"] == {
+        "count": 1,
+        "amount_sum": 1500.0,
+        "amount_count": 1,
+    }
 
 
 def test_measure_only_change_stays_on_the_same_row_and_nets_out() -> None:
@@ -162,7 +171,10 @@ def test_fraud_review_measures_change_confirmation_and_maturation() -> None:
     created = NOW - timedelta(days=10)
     marked = created + timedelta(minutes=2)
     decided = _snapshot(
-        mark=Mark.FRAUD, fraud_label=Mark.FRAUD, marked_at=marked, resolution_time_seconds=120.0
+        mark=Mark.FRAUD,
+        fraud_label=Mark.FRAUD,
+        marked_at=marked,
+        resolution_time_seconds=120.0,
     )
     corrected = replace(
         decided,
@@ -177,11 +189,17 @@ def test_fraud_review_measures_change_confirmation_and_maturation() -> None:
     assert measures["mat_1_4d"] == 1
 
     confirmed = replace(corrected, fraud_label=Mark.FRAUD)
-    assert contribution(confirmed, created, TZ).measures["reviewed_confirmed_count"] == 1
+    assert (
+        contribution(confirmed, created, TZ).measures["reviewed_confirmed_count"] == 1
+    )
 
     # The correction moves the alert from the (fraud, fraud) row to the
     # (fraud, no_fraud) row: that is the false positive.
     deltas = diff(decided, corrected, created, NOW, TZ)
-    day = {d.key.dimension("fraud_label"): d for d in deltas if d.key.level == RollupLevel.DAY}
+    day = {
+        d.key.dimension("fraud_label"): d
+        for d in deltas
+        if d.key.level == RollupLevel.DAY
+    }
     assert day["fraud"].measures["count"] == -1
     assert day["no_fraud"].measures["count"] == 1

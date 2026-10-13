@@ -42,9 +42,12 @@ def get_knowledge_graph_service():
     from src.infrastructure.entrypoint.api.factories.taxonomy_library_factory import (
         get_taxonomy_library_repository,
     )
+
     return KnowledgeGraphService(
-        instances=get_vector_store_instance_repository(), taxonomies=get_taxonomy_library_repository(),
-        modus_operandi=get_modus_operandi_library_repository(), flags=get_flag_library_repository(),
+        instances=get_vector_store_instance_repository(),
+        taxonomies=get_taxonomy_library_repository(),
+        modus_operandi=get_modus_operandi_library_repository(),
+        flags=get_flag_library_repository(),
         similar_cases=get_similar_case_library_repository(),
     )
 

@@ -20,7 +20,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.resolution_me
 
 
 @lru_cache
-def get_resolution_method_catalog_repository() -> DynamoResolutionMethodCatalogRepository:
+def get_resolution_method_catalog_repository() -> (
+    DynamoResolutionMethodCatalogRepository
+):
     return DynamoResolutionMethodCatalogRepository()
 
 

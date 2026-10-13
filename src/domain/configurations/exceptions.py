@@ -15,6 +15,4 @@ class ConfigurationNotFoundError(Exception):
         self.configuration_id = configuration_id
         self.version = version
         where = f"version {version}" if version is not None else "any version"
-        super().__init__(
-            f"Configuration '{configuration_id}' ({where}) not found."
-        )
+        super().__init__(f"Configuration '{configuration_id}' ({where}) not found.")

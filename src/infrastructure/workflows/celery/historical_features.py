@@ -1,4 +1,5 @@
 """Deterministic, row-local history aggregation shared by training and scoring."""
+
 from __future__ import annotations
 
 import json
@@ -30,10 +31,14 @@ def timestamp(value: Any, timezone: str) -> pd.Timestamp:
         if pd.isna(result):
             raise ValueError("Fecha ausente")
         if result.tzinfo is None:
-            result = result.tz_localize(timezone, ambiguous="raise", nonexistent="raise")
+            result = result.tz_localize(
+                timezone, ambiguous="raise", nonexistent="raise"
+            )
         return result.tz_convert("UTC")
     except Exception as exc:
-        raise ValueError("Fecha inválida o ambigua; revisa el campo y la zona horaria") from exc
+        raise ValueError(
+            "Fecha inválida o ambigua; revisa el campo y la zona horaria"
+        ) from exc
 
 
 def _history(value: Any) -> list[dict] | None:
@@ -48,7 +53,9 @@ def _history(value: Any) -> list[dict] | None:
             raise ValueError()
         return records
     except (ValueError, TypeError) as exc:
-        raise ValueError("El historial debe ser una lista JSON de objetos o textos JSON válidos") from exc
+        raise ValueError(
+            "El historial debe ser una lista JSON de objetos o textos JSON válidos"
+        ) from exc
 
 
 def _number(value: Any) -> float | None:
@@ -59,7 +66,9 @@ def _number(value: Any) -> float | None:
         return None
 
 
-def build_history_frame(rows: list[dict], recipes: list[HistoricalFeature], timezone: str) -> pd.DataFrame:
+def build_history_frame(
+    rows: list[dict], recipes: list[HistoricalFeature], timezone: str
+) -> pd.DataFrame:
     output = []
     for row in rows:
         values = {}
@@ -76,25 +85,55 @@ def build_history_frame(rows: list[dict], recipes: list[HistoricalFeature], time
             cutoff = timestamp(read_field(row, recipe.reference_field), timezone)
             date_key = (recipe.field, recipe.time_field)
             if date_key not in dates:
-                dates[date_key] = [timestamp(read_field(e, recipe.time_field), timezone) for e in entries]
-            included = [(e, t) for e, t in zip(entries, dates[date_key])
-                        if cutoff - pd.Timedelta(hours=recipe.window_hours) <= t < cutoff
-                        and (not recipe.filter_field or read_field(e, recipe.filter_field) == recipe.filter_value)]
-            amounts = [v for e, _ in included if (v := _number(read_field(e, recipe.value_field))) is not None]
+                dates[date_key] = [
+                    timestamp(read_field(e, recipe.time_field), timezone)
+                    for e in entries
+                ]
+            included = [
+                (e, t)
+                for e, t in zip(entries, dates[date_key])
+                if cutoff - pd.Timedelta(hours=recipe.window_hours) <= t < cutoff
+                and (
+                    not recipe.filter_field
+                    or read_field(e, recipe.filter_field) == recipe.filter_value
+                )
+            ]
+            amounts = [
+                v
+                for e, _ in included
+                if (v := _number(read_field(e, recipe.value_field))) is not None
+            ]
             if recipe.operation == "count":
                 value = float(len(included))
             elif recipe.operation == "distinct":
-                value = float(len({str(read_field(e, recipe.value_field)) for e, _ in included
-                                   if read_field(e, recipe.value_field) not in (None, "")}))
+                value = float(
+                    len(
+                        {
+                            str(read_field(e, recipe.value_field))
+                            for e, _ in included
+                            if read_field(e, recipe.value_field) not in (None, "")
+                        }
+                    )
+                )
             elif recipe.operation == "recency":
-                value = (cutoff - max(t for _, t in included)).total_seconds() / 3600 if included else np.nan
+                value = (
+                    (cutoff - max(t for _, t in included)).total_seconds() / 3600
+                    if included
+                    else np.nan
+                )
             elif recipe.operation in ("sum", "mean", "median", "max"):
-                value = float(getattr(np, recipe.operation)(amounts)) if amounts else np.nan
+                value = (
+                    float(getattr(np, recipe.operation)(amounts)) if amounts else np.nan
+                )
             else:
                 raise ValueError("Agregación histórica no admitida")
             if recipe.compare_field:
                 current = _number(read_field(row, recipe.compare_field))
-                value = current / value if current is not None and math.isfinite(value) and value != 0 else np.nan
+                value = (
+                    current / value
+                    if current is not None and math.isfinite(value) and value != 0
+                    else np.nan
+                )
             values[name] = value
         output.append(values)
     return pd.DataFrame(output, index=range(len(rows)))

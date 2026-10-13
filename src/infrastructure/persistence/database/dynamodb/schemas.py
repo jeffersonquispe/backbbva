@@ -33,11 +33,13 @@ USERS_TABLE = {
         {"AttributeName": "user_id", "AttributeType": "S"},
         {"AttributeName": "email", "AttributeType": "S"},
     ],
-    "GlobalSecondaryIndexes": [{
-        "IndexName": "EmailIdx",
-        "KeySchema": [{"AttributeName": "email", "KeyType": "HASH"}],
-        "Projection": {"ProjectionType": "ALL"},
-    }],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "EmailIdx",
+            "KeySchema": [{"AttributeName": "email", "KeyType": "HASH"}],
+            "Projection": {"ProjectionType": "ALL"},
+        }
+    ],
 }
 
 

@@ -54,17 +54,13 @@ class LangchainChatModelUnitOfWork(LLMUnitOfWork):
             span.write_input(
                 {
                     "messages": [
-                        {"role": m.role.value, "content": m.content}
-                        for m in messages
+                        {"role": m.role.value, "content": m.content} for m in messages
                     ]
                 }
             )
 
             response = self._client.invoke(
-                [
-                    _ROLE_TO_MESSAGE_CLS[m.role](content=m.content)
-                    for m in messages
-                ]
+                [_ROLE_TO_MESSAGE_CLS[m.role](content=m.content) for m in messages]
             )
 
             usage = getattr(response, "usage_metadata", None) or {}
@@ -72,9 +68,7 @@ class LangchainChatModelUnitOfWork(LLMUnitOfWork):
             # Different providers name this differently under langchain's
             # common response_metadata dict (OpenAI: finish_reason, Bedrock:
             # stop_reason) - try both, optional either way.
-            finish_reason = metadata.get("finish_reason") or metadata.get(
-                "stop_reason"
-            )
+            finish_reason = metadata.get("finish_reason") or metadata.get("stop_reason")
             result = LLMInvocationResult(
                 content=response.content,
                 model=self._model,

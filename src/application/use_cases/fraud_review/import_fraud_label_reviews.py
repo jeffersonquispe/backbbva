@@ -6,6 +6,7 @@ Every row goes through ReviewFraudLabel (channel=csv), so each applied row
 leaves its own audit row and rollup delta. An invalid row is reported and
 skipped - it never aborts the batch. Only a file that can't be read at all
 (bad encoding, missing columns, too many rows) fails as a whole."""
+
 from __future__ import annotations
 
 import csv
@@ -46,7 +47,8 @@ def _rows(content: bytes) -> list[dict[str, str]]:
     missing = [column for column in REQUIRED_COLUMNS if column not in header]
     if missing:
         raise InvalidFraudLabelReviewFileError(
-            "Missing column(s): " + ", ".join(missing)
+            "Missing column(s): "
+            + ", ".join(missing)
             + " (expected header: alert_id,fraud_label,note)"
         )
     reader.fieldnames = header
@@ -80,7 +82,9 @@ class ImportFraudLabelReviews:
             self._apply(number, row, reviewed_by)
             for number, row in enumerate(rows, start=1)
         ]
-        applied = sum(1 for r in results if r.status == FraudLabelReviewRowStatus.APPLIED)
+        applied = sum(
+            1 for r in results if r.status == FraudLabelReviewRowStatus.APPLIED
+        )
         return FraudLabelReviewImportResult(
             status=FraudLabelReviewImportStatus.READY,
             total=len(results),
@@ -97,13 +101,19 @@ class ImportFraudLabelReviews:
 
         def result(status: FraudLabelReviewRowStatus, error: str | None = None):
             return FraudLabelReviewRowResult(
-                row=number, alert_id=alert_id, fraud_label=label, status=status, error=error
+                row=number,
+                alert_id=alert_id,
+                fraud_label=label,
+                status=status,
+                error=error,
             )
 
         try:
             alert_uuid = UUID(alert_id)
         except ValueError:
-            return result(FraudLabelReviewRowStatus.INVALID, "alert_id is not a valid UUID")
+            return result(
+                FraudLabelReviewRowStatus.INVALID, "alert_id is not a valid UUID"
+            )
         try:
             parse_fraud_label(label)
         except InvalidFraudLabelError as exc:
@@ -121,5 +131,7 @@ class ImportFraudLabelReviews:
         except AlertNotFoundError as exc:
             return result(FraudLabelReviewRowStatus.NOT_FOUND, str(exc))
         except Exception as exc:  # noqa: BLE001 - one bad row never aborts the batch
-            return result(FraudLabelReviewRowStatus.ERROR, f"{type(exc).__name__}: {exc}")
+            return result(
+                FraudLabelReviewRowStatus.ERROR, f"{type(exc).__name__}: {exc}"
+            )
         return result(FraudLabelReviewRowStatus.APPLIED)

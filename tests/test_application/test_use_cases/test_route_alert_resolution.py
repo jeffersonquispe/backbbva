@@ -49,10 +49,14 @@ class InMemoryResourceReservationRepository:
 
     def _active(self, resource, now):
         return [
-            r for r in self.records.values() if r.resource == resource and r.is_active(now)
+            r
+            for r in self.records.values()
+            if r.resource == resource and r.is_active(now)
         ]
 
-    def try_acquire(self, resource, *, alert_id, holder, capacity, now, ttl=RESERVATION_TTL):
+    def try_acquire(
+        self, resource, *, alert_id, holder, capacity, now, ttl=RESERVATION_TTL
+    ):
         active = self._active(resource, now)
         if any(r.alert_id == alert_id for r in active):
             return AcquireResult(None, ReservationConflict.ALERT_TAKEN)
@@ -113,7 +117,9 @@ class StaticBidiCapacity(OperationsCapacityPort):
 def _matrix(regular: int = 4, payday: int = 8) -> AnalystCapacity:
     return AnalystCapacity(
         profiles=[
-            DayProfile(id="regular", name="Regular", description="", hourly=[regular] * 24),
+            DayProfile(
+                id="regular", name="Regular", description="", hourly=[regular] * 24
+            ),
             DayProfile(id="pago", name="Pago", description="", hourly=[payday] * 24),
         ],
         default_profile_id="regular",
@@ -161,7 +167,9 @@ def test_live_capacity_subtracts_active_reservations_from_matrix_and_slots() -> 
         capacity=3,
         now=NOW - timedelta(hours=1),
     )
-    settings = OperationalSettings(voicebot_max_concurrent_calls=3, analyst_capacity=_matrix())
+    settings = OperationalSettings(
+        voicebot_max_concurrent_calls=3, analyst_capacity=_matrix()
+    )
 
     record = _capacity(settings, reservations).get_capacity()
 
@@ -187,8 +195,12 @@ def test_live_capacity_reads_zero_unavailable_when_resources_are_switched_off() 
 
     record = _capacity(settings, InMemoryResourceReservationRepository()).get_capacity()
 
-    assert record.analysts == ChannelCapacity(available=0, status="unavailable", total=0)
-    assert record.voicebot == ChannelCapacity(available=0, status="unavailable", total=0)
+    assert record.analysts == ChannelCapacity(
+        available=0, status="unavailable", total=0
+    )
+    assert record.voicebot == ChannelCapacity(
+        available=0, status="unavailable", total=0
+    )
 
 
 # --- RouteAlertResolutionUseCase -------------------------------------------
@@ -241,7 +253,9 @@ def test_voicebot_retry_reuses_the_alerts_own_slot() -> None:
 
 
 def test_no_voicebot_slot_follows_the_playbook_to_an_analyst() -> None:
-    settings = OperationalSettings(voicebot_max_concurrent_calls=0, analyst_capacity=_matrix())
+    settings = OperationalSettings(
+        voicebot_max_concurrent_calls=0, analyst_capacity=_matrix()
+    )
     router, reservations = _router(settings)
 
     routing = router.execute(alert_id="a1", decision="voicebot", playbook=_PLAYBOOK)
@@ -283,7 +297,9 @@ def test_a_fallback_chain_that_loops_back_ends_in_block_soft() -> None:
         if_no_voicebot=ShortageBehavior(resolution_tag=ResolutionTag.SCALE_TO_ANALYST),
         if_no_analyst=ShortageBehavior(resolution_tag=ResolutionTag.SEND_TO_VOICEBOT),
     )
-    router, _ = _router(OperationalSettings(voicebot_enabled=False, analyst_enabled=False))
+    router, _ = _router(
+        OperationalSettings(voicebot_enabled=False, analyst_enabled=False)
+    )
 
     routing = router.execute(alert_id="a1", decision="voicebot", playbook=looping)
 

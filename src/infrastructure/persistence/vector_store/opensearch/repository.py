@@ -87,9 +87,7 @@ def document_from_source(source: dict[str, Any]) -> FraudKnowledgeDocument:
         )
     elif document_type in (DocumentType.RED_FLAG, DocumentType.YELLOW_FLAG):
         fields.update(
-            modus_operandi_ids=[
-                UUID(i) for i in source.get("modus_operandi_ids", [])
-            ],
+            modus_operandi_ids=[UUID(i) for i in source.get("modus_operandi_ids", [])],
         )
     return document_cls(**fields)
 

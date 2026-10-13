@@ -71,8 +71,12 @@ def test_agent_contexts_and_detector_features_exclude_canonical_labels() -> None
         _alert_payload({"pre_process": pre_process}),
     ]
 
-    assert all(LABEL_VALUE not in json.dumps(value, default=str) for value in prompt_inputs)
-    assert all("Fraude" not in json.dumps(value, default=str) for value in prompt_inputs)
+    assert all(
+        LABEL_VALUE not in json.dumps(value, default=str) for value in prompt_inputs
+    )
+    assert all(
+        "Fraude" not in json.dumps(value, default=str) for value in prompt_inputs
+    )
 
 
 class InMemorySchemaRepository(AlertSchemaRepository):

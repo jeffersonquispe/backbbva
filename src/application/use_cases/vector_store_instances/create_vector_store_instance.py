@@ -39,8 +39,11 @@ class CreateVectorStoreInstanceUseCase:
             )
         version = max((item.version for item in instances), default=0) + 1
         instance = VectorStoreInstance(
-            id=f"vector-store-v{version}", version=version, name=name.strip(),
-            description=description, created_at=datetime.now(UTC),
+            id=f"vector-store-v{version}",
+            version=version,
+            name=name.strip(),
+            description=description,
+            created_at=datetime.now(UTC),
             created_by=created_by,
         )
         normalized = [

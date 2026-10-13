@@ -130,14 +130,13 @@ def test_write_batch_creates_dataset_and_retries_when_first_append_404s():
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append((request.method, request.url.path))
-        if request.url.path == "/datasets/new_ds/rows" and len(
-            [c for c in calls if c[1] == "/datasets/new_ds/rows"]
-        ) == 1:
+        if (
+            request.url.path == "/datasets/new_ds/rows"
+            and len([c for c in calls if c[1] == "/datasets/new_ds/rows"]) == 1
+        ):
             return httpx.Response(404, text="dataset not found")
         if request.url.path == "/datasets/empty":
-            return httpx.Response(
-                201, json={"name": "new_ds", "status": "ready"}
-            )
+            return httpx.Response(201, json={"name": "new_ds", "status": "ready"})
         return httpx.Response(
             202, json={"name": "new_ds", "total_rows": 1, "status": "processing"}
         )
@@ -159,9 +158,10 @@ def test_write_batch_ignores_409_on_create_race_and_retries():
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append((request.method, request.url.path))
-        if request.url.path == "/datasets/race_ds/rows" and len(
-            [c for c in calls if c[1] == "/datasets/race_ds/rows"]
-        ) == 1:
+        if (
+            request.url.path == "/datasets/race_ds/rows"
+            and len([c for c in calls if c[1] == "/datasets/race_ds/rows"]) == 1
+        ):
             return httpx.Response(404, text="dataset not found")
         if request.url.path == "/datasets/empty":
             return httpx.Response(409, text="already exists")

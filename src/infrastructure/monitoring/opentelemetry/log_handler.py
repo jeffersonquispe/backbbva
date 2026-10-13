@@ -51,9 +51,7 @@ def install_otlp_logging() -> LoggingHandler | None:
     if not otel_export_enabled():
         return None
     provider = build_logger_provider(
-        BatchLogRecordProcessor(
-            OTLPLogExporter(endpoint=genai_config.OTEL_ENDPOINT)
-        )
+        BatchLogRecordProcessor(OTLPLogExporter(endpoint=genai_config.OTEL_ENDPOINT))
     )
     set_logger_provider(provider)
     handler = build_logging_handler(provider)

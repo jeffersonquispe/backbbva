@@ -6,6 +6,7 @@ revision-conditioned correction, and the StatusIdx count/list. Run with
 
 Each test works in a random past year (fake clock), so its day/month/year
 rows can't collide with real local data or other runs."""
+
 from __future__ import annotations
 
 import os
@@ -17,7 +18,9 @@ from zoneinfo import ZoneInfo
 import pytest
 
 if not os.getenv("DYNAMO_ENDPOINT"):
-    pytest.skip("Requires DynamoDB Local (set DYNAMO_ENDPOINT)", allow_module_level=True)
+    pytest.skip(
+        "Requires DynamoDB Local (set DYNAMO_ENDPOINT)", allow_module_level=True
+    )
 
 from src.application.dtos.alert_metrics_dtos import (
     AlertMetricsEventType,
@@ -140,7 +143,9 @@ def world(tables):
     resource = get_dynamodb_resource()
     alerts_table = resource.Table(ALERTS_TABLE["TableName"])
     for alert_id in created["alerts"]:
-        alerts_table.delete_item(Key={"partition": PARTITION, "alert_id": str(alert_id)})
+        alerts_table.delete_item(
+            Key={"partition": PARTITION, "alert_id": str(alert_id)}
+        )
     workflows = DynamoWorkflowExecutionRepository()
     steps = DynamoWorkflowStepExecutionRepository()
     for workflow_id in created["workflows"]:
@@ -152,7 +157,10 @@ def world(tables):
         reservations.delete_item(Key={"id": reservation_id})
     rollups = resource.Table(METRICS_ROLLUPS_TABLE["TableName"])
     for level, period in (
-        *((RollupLevel.DAY, (day + timedelta(days=d)).isoformat()) for d in range(-5, 3)),
+        *(
+            (RollupLevel.DAY, (day + timedelta(days=d)).isoformat())
+            for d in range(-5, 3)
+        ),
         (RollupLevel.MONTH, f"{year:04d}-03"),
         (RollupLevel.YEAR, f"{year:04d}"),
     ):
@@ -168,7 +176,9 @@ def _at(day: date, hour: int) -> datetime:
     return datetime(day.year, day.month, day.day, hour, tzinfo=BOG).astimezone(UTC)
 
 
-def _new_alert(created_at: datetime, status: AlertStatus, workflow_id=None) -> AlertRecord:
+def _new_alert(
+    created_at: datetime, status: AlertStatus, workflow_id=None
+) -> AlertRecord:
     return AlertRecord(
         id=uuid.uuid4(),
         event_id=f"itest-{uuid.uuid4()}",
@@ -239,7 +249,8 @@ def _count(rows: dict, level: RollupLevel, **dims) -> float:
     return sum(
         sum(measures.get("count", []))
         for (row_level, _, key_dims), measures in rows.items()
-        if row_level == level and all(dict(key_dims).get(n) == v for n, v in dims.items())
+        if row_level == level
+        and all(dict(key_dims).get(n) == v for n, v in dims.items())
     )
 
 
@@ -253,7 +264,9 @@ def test_backfill_twice_yields_identical_numbers(world):
     resource = get_dynamodb_resource()
 
     blocked = _new_alert(_at(day, 9), AlertStatus.CLOSED)
-    blocked.workflow_execution_id = _workflow(blocked.created_at, blocked.id, "block", created)
+    blocked.workflow_execution_id = _workflow(
+        blocked.created_at, blocked.id, "block", created
+    )
     alerts.create(blocked)
     escalated = _new_alert(_at(day, 22), AlertStatus.CLOSED)
     escalated.workflow_execution_id = _workflow(
@@ -273,7 +286,9 @@ def test_backfill_twice_yields_identical_numbers(world):
         release_reason="resolved",
         detail={"decision": "pass"},
     )
-    resource.Table(RESERVATIONS_TABLE_NAME).put_item(Item=reservation_to_item(reservation))
+    resource.Table(RESERVATIONS_TABLE_NAME).put_item(
+        Item=reservation_to_item(reservation)
+    )
     created["reservations"].append(reservation.id)
     # A legacy alert: written before created_day existed, so absent from
     # CreatedDayIdx until the fill.
@@ -313,9 +328,25 @@ def test_backfill_twice_yields_identical_numbers(world):
     assert _rows(rollups, day) == rows_after_first
     for level in RollupLevel:
         assert _count(rows_after_first, level) == 3
-        assert _count(rows_after_first, level, mark="fraud", resolution_method="aria") == 1
-        assert _count(rows_after_first, level, mark="no_fraud", resolution_method="analyst") == 1
-        assert _count(rows_after_first, level, mark="pending", status="PROCESSING", origin="unknown") == 1
+        assert (
+            _count(rows_after_first, level, mark="fraud", resolution_method="aria") == 1
+        )
+        assert (
+            _count(
+                rows_after_first, level, mark="no_fraud", resolution_method="analyst"
+            )
+            == 1
+        )
+        assert (
+            _count(
+                rows_after_first,
+                level,
+                mark="pending",
+                status="PROCESSING",
+                origin="unknown",
+            )
+            == 1
+        )
     assert alerts.get(escalated.id).metrics.marked_at == reservation.released_at
 
 
@@ -337,7 +368,9 @@ def test_reconciliation_corrects_a_hand_altered_row_and_reports_drift_1(world):
         alert = alerts.create(_new_alert(_at(day, hour), AlertStatus.PROCESSING))
         created["alerts"].append(alert.id)
         recorder.execute(
-            RecordAlertMetricsEventInput(alert.id, AlertMetricsEventType.CREATED, origin="itest")
+            RecordAlertMetricsEventInput(
+                alert.id, AlertMetricsEventType.CREATED, origin="itest"
+            )
         )
         recorder.execute(
             RecordAlertMetricsEventInput(
@@ -396,12 +429,17 @@ def test_status_index_counts_and_lists_live_statuses(world):
     day, _, created = world
     alerts = DynamoAlertRepository(TZ)
     before = alerts.count_by_status(AlertStatus.RECEIVED)
-    new = [alerts.create(_new_alert(_at(day, 8 + i), AlertStatus.RECEIVED)) for i in range(3)]
+    new = [
+        alerts.create(_new_alert(_at(day, 8 + i), AlertStatus.RECEIVED))
+        for i in range(3)
+    ]
     created["alerts"].extend(a.id for a in new)
 
     assert alerts.count_by_status(AlertStatus.RECEIVED) == before + 3
     listed = [a.id for a in alerts.list_by_status(AlertStatus.RECEIVED)]
-    assert [a.id for a in new] == [i for i in listed if i in {a.id for a in new}]  # oldest first
+    assert [a.id for a in new] == [
+        i for i in listed if i in {a.id for a in new}
+    ]  # oldest first
 
     alerts.update(new[0].id, status=AlertStatus.CLOSED)
     assert alerts.count_by_status(AlertStatus.RECEIVED) == before + 2

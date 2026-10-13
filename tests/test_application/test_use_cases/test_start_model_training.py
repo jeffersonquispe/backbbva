@@ -65,8 +65,7 @@ class InMemoryAsyncOperationRepository:
         return [
             op
             for op in self.operations.values()
-            if op.status
-            in (AsyncOperationStatus.PENDING, AsyncOperationStatus.RUNNING)
+            if op.status in (AsyncOperationStatus.PENDING, AsyncOperationStatus.RUNNING)
         ][:limit]
 
     def update(self, operation_id: UUID, **changes: Any) -> AsyncOperationRecord | None:
@@ -151,14 +150,18 @@ def test_failed_dispatch_cannot_be_retried():
     models.create(model)
     operations = InMemoryAsyncOperationRepository()
     dispatcher = RecordingModelTrainingDispatcher()
+
     def fail(*args):
         raise RuntimeError("queue unavailable")
+
     dispatcher.dispatch = fail
     use_case = StartModelTrainingUseCase(models, operations, dispatcher)
     with pytest.raises(RuntimeError):
         use_case.execute(model.id)
     assert model.status == ModelStatus.FAILED
-    assert next(iter(operations.operations.values())).status == AsyncOperationStatus.FAILED
+    assert (
+        next(iter(operations.operations.values())).status == AsyncOperationStatus.FAILED
+    )
     dispatcher.dispatch = lambda *args: None
     with pytest.raises(ValueError, match="solo puede entrenarse una vez"):
         use_case.execute(model.id)
@@ -170,4 +173,8 @@ def test_active_model_cannot_be_retrained():
     model.active = True
     models.create(model)
     with pytest.raises(ValueError, match="solo puede entrenarse una vez"):
-        StartModelTrainingUseCase(models, InMemoryAsyncOperationRepository(), RecordingModelTrainingDispatcher()).execute(model.id)
+        StartModelTrainingUseCase(
+            models,
+            InMemoryAsyncOperationRepository(),
+            RecordingModelTrainingDispatcher(),
+        ).execute(model.id)

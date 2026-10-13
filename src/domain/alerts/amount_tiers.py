@@ -2,6 +2,7 @@
 into (OperationalSettings.amount_tiers). The tier is computed once, when the
 alert arrives, and frozen on its metrics snapshot - changing the tiers only
 affects new alerts (see docs/OBSERVABILITY_STRATEGY.md)."""
+
 from __future__ import annotations
 
 import math
@@ -60,7 +61,9 @@ def validate_amount_tiers(tiers: list[AmountTier]) -> None:
                 f"Amount tier {tier.code!r} must end above where it starts."
             )
     if ordered[-1].max_exclusive is not None:
-        raise InvalidAmountTiersError("The last amount tier must be unbounded (up to infinity).")
+        raise InvalidAmountTiersError(
+            "The last amount tier must be unbounded (up to infinity)."
+        )
 
 
 def classify_amount(amount: Any, tiers: list[AmountTier]) -> str:

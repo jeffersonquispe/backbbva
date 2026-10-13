@@ -23,9 +23,7 @@ def _synthetic_rows(n: int) -> list[dict]:
                 ),
                 "fecha_alta": "2020-01-01 00:00:00",
                 "triggered_rules": (
-                    "[CUSTOMER - dg_risknewpayee, CARD - TJ_x]"
-                    if positive
-                    else "[]"
+                    "[CUSTOMER - dg_risknewpayee, CARD - TJ_x]" if positive else "[]"
                 ),
                 "marcacion_final": "risk" if positive else "no-risk",
             }
@@ -84,11 +82,7 @@ def test_feature_and_target_extraction_support_dotted_catalog_fields() -> None:
 
     X, _ = build_feature_frame(
         rows,
-        [
-            FieldTransform(
-                field="biocatch.score", kind=FieldTransformKind.NUMERIC
-            )
-        ],
+        [FieldTransform(field="biocatch.score", kind=FieldTransformKind.NUMERIC)],
     )
     y = target_vector(rows, "review.status", ["risk"])
 

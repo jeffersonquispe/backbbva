@@ -1,6 +1,7 @@
 """D6 EvaluateAlertReasoning: judge prompt built from the run's evidence +
 reasoning steps, verdict stored once, counted once in the `evaluation`
 rollups, no raw content in its span; deterministic sampling."""
+
 from __future__ import annotations
 
 import json
@@ -56,7 +57,10 @@ class ScriptedLLMUnitOfWork(LLMUnitOfWork):
     def invoke(self, messages: list[LLMMessage]) -> LLMInvocationResult:
         self._factory.prompts.append(messages)
         return LLMInvocationResult(
-            content=self._factory.answer, model="judge-model", input_tokens=900, output_tokens=40
+            content=self._factory.answer,
+            model="judge-model",
+            input_tokens=900,
+            output_tokens=40,
         )
 
 
@@ -66,7 +70,9 @@ class ScriptedLLMFactory(LLMUnitOfWorkFactory):
         self.prompts: list[list[LLMMessage]] = []
         self.models: list[str] = []
 
-    def create(self, *, model, monitoring, operation_name, temperature=0.0, max_tokens=None):
+    def create(
+        self, *, model, monitoring, operation_name, temperature=0.0, max_tokens=None
+    ):
         self.models.append(model)
         return ScriptedLLMUnitOfWork(self)
 
@@ -75,12 +81,23 @@ class RecordingSpan(MonitoringSpan):
     def __init__(self) -> None:
         self.data: list[dict[str, Any]] = []
 
-    def write_input(self, data): self.data.append(data)
-    def write_result(self, data): self.data.append(data)
-    def write_inner_logs(self, entries): self.data.append({"logs": entries})
-    def write_operation_metas(self, metadata): self.data.append(metadata)
-    def record_dependency(self, name, kind, metadata=None): pass
-    def finish(self, error=None): pass
+    def write_input(self, data):
+        self.data.append(data)
+
+    def write_result(self, data):
+        self.data.append(data)
+
+    def write_inner_logs(self, entries):
+        self.data.append({"logs": entries})
+
+    def write_operation_metas(self, metadata):
+        self.data.append(metadata)
+
+    def record_dependency(self, name, kind, metadata=None):
+        pass
+
+    def finish(self, error=None):
+        pass
 
 
 class RecordingMonitoring(MonitoringPort):
@@ -114,7 +131,9 @@ class Steps:
         self.steps = list(steps)
 
     def list_by_workflow(self, workflow_execution_id):
-        return [s for s in self.steps if s.workflow_execution_id == workflow_execution_id]
+        return [
+            s for s in self.steps if s.workflow_execution_id == workflow_execution_id
+        ]
 
 
 class InMemoryEvaluations:
@@ -156,48 +175,100 @@ class InMemoryRollups:
 def _step(workflow_id, name, output, *, offset=0, status=WorkflowStepStatus.SUCCEEDED):
     at = CREATED + timedelta(seconds=offset)
     return WorkflowStepExecutionRecord(
-        id=uuid4(), workflow_execution_id=workflow_id, step_name=name, status=status,
-        attempt=1, input={}, output=output, error=None, started_at=at, finished_at=at,
-        created_at=at, updated_at=at,
+        id=uuid4(),
+        workflow_execution_id=workflow_id,
+        step_name=name,
+        status=status,
+        attempt=1,
+        input={},
+        output=output,
+        error=None,
+        started_at=at,
+        finished_at=at,
+        created_at=at,
+        updated_at=at,
     )
 
 
 def _world(steps_for=None, answer=VERDICT):
     alert = AlertRecord(
-        id=uuid4(), event_id="e", event_type="t", input={"amount": {"baseValue": 1500}},
-        status=AlertStatus.CLOSED, created_at=CREATED, updated_at=CREATED,
+        id=uuid4(),
+        event_id="e",
+        event_type="t",
+        input={"amount": {"baseValue": 1500}},
+        status=AlertStatus.CLOSED,
+        created_at=CREATED,
+        updated_at=CREATED,
         metrics=AlertMetricsSnapshot(channel="WEB", status=AlertStatus.CLOSED),
     )
     workflow = WorkflowExecutionRecord(
-        id=uuid4(), alert_id=alert.id, async_operation_id=uuid4(), workflow_name="alert_review",
-        status=WorkflowStatus.SUCCEEDED, input={"alert_payload": {"amount": {"baseValue": 1500}}},
-        output=None, error=None, current_step=None, feedback_iterations=0,
-        max_feedback_iterations=2, created_at=CREATED, updated_at=CREATED,
+        id=uuid4(),
+        alert_id=alert.id,
+        async_operation_id=uuid4(),
+        workflow_name="alert_review",
+        status=WorkflowStatus.SUCCEEDED,
+        input={"alert_payload": {"amount": {"baseValue": 1500}}},
+        output=None,
+        error=None,
+        current_step=None,
+        feedback_iterations=0,
+        max_feedback_iterations=2,
+        created_at=CREATED,
+        updated_at=CREATED,
     )
     steps = (steps_for or _default_steps)(workflow.id)
     llm, monitoring = ScriptedLLMFactory(answer), RecordingMonitoring()
     evaluations, rollups = InMemoryEvaluations(), InMemoryRollups()
     use_case = EvaluateAlertReasoning(
-        llm_unit_of_work_factory=llm, monitoring=monitoring, model="judge-cfg",
-        alert_repository=Alerts(alert), workflow_repository=Workflows(workflow),
-        step_repository=Steps(steps), evaluation_repository=evaluations,
-        rollup_repository=rollups, timezone_name=TZ, clock=lambda: NOW,
+        llm_unit_of_work_factory=llm,
+        monitoring=monitoring,
+        model="judge-cfg",
+        alert_repository=Alerts(alert),
+        workflow_repository=Workflows(workflow),
+        step_repository=Steps(steps),
+        evaluation_repository=evaluations,
+        rollup_repository=rollups,
+        timezone_name=TZ,
+        clock=lambda: NOW,
     )
-    return dict(alert=alert, workflow=workflow, use_case=use_case, llm=llm,
-                monitoring=monitoring, evaluations=evaluations, rollups=rollups)
+    return dict(
+        alert=alert,
+        workflow=workflow,
+        use_case=use_case,
+        llm=llm,
+        monitoring=monitoring,
+        evaluations=evaluations,
+        rollups=rollups,
+    )
 
 
 def _default_steps(workflow_id):
     return [
         _step(workflow_id, "pre_process", {"mandatory_fields": {"amount": 1500}}),
-        _step(workflow_id, "classification", {"is_fraud": "not_fraud", "reasoning": "first"}, offset=1),
         _step(
-            workflow_id, "classification",
-            {"is_fraud": "fraud", "fraud_classification": "ato", "reasoning": "monto 9999 inusual",
-             "cot": "Observation: historial vacío", "input_tokens": 10},
+            workflow_id,
+            "classification",
+            {"is_fraud": "not_fraud", "reasoning": "first"},
+            offset=1,
+        ),
+        _step(
+            workflow_id,
+            "classification",
+            {
+                "is_fraud": "fraud",
+                "fraud_classification": "ato",
+                "reasoning": "monto 9999 inusual",
+                "cot": "Observation: historial vacío",
+                "input_tokens": 10,
+            },
             offset=2,
         ),
-        _step(workflow_id, "analyst", {"decision": "block", "reasoning": "bloquear"}, offset=3),
+        _step(
+            workflow_id,
+            "analyst",
+            {"decision": "block", "reasoning": "bloquear"},
+            offset=3,
+        ),
         _step(workflow_id, "executor", {"executed_action": "block"}, offset=4),
     ]
 
@@ -262,9 +333,14 @@ def test_stored_but_uncounted_verdict_is_counted_on_retry() -> None:
     """Crash between storing the verdict and counting it."""
     world = _world()
     record = AlertReasoningEvaluationRecord(
-        alert_id=world["alert"].id, workflow_execution_id=world["workflow"].id,
-        status=ReasoningEvaluationStatus.EVALUATED, hallucination=False,
-        data_use_correct=True, rationale="ok", judge_model="m", evaluated_at=NOW,
+        alert_id=world["alert"].id,
+        workflow_execution_id=world["workflow"].id,
+        status=ReasoningEvaluationStatus.EVALUATED,
+        hallucination=False,
+        data_use_correct=True,
+        rationale="ok",
+        judge_model="m",
+        evaluated_at=NOW,
     )
     world["evaluations"].records[record.alert_id] = record
 
@@ -288,7 +364,12 @@ def test_answer_wrapped_in_prose_is_parsed() -> None:
 
 
 def test_nothing_to_judge_without_reasoning_steps() -> None:
-    world = _world(steps_for=lambda wid: [_step(wid, "pre_process", {}), _step(wid, "deterministic", {"matched": True})])
+    world = _world(
+        steps_for=lambda wid: [
+            _step(wid, "pre_process", {}),
+            _step(wid, "deterministic", {"matched": True}),
+        ]
+    )
     out = _run(world)
     assert out.evaluation is None and out.counted is False
     assert world["llm"].prompts == [] and world["evaluations"].records == {}

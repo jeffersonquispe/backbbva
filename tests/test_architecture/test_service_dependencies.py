@@ -135,7 +135,9 @@ def _declared(pyproject: str) -> set[str]:
 
 @cache
 def _import_to_dists() -> dict[str, set[str]]:
-    return {k: {_norm(d) for d in v} for k, v in metadata.packages_distributions().items()}
+    return {
+        k: {_norm(d) for d in v} for k, v in metadata.packages_distributions().items()
+    }
 
 
 @pytest.mark.parametrize("service", sorted(SERVICES))

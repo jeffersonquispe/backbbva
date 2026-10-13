@@ -1,5 +1,6 @@
 """D6: reasoning_evaluation_sample_rate in OperationalSettings - validated
 0..1 at the API, persisted through the DynamoDB item mapping."""
+
 from __future__ import annotations
 
 from fastapi import FastAPI
@@ -57,11 +58,16 @@ def test_default_is_small_and_round_trips() -> None:
 def test_rate_out_of_range_is_422_and_zero_is_accepted() -> None:
     repository = InMemoryOperationalSettingsRepository()
     client = _client(repository)
-    assert client.put(
-        "/operational-settings", json={"settings": {"reasoning_evaluation_sample_rate": 1.5}}
-    ).status_code == 422
+    assert (
+        client.put(
+            "/operational-settings",
+            json={"settings": {"reasoning_evaluation_sample_rate": 1.5}},
+        ).status_code
+        == 422
+    )
     response = client.put(
-        "/operational-settings", json={"settings": {"reasoning_evaluation_sample_rate": 0}}
+        "/operational-settings",
+        json={"settings": {"reasoning_evaluation_sample_rate": 0}},
     )
     assert response.status_code == 200
     assert response.json()["reasoning_evaluation_sample_rate"] == 0

@@ -1,6 +1,7 @@
 """Docker-only: the fraud_label_reviews table (append-only, chronological
 per alert) and the alert history's newest-first slices of CreatedDayIdx.
 Run with `make test-integration-metrics`."""
+
 from __future__ import annotations
 
 import os
@@ -10,7 +11,9 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 
 if not os.getenv("DYNAMO_ENDPOINT"):
-    pytest.skip("Requires DynamoDB Local (set DYNAMO_ENDPOINT)", allow_module_level=True)
+    pytest.skip(
+        "Requires DynamoDB Local (set DYNAMO_ENDPOINT)", allow_module_level=True
+    )
 
 from botocore.exceptions import ClientError
 
@@ -51,11 +54,24 @@ def test_reviews_are_appended_and_listed_oldest_first(tables) -> None:
     alert_id = uuid.uuid4()
     t0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
     second = FraudLabelReview(
-        uuid.uuid4(), alert_id, Mark.NO_FRAUD, Mark.FRAUD, "b@x", t0 + timedelta(hours=1),
-        FraudLabelReviewChannel.CSV, "chargeback",
+        uuid.uuid4(),
+        alert_id,
+        Mark.NO_FRAUD,
+        Mark.FRAUD,
+        "b@x",
+        t0 + timedelta(hours=1),
+        FraudLabelReviewChannel.CSV,
+        "chargeback",
     )
     first = FraudLabelReview(
-        uuid.uuid4(), alert_id, Mark.FRAUD, Mark.NO_FRAUD, "a@x", t0, FraudLabelReviewChannel.UI, "",
+        uuid.uuid4(),
+        alert_id,
+        Mark.FRAUD,
+        Mark.NO_FRAUD,
+        "a@x",
+        t0,
+        FraudLabelReviewChannel.UI,
+        "",
     )
     repo.create(second)
     repo.create(first)
@@ -65,14 +81,20 @@ def test_reviews_are_appended_and_listed_oldest_first(tables) -> None:
         repo.create(first)
 
 
-def test_page_by_created_day_is_newest_first_and_resumes_before_a_timestamp(tables) -> None:
+def test_page_by_created_day_is_newest_first_and_resumes_before_a_timestamp(
+    tables,
+) -> None:
     repo = DynamoAlertRepository(TZ)
     day = date(2031, 1, 15)  # a day no other test writes to
     base = datetime(2031, 1, 15, 12, 0, tzinfo=UTC)  # 07:00 Bogota
     alerts = [
         AlertRecord(
-            id=uuid.uuid4(), event_id=f"evt-{i}", event_type="payment", input={},
-            status=AlertStatus.CLOSED, created_at=base + timedelta(minutes=i),
+            id=uuid.uuid4(),
+            event_id=f"evt-{i}",
+            event_type="payment",
+            input={},
+            status=AlertStatus.CLOSED,
+            created_at=base + timedelta(minutes=i),
             updated_at=base + timedelta(minutes=i),
         )
         for i in range(5)

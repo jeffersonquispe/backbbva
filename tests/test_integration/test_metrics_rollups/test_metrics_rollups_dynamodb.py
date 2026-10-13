@@ -2,6 +2,7 @@
 TransactWriteItems (snapshot condition + ADD deltas), retry without double
 counting, version race, TTL on day rows and the created_day index - what
 an in-memory fake can't prove. Run with `make test-integration-metrics`."""
+
 from __future__ import annotations
 
 import os
@@ -11,7 +12,9 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 
 if not os.getenv("DYNAMO_ENDPOINT"):
-    pytest.skip("Requires DynamoDB Local (set DYNAMO_ENDPOINT)", allow_module_level=True)
+    pytest.skip(
+        "Requires DynamoDB Local (set DYNAMO_ENDPOINT)", allow_module_level=True
+    )
 
 from src.application.dtos.alert_metrics_dtos import (
     AlertMetricsEventType,
@@ -62,7 +65,10 @@ PAYLOAD = {"channel": "WEB", "integrationPoint": "PSE", "amount": {"baseValue": 
 class StaticSettings:
     def get(self) -> OperationalSettings:
         return OperationalSettings(
-            amount_tiers=[AmountTier("low", "low", 0, 1000), AmountTier("high", "high", 1000, None)],
+            amount_tiers=[
+                AmountTier("low", "low", 0, 1000),
+                AmountTier("high", "high", 1000, None),
+            ],
             schema_version=1,
         )
 
@@ -87,14 +93,20 @@ def cleanup():
     for alert_id in alert_ids:
         alert = alerts.get(alert_id)
         if alert is not None and alert.metrics is not None:
-            for delta in diff(None, alert.metrics, alert.created_at, datetime.now(UTC), TZ):
+            for delta in diff(
+                None, alert.metrics, alert.created_at, datetime.now(UTC), TZ
+            ):
                 rollups_table.delete_item(
                     Key={
-                        "pk": partition_key(delta.key.data_type, delta.key.level, delta.key.period),
+                        "pk": partition_key(
+                            delta.key.data_type, delta.key.level, delta.key.period
+                        ),
                         "sk": sort_key(delta.key.dimensions),
                     }
                 )
-        alerts_table.delete_item(Key={"partition": PARTITION, "alert_id": str(alert_id)})
+        alerts_table.delete_item(
+            Key={"partition": PARTITION, "alert_id": str(alert_id)}
+        )
 
 
 def _alert(alerts: DynamoAlertRepository, created_at: datetime, cleanup) -> AlertRecord:
@@ -143,7 +155,9 @@ def _periods(created_at: datetime) -> dict[RollupLevel, str]:
     }
 
 
-def test_transaction_writes_snapshot_and_all_levels_with_ttl_on_day_only(repos, cleanup):
+def test_transaction_writes_snapshot_and_all_levels_with_ttl_on_day_only(
+    repos, cleanup
+):
     alerts, rollups = repos
     origin = f"itest-{uuid.uuid4()}"
     created_at = datetime.now(UTC) - timedelta(minutes=5)
@@ -151,7 +165,9 @@ def test_transaction_writes_snapshot_and_all_levels_with_ttl_on_day_only(repos, 
 
     recorder = _recorder(alerts, rollups)
     recorder.execute(
-        RecordAlertMetricsEventInput(alert.id, AlertMetricsEventType.CREATED, origin=origin)
+        RecordAlertMetricsEventInput(
+            alert.id, AlertMetricsEventType.CREATED, origin=origin
+        )
     )
     snapshot = recorder.execute(
         RecordAlertMetricsEventInput(
@@ -168,15 +184,23 @@ def test_transaction_writes_snapshot_and_all_levels_with_ttl_on_day_only(repos, 
     periods = _periods(created_at)
     for level, period in periods.items():
         assert _count(rollups, level, period, origin) == 1
-        assert _count(rollups, level, period, origin, mark="fraud", amount_tier="high") == 1
+        assert (
+            _count(rollups, level, period, origin, mark="fraud", amount_tier="high")
+            == 1
+        )
 
     # TTL attribute only on the day row.
     table = get_dynamodb_resource().Table(METRICS_ROLLUPS_TABLE["TableName"])
     for level, period in periods.items():
-        rows = rollups.query(MetricsDataType.ALERT, level, [period], {"origin": [origin]})
+        rows = rollups.query(
+            MetricsDataType.ALERT, level, [period], {"origin": [origin]}
+        )
         for row in rows:
             item = table.get_item(
-                Key={"pk": partition_key(MetricsDataType.ALERT, level, period), "sk": sort_key(row.key.dimensions)}
+                Key={
+                    "pk": partition_key(MetricsDataType.ALERT, level, period),
+                    "sk": sort_key(row.key.dimensions),
+                }
             )["Item"]
             assert ("expires_at" in item) == (level == RollupLevel.DAY)
 
@@ -191,7 +215,9 @@ def test_retry_never_double_counts(repos, cleanup):
     created_at = datetime.now(UTC) - timedelta(minutes=5)
     alert = _alert(alerts, created_at, cleanup)
     recorder = _recorder(alerts, rollups)
-    created = RecordAlertMetricsEventInput(alert.id, AlertMetricsEventType.CREATED, origin=origin)
+    created = RecordAlertMetricsEventInput(
+        alert.id, AlertMetricsEventType.CREATED, origin=origin
+    )
     first = recorder.execute(created)
 
     # Celery retry of the same event: no-op.
@@ -202,7 +228,9 @@ def test_retry_never_double_counts(repos, cleanup):
     with pytest.raises(SnapshotVersionConflictError):
         rollups.apply(
             deltas,
-            AlertSnapshotGuard(alert.id, alert.created_at, expected_version=0, snapshot=first),
+            AlertSnapshotGuard(
+                alert.id, alert.created_at, expected_version=0, snapshot=first
+            ),
         )
     for level, period in _periods(created_at).items():
         assert _count(rollups, level, period, origin) == 1
@@ -214,7 +242,9 @@ def test_version_race_one_writer_fails_and_retries_on_the_new_snapshot(repos, cl
     created_at = datetime.now(UTC) - timedelta(minutes=5)
     alert = _alert(alerts, created_at, cleanup)
     _recorder(alerts, rollups).execute(
-        RecordAlertMetricsEventInput(alert.id, AlertMetricsEventType.CREATED, origin=origin)
+        RecordAlertMetricsEventInput(
+            alert.id, AlertMetricsEventType.CREATED, origin=origin
+        )
     )
 
     class RacingRollups:
@@ -229,7 +259,9 @@ def test_version_race_one_writer_fails_and_retries_on_the_new_snapshot(repos, cl
                 self.raced = True
                 _recorder(alerts, rollups).execute(
                     RecordAlertMetricsEventInput(
-                        alert.id, AlertMetricsEventType.PRE_PROCESSED, segment="itest-seg"
+                        alert.id,
+                        AlertMetricsEventType.PRE_PROCESSED,
+                        segment="itest-seg",
                     )
                 )
             try:
@@ -252,10 +284,17 @@ def test_version_race_one_writer_fails_and_retries_on_the_new_snapshot(repos, cl
     )
 
     assert racing.conflicts == 1
-    assert (result.segment, result.mark, result.snapshot_version) == ("itest-seg", Mark.NO_FRAUD, 3)
+    assert (result.segment, result.mark, result.snapshot_version) == (
+        "itest-seg",
+        Mark.NO_FRAUD,
+        3,
+    )
     for level, period in _periods(created_at).items():
         assert _count(rollups, level, period, origin) == 1
-        assert _count(rollups, level, period, origin, segment="itest-seg", mark="no_fraud") == 1
+        assert (
+            _count(rollups, level, period, origin, segment="itest-seg", mark="no_fraud")
+            == 1
+        )
         assert _count(rollups, level, period, origin, segment="unknown") == 0
 
 

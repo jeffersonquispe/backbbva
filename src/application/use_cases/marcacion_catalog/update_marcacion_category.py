@@ -12,7 +12,9 @@ class MarcacionCategoryNotFoundError(Exception):
 
 
 class UpdateMarcacionCategoryUseCase:
-    def __init__(self, marcacion_catalog_repository: MarcacionCatalogRepository) -> None:
+    def __init__(
+        self, marcacion_catalog_repository: MarcacionCatalogRepository
+    ) -> None:
         self._categories = marcacion_catalog_repository
 
     def execute(
@@ -27,5 +29,7 @@ class UpdateMarcacionCategoryUseCase:
             entry_id, value=value, risk_label=risk_label, active=active
         )
         if updated is None:
-            raise MarcacionCategoryNotFoundError(f"Marcación category not found: {entry_id}")
+            raise MarcacionCategoryNotFoundError(
+                f"Marcación category not found: {entry_id}"
+            )
         return updated

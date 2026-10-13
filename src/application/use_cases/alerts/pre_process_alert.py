@@ -46,7 +46,7 @@ MAX_FETCH_ATTEMPTS = 3
 
 # Schema-driven extraction. Dotted paths are owned by AlertSchemaField rows;
 # this module intentionally has no field catalogue.
-'''
+"""
 # Dotted-path candidates per mandatory data point (tried in order, first
 # non-empty wins). Paths that traverse a list take its first element -
 # good enough for the single-alert-object case this covers today; alerts
@@ -157,7 +157,7 @@ _LEGACY_PAYLOAD_ARIC_SIGNAL_PATHS: dict[str, tuple[str, ...]] = {
         "biocatch_screenBroadcast",
     ),
 }
-'''
+"""
 
 T = TypeVar("T")
 
@@ -202,7 +202,9 @@ def _extract_value(source: Any, location: str) -> Any:
             value = value[0] if value else None
         if value is None:
             return None
-        value = value.get(part) if isinstance(value, dict) else getattr(value, part, None)
+        value = (
+            value.get(part) if isinstance(value, dict) else getattr(value, part, None)
+        )
     return value
 
 
@@ -334,16 +336,12 @@ def _transaction_history_from_payload(
             TransactionHistoryEntry(
                 # Source rows carry no id of their own - derived so it's
                 # stable across re-runs of the same dataset row.
-                event_id=hashlib.sha1(
-                    f"{event_time}-{i}".encode()
-                ).hexdigest()[:16],
+                event_id=hashlib.sha1(f"{event_time}-{i}".encode()).hexdigest()[:16],
                 event_type=str(entry.get("tipo_transaccion") or "unknown"),
                 event_time=event_time,
                 amount=float(amount) if amount is not None else None,
                 alerts=(
-                    str(entry["alertas"])
-                    if entry.get("alertas") is not None
-                    else None
+                    str(entry["alertas"]) if entry.get("alertas") is not None else None
                 ),
                 account_id=(
                     str(entry["cuenta_origen"])
@@ -356,14 +354,10 @@ def _transaction_history_from_payload(
                     else None
                 ),
                 channel=(
-                    str(entry["canal"])
-                    if entry.get("canal") is not None
-                    else None
+                    str(entry["canal"]) if entry.get("canal") is not None else None
                 ),
                 counterparty=(
-                    str(entry["destino"])
-                    if entry.get("destino") is not None
-                    else None
+                    str(entry["destino"]) if entry.get("destino") is not None else None
                 ),
             )
         )
@@ -437,9 +431,7 @@ class PreProcessAlertUseCase:
         fetched_aric_signals = _with_retry(
             lambda: self._aric.fetch_signals(event_id, session_id)
         )
-        aric_signals = _merge_aric_signals(
-            input.payload, fetched_aric_signals
-        )
+        aric_signals = _merge_aric_signals(input.payload, fetched_aric_signals)
         self._report_progress("fetching_customer_profile")
         customer_profile = _with_retry(
             lambda: self._host_customer.fetch_customer_profile(customer_id)
@@ -455,9 +447,7 @@ class PreProcessAlertUseCase:
         history = _history_values(schema, transaction_history)
         self._report_progress("fetching_personal_data_changes")
         personal_data_changes = _with_retry(
-            lambda: self._host_data_changes.fetch_personal_data_changes(
-                customer_id
-            )
+            lambda: self._host_data_changes.fetch_personal_data_changes(customer_id)
         )
 
         host_sources = {
@@ -467,7 +457,9 @@ class PreProcessAlertUseCase:
                 "personal_data_changes": personal_data_changes,
             },
         }
-        host_input, host_labels, host_roles, missing = _schema_values(schema, host_sources)
+        host_input, host_labels, host_roles, missing = _schema_values(
+            schema, host_sources
+        )
         aric_input.update(host_input)
         labels.update(host_labels)
         roles.update(host_roles)

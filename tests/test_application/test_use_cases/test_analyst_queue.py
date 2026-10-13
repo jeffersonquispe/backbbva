@@ -68,10 +68,14 @@ class InMemoryResourceReservationRepository:
 
     def _active(self, resource, now):
         return [
-            r for r in self.records.values() if r.resource == resource and r.is_active(now)
+            r
+            for r in self.records.values()
+            if r.resource == resource and r.is_active(now)
         ]
 
-    def try_acquire(self, resource, *, alert_id, holder, capacity, now, ttl=RESERVATION_TTL):
+    def try_acquire(
+        self, resource, *, alert_id, holder, capacity, now, ttl=RESERVATION_TTL
+    ):
         active = self._active(resource, now)
         if any(r.alert_id == alert_id for r in active):
             return AcquireResult(None, ReservationConflict.ALERT_TAKEN)
@@ -154,7 +158,9 @@ class RecordingAlertActionDispatcher(AlertActionDispatcher):
         return AlertActionDispatchRef(backend="celery", external_id="task-1")
 
 
-def _alert(alerts: InMemoryAlertRepository, status=AlertStatus.ESCALATED, minutes_ago=0):
+def _alert(
+    alerts: InMemoryAlertRepository, status=AlertStatus.ESCALATED, minutes_ago=0
+):
     created = NOW - timedelta(minutes=minutes_ago)
     return alerts.create(
         AlertRecord(
@@ -179,7 +185,10 @@ def _take(alerts, reservations, total=2, status="available"):
 
 
 def test_take_reserves_the_alert_for_the_analyst_for_30_minutes() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     alert = _alert(alerts)
 
     reservation = _take(alerts, reservations).execute(alert.id, "analyst-1")
@@ -191,7 +200,10 @@ def test_take_reserves_the_alert_for_the_analyst_for_30_minutes() -> None:
 
 
 def test_taking_the_alert_you_already_hold_returns_the_same_reservation() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     alert = _alert(alerts)
     take = _take(alerts, reservations)
     first = take.execute(alert.id, "analyst-1")
@@ -200,7 +212,10 @@ def test_taking_the_alert_you_already_hold_returns_the_same_reservation() -> Non
 
 
 def test_an_analyst_holds_at_most_one_alert() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     first, second = _alert(alerts), _alert(alerts)
     take = _take(alerts, reservations)
     take.execute(first.id, "analyst-1")
@@ -212,7 +227,10 @@ def test_an_analyst_holds_at_most_one_alert() -> None:
 
 
 def test_an_alert_has_at_most_one_analyst() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     alert = _alert(alerts)
     take = _take(alerts, reservations)
     take.execute(alert.id, "analyst-1")
@@ -222,7 +240,10 @@ def test_an_alert_has_at_most_one_analyst() -> None:
 
 
 def test_take_respects_the_matrix_quota_for_this_hour() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     take = _take(alerts, reservations, total=1)
     take.execute(_alert(alerts).id, "analyst-1")
 
@@ -231,7 +252,10 @@ def test_take_respects_the_matrix_quota_for_this_hour() -> None:
 
 
 def test_take_fails_while_analysts_are_switched_off() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
 
     with pytest.raises(NoAnalystCapacityError):
         _take(alerts, reservations, total=5, status="unavailable").execute(
@@ -240,7 +264,10 @@ def test_take_fails_while_analysts_are_switched_off() -> None:
 
 
 def test_an_expired_reservation_frees_the_alert_for_another_analyst() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     alert = _alert(alerts)
     TakeEscalatedAlertUseCase(
         alerts,
@@ -256,28 +283,38 @@ def test_an_expired_reservation_frees_the_alert_for_another_analyst() -> None:
 
 @pytest.mark.parametrize("status", [AlertStatus.CLOSED, AlertStatus.PROCESSING])
 def test_only_escalated_alerts_can_be_taken(status) -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
 
     with pytest.raises(AlertNotInAnalystQueueError):
-        _take(alerts, reservations).execute(_alert(alerts, status=status).id, "analyst-1")
+        _take(alerts, reservations).execute(
+            _alert(alerts, status=status).id, "analyst-1"
+        )
 
 
 def test_take_unknown_alert_raises() -> None:
     with pytest.raises(AlertNotFoundError):
-        _take(InMemoryAlertRepository(), InMemoryResourceReservationRepository()).execute(
-            uuid.uuid4(), "analyst-1"
-        )
+        _take(
+            InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+        ).execute(uuid.uuid4(), "analyst-1")
 
 
 # --- resolve / release -------------------------------------------------------
 
 
 def _resolve(alerts, reservations, dispatcher):
-    return ResolveEscalatedAlertUseCase(alerts, reservations, dispatcher, clock=lambda: NOW)
+    return ResolveEscalatedAlertUseCase(
+        alerts, reservations, dispatcher, clock=lambda: NOW
+    )
 
 
 def test_resolve_dispatches_the_action_closes_the_alert_and_frees_the_analyst() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     dispatcher = RecordingAlertActionDispatcher()
     alert = _alert(alerts)
     _take(alerts, reservations).execute(alert.id, "analyst-1")
@@ -301,13 +338,18 @@ def test_resolve_dispatches_the_action_closes_the_alert_and_frees_the_analyst() 
 
 
 def test_resolve_pass_dispatches_nothing() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     dispatcher = RecordingAlertActionDispatcher()
     alert = _alert(alerts)
     _take(alerts, reservations).execute(alert.id, "analyst-1")
 
     _resolve(alerts, reservations, dispatcher).execute(
-        ResolveEscalatedAlertInput(alert_id=str(alert.id), analyst_id="analyst-1", decision="pass")
+        ResolveEscalatedAlertInput(
+            alert_id=str(alert.id), analyst_id="analyst-1", decision="pass"
+        )
     )
 
     assert dispatcher.calls == []
@@ -315,7 +357,10 @@ def test_resolve_pass_dispatches_nothing() -> None:
 
 
 def test_only_the_holder_can_resolve() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     dispatcher = RecordingAlertActionDispatcher()
     alert = _alert(alerts)
     _take(alerts, reservations).execute(alert.id, "analyst-1")
@@ -332,7 +377,10 @@ def test_only_the_holder_can_resolve() -> None:
 
 
 def test_release_returns_the_alert_to_the_queue() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     alert = _alert(alerts)
     _take(alerts, reservations).execute(alert.id, "analyst-1")
 
@@ -343,7 +391,9 @@ def test_release_returns_the_alert_to_the_queue() -> None:
     assert released.release_reason == "released_by_analyst"
     assert alerts.get(alert.id).status == AlertStatus.ESCALATED
     # Someone else can take it now.
-    assert _take(alerts, reservations).execute(alert.id, "analyst-2").holder == "analyst-2"
+    assert (
+        _take(alerts, reservations).execute(alert.id, "analyst-2").holder == "analyst-2"
+    )
 
 
 def test_release_requires_holding_the_alert() -> None:
@@ -357,7 +407,10 @@ def test_release_requires_holding_the_alert() -> None:
 
 
 def test_list_shows_escalated_alerts_oldest_first_with_their_holder() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     newer = _alert(alerts, minutes_ago=1)
     older = _alert(alerts, minutes_ago=10)
     _alert(alerts, status=AlertStatus.CLOSED)
@@ -383,11 +436,16 @@ class InMemoryStepRepository:
         self._steps = steps
 
     def list_by_workflow(self, workflow_execution_id):
-        return [s for s in self._steps if s.workflow_execution_id == workflow_execution_id]
+        return [
+            s for s in self._steps if s.workflow_execution_id == workflow_execution_id
+        ]
 
 
 def test_detail_includes_the_workflow_steps_and_holder() -> None:
-    alerts, reservations = InMemoryAlertRepository(), InMemoryResourceReservationRepository()
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
     alert = _alert(alerts)
     workflow = WorkflowExecutionRecord(
         id=uuid.uuid4(),
@@ -466,4 +524,6 @@ def test_voicebot_callback_without_an_active_call_raises() -> None:
     )
 
     with pytest.raises(NoActiveVoicebotCallError):
-        CompleteVoicebotCallUseCase(reservations, clock=lambda: NOW).execute("a1", "late")
+        CompleteVoicebotCallUseCase(reservations, clock=lambda: NOW).execute(
+            "a1", "late"
+        )

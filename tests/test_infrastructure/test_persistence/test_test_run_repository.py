@@ -32,7 +32,9 @@ def _run(config: TestRunConfig) -> TestRunRecord:
 def test_configuration_ref_round_trips_through_the_dynamodb_item() -> None:
     run = _run(TestRunConfig(configuration_ref=ConfigurationRef("cfg-1", 2)))
 
-    assert _from_item(_to_item(run)).config.configuration_ref == ConfigurationRef("cfg-1", 2)
+    assert _from_item(_to_item(run)).config.configuration_ref == ConfigurationRef(
+        "cfg-1", 2
+    )
 
 
 def test_no_configuration_ref_round_trips_as_none() -> None:

@@ -81,7 +81,12 @@ def get_save_alert_schema_draft_use_case():
 
 
 def get_propose_alert_schema_use_case():
-    return ProposeAlertSchemaUseCase(get_alert_schema_repository(), AlertSchemaImpactAnalyzer(get_configuration_repository(), get_model_repository()))
+    return ProposeAlertSchemaUseCase(
+        get_alert_schema_repository(),
+        AlertSchemaImpactAnalyzer(
+            get_configuration_repository(), get_model_repository()
+        ),
+    )
 
 
 def get_approve_alert_schema_use_case():
@@ -102,5 +107,7 @@ def get_list_alert_schema_suggestions_use_case():
 
 def get_alert_schema_presence_use_case():
     return AnalyzeAlertSchemaPresenceUseCase(
-        get_alert_repository(), get_alert_schema_repository(), get_alert_schema_presence_report_repository()
+        get_alert_repository(),
+        get_alert_schema_repository(),
+        get_alert_schema_presence_report_repository(),
     )

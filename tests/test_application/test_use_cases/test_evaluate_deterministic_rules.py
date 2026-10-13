@@ -18,12 +18,20 @@ def test_no_rules_never_matches() -> None:
 def test_first_matching_rule_wins_by_list_order() -> None:
     rules = [
         DeterministicRule(
-            id="r1", variable="amount", comparison="gt", values=["10000"],
-            decision="risk", aric_action="hard_block",
+            id="r1",
+            variable="amount",
+            comparison="gt",
+            values=["10000"],
+            decision="risk",
+            aric_action="hard_block",
         ),
         DeterministicRule(
-            id="r2", variable="amount", comparison="gt", values=["1000"],
-            decision="risk_suspected", aric_action="soft_block",
+            id="r2",
+            variable="amount",
+            comparison="gt",
+            values=["1000"],
+            decision="risk_suspected",
+            aric_action="soft_block",
         ),
     ]
     use_case = EvaluateDeterministicRulesUseCase()
@@ -39,8 +47,12 @@ def test_first_matching_rule_wins_by_list_order() -> None:
 def test_no_rule_matches_returns_unmatched() -> None:
     rules = [
         DeterministicRule(
-            id="r1", variable="amount", comparison="gt", values=["10000"],
-            decision="risk", aric_action="hard_block",
+            id="r1",
+            variable="amount",
+            comparison="gt",
+            values=["10000"],
+            decision="risk",
+            aric_action="hard_block",
         )
     ]
     use_case = EvaluateDeterministicRulesUseCase()
@@ -53,8 +65,12 @@ def test_no_rule_matches_returns_unmatched() -> None:
 def test_alert_filter_gates_the_whole_step() -> None:
     rules = [
         DeterministicRule(
-            id="r1", variable="amount", comparison="gt", values=["100"],
-            decision="risk", aric_action="hard_block",
+            id="r1",
+            variable="amount",
+            comparison="gt",
+            values=["100"],
+            decision="risk",
+            aric_action="hard_block",
         )
     ]
     alert_filter = {
@@ -87,8 +103,12 @@ def test_alert_filter_gates_the_whole_step() -> None:
 def test_empty_alert_filter_matches_everything() -> None:
     rules = [
         DeterministicRule(
-            id="r1", variable="amount", comparison="gt", values=["100"],
-            decision="risk", aric_action="hard_block",
+            id="r1",
+            variable="amount",
+            comparison="gt",
+            values=["100"],
+            decision="risk",
+            aric_action="hard_block",
         )
     ]
     empty_filter = {"id": "root", "operator": "and", "conditions": [], "groups": []}

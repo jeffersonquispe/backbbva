@@ -68,9 +68,7 @@ class GetTestRunUseCase:
             return None
 
         workflows = self._workflows.list_by_test_run(test_run_id)
-        succeeded = sum(
-            1 for w in workflows if w.status == WorkflowStatus.SUCCEEDED
-        )
+        succeeded = sum(1 for w in workflows if w.status == WorkflowStatus.SUCCEEDED)
         failed = sum(1 for w in workflows if w.status in _FAILED)
         running = sum(1 for w in workflows if w.status in _RUNNING)
         pending = sum(1 for w in workflows if w.status in _PENDING)
@@ -176,7 +174,5 @@ def _canonical_evaluation_labels(
         return {}
     label_fields = {field.field for field in schema.fields if field.is_label}
     return {
-        field: value
-        for field, value in alert.labels.items()
-        if field in label_fields
+        field: value for field, value in alert.labels.items() if field in label_fields
     }

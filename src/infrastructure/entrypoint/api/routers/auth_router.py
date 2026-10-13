@@ -71,19 +71,38 @@ class LoginResponse(UserResponse):
 
 
 def _to_user_response(user: LocalUser) -> UserResponse:
-    return UserResponse(id=user.id, email=user.email, name=user.name, role=user.role, permissions=permissions_for(user.role))
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        role=user.role,
+        permissions=permissions_for(user.role),
+    )
 
 
 def _to_managed_user_response(user: LocalUser) -> ManagedUserResponse:
-    return ManagedUserResponse(**_to_user_response(user).model_dump(), is_active=user.is_active,
-                               created_at=user.created_at, updated_at=user.updated_at)
+    return ManagedUserResponse(
+        **_to_user_response(user).model_dump(),
+        is_active=user.is_active,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+    )
 
 
-def require_bootstrap_token(bootstrap_token: Annotated[str | None, Header(alias="X-Bootstrap-Token")] = None) -> None:
+def require_bootstrap_token(
+    bootstrap_token: Annotated[str | None, Header(alias="X-Bootstrap-Token")] = None,
+) -> None:
     """User administration (create/list/reset password) is gated by the
     provisioning token, not by a user session — see `make local-users`."""
-    if not genai_config.AUTH_BOOTSTRAP_TOKEN or not bootstrap_token or not hmac.compare_digest(bootstrap_token, genai_config.AUTH_BOOTSTRAP_TOKEN):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="A valid bootstrap token is required to manage local users")
+    if (
+        not genai_config.AUTH_BOOTSTRAP_TOKEN
+        or not bootstrap_token
+        or not hmac.compare_digest(bootstrap_token, genai_config.AUTH_BOOTSTRAP_TOKEN)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A valid bootstrap token is required to manage local users",
+        )
 
 
 def get_token_claims(
@@ -91,72 +110,135 @@ def get_token_claims(
     jwt_service: Annotated[JwtService, Depends(get_jwt_service)] = None,
 ) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token required", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         return jwt_service.decode(authorization.removeprefix("Bearer "))
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc), headers={"WWW-Authenticate": "Bearer"}) from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
 
 def get_current_user(
     claims: Annotated[dict, Depends(get_token_claims)],
-    use_case: Annotated[GetCurrentLocalUserUseCase, Depends(get_current_local_user_use_case)] = None,
+    use_case: Annotated[
+        GetCurrentLocalUserUseCase, Depends(get_current_local_user_use_case)
+    ] = None,
 ) -> LocalUser:
     user = use_case.execute(UUID(claims["sub"]), token_id=claims.get("jti"))
     if not user or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ended or user is inactive", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session ended or user is inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return user
 
 
-@router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_bootstrap_token)])
+@router.post(
+    "/users",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_bootstrap_token)],
+)
 def create_local_user(
     request: CreateLocalUserRequest,
-    use_case: Annotated[RegisterLocalUserUseCase, Depends(get_register_local_user_use_case)],
+    use_case: Annotated[
+        RegisterLocalUserUseCase, Depends(get_register_local_user_use_case)
+    ],
 ):
     try:
-        return _to_user_response(use_case.execute(email=str(request.email), name=request.name, password=request.password, role=request.role))
+        return _to_user_response(
+            use_case.execute(
+                email=str(request.email),
+                name=request.name,
+                password=request.password,
+                role=request.role,
+            )
+        )
     except DuplicateEmailError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
 
 
-@router.get("/users", response_model=list[ManagedUserResponse], dependencies=[Depends(require_bootstrap_token)])
-def list_local_users(use_case: Annotated[ListLocalUsersUseCase, Depends(get_list_local_users_use_case)]):
+@router.get(
+    "/users",
+    response_model=list[ManagedUserResponse],
+    dependencies=[Depends(require_bootstrap_token)],
+)
+def list_local_users(
+    use_case: Annotated[ListLocalUsersUseCase, Depends(get_list_local_users_use_case)],
+):
     return [_to_managed_user_response(user) for user in use_case.execute()]
 
 
-@router.put("/users/{user_id}/password", response_model=ManagedUserResponse, dependencies=[Depends(require_bootstrap_token)])
+@router.put(
+    "/users/{user_id}/password",
+    response_model=ManagedUserResponse,
+    dependencies=[Depends(require_bootstrap_token)],
+)
 def change_local_user_password(
     user_id: UUID,
     request: ChangePasswordRequest,
-    use_case: Annotated[ChangeLocalUserPasswordUseCase, Depends(get_change_local_user_password_use_case)],
+    use_case: Annotated[
+        ChangeLocalUserPasswordUseCase, Depends(get_change_local_user_password_use_case)
+    ],
 ):
     try:
-        return _to_managed_user_response(use_case.execute(user_id=user_id, password=request.password))
+        return _to_managed_user_response(
+            use_case.execute(user_id=user_id, password=request.password)
+        )
     except LocalUserNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
 
 @router.post("/login", response_model=LoginResponse)
 def login(
     request: LoginRequest,
-    use_case: Annotated[AuthenticateLocalUserUseCase, Depends(get_authenticate_local_user_use_case)],
+    use_case: Annotated[
+        AuthenticateLocalUserUseCase, Depends(get_authenticate_local_user_use_case)
+    ],
 ):
     try:
-        authenticated = use_case.execute(email=str(request.email), password=request.password)
+        authenticated = use_case.execute(
+            email=str(request.email), password=request.password
+        )
     except InvalidCredentialsError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password", headers={"WWW-Authenticate": "Bearer"}) from exc
-    return LoginResponse(**_to_user_response(authenticated.user).model_dump(), access_token=authenticated.access_token, expires_in=authenticated.expires_in)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    return LoginResponse(
+        **_to_user_response(authenticated.user).model_dump(),
+        access_token=authenticated.access_token,
+        expires_in=authenticated.expires_in,
+    )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
     claims: Annotated[dict, Depends(get_token_claims)],
     _: Annotated[LocalUser, Depends(get_current_user)],
-    use_case: Annotated[LogoutLocalUserUseCase, Depends(get_logout_local_user_use_case)],
+    use_case: Annotated[
+        LogoutLocalUserUseCase, Depends(get_logout_local_user_use_case)
+    ],
 ):
     """End the caller's session: its access token is rejected from now on,
     even though it has not reached its exp yet."""
-    use_case.execute(token_id=claims.get("jti"), expires_at=datetime.fromtimestamp(int(claims["exp"]), UTC))
+    use_case.execute(
+        token_id=claims.get("jti"),
+        expires_at=datetime.fromtimestamp(int(claims["exp"]), UTC),
+    )
 
 
 @router.get("/me", response_model=UserResponse)

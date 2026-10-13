@@ -47,16 +47,26 @@ def test_local_login_returns_signed_token_and_fixed_permissions():
     users = InMemoryUsers()
     hasher = PasswordHasher()
     registered = RegisterLocalUserUseCase(users, hasher).execute(
-        email="manager@aria.local", name="Manager", password="safe-password", role=LocalRole.MANAGER,
+        email="manager@aria.local",
+        name="Manager",
+        password="safe-password",
+        role=LocalRole.MANAGER,
     )
     service = JwtService(secret="test-secret", ttl_seconds=60)
     result = AuthenticateLocalUserUseCase(users, hasher, service).execute(
-        email=registered.email, password="safe-password",
+        email=registered.email,
+        password="safe-password",
     )
 
     assert service.decode(result.access_token)["sub"] == str(registered.id)
     assert permissions_for(registered.role) == [
-        "alert_schema", "configuration", "dashboard", "fraud_history", "fraud_review", "in_progress", "monitor",
+        "alert_schema",
+        "configuration",
+        "dashboard",
+        "fraud_history",
+        "fraud_review",
+        "in_progress",
+        "monitor",
     ]
 
 
@@ -80,18 +90,28 @@ def test_logout_revokes_the_token_so_it_no_longer_resolves_a_user():
     users = InMemoryUsers()
     hasher = PasswordHasher()
     registered = RegisterLocalUserUseCase(users, hasher).execute(
-        email="ana@aria.local", name="Ana", password="safe-password", role=LocalRole.FRAUD_ANALYST,
+        email="ana@aria.local",
+        name="Ana",
+        password="safe-password",
+        role=LocalRole.FRAUD_ANALYST,
     )
     service = JwtService(secret="test-secret", ttl_seconds=60)
-    first = service.decode(AuthenticateLocalUserUseCase(users, hasher, service).execute(
-        email=registered.email, password="safe-password").access_token)
-    second = service.decode(AuthenticateLocalUserUseCase(users, hasher, service).execute(
-        email=registered.email, password="safe-password").access_token)
+    first = service.decode(
+        AuthenticateLocalUserUseCase(users, hasher, service)
+        .execute(email=registered.email, password="safe-password")
+        .access_token
+    )
+    second = service.decode(
+        AuthenticateLocalUserUseCase(users, hasher, service)
+        .execute(email=registered.email, password="safe-password")
+        .access_token
+    )
     revoked = InMemoryRevokedTokens()
     current = GetCurrentLocalUserUseCase(users, revoked)
 
     LogoutLocalUserUseCase(revoked).execute(
-        token_id=first["jti"], expires_at=datetime.fromtimestamp(first["exp"], UTC),
+        token_id=first["jti"],
+        expires_at=datetime.fromtimestamp(first["exp"], UTC),
     )
 
     assert current.execute(registered.id, token_id=first["jti"]) is None
@@ -112,27 +132,44 @@ def test_list_local_users_is_sorted_by_email():
     users = InMemoryUsers()
     register = RegisterLocalUserUseCase(users, PasswordHasher())
     for email in ("zoe@aria.local", "ana@aria.local"):
-        register.execute(email=email, name="X", password="safe-password", role=LocalRole.OPS_ANALYST)
+        register.execute(
+            email=email, name="X", password="safe-password", role=LocalRole.OPS_ANALYST
+        )
 
-    assert [user.email for user in ListLocalUsersUseCase(users).execute()] == ["ana@aria.local", "zoe@aria.local"]
+    assert [user.email for user in ListLocalUsersUseCase(users).execute()] == [
+        "ana@aria.local",
+        "zoe@aria.local",
+    ]
 
 
 def test_change_password_replaces_the_old_one():
     users = InMemoryUsers()
     hasher = PasswordHasher()
     registered = RegisterLocalUserUseCase(users, hasher).execute(
-        email="ana@aria.local", name="Ana", password="old-password", role=LocalRole.FRAUD_ANALYST,
+        email="ana@aria.local",
+        name="Ana",
+        password="old-password",
+        role=LocalRole.FRAUD_ANALYST,
     )
-    login = AuthenticateLocalUserUseCase(users, hasher, JwtService(secret="test-secret", ttl_seconds=60))
+    login = AuthenticateLocalUserUseCase(
+        users, hasher, JwtService(secret="test-secret", ttl_seconds=60)
+    )
 
-    updated = ChangeLocalUserPasswordUseCase(users, hasher).execute(user_id=registered.id, password="new-password")
+    updated = ChangeLocalUserPasswordUseCase(users, hasher).execute(
+        user_id=registered.id, password="new-password"
+    )
 
     assert updated.id == registered.id and updated.updated_at >= registered.updated_at
-    assert login.execute(email="ana@aria.local", password="new-password").user.id == registered.id
+    assert (
+        login.execute(email="ana@aria.local", password="new-password").user.id
+        == registered.id
+    )
     with pytest.raises(InvalidCredentialsError):
         login.execute(email="ana@aria.local", password="old-password")
 
 
 def test_change_password_of_an_unknown_user_fails():
     with pytest.raises(LocalUserNotFoundError):
-        ChangeLocalUserPasswordUseCase(InMemoryUsers(), PasswordHasher()).execute(user_id=uuid4(), password="new-password")
+        ChangeLocalUserPasswordUseCase(InMemoryUsers(), PasswordHasher()).execute(
+            user_id=uuid4(), password="new-password"
+        )

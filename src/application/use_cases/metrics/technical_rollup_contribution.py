@@ -20,6 +20,7 @@ Per step execution record:
 - research_call  (+ step_name, source): each delegated research / vector
   store tool call the step recorded, by outcome ok / failed / timeout.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -111,7 +112,9 @@ def technical_alert_dimensions(
             (name, _dim(alert_status) if name == "status" else UNKNOWN_DIMENSION)
             for name in TECHNICAL_ALERT_DIMENSIONS
         )
-    return tuple((name, _dim(getattr(snapshot, name))) for name in TECHNICAL_ALERT_DIMENSIONS)
+    return tuple(
+        (name, _dim(getattr(snapshot, name))) for name in TECHNICAL_ALERT_DIMENSIONS
+    )
 
 
 def is_finished(step: WorkflowStepExecutionRecord) -> bool:
@@ -192,7 +195,9 @@ def step_contributions(
     }
     if is_reexecution:
         step_measures[RETRY_COUNT] = 1
-    parts = [TechnicalContribution(MetricsDataType.WORKFLOW_STEP, step_dims, step_measures)]
+    parts = [
+        TechnicalContribution(MetricsDataType.WORKFLOW_STEP, step_dims, step_measures)
+    ]
 
     input_tokens, output_tokens = sum_step_tokens([step])
     if input_tokens or output_tokens or (model is not None and not succeeded):
@@ -270,7 +275,10 @@ def technical_deltas(
     deltas: list[RollupDelta] = []
     for part in parts:
         expected = _DIMENSION_ORDER.get(part.data_type)
-        if expected is not None and tuple(name for name, _ in part.dimensions) != expected:
+        if (
+            expected is not None
+            and tuple(name for name, _ in part.dimensions) != expected
+        ):
             raise ValueError(f"{part.data_type.value} dimensions must be {expected}")
         measures = {name: value for name, value in part.measures.items() if value != 0}
         if not measures:

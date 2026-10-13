@@ -94,7 +94,9 @@ class PromoteVectorStoreInstanceUseCase:
     def execute(self, instance_id: str, *, actor: str) -> VectorStoreInstance:
         instance = self._instances.get(instance_id)
         if instance is None:
-            raise VectorStoreInstanceNotFoundError(f"Vector store instance not found: {instance_id}")
+            raise VectorStoreInstanceNotFoundError(
+                f"Vector store instance not found: {instance_id}"
+            )
 
         assets = self._instances.list_assets(instance_id)
         if not assets:
@@ -111,11 +113,15 @@ class PromoteVectorStoreInstanceUseCase:
                 continue
             entry = self._taxonomies.get(asset.asset_id)
             if entry is None:
-                raise ValueError(f"taxonomy library entry {asset.asset_id} no longer exists")
+                raise ValueError(
+                    f"taxonomy library entry {asset.asset_id} no longer exists"
+                )
             created = self._ingest_taxonomia.execute(
                 IngestTaxonomiaInput(
                     text=taxonomia_embedding_text(
-                        name=entry.name, description=entry.description, examples=entry.examples
+                        name=entry.name,
+                        description=entry.description,
+                        examples=entry.examples,
                     ),
                     vector_store_id=instance_id,
                     vector_store_version=new_version,
@@ -130,7 +136,9 @@ class PromoteVectorStoreInstanceUseCase:
                 continue
             entry = self._modus_operandi.get(asset.asset_id)
             if entry is None:
-                raise ValueError(f"modus operandi library entry {asset.asset_id} no longer exists")
+                raise ValueError(
+                    f"modus operandi library entry {asset.asset_id} no longer exists"
+                )
             taxonomia_id = taxonomia_os_id.get(entry.taxonomy_library_id)
             if taxonomia_id is None:
                 raise ValueError(
@@ -140,7 +148,9 @@ class PromoteVectorStoreInstanceUseCase:
             taxonomy_entry = self._taxonomies.get(entry.taxonomy_library_id)
             created = self._ingest_modus_operandi.execute(
                 IngestModusOperandiInput(
-                    text=modus_operandi_embedding_text(title=entry.title, narrative=entry.narrative),
+                    text=modus_operandi_embedding_text(
+                        title=entry.title, narrative=entry.narrative
+                    ),
                     vector_store_id=instance_id,
                     vector_store_version=new_version,
                     taxonomia_id=taxonomia_id,
@@ -152,11 +162,16 @@ class PromoteVectorStoreInstanceUseCase:
             modus_operandi_os_id[entry.id] = created.id
 
         for asset in assets:
-            if asset.asset_type not in (KnowledgeAssetType.RED_FLAG, KnowledgeAssetType.YELLOW_FLAG):
+            if asset.asset_type not in (
+                KnowledgeAssetType.RED_FLAG,
+                KnowledgeAssetType.YELLOW_FLAG,
+            ):
                 continue
             entry = self._flags.get(asset.asset_id)
             if entry is None:
-                raise ValueError(f"flag library entry {asset.asset_id} no longer exists")
+                raise ValueError(
+                    f"flag library entry {asset.asset_id} no longer exists"
+                )
             # A flag can be attached standalone, without its parent modus
             # operandi(s) - drop references to whichever parents aren't
             # part of this vector store rather than failing the promotion.
@@ -167,8 +182,12 @@ class PromoteVectorStoreInstanceUseCase:
             ]
             self._ingest_flag.execute(
                 IngestFlagInput(
-                    text=flag_embedding_text(name=entry.name, description=entry.description),
-                    flag_type=DocumentType.RED_FLAG if entry.flag_type == FlagType.RED else DocumentType.YELLOW_FLAG,
+                    text=flag_embedding_text(
+                        name=entry.name, description=entry.description
+                    ),
+                    flag_type=DocumentType.RED_FLAG
+                    if entry.flag_type == FlagType.RED
+                    else DocumentType.YELLOW_FLAG,
                     vector_store_id=instance_id,
                     vector_store_version=new_version,
                     modus_operandi_ids=resolved_mo_ids,
@@ -181,8 +200,12 @@ class PromoteVectorStoreInstanceUseCase:
                 continue
             entry = self._similar_cases.get(asset.asset_id)
             if entry is None:
-                raise ValueError(f"similar case library entry {asset.asset_id} no longer exists")
-            modus_operandi_id = modus_operandi_os_id.get(entry.modus_operandi_library_id)
+                raise ValueError(
+                    f"similar case library entry {asset.asset_id} no longer exists"
+                )
+            modus_operandi_id = modus_operandi_os_id.get(
+                entry.modus_operandi_library_id
+            )
             taxonomia_id = taxonomia_os_id.get(entry.taxonomy_library_id)
             if modus_operandi_id is None or taxonomia_id is None:
                 raise ValueError(

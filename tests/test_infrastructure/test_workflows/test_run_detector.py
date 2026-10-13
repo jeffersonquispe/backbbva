@@ -61,8 +61,12 @@ def _context(segment: SegmentSettings) -> dict[str, Any]:
                 "aric_signals": None,
                 "customer_profile": None,
                 "transaction_history": [
-                    TransactionHistoryEntry("e-old", "transfer", "2026-06-01T00:00:00Z", 1.0),
-                    TransactionHistoryEntry("e-new", "transfer", "2026-09-27T00:00:00Z", 2.0),
+                    TransactionHistoryEntry(
+                        "e-old", "transfer", "2026-06-01T00:00:00Z", 1.0
+                    ),
+                    TransactionHistoryEntry(
+                        "e-new", "transfer", "2026-09-27T00:00:00Z", 2.0
+                    ),
                 ],
                 "personal_data_changes": [],
             },
@@ -105,8 +109,12 @@ def _rubric() -> Rubric:
         id="r1",
         name="estafa_score",
         conditions=[
-            RuleCondition(id="c1", variable="amount", comparison="gt", values=["3000"], score=60),
-            RuleCondition(id="c2", variable="device", comparison="eq", values=["iphone"], score=40),
+            RuleCondition(
+                id="c1", variable="amount", comparison="gt", values=["3000"], score=60
+            ),
+            RuleCondition(
+                id="c2", variable="device", comparison="eq", values=["iphone"], score=40
+            ),
         ],
     )
 
@@ -139,7 +147,9 @@ def test_detector_prompt_receives_rubric_scores(monkeypatch) -> None:
     calls, _ = _patched(monkeypatch)
     segment = SegmentSettings(
         enabled=True,
-        agent=AgentSettings(rubrics=[_rubric()], detector=DetectorConfig(prompt="Evalúa")),
+        agent=AgentSettings(
+            rubrics=[_rubric()], detector=DetectorConfig(prompt="Evalúa")
+        ),
     )
     context = _context(segment)
     context["rubrics"] = workflow_module._run_rubrics(context)
@@ -168,14 +178,17 @@ def _xgboost_score(is_fraud: str) -> workflow_module._XGBoostScore:
 
 def _xgboost_segment() -> SegmentSettings:
     return SegmentSettings(
-        enabled=True, agent=AgentSettings(detector=DetectorConfig(use_xgboost_model=True))
+        enabled=True,
+        agent=AgentSettings(detector=DetectorConfig(use_xgboost_model=True)),
     )
 
 
 def test_xgboost_decisive_score_skips_the_llm(monkeypatch) -> None:
     calls, _ = _patched(monkeypatch)
     monkeypatch.setattr(
-        workflow_module, "_score_with_xgboost", lambda context, cfg: _xgboost_score("fraud")
+        workflow_module,
+        "_score_with_xgboost",
+        lambda context, cfg: _xgboost_score("fraud"),
     )
 
     output = workflow_module._run_detector(_context(_xgboost_segment()))
@@ -191,7 +204,9 @@ def test_xgboost_uncertainty_band_lets_the_llm_decide_with_separate_evidence(
 ) -> None:
     calls, _ = _patched(monkeypatch, is_fraud="not_fraud")
     monkeypatch.setattr(
-        workflow_module, "_score_with_xgboost", lambda context, cfg: _xgboost_score("unknown")
+        workflow_module,
+        "_score_with_xgboost",
+        lambda context, cfg: _xgboost_score("unknown"),
     )
 
     output = workflow_module._run_detector(_context(_xgboost_segment()))
@@ -234,7 +249,9 @@ def test_xgboost_falls_back_to_llm_when_model_is_not_trained(monkeypatch) -> Non
     segment = SegmentSettings(
         enabled=True,
         agent=AgentSettings(
-            detector=DetectorConfig(use_xgboost_model=True, xgboost_model_id=str(model_id))
+            detector=DetectorConfig(
+                use_xgboost_model=True, xgboost_model_id=str(model_id)
+            )
         ),
     )
 
@@ -260,7 +277,9 @@ def test_history_analysis_analyzes_only_the_selected_slice() -> None:
     segment = SegmentSettings(enabled=True, agent=AgentSettings())
     cfg = _history_cfg(window_days=30, max_history_rows=10, allowed_columns=["amount"])
 
-    [result] = history_research_module._history_research(_context(segment), cfg, "inconclusa")
+    [result] = history_research_module._history_research(
+        _context(segment), cfg, "inconclusa"
+    )
 
     assert result["status"] == "executed"
     # e-old (June) falls outside the 30-day window before the alert.
@@ -270,7 +289,12 @@ def test_history_analysis_analyzes_only_the_selected_slice() -> None:
 def test_history_analysis_disabled_does_nothing() -> None:
     segment = SegmentSettings(enabled=True, agent=AgentSettings())
 
-    assert history_research_module._history_research(_context(segment), DetectorConfig(), "x") == []
+    assert (
+        history_research_module._history_research(
+            _context(segment), DetectorConfig(), "x"
+        )
+        == []
+    )
 
 
 def test_inconclusive_detector_reruns_with_history_findings(monkeypatch) -> None:
@@ -280,7 +304,9 @@ def test_inconclusive_detector_reruns_with_history_findings(monkeypatch) -> None
         "_history_research",
         lambda context, cfg, reasoning: [{"source": "history_pandas"}],
     )
-    segment = SegmentSettings(enabled=True, agent=AgentSettings(detector=_history_cfg()))
+    segment = SegmentSettings(
+        enabled=True, agent=AgentSettings(detector=_history_cfg())
+    )
 
     output = workflow_module._run_detector(_context(segment))
 
@@ -300,7 +326,9 @@ def _numbered_history_research(monkeypatch) -> list[str]:
     return reasonings
 
 
-def test_history_runs_up_to_max_delegations_rounds_while_inconclusive(monkeypatch) -> None:
+def test_history_runs_up_to_max_delegations_rounds_while_inconclusive(
+    monkeypatch,
+) -> None:
     calls, _ = _patched(monkeypatch, is_fraud="unknown")
     rounds = _numbered_history_research(monkeypatch)
     segment = SegmentSettings(
@@ -312,7 +340,9 @@ def test_history_runs_up_to_max_delegations_rounds_while_inconclusive(monkeypatc
     assert len(rounds) == 3
     assert len(calls) == 4  # first answer + one re-run per round
     assert [item["findings"] for item in output.research_delegations] == [
-        [{"round": 1}], [{"round": 2}], [{"round": 3}]
+        [{"round": 1}],
+        [{"round": 2}],
+        [{"round": 3}],
     ]
 
 
@@ -342,12 +372,16 @@ def test_history_rounds_stop_once_the_step_concludes(monkeypatch) -> None:
     assert output.research_delegations is None
 
 
-def test_history_rounds_stop_when_a_round_repeats_the_same_findings(monkeypatch) -> None:
+def test_history_rounds_stop_when_a_round_repeats_the_same_findings(
+    monkeypatch,
+) -> None:
     calls, _ = _patched(monkeypatch, is_fraud="unknown")
     monkeypatch.setattr(
         history_research_module,
         "_history_research",
-        lambda context, cfg, reasoning: [{"status": "executed", "findings": [{"same": 1}]}],
+        lambda context, cfg, reasoning: [
+            {"status": "executed", "findings": [{"same": 1}]}
+        ],
     )
     segment = SegmentSettings(
         enabled=True, agent=AgentSettings(detector=_history_cfg(max_delegations=5))

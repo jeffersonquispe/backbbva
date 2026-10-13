@@ -63,7 +63,9 @@ class InMemoryFlagLibraryRepository:
             name=name if name is not None else current.name,
             description=description if description is not None else current.description,
             evolved_variables=(
-                evolved_variables if evolved_variables is not None else current.evolved_variables
+                evolved_variables
+                if evolved_variables is not None
+                else current.evolved_variables
             ),
             modus_operandi_library_ids=(
                 modus_operandi_library_ids
@@ -84,26 +86,41 @@ class InMemoryFlagLibraryRepository:
 
 class ScriptedEmbeddingUnitOfWork(EmbeddingUnitOfWork):
     def embed(self, texts: list[str]) -> EmbeddingResult:
-        return EmbeddingResult(vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3)
+        return EmbeddingResult(
+            vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3
+        )
 
 
 class ScriptedEmbeddingUnitOfWorkFactory(EmbeddingUnitOfWorkFactory):
     def __init__(self) -> None:
         self.calls: list[ScriptedEmbeddingUnitOfWork] = []
 
-    def create(self, *, model: str, monitoring: MonitoringPort, operation_name: str) -> EmbeddingUnitOfWork:
+    def create(
+        self, *, model: str, monitoring: MonitoringPort, operation_name: str
+    ) -> EmbeddingUnitOfWork:
         uow = ScriptedEmbeddingUnitOfWork()
         self.calls.append(uow)
         return uow
 
 
 class NullSpan(MonitoringSpan):
-    def write_input(self, data) -> None: pass
-    def write_result(self, data) -> None: pass
-    def write_inner_logs(self, entries) -> None: pass
-    def write_operation_metas(self, metadata) -> None: pass
-    def record_dependency(self, name, kind, metadata=None) -> None: pass
-    def finish(self, error=None) -> None: pass
+    def write_input(self, data) -> None:
+        pass
+
+    def write_result(self, data) -> None:
+        pass
+
+    def write_inner_logs(self, entries) -> None:
+        pass
+
+    def write_operation_metas(self, metadata) -> None:
+        pass
+
+    def record_dependency(self, name, kind, metadata=None) -> None:
+        pass
+
+    def finish(self, error=None) -> None:
+        pass
 
 
 class NullMonitoringPort(MonitoringPort):
@@ -111,19 +128,25 @@ class NullMonitoringPort(MonitoringPort):
         return NullSpan()
 
 
-def _create_use_case(repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None) -> CreateFlagLibraryEntryUseCase:
+def _create_use_case(
+    repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None
+) -> CreateFlagLibraryEntryUseCase:
     return CreateFlagLibraryEntryUseCase(
         repo,
-        embedding_unit_of_work_factory=embedding_factory or ScriptedEmbeddingUnitOfWorkFactory(),
+        embedding_unit_of_work_factory=embedding_factory
+        or ScriptedEmbeddingUnitOfWorkFactory(),
         monitoring=NullMonitoringPort(),
         embedding_model="fake-deployment",
     )
 
 
-def _update_use_case(repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None) -> UpdateFlagLibraryEntryUseCase:
+def _update_use_case(
+    repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None
+) -> UpdateFlagLibraryEntryUseCase:
     return UpdateFlagLibraryEntryUseCase(
         repo,
-        embedding_unit_of_work_factory=embedding_factory or ScriptedEmbeddingUnitOfWorkFactory(),
+        embedding_unit_of_work_factory=embedding_factory
+        or ScriptedEmbeddingUnitOfWorkFactory(),
         monitoring=NullMonitoringPort(),
         embedding_model="fake-deployment",
     )
@@ -133,7 +156,9 @@ def test_create_flag_library_entry_defaults_to_active_and_computes_embedding() -
     repo = InMemoryFlagLibraryRepository()
     use_case = _create_use_case(repo)
 
-    entry = use_case.execute(FlagType.RED, "Transacción nocturna", "desc", ["Saldo"], ["mo-1"])
+    entry = use_case.execute(
+        FlagType.RED, "Transacción nocturna", "desc", ["Saldo"], ["mo-1"]
+    )
 
     assert entry.flag_type == FlagType.RED
     assert entry.modus_operandi_library_ids == ["mo-1"]

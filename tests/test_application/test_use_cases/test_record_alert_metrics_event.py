@@ -1,4 +1,5 @@
 """R4 writer + C4 hook points (use-case level) with in-memory fakes."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -92,7 +93,14 @@ class InMemoryAlertRepository:
     def get(self, alert_id: UUID) -> AlertRecord | None:
         return self.alerts.get(alert_id)
 
-    def update(self, alert_id, *, status=None, async_operation_id=None, workflow_execution_id=None):
+    def update(
+        self,
+        alert_id,
+        *,
+        status=None,
+        async_operation_id=None,
+        workflow_execution_id=None,
+    ):
         current = self.alerts.get(alert_id)
         if current is None:
             return None
@@ -100,7 +108,8 @@ class InMemoryAlertRepository:
             current,
             status=status or current.status,
             async_operation_id=async_operation_id or current.async_operation_id,
-            workflow_execution_id=workflow_execution_id or current.workflow_execution_id,
+            workflow_execution_id=workflow_execution_id
+            or current.workflow_execution_id,
         )
         self.alerts[alert_id] = updated
         return updated
@@ -139,7 +148,9 @@ class InMemoryMetricsRollupRepository:
     def query(self, data_type, level, periods, filters=None):
         raise NotImplementedError
 
-    def total(self, measure: str, level: RollupLevel = RollupLevel.DAY, **dims) -> float:
+    def total(
+        self, measure: str, level: RollupLevel = RollupLevel.DAY, **dims
+    ) -> float:
         return sum(
             measures.get(measure, 0)
             for (key, _hour), measures in self.rows.items()
@@ -159,20 +170,43 @@ class InMemoryOperationalSettingsRepository:
 class InMemoryAlertSchemaRepository:
     def get(self, version: int):
         fields = [
-            AlertSchemaField("channel", AlertSchemaDataSource.ARIC, "channel", type=AlertSchemaFieldType.STRING),
-            AlertSchemaField("entrypoint", AlertSchemaDataSource.ARIC, "entrypoint", type=AlertSchemaFieldType.STRING),
-            AlertSchemaField("amount", AlertSchemaDataSource.ARIC, "amount", type=AlertSchemaFieldType.NUMBER),
+            AlertSchemaField(
+                "channel",
+                AlertSchemaDataSource.ARIC,
+                "channel",
+                type=AlertSchemaFieldType.STRING,
+            ),
+            AlertSchemaField(
+                "entrypoint",
+                AlertSchemaDataSource.ARIC,
+                "entrypoint",
+                type=AlertSchemaFieldType.STRING,
+            ),
+            AlertSchemaField(
+                "amount",
+                AlertSchemaDataSource.ARIC,
+                "amount",
+                type=AlertSchemaFieldType.NUMBER,
+            ),
         ]
         return AlertSchemaVersion(
             version=version,
             fields=fields,
-            field_roles={"channel": "channel", "entrypoint": "entrypoint", "amount": "amount"},
+            field_roles={
+                "channel": "channel",
+                "entrypoint": "entrypoint",
+                "amount": "amount",
+            },
         )
 
 
 def _alert(alerts: InMemoryAlertRepository, payload=PAYLOAD) -> AlertRecord:
     channel = payload.get("channel")
-    entrypoint = payload.get("entrypoint") or payload.get("integrationpoint") or payload.get("integrationPoint")
+    entrypoint = (
+        payload.get("entrypoint")
+        or payload.get("integrationpoint")
+        or payload.get("integrationPoint")
+    )
     amount = payload.get("amount")
     if isinstance(amount, dict):
         amount = amount.get("baseValue")
@@ -209,7 +243,9 @@ def _setup(tiers=TIERS, tier_version=3):
 
 
 def _event(alert_id, event_type, **fields) -> RecordAlertMetricsEventInput:
-    return RecordAlertMetricsEventInput(alert_id=alert_id, event_type=event_type, **fields)
+    return RecordAlertMetricsEventInput(
+        alert_id=alert_id, event_type=event_type, **fields
+    )
 
 
 # --- writer -----------------------------------------------------------------------
@@ -220,11 +256,20 @@ def test_created_freezes_canonical_dimensions_and_current_amount_tier() -> None:
     alert = _alert(alerts)
 
     snapshot = recorder.execute(
-        _event(alert.id, AlertMetricsEventType.CREATED, origin="simulator", configuration_id="cfg-1")
+        _event(
+            alert.id,
+            AlertMetricsEventType.CREATED,
+            origin="simulator",
+            configuration_id="cfg-1",
+        )
     )
 
     assert snapshot == alerts.get(alert.id).metrics
-    assert (snapshot.channel, snapshot.subchannel, snapshot.amount) == ("WEB", "PSE", 2_500_000)
+    assert (snapshot.channel, snapshot.subchannel, snapshot.amount) == (
+        "WEB",
+        "PSE",
+        2_500_000,
+    )
     assert (snapshot.amount_tier, snapshot.schema_version) == ("mid", 1)
     assert (snapshot.origin, snapshot.configuration_id) == ("simulator", "cfg-1")
     assert snapshot.mark == Mark.PENDING and snapshot.fraud_label == Mark.PENDING
@@ -234,14 +279,17 @@ def test_created_freezes_canonical_dimensions_and_current_amount_tier() -> None:
 
     # Tier changes later never reclassify this alert.
     settings.settings = OperationalSettings(amount_tiers=[])
-    after = recorder.execute(_event(alert.id, AlertMetricsEventType.PRE_PROCESSED, segment="s1"))
+    after = recorder.execute(
+        _event(alert.id, AlertMetricsEventType.PRE_PROCESSED, segment="s1")
+    )
     assert after.amount_tier == "mid"
 
 
 def test_flat_csv_payload_aliases_and_no_tiers_classify_unknown() -> None:
     alerts, rollups, _, recorder = _setup(tiers=[], tier_version=0)
     alert = _alert(
-        alerts, {"channel": "APP", "integrationpoint": "BREB", "amount_value": "120000.5"}
+        alerts,
+        {"channel": "APP", "integrationpoint": "BREB", "amount_value": "120000.5"},
     )
     snapshot = recorder.execute(_event(alert.id, AlertMetricsEventType.CREATED))
     assert (snapshot.subchannel, snapshot.amount, snapshot.amount_tier) == (
@@ -263,7 +311,9 @@ def test_re_recording_the_same_event_is_a_no_op() -> None:
     )
     first = recorder.execute(finished)
     # Celery retry of the same terminal step, a minute later.
-    retry = recorder.execute(dataclasses.replace(finished, occurred_at=NOW + timedelta(minutes=1)))
+    retry = recorder.execute(
+        dataclasses.replace(finished, occurred_at=NOW + timedelta(minutes=1))
+    )
 
     assert retry == first
     assert len(rollups.applies) == 2
@@ -277,7 +327,9 @@ def test_version_conflict_rereads_and_retries_without_double_counting() -> None:
 
     # Another event lands between our read and our write.
     def racing_writer() -> None:
-        recorder.execute(_event(alert.id, AlertMetricsEventType.PRE_PROCESSED, segment="s1"))
+        recorder.execute(
+            _event(alert.id, AlertMetricsEventType.PRE_PROCESSED, segment="s1")
+        )
 
     rollups.before_apply.append(racing_writer)
     result = recorder.execute(
@@ -331,7 +383,12 @@ def test_missing_alert_returns_none() -> None:
         ("discarded", AlertStatus.CLOSED, Mark.NO_FRAUD, AlertResolutionMethod.ARIA),
         ("bidi", AlertStatus.CLOSED, Mark.PENDING, AlertResolutionMethod.BIDI),
         ("voicebot", AlertStatus.CLOSED, Mark.PENDING, AlertResolutionMethod.VOICEBOT),
-        ("scale_to_analyst", AlertStatus.ESCALATED, Mark.PENDING, AlertResolutionMethod.ANALYST),
+        (
+            "scale_to_analyst",
+            AlertStatus.ESCALATED,
+            Mark.PENDING,
+            AlertResolutionMethod.ANALYST,
+        ),
         (None, AlertStatus.FAILED, Mark.PENDING, None),
         (None, AlertStatus.SKIPPED, Mark.PENDING, None),
     ],
@@ -347,7 +404,11 @@ def test_workflow_finished_maps_decision_to_mark(action, status, mark, method) -
             executed_action=action,
         )
     )
-    assert (snapshot.status, snapshot.mark, snapshot.resolution_method) == (status, mark, method)
+    assert (snapshot.status, snapshot.mark, snapshot.resolution_method) == (
+        status,
+        mark,
+        method,
+    )
     assert snapshot.fraud_label == mark
     if mark == Mark.PENDING:
         assert snapshot.marked_at is None and snapshot.resolution_time_seconds is None
@@ -369,8 +430,12 @@ def test_mark_is_immutable_once_decided() -> None:
         )
     )
     later = recorder.execute(
-        _event(alert.id, AlertMetricsEventType.ANALYST_RESOLVED, decision="pass",
-               occurred_at=NOW + timedelta(hours=1))
+        _event(
+            alert.id,
+            AlertMetricsEventType.ANALYST_RESOLVED,
+            decision="pass",
+            occurred_at=NOW + timedelta(hours=1),
+        )
     )
     assert later.mark == Mark.FRAUD
     assert later.resolution_method == AlertResolutionMethod.ARIA
@@ -381,16 +446,26 @@ def test_fraud_review_event_updates_label_and_counts() -> None:
     alerts, rollups, _, recorder = _setup()
     alert = _alert(alerts)
     recorder.execute(
-        _event(alert.id, AlertMetricsEventType.WORKFLOW_FINISHED,
-               status=AlertStatus.CLOSED, executed_action="block")
+        _event(
+            alert.id,
+            AlertMetricsEventType.WORKFLOW_FINISHED,
+            status=AlertStatus.CLOSED,
+            executed_action="block",
+        )
     )
     reviewed_at = NOW + timedelta(days=2)
     snapshot = recorder.execute(
-        _event(alert.id, AlertMetricsEventType.FRAUD_REVIEWED,
-               fraud_label=Mark.NO_FRAUD, occurred_at=reviewed_at)
+        _event(
+            alert.id,
+            AlertMetricsEventType.FRAUD_REVIEWED,
+            fraud_label=Mark.NO_FRAUD,
+            occurred_at=reviewed_at,
+        )
     )
     assert (snapshot.mark, snapshot.fraud_label) == (Mark.FRAUD, Mark.NO_FRAUD)
-    assert snapshot.fraud_reviewed_at == reviewed_at and snapshot.fraud_review_count == 1
+    assert (
+        snapshot.fraud_reviewed_at == reviewed_at and snapshot.fraud_review_count == 1
+    )
     # The alert moved rows: the false positive is visible in the rollups.
     assert rollups.total("count", mark="fraud", fraud_label="no_fraud") == 1
     assert rollups.total("count", mark="fraud", fraud_label="fraud") == 0
@@ -512,8 +587,12 @@ def test_analyst_resolution_records_mark(decision, mark, method) -> None:
     alerts, rollups, _, recorder = _setup()
     alert = _alert(alerts)
     recorder.execute(
-        _event(alert.id, AlertMetricsEventType.WORKFLOW_FINISHED,
-               status=AlertStatus.ESCALATED, executed_action="scale_to_analyst")
+        _event(
+            alert.id,
+            AlertMetricsEventType.WORKFLOW_FINISHED,
+            status=AlertStatus.ESCALATED,
+            executed_action="scale_to_analyst",
+        )
     )
     reservations = InMemoryReservations(
         _reservation(ReservedResource.ANALYST, str(alert.id), holder="ana")
@@ -525,7 +604,9 @@ def test_analyst_resolution_records_mark(decision, mark, method) -> None:
         clock=lambda: NOW + timedelta(minutes=10),
         metrics_recorder=recorder,
     ).execute(
-        ResolveEscalatedAlertInput(alert_id=str(alert.id), analyst_id="ana", decision=decision)
+        ResolveEscalatedAlertInput(
+            alert_id=str(alert.id), analyst_id="ana", decision=decision
+        )
     )
     snapshot = alerts.get(alert.id).metrics
     assert (snapshot.status, snapshot.mark, snapshot.resolution_method) == (
@@ -541,16 +622,26 @@ def test_analyst_resolution_records_mark(decision, mark, method) -> None:
 
 @pytest.mark.parametrize(
     ("outcome", "mark"),
-    [("fraud_confirmed", Mark.FRAUD), ("customer_recognized", Mark.NO_FRAUD), ("no_answer", Mark.PENDING)],
+    [
+        ("fraud_confirmed", Mark.FRAUD),
+        ("customer_recognized", Mark.NO_FRAUD),
+        ("no_answer", Mark.PENDING),
+    ],
 )
 def test_voicebot_callback_records_mark_from_outcome(outcome, mark) -> None:
     alerts, rollups, _, recorder = _setup()
     alert = _alert(alerts)
     recorder.execute(
-        _event(alert.id, AlertMetricsEventType.WORKFLOW_FINISHED,
-               status=AlertStatus.CLOSED, executed_action="voicebot")
+        _event(
+            alert.id,
+            AlertMetricsEventType.WORKFLOW_FINISHED,
+            status=AlertStatus.CLOSED,
+            executed_action="voicebot",
+        )
     )
-    reservations = InMemoryReservations(_reservation(ReservedResource.VOICEBOT, str(alert.id)))
+    reservations = InMemoryReservations(
+        _reservation(ReservedResource.VOICEBOT, str(alert.id))
+    )
     CompleteVoicebotCallUseCase(
         reservations, clock=lambda: NOW, metrics_recorder=recorder
     ).execute(str(alert.id), outcome)
@@ -562,7 +653,9 @@ def test_voicebot_callback_records_mark_from_outcome(outcome, mark) -> None:
 
 
 def test_voicebot_callback_survives_a_metrics_failure() -> None:
-    reservations = InMemoryReservations(_reservation(ReservedResource.VOICEBOT, str(uuid4())))
+    reservations = InMemoryReservations(
+        _reservation(ReservedResource.VOICEBOT, str(uuid4()))
+    )
     CompleteVoicebotCallUseCase(
         reservations, clock=lambda: NOW, metrics_recorder=FailingMetricsRecorder()
     ).execute(reservations.reservation.alert_id, "fraud")
@@ -612,7 +705,9 @@ def test_mark_set_emits_one_span_when_mark_leaves_pending() -> None:
         monitoring=monitoring,
     )
     alert = _alert(alerts)
-    recorder.execute(_event(alert.id, AlertMetricsEventType.CREATED, origin="simulator"))
+    recorder.execute(
+        _event(alert.id, AlertMetricsEventType.CREATED, origin="simulator")
+    )
     assert monitoring.spans == []  # mark still pending
 
     finished = _event(

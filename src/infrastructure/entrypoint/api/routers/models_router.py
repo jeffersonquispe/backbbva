@@ -73,7 +73,9 @@ def create_model(
                 for t in request.feature_transforms
             ],
             created_by=request.created_by,
-            historical_features=[HistoricalFeature(**f.model_dump()) for f in request.historical_features],
+            historical_features=[
+                HistoricalFeature(**f.model_dump()) for f in request.historical_features
+            ],
             training_config=TrainingConfig(**request.training_config.model_dump()),
             feature_configuration=request.feature_configuration,
         )
@@ -113,12 +115,18 @@ class FeatureTemplateRequest(BaseModel):
 
 @router.get("/features/operations")
 def get_feature_operations(
-    use_case: Annotated[FeatureCapabilitiesUseCase, Depends(get_feature_capabilities_use_case)],
+    use_case: Annotated[
+        FeatureCapabilitiesUseCase, Depends(get_feature_capabilities_use_case)
+    ],
 ):
     return use_case.execute()
 
 
-@router.post("/features/preview", response_model=FeaturePreviewQueuedResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/features/preview",
+    response_model=FeaturePreviewQueuedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def preview_features(
     request: FeaturePreviewRequest,
     use_case: Annotated[PreviewFeaturesUseCase, Depends(get_preview_features_use_case)],
@@ -126,8 +134,13 @@ def preview_features(
     try:
         # Reject malformed or oversized input before it reaches Redis, but leave
         # evaluation itself to the worker so a costly recipe cannot occupy an API worker.
-        configuration = use_case.validate(request.configuration, request.rows, request.target_field)
-        task = celery_app.send_task("models.preview_features", args=[configuration, request.rows, request.target_field])
+        configuration = use_case.validate(
+            request.configuration, request.rows, request.target_field
+        )
+        task = celery_app.send_task(
+            "models.preview_features",
+            args=[configuration, request.rows, request.target_field],
+        )
         return FeaturePreviewQueuedResponse(task_id=task.id)
     except FeatureRecipeProblem as exc:
         raise HTTPException(status_code=422, detail=exc.detail) from exc
@@ -141,7 +154,9 @@ def get_feature_preview(task_id: str):
     if task.state in {states.PENDING, states.RECEIVED, states.STARTED, states.RETRY}:
         return FeaturePreviewStatusResponse(task_id=task_id, status="PENDING")
     if task.state == states.SUCCESS:
-        return FeaturePreviewStatusResponse(task_id=task_id, status="READY", result=task.result)
+        return FeaturePreviewStatusResponse(
+            task_id=task_id, status="READY", result=task.result
+        )
     return FeaturePreviewStatusResponse(
         task_id=task_id,
         status="FAILED",
@@ -151,7 +166,9 @@ def get_feature_preview(task_id: str):
 
 @router.get("/feature-templates")
 def list_feature_templates(
-    use_case: Annotated[FeatureTemplatesUseCase, Depends(get_feature_templates_use_case)],
+    use_case: Annotated[
+        FeatureTemplatesUseCase, Depends(get_feature_templates_use_case)
+    ],
 ):
     return use_case.list()
 
@@ -159,7 +176,9 @@ def list_feature_templates(
 @router.post("/feature-templates", status_code=status.HTTP_201_CREATED)
 def create_feature_template(
     request: FeatureTemplateRequest,
-    use_case: Annotated[FeatureTemplatesUseCase, Depends(get_feature_templates_use_case)],
+    use_case: Annotated[
+        FeatureTemplatesUseCase, Depends(get_feature_templates_use_case)
+    ],
 ):
     try:
         return use_case.create(request.name, request.description, request.configuration)
@@ -167,10 +186,14 @@ def create_feature_template(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@router.delete("/feature-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/feature-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 def delete_feature_template(
     template_id: UUID,
-    use_case: Annotated[FeatureTemplatesUseCase, Depends(get_feature_templates_use_case)],
+    use_case: Annotated[
+        FeatureTemplatesUseCase, Depends(get_feature_templates_use_case)
+    ],
 ):
     use_case.delete(str(template_id))
 

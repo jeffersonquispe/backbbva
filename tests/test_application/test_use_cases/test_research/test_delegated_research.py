@@ -33,14 +33,24 @@ class _Retriever:
 
 def test_vector_agent_filters_hits_and_keeps_source_trace():
     retriever = _Retriever()
-    agent = VectorStoreResearchAgent(retriever, VectorStoreResearchConfig(
-        enabled=True, vector_store_instance_id="vs-1", allowed_asset_types=("modus_operandi",),
-    ))
-    result = agent.research(ResearchRequest(ResearchSource.VECTOR_STORE, "new beneficiary"))
+    agent = VectorStoreResearchAgent(
+        retriever,
+        VectorStoreResearchConfig(
+            enabled=True,
+            vector_store_instance_id="vs-1",
+            allowed_asset_types=("modus_operandi",),
+        ),
+    )
+    result = agent.research(
+        ResearchRequest(ResearchSource.VECTOR_STORE, "new beneficiary")
+    )
 
     assert result.status == ResearchStatus.EXECUTED
     assert len(result.findings) == 1
-    assert result.findings[0].metadata == {"asset_type": "modus_operandi", "score": 0.91}
+    assert result.findings[0].metadata == {
+        "asset_type": "modus_operandi",
+        "score": 0.91,
+    }
     assert retriever.calls == [("new beneficiary", "modus_operandi", 8)]
 
 
@@ -57,12 +67,18 @@ class _Agent:
 def test_coordinator_stops_after_evidence_becomes_conclusive():
     vector = _Agent(ResearchSource.VECTOR_STORE)
     pandas = _Agent(ResearchSource.HISTORY_PANDAS)
-    coordinator = ResearchDelegationCoordinator({
-        ResearchSource.VECTOR_STORE: vector, ResearchSource.HISTORY_PANDAS: pandas,
-    })
+    coordinator = ResearchDelegationCoordinator(
+        {
+            ResearchSource.VECTOR_STORE: vector,
+            ResearchSource.HISTORY_PANDAS: pandas,
+        }
+    )
     state = {"unknown": True}
     results = coordinator.delegate(
-        [ResearchRequest(ResearchSource.VECTOR_STORE, "q"), ResearchRequest(ResearchSource.HISTORY_PANDAS, "q")],
+        [
+            ResearchRequest(ResearchSource.VECTOR_STORE, "q"),
+            ResearchRequest(ResearchSource.HISTORY_PANDAS, "q"),
+        ],
         is_inconclusive=lambda: state["unknown"],
         accept=lambda result: state.update(unknown=False),
     )
@@ -83,7 +99,9 @@ class _SlowAgent:
 
 def test_time_bounded_agent_fails_the_call_when_the_call_overruns():
     release = threading.Event()
-    agent = TimeBoundedResearchAgent(_SlowAgent(release), ResearchSource.VECTOR_STORE, 0.05)
+    agent = TimeBoundedResearchAgent(
+        _SlowAgent(release), ResearchSource.VECTOR_STORE, 0.05
+    )
 
     result = agent.research(ResearchRequest(ResearchSource.VECTOR_STORE, "q"))
     release.set()
@@ -96,7 +114,9 @@ def test_time_bounded_agent_fails_the_call_when_the_call_overruns():
 def test_time_bounded_agent_returns_the_result_within_the_limit():
     release = threading.Event()
     release.set()
-    agent = TimeBoundedResearchAgent(_SlowAgent(release), ResearchSource.VECTOR_STORE, 5)
+    agent = TimeBoundedResearchAgent(
+        _SlowAgent(release), ResearchSource.VECTOR_STORE, 5
+    )
 
     result = agent.research(ResearchRequest(ResearchSource.VECTOR_STORE, "q"))
 
@@ -106,7 +126,9 @@ def test_time_bounded_agent_returns_the_result_within_the_limit():
 def test_time_bounded_agent_without_limit_calls_through():
     release = threading.Event()
     release.set()
-    agent = TimeBoundedResearchAgent(_SlowAgent(release), ResearchSource.HISTORY_PANDAS, 0)
+    agent = TimeBoundedResearchAgent(
+        _SlowAgent(release), ResearchSource.HISTORY_PANDAS, 0
+    )
 
     result = agent.research(ResearchRequest(ResearchSource.HISTORY_PANDAS, "q"))
 
@@ -152,7 +174,10 @@ def test_time_bounded_agent_records_ok_failed_and_timeout_calls():
     request = ResearchRequest(ResearchSource.VECTOR_STORE, "q")
 
     TimeBoundedResearchAgent(
-        _StatusAgent(ResearchStatus.EXECUTED), ResearchSource.VECTOR_STORE, 5, monitoring
+        _StatusAgent(ResearchStatus.EXECUTED),
+        ResearchSource.VECTOR_STORE,
+        5,
+        monitoring,
     ).research(request)
     TimeBoundedResearchAgent(
         _StatusAgent(ResearchStatus.FAILED), ResearchSource.VECTOR_STORE, 0, monitoring
@@ -183,9 +208,10 @@ def test_time_bounded_agent_records_a_raising_call_as_failed_and_skips_are_not_c
     except RuntimeError:
         pass
     TimeBoundedResearchAgent(
-        _StatusAgent(ResearchStatus.SKIPPED), ResearchSource.HISTORY_PANDAS, 0, monitoring
+        _StatusAgent(ResearchStatus.SKIPPED),
+        ResearchSource.HISTORY_PANDAS,
+        0,
+        monitoring,
     ).research(request)
 
-    assert monitoring.research_calls == [
-        ("history_pandas", ResearchCallOutcome.FAILED)
-    ]
+    assert monitoring.research_calls == [("history_pandas", ResearchCallOutcome.FAILED)]

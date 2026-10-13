@@ -13,6 +13,7 @@ Nothing is invented: data that was never persisted (segment; the
 configuration resolved at pre_process when the run didn't pin one; origin
 of an alert without workflow) stays None -> "unknown" dimension; a decision
 that isn't on record stays mark "pending"."""
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -77,11 +78,14 @@ def lifecycle_events(
                 finished(AlertStatus.ESCALATED, SCALE_TO_ANALYST)
         else:
             action = (
-                "discarded" if workflow.output_status == "discarded"
+                "discarded"
+                if workflow.output_status == "discarded"
                 else workflow.executed_action
             )
             finished(
-                AlertStatus.ESCALATED if action == SCALE_TO_ANALYST else AlertStatus.CLOSED,
+                AlertStatus.ESCALATED
+                if action == SCALE_TO_ANALYST
+                else AlertStatus.CLOSED,
                 action,
             )
 

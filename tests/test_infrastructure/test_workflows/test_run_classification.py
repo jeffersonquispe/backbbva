@@ -141,7 +141,9 @@ def test_run_classification_exposes_vector_store_research_as_a_bounded_tool(
     monkeypatch,
 ) -> None:
     calls = _patched(monkeypatch)
-    monkeypatch.setattr(factories, "get_search_fraud_knowledge_use_case", lambda: object())
+    monkeypatch.setattr(
+        factories, "get_search_fraud_knowledge_use_case", lambda: object()
+    )
 
     workflow_module._run_classification(_context(_vector_store_segment("vs-1")))
 

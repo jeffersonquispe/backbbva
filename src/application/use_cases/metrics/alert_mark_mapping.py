@@ -3,6 +3,7 @@
 mark has three values: fraud, no_fraud, pending. block -> fraud;
 pass / discard -> no_fraud; bidi -> pending; voicebot by its outcome;
 escalated, voicebot not yet resolved, failed or skipped -> pending."""
+
 from __future__ import annotations
 
 from src.application.ports.alert_port import AlertResolutionMethod, Mark

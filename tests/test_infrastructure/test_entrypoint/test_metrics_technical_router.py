@@ -1,5 +1,6 @@
 """GET /metrics/technical: `monitor` permission, step_name/model query
 params reach the use case as filters, unknown filters answer 422."""
+
 from __future__ import annotations
 
 import os
@@ -35,18 +36,26 @@ def _client(role: LocalRole, repository: RecordingRollupRepository) -> TestClien
     app = FastAPI()
     app.include_router(metrics_router.router)
     user = LocalUser(
-        id=uuid4(), email="u@x.co", name="u", password_hash="", role=role,
-        is_active=True, created_at=NOW, updated_at=NOW,
+        id=uuid4(),
+        email="u@x.co",
+        name="u",
+        password_hash="",
+        role=role,
+        is_active=True,
+        created_at=NOW,
+        updated_at=NOW,
     )
     app.dependency_overrides[get_current_user] = lambda: user
-    app.dependency_overrides[get_technical_metrics_use_case] = lambda: GetTechnicalMetrics(
-        repository, "America/Bogota", clock=lambda: NOW
+    app.dependency_overrides[get_technical_metrics_use_case] = (
+        lambda: GetTechnicalMetrics(repository, "America/Bogota", clock=lambda: NOW)
     )
     return TestClient(app)
 
 
 def test_requires_monitor_permission() -> None:
-    response = _client(LocalRole.FRAUD_ANALYST, RecordingRollupRepository()).get("/metrics/technical")
+    response = _client(LocalRole.FRAUD_ANALYST, RecordingRollupRepository()).get(
+        "/metrics/technical"
+    )
     assert response.status_code == 403
 
 
@@ -54,18 +63,34 @@ def test_returns_the_technical_shape_and_pushes_filters_down() -> None:
     repository = RecordingRollupRepository()
     response = _client(LocalRole.DATA_ANALYST, repository).get(
         "/metrics/technical",
-        params=[("channel", "WEB"), ("step_name", "classification"), ("model", "gpt-a")],
+        params=[
+            ("channel", "WEB"),
+            ("step_name", "classification"),
+            ("model", "gpt-a"),
+        ],
     )
     assert response.status_code == 200
     body = response.json()
     assert body["range"]["from"].startswith("2026-09-30T15:30")
     assert len(body["hourly_profile"]) == 24
-    assert body["evaluations"] == {"evaluated": 0, "hallucinations": 0, "data_use_correct": 0, "invalid": 0}
+    assert body["evaluations"] == {
+        "evaluated": 0,
+        "hallucinations": 0,
+        "data_use_correct": 0,
+        "invalid": 0,
+    }
     assert body["llm_calls"]["latency"]["histogram"][0]["bucket"] == "dur_lt_1s"
 
     filters = {q[0]: q[3] for q in repository.queries}
-    assert filters["llm_call"] == {"channel": ["WEB"], "step_name": ["classification"], "model": ["gpt-a"]}
-    assert filters["workflow_step"] == {"channel": ["WEB"], "step_name": ["classification"]}
+    assert filters["llm_call"] == {
+        "channel": ["WEB"],
+        "step_name": ["classification"],
+        "model": ["gpt-a"],
+    }
+    assert filters["workflow_step"] == {
+        "channel": ["WEB"],
+        "step_name": ["classification"],
+    }
     assert filters["evaluation"] == {"channel": ["WEB"]}
 
 

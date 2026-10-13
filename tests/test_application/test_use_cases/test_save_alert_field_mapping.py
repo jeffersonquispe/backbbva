@@ -17,20 +17,30 @@ class InMemoryAlertFieldMappingRepository(AlertFieldMappingRepository):
         self._history = list(records.values()) if records is not None else []
 
     def get(self, dataset_name: str) -> AlertFieldMapping | None:
-        records = [record for record in self._history if record.dataset_name == dataset_name]
-        return max(
-            records,
-            key=lambda record: (
-                record.updated_at.timestamp() if record.updated_at else float("-inf")
-            ),
-        ) if records else None
+        records = [
+            record for record in self._history if record.dataset_name == dataset_name
+        ]
+        return (
+            max(
+                records,
+                key=lambda record: (
+                    record.updated_at.timestamp()
+                    if record.updated_at
+                    else float("-inf")
+                ),
+            )
+            if records
+            else None
+        )
 
     def save(self, mapping: AlertFieldMapping) -> AlertFieldMapping:
         self._history.append(mapping)
         return mapping
 
     def delete(self, dataset_name: str) -> None:
-        self._history = [record for record in self._history if record.dataset_name != dataset_name]
+        self._history = [
+            record for record in self._history if record.dataset_name != dataset_name
+        ]
 
 
 def test_save_alert_field_mapping_records_schema_version() -> None:

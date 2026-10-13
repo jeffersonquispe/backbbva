@@ -37,16 +37,25 @@ class RegisterLocalUserUseCase:
         self._users = users
         self._password_hasher = password_hasher
 
-    def execute(self, *, email: str, name: str, password: str, role: LocalRole) -> LocalUser:
+    def execute(
+        self, *, email: str, name: str, password: str, role: LocalRole
+    ) -> LocalUser:
         email = email.strip().lower()
         if self._users.get_by_email(email):
             raise DuplicateEmailError("A user with this email already exists")
         now = datetime.now(UTC)
-        return self._users.create(LocalUser(
-            id=uuid4(), email=email, name=name.strip(),
-            password_hash=self._password_hasher.hash(password), role=role,
-            is_active=True, created_at=now, updated_at=now,
-        ))
+        return self._users.create(
+            LocalUser(
+                id=uuid4(),
+                email=email,
+                name=name.strip(),
+                password_hash=self._password_hasher.hash(password),
+                role=role,
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+        )
 
 
 class ListLocalUsersUseCase:
@@ -66,34 +75,52 @@ class ChangeLocalUserPasswordUseCase:
         user = self._users.get_by_id(user_id)
         if not user:
             raise LocalUserNotFoundError("User not found")
-        return self._users.update(replace(
-            user, password_hash=self._password_hasher.hash(password), updated_at=datetime.now(UTC),
-        ))
+        return self._users.update(
+            replace(
+                user,
+                password_hash=self._password_hasher.hash(password),
+                updated_at=datetime.now(UTC),
+            )
+        )
 
 
 class AuthenticateLocalUserUseCase:
-    def __init__(self, users: LocalUserRepository, password_hasher, token_service) -> None:
+    def __init__(
+        self, users: LocalUserRepository, password_hasher, token_service
+    ) -> None:
         self._users = users
         self._password_hasher = password_hasher
         self._token_service = token_service
 
     def execute(self, *, email: str, password: str) -> AuthenticatedUser:
         user = self._users.get_by_email(email.strip().lower())
-        if not user or not user.is_active or not self._password_hasher.verify(password, user.password_hash):
+        if (
+            not user
+            or not user.is_active
+            or not self._password_hasher.verify(password, user.password_hash)
+        ):
             raise InvalidCredentialsError("Invalid email or password")
         token, expires_in = self._token_service.issue(user)
         return AuthenticatedUser(user=user, access_token=token, expires_in=expires_in)
 
 
 class GetCurrentLocalUserUseCase:
-    def __init__(self, users: LocalUserRepository, revoked_tokens: RevokedTokenRepository | None = None) -> None:
+    def __init__(
+        self,
+        users: LocalUserRepository,
+        revoked_tokens: RevokedTokenRepository | None = None,
+    ) -> None:
         self._users = users
         self._revoked_tokens = revoked_tokens
 
     def execute(self, user_id, token_id: str | None = None) -> LocalUser | None:
         """Resolve the user behind a request. With ``token_id`` (the access
         token's jti), a token ended by logout resolves to no user."""
-        if token_id and self._revoked_tokens is not None and self._revoked_tokens.is_revoked(token_id):
+        if (
+            token_id
+            and self._revoked_tokens is not None
+            and self._revoked_tokens.is_revoked(token_id)
+        ):
             return None
         return self._users.get_by_id(user_id)
 

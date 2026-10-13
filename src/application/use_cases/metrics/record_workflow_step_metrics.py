@@ -21,6 +21,7 @@ Dimensions: the alert's TECHNICAL_ALERT_DIMENSIONS as stored on its
 metrics snapshot at the time of the call (so status / resolution_method are
 the run's outcome: the runner records WORKFLOW_FINISHED first), plus
 step_name / model / source."""
+
 from __future__ import annotations
 
 from collections.abc import Callable

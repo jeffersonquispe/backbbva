@@ -26,9 +26,7 @@ class DynamoAsyncOperationRepository:
     def __init__(self) -> None:
         self._table = get_dynamodb_resource().Table(TABLE_NAME)
 
-    def create(
-        self, operation: AsyncOperationRecord
-    ) -> AsyncOperationRecord:
+    def create(self, operation: AsyncOperationRecord) -> AsyncOperationRecord:
         self._table.put_item(Item=_to_item(operation))
         return operation
 
@@ -133,9 +131,7 @@ def _to_item(operation: AsyncOperationRecord) -> dict[str, Any]:
         "updated_at": operation.updated_at.isoformat(),
         "created_by": operation.created_by,
         "dispatched_at": (
-            operation.dispatched_at.isoformat()
-            if operation.dispatched_at
-            else None
+            operation.dispatched_at.isoformat() if operation.dispatched_at else None
         ),
         "execution_backend": operation.execution_backend,
         "external_id": operation.external_id,

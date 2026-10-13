@@ -2,6 +2,7 @@
 volume, funnel by status, false positives / undetected fraud (mark x
 fraud_label, pending excluded), amounts, distributions per dimension,
 resolution time, 0-23 h profile and per-period maturation."""
+
 from __future__ import annotations
 
 from collections.abc import Callable

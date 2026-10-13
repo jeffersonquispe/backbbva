@@ -86,10 +86,13 @@ def test_raw_loader_requires_the_canonical_object_reference():
     storage = RecordingStorage()
     loader = RawAlertPayloadLoader(storage)
     alert = AlertRecord(
-        UUID(int=1), "evt", "payment", AlertStatus.RECEIVED,
-        datetime.now(UTC), datetime.now(UTC)
+        UUID(int=1),
+        "evt",
+        "payment",
+        AlertStatus.RECEIVED,
+        datetime.now(UTC),
+        datetime.now(UTC),
     )
 
     with pytest.raises(ValueError, match="raw payload reference"):
         loader.load(alert)
-

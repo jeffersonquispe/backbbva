@@ -65,9 +65,7 @@ class OpenTelemetrySpan(MonitoringSpan):
     def write_result(self, data: dict[str, Any]) -> None:
         self._write_event("gen_ai.content.completion", data)
 
-    def write_inner_logs(
-        self, entries: dict[str, Any] | list[dict[str, Any]]
-    ) -> None:
+    def write_inner_logs(self, entries: dict[str, Any] | list[dict[str, Any]]) -> None:
         for item in entries if isinstance(entries, list) else [entries]:
             self._write_event("gen_ai.chain_of_thought", item)
 
@@ -143,16 +141,12 @@ class OpenTelemetrySpan(MonitoringSpan):
         if genai_config.OTEL_CAPTURE_LLM_CONTENT:
             attributes = _flatten(data)
         else:
-            attributes = {
-                "content_length": len(json.dumps(data, default=str))
-            }
+            attributes = {"content_length": len(json.dumps(data, default=str))}
         self._span.add_event(event_name, attributes=attributes)
 
 
 class OpenTelemetryMonitoring(MonitoringPort):
-    def __init__(
-        self, tracer: Tracer, meter: metrics.Meter | None = None
-    ) -> None:
+    def __init__(self, tracer: Tracer, meter: metrics.Meter | None = None) -> None:
         self._tracer = tracer
         self._instruments = AriaInstruments(
             meter
@@ -171,9 +165,7 @@ class OpenTelemetryMonitoring(MonitoringPort):
         # (a dependency, a follow-up LLM call, ...) is parented under it and
         # lands in the same trace as the request that triggered it.
         token = otel_context.attach(trace.set_span_in_context(span))
-        wrapped = OpenTelemetrySpan(
-            span, token, operation_type, self._instruments
-        )
+        wrapped = OpenTelemetrySpan(span, token, operation_type, self._instruments)
         wrapped.write_operation_metas({"operation.type": operation_type})
         if metadata:
             wrapped.write_operation_metas(metadata)
@@ -190,9 +182,7 @@ class OpenTelemetryMonitoring(MonitoringPort):
             },
         )
 
-    def record_research_call(
-        self, source: str, outcome: ResearchCallOutcome
-    ) -> None:
+    def record_research_call(self, source: str, outcome: ResearchCallOutcome) -> None:
         self._instruments.research_calls.add(
             1,
             attributes={
@@ -201,9 +191,7 @@ class OpenTelemetryMonitoring(MonitoringPort):
             },
         )
 
-    def record_rollup_drift(
-        self, data_type: str, level: str, drift: float
-    ) -> None:
+    def record_rollup_drift(self, data_type: str, level: str, drift: float) -> None:
         self._instruments.rollup_drift.set(
             drift,
             attributes={
@@ -212,16 +200,12 @@ class OpenTelemetryMonitoring(MonitoringPort):
             },
         )
 
-    def record_operational_state(
-        self, snapshot: OperationalStateSnapshot
-    ) -> None:
+    def record_operational_state(self, snapshot: OperationalStateSnapshot) -> None:
         i = self._instruments
         i.agent_enabled.set(int(snapshot.agent_enabled))
         i.operating_hours.set(int(snapshot.within_operating_hours))
         i.analyst_queue_depth.set(snapshot.analyst_queue_depth)
-        i.analyst_queue_oldest_age.set(
-            snapshot.analyst_queue_oldest_age_seconds
-        )
+        i.analyst_queue_oldest_age.set(snapshot.analyst_queue_oldest_age_seconds)
         i.capacity_available.set(
             snapshot.analysts_available, attributes={"aria.resource": "analyst"}
         )
@@ -236,6 +220,8 @@ def _flatten(data: dict[str, Any]) -> dict[str, Any]:
     flat: dict[str, Any] = {}
     for key, value in data.items():
         flat[key] = (
-            value if isinstance(value, (str, bool, int, float)) else json.dumps(value, default=str)
+            value
+            if isinstance(value, (str, bool, int, float))
+            else json.dumps(value, default=str)
         )
     return flat

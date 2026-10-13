@@ -62,7 +62,9 @@ def test_reports_only_changed_values_and_high_impact_warning() -> None:
     )
 
     assert result.valid is True
-    assert [(change.path, change.previous, change.proposed) for change in result.changes] == [
+    assert [
+        (change.path, change.previous, change.proposed) for change in result.changes
+    ] == [
         ("infra.max_instances", 8, 12),
         ("test.max_test_instances", 4, 8),
     ]

@@ -64,7 +64,10 @@ TECHNICAL_ALERT_DIMENSIONS: tuple[str, ...] = tuple(
 )
 # Full dimension order per technical data type.
 WORKFLOW_STEP_DIMENSIONS: tuple[str, ...] = TECHNICAL_ALERT_DIMENSIONS + ("step_name",)
-LLM_CALL_DIMENSIONS: tuple[str, ...] = TECHNICAL_ALERT_DIMENSIONS + ("step_name", "model")
+LLM_CALL_DIMENSIONS: tuple[str, ...] = TECHNICAL_ALERT_DIMENSIONS + (
+    "step_name",
+    "model",
+)
 RESEARCH_CALL_DIMENSIONS: tuple[str, ...] = TECHNICAL_ALERT_DIMENSIONS + (
     "step_name",
     "source",
@@ -141,9 +144,7 @@ class RollupApplyMarker:
 
 
 class MetricsRollupRepository(Protocol):
-    def apply(
-        self, deltas: list[RollupDelta], alert_guard: AlertSnapshotGuard
-    ) -> None:
+    def apply(self, deltas: list[RollupDelta], alert_guard: AlertSnapshotGuard) -> None:
         """Atomically (one transaction): write the alert's new snapshot,
         conditioned on its snapshot_version, plus every delta as an
         additive increment. Nothing is written if the condition fails -
@@ -163,9 +164,7 @@ class MetricsRollupRepository(Protocol):
         (dimension name -> accepted values; absent = any value)."""
         ...
 
-    def apply_once(
-        self, deltas: list[RollupDelta], marker: RollupApplyMarker
-    ) -> bool:
+    def apply_once(self, deltas: list[RollupDelta], marker: RollupApplyMarker) -> bool:
         """Atomically (one transaction): create `marker`, conditioned on it
         not existing yet, plus every delta as an additive increment.
         Returns True when applied, False when the marker already existed

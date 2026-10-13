@@ -25,7 +25,9 @@ class FeatureRecipeProblem(ValueError):
             "code": "invalid_feature_recipe",
             "recipe_id": recipe.get("id"),
             "recipe_name": recipe.get("name"),
-            "field": "missing.value" if "Missing constant must match" in message else None,
+            "field": "missing.value"
+            if "Missing constant must match" in message
+            else None,
             "message": message,
         }
 
@@ -40,24 +42,32 @@ class FeatureCapabilitiesUseCase:
 
 
 class PreviewFeaturesUseCase:
-    def validate(self, configuration: dict, rows: list[dict], target_field: str | None = None) -> dict:
+    def validate(
+        self, configuration: dict, rows: list[dict], target_field: str | None = None
+    ) -> dict:
         """Validate a preview before it is put on the worker queue."""
         forbidden_paths = (target_field,) if target_field else ()
         try:
-            definition = validate_feature_definition(configuration, forbidden_paths=forbidden_paths)
+            definition = validate_feature_definition(
+                configuration, forbidden_paths=forbidden_paths
+            )
         except ValueError as exc:
             # The complete definition may fail for a single mapping. Re-run
             # each mapping independently to return a stable ID to the editor;
             # global errors (duplicates, malformed mappings, etc.) remain
             # ordinary validation errors because there is no safe target.
-            if isinstance(configuration, dict) and isinstance(configuration.get("recipes"), list):
+            if isinstance(configuration, dict) and isinstance(
+                configuration.get("recipes"), list
+            ):
                 for recipe in configuration["recipes"]:
                     if not isinstance(recipe, dict):
                         continue
                     candidate = deepcopy(configuration)
                     candidate["recipes"] = [recipe]
                     try:
-                        validate_feature_definition(candidate, forbidden_paths=forbidden_paths)
+                        validate_feature_definition(
+                            candidate, forbidden_paths=forbidden_paths
+                        )
                     except ValueError as recipe_exc:
                         if str(recipe_exc) == str(exc):
                             raise FeatureRecipeProblem(str(exc), recipe) from exc
@@ -68,9 +78,16 @@ class PreviewFeaturesUseCase:
             raise ValueError("La muestra supera el límite de 2 MB")
         return definition
 
-    def execute(self, configuration: dict, rows: list[dict], target_field: str | None = None) -> dict:
+    def execute(
+        self, configuration: dict, rows: list[dict], target_field: str | None = None
+    ) -> dict:
         definition = self.validate(configuration, rows, target_field)
-        return {"rows": [evaluate_feature_definition(definition, row, validated=True) for row in rows]}
+        return {
+            "rows": [
+                evaluate_feature_definition(definition, row, validated=True)
+                for row in rows
+            ]
+        }
 
 
 class FeatureTemplatesUseCase:
@@ -80,16 +97,25 @@ class FeatureTemplatesUseCase:
     def list(self) -> list[FeatureTemplate]:
         return self._repository.list()
 
-    def create(self, name: str, description: str, configuration: dict) -> FeatureTemplate:
+    def create(
+        self, name: str, description: str, configuration: dict
+    ) -> FeatureTemplate:
         if not name.strip() or len(name) > 120 or len(description) > 2000:
-            raise ValueError("Indica un nombre de hasta 120 caracteres y una descripción de hasta 2000")
+            raise ValueError(
+                "Indica un nombre de hasta 120 caracteres y una descripción de hasta 2000"
+            )
         definition = validate_feature_definition(configuration)
         if len(json.dumps(definition, ensure_ascii=False)) > 200_000:
             raise ValueError("La configuración supera el límite de 200 KB")
-        return self._repository.create(FeatureTemplate(
-            id=str(uuid4()), name=name.strip(), description=description,
-            configuration=deepcopy(definition), created_at=datetime.now(UTC),
-        ))
+        return self._repository.create(
+            FeatureTemplate(
+                id=str(uuid4()),
+                name=name.strip(),
+                description=description,
+                configuration=deepcopy(definition),
+                created_at=datetime.now(UTC),
+            )
+        )
 
     def delete(self, template_id: str) -> None:
         self._repository.delete(template_id)

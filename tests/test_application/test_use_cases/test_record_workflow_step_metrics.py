@@ -1,6 +1,7 @@
 """R8: RecordWorkflowStepMetrics + the pure technical contributions -
 rows per step/LLM/research call, tokens identical to token_usage.py, and
 exactly-once per step execution (apply_once markers)."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -57,8 +58,12 @@ class InMemoryStepRepository:
     def __init__(self) -> None:
         self.steps: list[WorkflowStepExecutionRecord] = []
 
-    def list_by_workflow(self, workflow_execution_id: UUID) -> list[WorkflowStepExecutionRecord]:
-        return [s for s in self.steps if s.workflow_execution_id == workflow_execution_id]
+    def list_by_workflow(
+        self, workflow_execution_id: UUID
+    ) -> list[WorkflowStepExecutionRecord]:
+        return [
+            s for s in self.steps if s.workflow_execution_id == workflow_execution_id
+        ]
 
 
 class InMemoryRollupRepository:
@@ -132,7 +137,11 @@ def _step(
     attempt: int = 1,
 ) -> WorkflowStepExecutionRecord:
     started = CREATED + timedelta(seconds=10 + offset)
-    finished = started + timedelta(seconds=seconds) if status != WorkflowStepStatus.RUNNING else None
+    finished = (
+        started + timedelta(seconds=seconds)
+        if status != WorkflowStepStatus.RUNNING
+        else None
+    )
     return WorkflowStepExecutionRecord(
         id=uuid4(),
         workflow_execution_id=workflow_id,
@@ -175,8 +184,16 @@ def _seed_run(steps: InMemoryStepRepository, workflow_id: UUID) -> None:
                 "output_tokens": 50,
                 "research_delegations": [
                     {"source": "history_pandas", "status": "executed", "error": None},
-                    {"source": "history_pandas", "status": "failed", "error": "timeout: no respondió"},
-                    {"source": "history_pandas", "status": "skipped", "error": "disabled"},
+                    {
+                        "source": "history_pandas",
+                        "status": "failed",
+                        "error": "timeout: no respondió",
+                    },
+                    {
+                        "source": "history_pandas",
+                        "status": "skipped",
+                        "error": "disabled",
+                    },
                 ],
                 "vector_store_interactions": [
                     {"status": "executed", "error": None},
@@ -185,17 +202,40 @@ def _seed_run(steps: InMemoryStepRepository, workflow_id: UUID) -> None:
                 ],
             },
         ),
-        _step(workflow_id, "adversarial", seconds=3, offset=2, output={"input_tokens": 400, "output_tokens": 20}),
+        _step(
+            workflow_id,
+            "adversarial",
+            seconds=3,
+            offset=2,
+            output={"input_tokens": 400, "output_tokens": 20},
+        ),
         # Feedback loop: classification again (attempt 2).
-        _step(workflow_id, "classification", seconds=8, offset=3, attempt=2, output={"input_tokens": 900, "output_tokens": 40}),
-        _step(workflow_id, "analyst", seconds=70, offset=4, status=WorkflowStepStatus.FAILED),
+        _step(
+            workflow_id,
+            "classification",
+            seconds=8,
+            offset=3,
+            attempt=2,
+            output={"input_tokens": 900, "output_tokens": 40},
+        ),
+        _step(
+            workflow_id,
+            "analyst",
+            seconds=70,
+            offset=4,
+            status=WorkflowStepStatus.FAILED,
+        ),
         _step(workflow_id, "executor", offset=5, status=WorkflowStepStatus.RUNNING),
     ]
 
 
 def test_rows_per_step_llm_and_research_call() -> None:
     alert = _alert(SNAPSHOT)
-    steps, rollups, workflow_id = InMemoryStepRepository(), InMemoryRollupRepository(), uuid4()
+    steps, rollups, workflow_id = (
+        InMemoryStepRepository(),
+        InMemoryRollupRepository(),
+        uuid4(),
+    )
     _seed_run(steps, workflow_id)
 
     out = _use_case(InMemoryAlertRepository(alert), steps, rollups).execute(
@@ -208,12 +248,16 @@ def test_rows_per_step_llm_and_research_call() -> None:
     assert rollups.total(ws, "succeeded_count") == 4
     assert rollups.total(ws, "failed_count") == 1
     assert rollups.total(ws, "retry_count", step_name="classification") == 1
-    assert rollups.total(ws, "duration_sum_seconds") == pytest.approx(0.4 + 12 + 3 + 8 + 70)
+    assert rollups.total(ws, "duration_sum_seconds") == pytest.approx(
+        0.4 + 12 + 3 + 8 + 70
+    )
     assert rollups.total(ws, "dur_lt_1s") == 1
     assert rollups.total(ws, "dur_gt_60s") == 1
 
     llm = MetricsDataType.LLM_CALL
-    assert rollups.total(llm, "count") == 4  # 2 classification, adversarial, failed analyst
+    assert (
+        rollups.total(llm, "count") == 4
+    )  # 2 classification, adversarial, failed analyst
     assert rollups.total(llm, "error_count", model="gpt-a", step_name="analyst") == 1
     assert rollups.total(llm, "input_tokens", model="gpt-a") == 1900
     assert rollups.total(llm, "input_tokens", model="gpt-b") == 400
@@ -228,11 +272,14 @@ def test_rows_per_step_llm_and_research_call() -> None:
     # Every key carries the alert's technical dimensions in the fixed order.
     for key in rollups.rows:
         names = tuple(n for n, _ in key.dimensions)
-        assert names == {
-            ws: WORKFLOW_STEP_DIMENSIONS,
-            llm: LLM_CALL_DIMENSIONS,
-            rc: RESEARCH_CALL_DIMENSIONS,
-        }[key.data_type]
+        assert (
+            names
+            == {
+                ws: WORKFLOW_STEP_DIMENSIONS,
+                llm: LLM_CALL_DIMENSIONS,
+                rc: RESEARCH_CALL_DIMENSIONS,
+            }[key.data_type]
+        )
         assert key.dimension("segment") == "retail"
         assert key.dimension("status") == "CLOSED"
         assert key.dimension("mark") is None
@@ -240,7 +287,11 @@ def test_rows_per_step_llm_and_research_call() -> None:
 
 def test_tokens_equal_token_usage_on_every_level() -> None:
     alert = _alert(SNAPSHOT)
-    steps, rollups, workflow_id = InMemoryStepRepository(), InMemoryRollupRepository(), uuid4()
+    steps, rollups, workflow_id = (
+        InMemoryStepRepository(),
+        InMemoryRollupRepository(),
+        uuid4(),
+    )
     _seed_run(steps, workflow_id)
     _use_case(InMemoryAlertRepository(alert), steps, rollups).execute(
         RecordWorkflowStepMetricsInput(alert.id, workflow_id, step_models=MODELS)
@@ -256,7 +307,11 @@ def test_tokens_equal_token_usage_on_every_level() -> None:
 
 def test_buckets_by_alert_arrival_in_bogota() -> None:
     alert = _alert(SNAPSHOT)
-    steps, rollups, workflow_id = InMemoryStepRepository(), InMemoryRollupRepository(), uuid4()
+    steps, rollups, workflow_id = (
+        InMemoryStepRepository(),
+        InMemoryRollupRepository(),
+        uuid4(),
+    )
     _seed_run(steps, workflow_id)
     _use_case(InMemoryAlertRepository(alert), steps, rollups).execute(
         RecordWorkflowStepMetricsInput(alert.id, workflow_id)
@@ -275,27 +330,46 @@ def test_recording_again_counts_nothing_twice() -> None:
     """A Celery retry: the second attempt lists the first attempt's steps
     again plus its own new ones - only the new ones are counted."""
     alert = _alert(SNAPSHOT)
-    steps, rollups, workflow_id = InMemoryStepRepository(), InMemoryRollupRepository(), uuid4()
+    steps, rollups, workflow_id = (
+        InMemoryStepRepository(),
+        InMemoryRollupRepository(),
+        uuid4(),
+    )
     _seed_run(steps, workflow_id)
     use_case = _use_case(InMemoryAlertRepository(alert), steps, rollups)
-    use_case.execute(RecordWorkflowStepMetricsInput(alert.id, workflow_id, step_models=MODELS))
+    use_case.execute(
+        RecordWorkflowStepMetricsInput(alert.id, workflow_id, step_models=MODELS)
+    )
     tokens_before = rollups.total(MetricsDataType.LLM_CALL, "input_tokens")
 
-    again = use_case.execute(RecordWorkflowStepMetricsInput(alert.id, workflow_id, step_models=MODELS))
+    again = use_case.execute(
+        RecordWorkflowStepMetricsInput(alert.id, workflow_id, step_models=MODELS)
+    )
     assert (again.recorded, again.already_recorded) == (0, 5)
     assert rollups.total(MetricsDataType.LLM_CALL, "input_tokens") == tokens_before
 
     # Retry attempt re-runs pre_process (a re-execution) and the crashed
     # executor record now has a finished twin.
     steps.steps.append(_step(workflow_id, "pre_process", seconds=0.5, offset=10))
-    third = use_case.execute(RecordWorkflowStepMetricsInput(alert.id, workflow_id, step_models=MODELS))
+    third = use_case.execute(
+        RecordWorkflowStepMetricsInput(alert.id, workflow_id, step_models=MODELS)
+    )
     assert (third.recorded, third.already_recorded) == (1, 5)
-    assert rollups.total(MetricsDataType.WORKFLOW_STEP, "retry_count", step_name="pre_process") == 1
+    assert (
+        rollups.total(
+            MetricsDataType.WORKFLOW_STEP, "retry_count", step_name="pre_process"
+        )
+        == 1
+    )
 
 
 def test_alert_without_snapshot_counts_under_unknown() -> None:
     alert = _alert(None)
-    steps, rollups, workflow_id = InMemoryStepRepository(), InMemoryRollupRepository(), uuid4()
+    steps, rollups, workflow_id = (
+        InMemoryStepRepository(),
+        InMemoryRollupRepository(),
+        uuid4(),
+    )
     steps.steps.append(_step(workflow_id, "pre_process"))
     _use_case(InMemoryAlertRepository(alert), steps, rollups).execute(
         RecordWorkflowStepMetricsInput(alert.id, workflow_id)
@@ -307,9 +381,9 @@ def test_alert_without_snapshot_counts_under_unknown() -> None:
 
 def test_missing_alert_records_nothing() -> None:
     rollups = InMemoryRollupRepository()
-    out = _use_case(InMemoryAlertRepository(), InMemoryStepRepository(), rollups).execute(
-        RecordWorkflowStepMetricsInput(uuid4(), uuid4())
-    )
+    out = _use_case(
+        InMemoryAlertRepository(), InMemoryStepRepository(), rollups
+    ).execute(RecordWorkflowStepMetricsInput(uuid4(), uuid4()))
     assert out.recorded == 0 and not rollups.rows
 
 

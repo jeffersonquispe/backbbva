@@ -56,7 +56,9 @@ class DynamoSimilarCaseLibraryRepository(SimilarCaseLibraryRepository):
                 else current.modus_operandi_library_id
             ),
             taxonomy_library_id=(
-                taxonomy_library_id if taxonomy_library_id is not None else current.taxonomy_library_id
+                taxonomy_library_id
+                if taxonomy_library_id is not None
+                else current.taxonomy_library_id
             ),
             active=active if active is not None else current.active,
             created_at=current.created_at,
@@ -92,5 +94,7 @@ def _from_item(item: dict[str, Any]) -> SimilarCaseLibraryEntry:
         active=bool(item.get("active", True)),
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
-        embedding=[float(v) for v in item["embedding"]] if item.get("embedding") is not None else None,
+        embedding=[float(v) for v in item["embedding"]]
+        if item.get("embedding") is not None
+        else None,
     )

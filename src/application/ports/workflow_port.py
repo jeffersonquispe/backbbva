@@ -64,11 +64,9 @@ class WorkflowExecutionRepository(Protocol):
     def create(
         self,
         workflow: WorkflowExecutionRecord,
-    ) -> WorkflowExecutionRecord:
-        ...
+    ) -> WorkflowExecutionRecord: ...
 
-    def get(self, workflow_id: UUID) -> WorkflowExecutionRecord | None:
-        ...
+    def get(self, workflow_id: UUID) -> WorkflowExecutionRecord | None: ...
 
     def update(
         self,
@@ -83,31 +81,26 @@ class WorkflowExecutionRepository(Protocol):
         execution_backend: str | None = None,
         external_id: str | None = None,
         schema_comparison: dict[str, Any] | None = None,
-    ) -> WorkflowExecutionRecord | None:
-        ...
+    ) -> WorkflowExecutionRecord | None: ...
 
     def list_by_test_run(
         self,
         test_run_id: UUID,
-    ) -> list[WorkflowExecutionRecord]:
-        ...
+    ) -> list[WorkflowExecutionRecord]: ...
 
-    def delete(self, workflow_id: UUID) -> None:
-        ...
+    def delete(self, workflow_id: UUID) -> None: ...
 
 
 class WorkflowStepExecutionRepository(Protocol):
     def create(
         self,
         step: WorkflowStepExecutionRecord,
-    ) -> WorkflowStepExecutionRecord:
-        ...
+    ) -> WorkflowStepExecutionRecord: ...
 
     def list_by_workflow(
         self,
         workflow_execution_id: UUID,
-    ) -> list[WorkflowStepExecutionRecord]:
-        ...
+    ) -> list[WorkflowStepExecutionRecord]: ...
 
     def update(
         self,
@@ -119,8 +112,6 @@ class WorkflowStepExecutionRepository(Protocol):
         error: str | None = None,
         started_at: datetime | None = None,
         finished_at: datetime | None = None,
-    ) -> WorkflowStepExecutionRecord | None:
-        ...
+    ) -> WorkflowStepExecutionRecord | None: ...
 
-    def delete(self, workflow_execution_id: UUID, step_id: UUID) -> None:
-        ...
+    def delete(self, workflow_execution_id: UUID, step_id: UUID) -> None: ...

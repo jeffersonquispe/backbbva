@@ -83,7 +83,9 @@ def get_watchlist(
 ):
     watchlist = use_case.execute(watchlist_id)
     if watchlist is None:
-        raise HTTPException(status_code=404, detail=f"Watchlist not found: {watchlist_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Watchlist not found: {watchlist_id}"
+        )
     return _to_schema(watchlist)
 
 
@@ -153,7 +155,9 @@ def add_watchlist_elements(
     return AddWatchlistElementsResponse(added=added)
 
 
-@router.post("/{watchlist_id}/elements/import", response_model=AddWatchlistElementsResponse)
+@router.post(
+    "/{watchlist_id}/elements/import", response_model=AddWatchlistElementsResponse
+)
 async def import_watchlist_elements(
     watchlist_id: str,
     use_case: Annotated[
@@ -162,7 +166,9 @@ async def import_watchlist_elements(
     file: UploadFile,
 ):
     if not file.filename or not file.filename.lower().endswith((".csv", ".txt")):
-        raise HTTPException(status_code=400, detail="Only .csv or .txt files are supported")
+        raise HTTPException(
+            status_code=400, detail="Only .csv or .txt files are supported"
+        )
     content = await file.read()
     if len(content) > MAX_IMPORT_BYTES:
         raise HTTPException(status_code=400, detail="File too large (max 10MB)")
@@ -174,7 +180,9 @@ async def import_watchlist_elements(
     return AddWatchlistElementsResponse(added=added)
 
 
-@router.delete("/{watchlist_id}/elements", response_model=RemoveWatchlistElementsResponse)
+@router.delete(
+    "/{watchlist_id}/elements", response_model=RemoveWatchlistElementsResponse
+)
 def remove_watchlist_elements(
     watchlist_id: str,
     request: RemoveWatchlistElementsRequest,
@@ -190,14 +198,17 @@ def remove_watchlist_elements(
 def check_watchlist_membership(
     request: CheckWatchlistMembershipRequest,
     use_case: Annotated[
-        CheckWatchlistMembershipUseCase, Depends(get_check_watchlist_membership_use_case)
+        CheckWatchlistMembershipUseCase,
+        Depends(get_check_watchlist_membership_use_case),
     ],
 ):
     matches = use_case.execute(request.list_type, request.value)
     return CheckWatchlistMembershipResponse(
         is_member=len(matches) > 0,
         matches=[
-            WatchlistMatchSchema(watchlist_id=m.watchlist_id, watchlist_name=m.watchlist_name)
+            WatchlistMatchSchema(
+                watchlist_id=m.watchlist_id, watchlist_name=m.watchlist_name
+            )
             for m in matches
         ],
     )

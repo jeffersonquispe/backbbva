@@ -37,7 +37,9 @@ def _embedding_deps() -> tuple[EmbeddingUnitOfWorkFactory, MonitoringPort, str]:
     )
 
 
-def get_create_similar_case_library_entry_use_case() -> CreateSimilarCaseLibraryEntryUseCase:
+def get_create_similar_case_library_entry_use_case() -> (
+    CreateSimilarCaseLibraryEntryUseCase
+):
     embedding_factory, monitoring, model = _embedding_deps()
     return CreateSimilarCaseLibraryEntryUseCase(
         get_similar_case_library_repository(),
@@ -47,11 +49,15 @@ def get_create_similar_case_library_entry_use_case() -> CreateSimilarCaseLibrary
     )
 
 
-def get_list_similar_case_library_entries_use_case() -> ListSimilarCaseLibraryEntriesUseCase:
+def get_list_similar_case_library_entries_use_case() -> (
+    ListSimilarCaseLibraryEntriesUseCase
+):
     return ListSimilarCaseLibraryEntriesUseCase(get_similar_case_library_repository())
 
 
-def get_update_similar_case_library_entry_use_case() -> UpdateSimilarCaseLibraryEntryUseCase:
+def get_update_similar_case_library_entry_use_case() -> (
+    UpdateSimilarCaseLibraryEntryUseCase
+):
     embedding_factory, monitoring, model = _embedding_deps()
     return UpdateSimilarCaseLibraryEntryUseCase(
         get_similar_case_library_repository(),
@@ -61,5 +67,7 @@ def get_update_similar_case_library_entry_use_case() -> UpdateSimilarCaseLibrary
     )
 
 
-def get_delete_similar_case_library_entry_use_case() -> DeleteSimilarCaseLibraryEntryUseCase:
+def get_delete_similar_case_library_entry_use_case() -> (
+    DeleteSimilarCaseLibraryEntryUseCase
+):
     return DeleteSimilarCaseLibraryEntryUseCase(get_similar_case_library_repository())

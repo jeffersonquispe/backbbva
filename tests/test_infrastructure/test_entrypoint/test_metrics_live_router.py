@@ -1,5 +1,6 @@
 """GET /metrics/live: `dashboard` permission, current counts per live
 state from the status index plus active voicebot calls."""
+
 from __future__ import annotations
 
 import os
@@ -43,16 +44,28 @@ def _client(role: LocalRole) -> TestClient:
     app = FastAPI()
     app.include_router(metrics_router.router)
     user = LocalUser(
-        id=uuid4(), email="u@x.co", name="u", password_hash="", role=role,
-        is_active=True, created_at=NOW, updated_at=NOW,
+        id=uuid4(),
+        email="u@x.co",
+        name="u",
+        password_hash="",
+        role=role,
+        is_active=True,
+        created_at=NOW,
+        updated_at=NOW,
     )
     app.dependency_overrides[get_current_user] = lambda: user
-    app.dependency_overrides[get_live_alert_funnel_use_case] = lambda: GetLiveAlertFunnel(
-        InMemoryAlertCounts(
-            {AlertStatus.RECEIVED: 3, AlertStatus.PROCESSING: 2, AlertStatus.ESCALATED: 5}
-        ),
-        InMemoryReservations(active_voicebot=1),
-        clock=lambda: NOW,
+    app.dependency_overrides[get_live_alert_funnel_use_case] = (
+        lambda: GetLiveAlertFunnel(
+            InMemoryAlertCounts(
+                {
+                    AlertStatus.RECEIVED: 3,
+                    AlertStatus.PROCESSING: 2,
+                    AlertStatus.ESCALATED: 5,
+                }
+            ),
+            InMemoryReservations(active_voicebot=1),
+            clock=lambda: NOW,
+        )
     )
     return TestClient(app)
 

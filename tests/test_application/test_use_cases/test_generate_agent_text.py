@@ -20,7 +20,10 @@ class RecordingLLMUnitOfWork(LLMUnitOfWork):
     def invoke(self, messages: list[LLMMessage]) -> LLMInvocationResult:
         self.received_messages = messages
         return LLMInvocationResult(
-            content="generated text", model="fake-model", input_tokens=10, output_tokens=5
+            content="generated text",
+            model="fake-model",
+            input_tokens=10,
+            output_tokens=5,
         )
 
 
@@ -81,7 +84,9 @@ def test_generate_agent_text_sends_system_and_user_prompt() -> None:
         operation_name="aric_marking",
     )
 
-    output = use_case.execute(GenerateAgentTextInput(prompt="Marca esta alerta: cust-1"))
+    output = use_case.execute(
+        GenerateAgentTextInput(prompt="Marca esta alerta: cust-1")
+    )
 
     assert output.text == "generated text"
     assert output.input_tokens == 10

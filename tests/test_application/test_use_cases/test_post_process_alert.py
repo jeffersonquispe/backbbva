@@ -40,4 +40,6 @@ def test_post_process_echoes_generated_documentation() -> None:
         )
     )
 
-    assert output.documentation == "Alerta documentada: cliente cust-1, bloqueado por ..."
+    assert (
+        output.documentation == "Alerta documentada: cliente cust-1, bloqueado por ..."
+    )

@@ -27,18 +27,10 @@ class EscalateAlertToAnalystUseCase:
             "workflow.escalation",
             metadata={"alert_id": str(input.alert_id), "reason": input.reason},
         ) as span:
-            span.write_input(
-                {"event_id": input.event_id, "reason": input.reason}
-            )
-            aric_signals = self._aric.fetch_signals(
-                input.event_id, input.session_id
-            )
-            span.record_dependency(
-                "aric", "http", {"event_id": input.event_id}
-            )
-            span.write_result(
-                {"aric_signals": dataclasses.asdict(aric_signals)}
-            )
+            span.write_input({"event_id": input.event_id, "reason": input.reason})
+            aric_signals = self._aric.fetch_signals(input.event_id, input.session_id)
+            span.record_dependency("aric", "http", {"event_id": input.event_id})
+            span.write_result({"aric_signals": dataclasses.asdict(aric_signals)})
             return EscalateAlertToAnalystOutput(
                 alert_id=input.alert_id,
                 reason=input.reason,

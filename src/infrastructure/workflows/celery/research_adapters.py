@@ -1,4 +1,5 @@
 """Workflow adapters for bounded delegated research."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -23,7 +24,9 @@ class WorkflowVectorStoreRetriever:
         "flag": DocumentType.RED_FLAG,
     }
 
-    def __init__(self, search: SearchFraudKnowledgeUseCase, vector_store_id: str) -> None:
+    def __init__(
+        self, search: SearchFraudKnowledgeUseCase, vector_store_id: str
+    ) -> None:
         self._search = search
         self._vector_store_id = vector_store_id
 
@@ -63,12 +66,16 @@ class HeuristicHistoryResearchPlanner:
             HistoryOperation("group_by", group_by="channel"),
         ]
         if self._current_amount is not None:
-            operations.extend([
-                HistoryOperation(
-                    "comparison", column="amount", current_value=self._current_amount
-                ),
-                HistoryOperation(
-                    "outlier", column="amount", current_value=self._current_amount
-                ),
-            ])
+            operations.extend(
+                [
+                    HistoryOperation(
+                        "comparison",
+                        column="amount",
+                        current_value=self._current_amount,
+                    ),
+                    HistoryOperation(
+                        "outlier", column="amount", current_value=self._current_amount
+                    ),
+                ]
+            )
         return operations

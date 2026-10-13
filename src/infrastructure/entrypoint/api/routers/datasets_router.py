@@ -307,9 +307,7 @@ def append_dataset_rows(
     ],
 ):
     try:
-        return use_case.execute(
-            AppendDatasetRowsInput(name=name, rows=request.rows)
-        )
+        return use_case.execute(AppendDatasetRowsInput(name=name, rows=request.rows))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

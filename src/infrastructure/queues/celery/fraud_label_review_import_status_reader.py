@@ -39,7 +39,9 @@ class CeleryFraudLabelReviewImportStatusReader(FraudLabelReviewImportStatusReade
     def read(self, task_id: str) -> FraudLabelReviewImportResult:
         result = AsyncResult(task_id, app=app)
         if result.state in _PENDING_STATES:
-            return FraudLabelReviewImportResult(status=FraudLabelReviewImportStatus.PENDING)
+            return FraudLabelReviewImportResult(
+                status=FraudLabelReviewImportStatus.PENDING
+            )
         if result.state == states.SUCCESS:
             return result_from_payload(result.result)
         # FAILURE / REVOKED / unknown - a clear FAILED instead of a 500.

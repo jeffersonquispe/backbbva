@@ -130,7 +130,10 @@ def test_other_roles_cannot_take_alerts(role) -> None:
 
 @pytest.mark.parametrize(
     ("error", "code"),
-    [(AnalystBusyError("other-alert"), "analyst_busy"), (NoAnalystCapacityError(), "no_capacity")],
+    [
+        (AnalystBusyError("other-alert"), "analyst_busy"),
+        (NoAnalystCapacityError(), "no_capacity"),
+    ],
 )
 def test_take_conflicts_carry_a_machine_readable_code(error, code) -> None:
     response = _client(
@@ -215,8 +218,8 @@ def test_queue_lists_the_canonical_alert_and_never_the_raw_payload() -> None:
         configuration_version=7,
     )
     client = _client(user)
-    client.app.dependency_overrides[get_list_analyst_queue_use_case] = lambda: ScriptedListUseCase(
-        [AnalystQueueItem(alert=alert)]
+    client.app.dependency_overrides[get_list_analyst_queue_use_case] = (
+        lambda: ScriptedListUseCase([AnalystQueueItem(alert=alert)])
     )
 
     response = client.get("/analyst-queue")

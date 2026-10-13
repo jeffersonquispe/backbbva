@@ -4,6 +4,7 @@ timestamps. Only stored facts - a value that was never persisted (e.g. the
 segment, which today lives only in the workflow's in-memory context) is
 None here, and the backfill turns it into "unknown"/"pending", never a
 guess."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

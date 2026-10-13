@@ -7,7 +7,9 @@ from src.application.ports.similar_case_library_port import (
 
 
 class ListSimilarCaseLibraryEntriesUseCase:
-    def __init__(self, similar_case_library_repository: SimilarCaseLibraryRepository) -> None:
+    def __init__(
+        self, similar_case_library_repository: SimilarCaseLibraryRepository
+    ) -> None:
         self._entries = similar_case_library_repository
 
     def execute(self, *, active_only: bool = False) -> list[SimilarCaseLibraryEntry]:

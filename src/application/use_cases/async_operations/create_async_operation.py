@@ -39,13 +39,8 @@ class CreateAsyncOperationUseCase:
         self._executor = executor
         self._supported = supported_operation_types
 
-    def execute(
-        self, input: CreateAsyncOperationInput
-    ) -> AsyncOperationOutput:
-        if (
-            self._supported is not None
-            and input.operation_type not in self._supported
-        ):
+    def execute(self, input: CreateAsyncOperationInput) -> AsyncOperationOutput:
+        if self._supported is not None and input.operation_type not in self._supported:
             raise UnsupportedAsyncOperationTypeError(input.operation_type)
         now = datetime.now(UTC)
         operation = AsyncOperationRecord(

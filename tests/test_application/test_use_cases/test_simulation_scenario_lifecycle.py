@@ -57,13 +57,17 @@ class InMemorySimulationScenarioRepository:
     def get(self, scenario_id: UUID) -> SimulationScenarioRecord | None:
         return self.scenarios.get(scenario_id)
 
-    def list(self, status: ScenarioStatus | None = None) -> list[SimulationScenarioRecord]:
+    def list(
+        self, status: ScenarioStatus | None = None
+    ) -> list[SimulationScenarioRecord]:
         values = list(self.scenarios.values())
         if status is None:
             return values
         return [s for s in values if s.status == status]
 
-    def update(self, scenario_id: UUID, **changes: Any) -> SimulationScenarioRecord | None:
+    def update(
+        self, scenario_id: UUID, **changes: Any
+    ) -> SimulationScenarioRecord | None:
         current = self.scenarios.get(scenario_id)
         if current is None:
             return None
@@ -95,7 +99,9 @@ def _create_input(**overrides: Any) -> CreateSimulationScenarioInput:
         name="scenario",
         output_mode=OutputMode.DATASET,
         rate_schedule=[RateInterval(0, 60, events_per_minute=10)],
-        field_specs={"channel": FieldGenerator(kind=GeneratorKind.CONSTANT, value="app")},
+        field_specs={
+            "channel": FieldGenerator(kind=GeneratorKind.CONSTANT, value="app")
+        },
         target_dataset_name="synthetic_events",
     )
     defaults.update(overrides)
@@ -127,7 +133,9 @@ def test_update_rejects_editing_a_running_scenario() -> None:
     use_case = UpdateSimulationScenarioUseCase(repo)
 
     with pytest.raises(ValueError):
-        use_case.execute(UpdateSimulationScenarioInput(scenario_id=scenario.id, name="renamed"))
+        use_case.execute(
+            UpdateSimulationScenarioInput(scenario_id=scenario.id, name="renamed")
+        )
 
 
 def test_list_filters_by_status() -> None:
@@ -137,7 +145,9 @@ def test_list_filters_by_status() -> None:
     running = create.execute(_create_input(name="running-one"))
     repo.update(running.id, status=ScenarioStatus.RUNNING)
 
-    only_running = ListSimulationScenariosUseCase(repo).execute(status=ScenarioStatus.RUNNING)
+    only_running = ListSimulationScenariosUseCase(repo).execute(
+        status=ScenarioStatus.RUNNING
+    )
 
     assert [s.id for s in only_running] == [running.id]
 
@@ -209,7 +219,10 @@ def test_record_tick_result_accumulates_progress_and_completes_on_exhaustion() -
     record_tick = RecordTickResultUseCase(repo)
 
     mid_tick = record_tick.execute(
-        scenario.id, events_generated=5, tick_offset_seconds=30, schedule_exhausted=False
+        scenario.id,
+        events_generated=5,
+        tick_offset_seconds=30,
+        schedule_exhausted=False,
     )
     assert mid_tick.status == ScenarioStatus.RUNNING
     assert mid_tick.events_emitted == 5
@@ -227,7 +240,9 @@ def test_record_failure_marks_scenario_failed_with_error() -> None:
     scenario = CreateSimulationScenarioUseCase(repo).execute(_create_input())
     StartSimulationUseCase(repo, dispatcher).execute(scenario.id)
 
-    failed = RecordTickResultUseCase(repo).record_failure(scenario.id, "LLM backend timed out")
+    failed = RecordTickResultUseCase(repo).record_failure(
+        scenario.id, "LLM backend timed out"
+    )
 
     assert failed.status == ScenarioStatus.FAILED
     assert failed.error == "LLM backend timed out"

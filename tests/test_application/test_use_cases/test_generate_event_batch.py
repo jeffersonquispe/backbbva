@@ -41,7 +41,9 @@ class RecordingLLMUnitOfWorkFactory(LLMUnitOfWorkFactory):
         self.response = response
         self.created: list[RecordingLLMUnitOfWork] = []
 
-    def create(self, *, model, monitoring, operation_name, temperature=0.0, max_tokens=None):
+    def create(
+        self, *, model, monitoring, operation_name, temperature=0.0, max_tokens=None
+    ):
         uow = RecordingLLMUnitOfWork(self.response)
         self.created.append(uow)
         return uow
@@ -57,7 +59,9 @@ class StubDatasetReaderGateway:
         return self.row
 
 
-def _scenario(field_specs: dict[str, FieldGenerator], rate_schedule: list[RateInterval]) -> SimulationScenarioRecord:
+def _scenario(
+    field_specs: dict[str, FieldGenerator], rate_schedule: list[RateInterval]
+) -> SimulationScenarioRecord:
     now = datetime.now(UTC)
     return SimulationScenarioRecord(
         id=uuid.uuid4(),
@@ -74,14 +78,20 @@ def _scenario(field_specs: dict[str, FieldGenerator], rate_schedule: list[RateIn
 
 def test_generates_structured_fields_without_any_llm_dependency() -> None:
     scenario = _scenario(
-        field_specs={"channel": FieldGenerator(kind=GeneratorKind.CONSTANT, value="app")},
+        field_specs={
+            "channel": FieldGenerator(kind=GeneratorKind.CONSTANT, value="app")
+        },
         rate_schedule=[RateInterval(0, 60, events_per_minute=60)],
     )
     use_case = GenerateEventBatchUseCase(llm_unit_of_work_factory=None, monitoring=None)
 
     output = use_case.execute(
         GenerateEventBatchInput(
-            scenario=scenario, window_start_seconds=0, window_end_seconds=60, max_events=100, seed=1
+            scenario=scenario,
+            window_start_seconds=0,
+            window_end_seconds=60,
+            max_events=100,
+            seed=1,
         )
     )
 
@@ -92,14 +102,20 @@ def test_generates_structured_fields_without_any_llm_dependency() -> None:
 
 def test_max_events_caps_a_high_rate_window() -> None:
     scenario = _scenario(
-        field_specs={"channel": FieldGenerator(kind=GeneratorKind.CONSTANT, value="app")},
+        field_specs={
+            "channel": FieldGenerator(kind=GeneratorKind.CONSTANT, value="app")
+        },
         rate_schedule=[RateInterval(0, 60, events_per_minute=6000)],
     )
     use_case = GenerateEventBatchUseCase(llm_unit_of_work_factory=None, monitoring=None)
 
     output = use_case.execute(
         GenerateEventBatchInput(
-            scenario=scenario, window_start_seconds=0, window_end_seconds=60, max_events=5, seed=1
+            scenario=scenario,
+            window_start_seconds=0,
+            window_end_seconds=60,
+            max_events=5,
+            seed=1,
         )
     )
 
@@ -120,18 +136,27 @@ def test_template_llm_field_substitutes_earlier_fields_into_the_prompt() -> None
         rate_schedule=[RateInterval(0, 60, events_per_minute=60)],
     )
     llm_factory = RecordingLLMUnitOfWorkFactory(response="synthetic narrative")
-    use_case = GenerateEventBatchUseCase(llm_unit_of_work_factory=llm_factory, monitoring=object())
+    use_case = GenerateEventBatchUseCase(
+        llm_unit_of_work_factory=llm_factory, monitoring=object()
+    )
 
     output = use_case.execute(
         GenerateEventBatchInput(
-            scenario=scenario, window_start_seconds=0, window_end_seconds=60, max_events=100, seed=3
+            scenario=scenario,
+            window_start_seconds=0,
+            window_end_seconds=60,
+            max_events=100,
+            seed=3,
         )
     )
 
     assert output.events_generated > 0
     for row in output.rows:
         assert row["narrative"] == "synthetic narrative"
-    assert "Write a narrative for customer cust-1." in llm_factory.created[0].received_prompts
+    assert (
+        "Write a narrative for customer cust-1."
+        in llm_factory.created[0].received_prompts
+    )
 
 
 def test_generate_preview_ignores_rate_schedule_and_returns_exact_count() -> None:
@@ -159,7 +184,11 @@ def test_template_llm_field_without_llm_factory_raises() -> None:
     with pytest.raises(ValueError):
         use_case.execute(
             GenerateEventBatchInput(
-                scenario=scenario, window_start_seconds=0, window_end_seconds=60, max_events=10, seed=1
+                scenario=scenario,
+                window_start_seconds=0,
+                window_end_seconds=60,
+                max_events=10,
+                seed=1,
             )
         )
 
@@ -188,11 +217,17 @@ def test_seed_recreation_field_pulls_a_real_row_and_rewrites_it() -> None:
 
     output = use_case.execute(
         GenerateEventBatchInput(
-            scenario=scenario, window_start_seconds=0, window_end_seconds=60, max_events=1, seed=5
+            scenario=scenario,
+            window_start_seconds=0,
+            window_end_seconds=60,
+            max_events=1,
+            seed=5,
         )
     )
 
-    assert dataset_reader.requested_datasets == ["real_alerts"] * output.events_generated
+    assert (
+        dataset_reader.requested_datasets == ["real_alerts"] * output.events_generated
+    )
     for row in output.rows:
         assert row["description"] == "rewritten description"
     if output.events_generated:
@@ -220,6 +255,10 @@ def test_seed_recreation_field_without_dataset_reader_raises() -> None:
     with pytest.raises(ValueError):
         use_case.execute(
             GenerateEventBatchInput(
-                scenario=scenario, window_start_seconds=0, window_end_seconds=60, max_events=1, seed=1
+                scenario=scenario,
+                window_start_seconds=0,
+                window_end_seconds=60,
+                max_events=1,
+                seed=1,
             )
         )

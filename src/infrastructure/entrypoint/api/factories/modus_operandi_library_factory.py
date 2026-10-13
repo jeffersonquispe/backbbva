@@ -37,7 +37,9 @@ def _embedding_deps() -> tuple[EmbeddingUnitOfWorkFactory, MonitoringPort, str]:
     )
 
 
-def get_create_modus_operandi_library_entry_use_case() -> CreateModusOperandiLibraryEntryUseCase:
+def get_create_modus_operandi_library_entry_use_case() -> (
+    CreateModusOperandiLibraryEntryUseCase
+):
     embedding_factory, monitoring, model = _embedding_deps()
     return CreateModusOperandiLibraryEntryUseCase(
         get_modus_operandi_library_repository(),
@@ -47,11 +49,17 @@ def get_create_modus_operandi_library_entry_use_case() -> CreateModusOperandiLib
     )
 
 
-def get_list_modus_operandi_library_entries_use_case() -> ListModusOperandiLibraryEntriesUseCase:
-    return ListModusOperandiLibraryEntriesUseCase(get_modus_operandi_library_repository())
+def get_list_modus_operandi_library_entries_use_case() -> (
+    ListModusOperandiLibraryEntriesUseCase
+):
+    return ListModusOperandiLibraryEntriesUseCase(
+        get_modus_operandi_library_repository()
+    )
 
 
-def get_update_modus_operandi_library_entry_use_case() -> UpdateModusOperandiLibraryEntryUseCase:
+def get_update_modus_operandi_library_entry_use_case() -> (
+    UpdateModusOperandiLibraryEntryUseCase
+):
     embedding_factory, monitoring, model = _embedding_deps()
     return UpdateModusOperandiLibraryEntryUseCase(
         get_modus_operandi_library_repository(),
@@ -61,5 +69,9 @@ def get_update_modus_operandi_library_entry_use_case() -> UpdateModusOperandiLib
     )
 
 
-def get_delete_modus_operandi_library_entry_use_case() -> DeleteModusOperandiLibraryEntryUseCase:
-    return DeleteModusOperandiLibraryEntryUseCase(get_modus_operandi_library_repository())
+def get_delete_modus_operandi_library_entry_use_case() -> (
+    DeleteModusOperandiLibraryEntryUseCase
+):
+    return DeleteModusOperandiLibraryEntryUseCase(
+        get_modus_operandi_library_repository()
+    )

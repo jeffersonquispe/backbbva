@@ -12,7 +12,9 @@ from src.domain.alerts.amount_tiers import (
 
 TIERS = [
     AmountTier(code="low", label="< 1M", min_inclusive=0, max_exclusive=1_000_000),
-    AmountTier(code="mid", label="1M-3M", min_inclusive=1_000_000, max_exclusive=3_000_000),
+    AmountTier(
+        code="mid", label="1M-3M", min_inclusive=1_000_000, max_exclusive=3_000_000
+    ),
     AmountTier(code="high", label="> 3M", min_inclusive=3_000_000, max_exclusive=None),
 ]
 

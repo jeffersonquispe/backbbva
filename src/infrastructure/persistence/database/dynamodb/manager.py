@@ -287,19 +287,27 @@ def enable_ttl(schema: dict, attribute: str) -> None:
             TimeToLiveSpecification={"Enabled": True, "AttributeName": attribute},
         )
     except ClientError as e:
-        print(f"TTL no aplicado en {schema['TableName']}: {e.response['Error']['Code']}")
+        print(
+            f"TTL no aplicado en {schema['TableName']}: {e.response['Error']['Code']}"
+        )
 
 
-def _wait_for_index(client, table_name: str, index_name: str, timeout_s: int = 300) -> None:
+def _wait_for_index(
+    client, table_name: str, index_name: str, timeout_s: int = 300
+) -> None:
     """Block until the new GSI is ACTIVE (the table itself stays ACTIVE
     while the index backfills; writes right after creation can fail)."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        indexes = client.describe_table(TableName=table_name)["Table"].get(
-            "GlobalSecondaryIndexes"
-        ) or []
+        indexes = (
+            client.describe_table(TableName=table_name)["Table"].get(
+                "GlobalSecondaryIndexes"
+            )
+            or []
+        )
         status = next(
-            (i.get("IndexStatus") for i in indexes if i["IndexName"] == index_name), None
+            (i.get("IndexStatus") for i in indexes if i["IndexName"] == index_name),
+            None,
         )
         if status == "ACTIVE":
             return
@@ -370,6 +378,7 @@ def ensure_all_tables() -> None:
     from src.infrastructure.persistence.database.dynamodb.schemas import (
         FEATURE_TEMPLATES_TABLE,
     )
+
     create_table(FEATURE_TEMPLATES_TABLE)
     create_table(MODELS_TABLE)
     create_table(CONFIGURATIONS_TABLE)
@@ -413,7 +422,9 @@ def ensure_all_tables() -> None:
 def seed_defaults() -> None:
     """Seed reference/ops data the analyst step depends on, only if
     missing - idempotent, safe to run on every startup."""
-    capacity_table = get_dynamodb_resource().Table(OPERATIONS_CAPACITY_TABLE["TableName"])
+    capacity_table = get_dynamodb_resource().Table(
+        OPERATIONS_CAPACITY_TABLE["TableName"]
+    )
     existing = capacity_table.get_item(Key={"record_id": "current"}).get("Item")
     if existing is None:
         DynamoOperationsCapacityRepository().put_capacity(_DEFAULT_CAPACITY)
@@ -436,9 +447,7 @@ def seed_defaults() -> None:
                 updated_at=now,
             )
         )
-        configurations.activate(
-            default_config.configuration_id, default_config.version
-        )
+        configurations.activate(default_config.configuration_id, default_config.version)
         print("Configuración por defecto sembrada y activada")
 
     tags = DynamoTagCatalogRepository()

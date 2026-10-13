@@ -7,7 +7,9 @@ from src.application.ports.marcacion_catalog_port import (
 
 
 class ListMarcacionCategoriesUseCase:
-    def __init__(self, marcacion_catalog_repository: MarcacionCatalogRepository) -> None:
+    def __init__(
+        self, marcacion_catalog_repository: MarcacionCatalogRepository
+    ) -> None:
         self._categories = marcacion_catalog_repository
 
     def execute(self, *, active_only: bool = False) -> list[MarcacionCategory]:

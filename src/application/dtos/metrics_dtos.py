@@ -3,6 +3,7 @@ GetAgentMetrics (/metrics/agent, /monitor). Every number is a sum of
 additive rollup measures over the planned periods - counts and sums only;
 rates/averages are left to the client (numerator + denominator are both
 here)."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

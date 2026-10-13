@@ -1,4 +1,5 @@
 """R9 live funnel with in-memory fakes."""
+
 from __future__ import annotations
 
 from collections import Counter
@@ -29,7 +30,9 @@ class InMemoryReservationRepository:
         self.active = active
         self.calls: list[tuple[ReservedResource, datetime]] = []
 
-    def list_active(self, resource: ReservedResource, now: datetime) -> list[ResourceReservation]:
+    def list_active(
+        self, resource: ReservedResource, now: datetime
+    ) -> list[ResourceReservation]:
         self.calls.append((resource, now))
         return [r for r in self.active if r.resource == resource and r.is_active(now)]
 
@@ -63,11 +66,21 @@ def test_counts_each_live_status_and_active_voicebot_calls():
 
     output = GetLiveAlertFunnel(alerts, reservations, clock=lambda: NOW).execute()
 
-    assert (output.received, output.processing, output.escalated, output.voicebot_in_call) == (
-        2, 5, 3, 2,
+    assert (
+        output.received,
+        output.processing,
+        output.escalated,
+        output.voicebot_in_call,
+    ) == (
+        2,
+        5,
+        3,
+        2,
     )
     assert output.measured_at == NOW
     assert set(alerts.asked) == {
-        AlertStatus.RECEIVED, AlertStatus.PROCESSING, AlertStatus.ESCALATED,
+        AlertStatus.RECEIVED,
+        AlertStatus.PROCESSING,
+        AlertStatus.ESCALATED,
     }
     assert reservations.calls == [(ReservedResource.VOICEBOT, NOW)]

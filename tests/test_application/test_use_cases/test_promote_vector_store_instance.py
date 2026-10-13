@@ -87,12 +87,16 @@ class InMemoryFraudKnowledgeRepository:
         if vector_store_id is not None:
             results = [d for d in results if d.vector_store_id == vector_store_id]
         if vector_store_version is not None:
-            results = [d for d in results if d.vector_store_version == vector_store_version]
+            results = [
+                d for d in results if d.vector_store_version == vector_store_version
+            ]
         return results
 
 
 class InMemoryVectorStoreInstanceRepository:
-    def __init__(self, instance: VectorStoreInstance, assets: list[VectorStoreInstanceAsset]) -> None:
+    def __init__(
+        self, instance: VectorStoreInstance, assets: list[VectorStoreInstanceAsset]
+    ) -> None:
         self._instance = instance
         self._assets = assets
 
@@ -126,24 +130,39 @@ class CountingEmbeddingUnitOfWork(EmbeddingUnitOfWork):
 
     def embed(self, texts: list[str]) -> EmbeddingResult:
         self._counter[0] += 1
-        return EmbeddingResult(vectors=[[0.9, 0.9, 0.9] for _ in texts], model="fake", dimensions=3)
+        return EmbeddingResult(
+            vectors=[[0.9, 0.9, 0.9] for _ in texts], model="fake", dimensions=3
+        )
 
 
 class CountingEmbeddingUnitOfWorkFactory(EmbeddingUnitOfWorkFactory):
     def __init__(self) -> None:
         self.calls = [0]
 
-    def create(self, *, model: str, monitoring: MonitoringPort, operation_name: str) -> EmbeddingUnitOfWork:
+    def create(
+        self, *, model: str, monitoring: MonitoringPort, operation_name: str
+    ) -> EmbeddingUnitOfWork:
         return CountingEmbeddingUnitOfWork(self.calls)
 
 
 class NullSpan(MonitoringSpan):
-    def write_input(self, data) -> None: pass
-    def write_result(self, data) -> None: pass
-    def write_inner_logs(self, entries) -> None: pass
-    def write_operation_metas(self, metadata) -> None: pass
-    def record_dependency(self, name, kind, metadata=None) -> None: pass
-    def finish(self, error=None) -> None: pass
+    def write_input(self, data) -> None:
+        pass
+
+    def write_result(self, data) -> None:
+        pass
+
+    def write_inner_logs(self, entries) -> None:
+        pass
+
+    def write_operation_metas(self, metadata) -> None:
+        pass
+
+    def record_dependency(self, name, kind, metadata=None) -> None:
+        pass
+
+    def finish(self, error=None) -> None:
+        pass
 
 
 class NullMonitoringPort(MonitoringPort):
@@ -153,8 +172,12 @@ class NullMonitoringPort(MonitoringPort):
 
 def _instance(promoted_version: int | None = None) -> VectorStoreInstance:
     return VectorStoreInstance(
-        id="vector-store-v1", version=1, name="Producción", description="",
-        created_at=datetime.now(UTC), created_by="tester",
+        id="vector-store-v1",
+        version=1,
+        name="Producción",
+        description="",
+        created_at=datetime.now(UTC),
+        created_by="tester",
         promoted_version=promoted_version,
     )
 
@@ -168,7 +191,11 @@ def _full_tree_use_case(
     flag: FlagLibraryEntry,
     case: SimilarCaseLibraryEntry,
     embedding_factory: CountingEmbeddingUnitOfWorkFactory,
-) -> tuple[PromoteVectorStoreInstanceUseCase, InMemoryFraudKnowledgeRepository, InMemoryVectorStoreInstanceRepository]:
+) -> tuple[
+    PromoteVectorStoreInstanceUseCase,
+    InMemoryFraudKnowledgeRepository,
+    InMemoryVectorStoreInstanceRepository,
+]:
     fraud_repo = InMemoryFraudKnowledgeRepository()
     instances = InMemoryVectorStoreInstanceRepository(instance, assets)
     kwargs = dict(
@@ -194,26 +221,71 @@ def _full_tree_use_case(
 
 def _seed_full_tree(now):
     taxonomy = TaxonomyLibraryEntry(
-        id="tax-1", code="PHISH", name="Phishing", description="desc",
-        created_at=now, updated_at=now, embedding=[0.1, 0.1],
+        id="tax-1",
+        code="PHISH",
+        name="Phishing",
+        description="desc",
+        created_at=now,
+        updated_at=now,
+        embedding=[0.1, 0.1],
     )
     mo = ModusOperandiLibraryEntry(
-        id="mo-1", title="Vishing", narrative="narrativa", taxonomy_library_id="tax-1",
-        created_at=now, updated_at=now, embedding=[0.2, 0.2],
+        id="mo-1",
+        title="Vishing",
+        narrative="narrativa",
+        taxonomy_library_id="tax-1",
+        created_at=now,
+        updated_at=now,
+        embedding=[0.2, 0.2],
     )
     flag = FlagLibraryEntry(
-        id="flag-1", flag_type=FlagType.RED, name="Alerta", description="desc",
-        modus_operandi_library_ids=["mo-1"], created_at=now, updated_at=now, embedding=[0.3, 0.3],
+        id="flag-1",
+        flag_type=FlagType.RED,
+        name="Alerta",
+        description="desc",
+        modus_operandi_library_ids=["mo-1"],
+        created_at=now,
+        updated_at=now,
+        embedding=[0.3, 0.3],
     )
     case = SimilarCaseLibraryEntry(
-        id="case-1", text="caso similar", modus_operandi_library_id="mo-1",
-        taxonomy_library_id="tax-1", created_at=now, updated_at=now, embedding=[0.4, 0.4],
+        id="case-1",
+        text="caso similar",
+        modus_operandi_library_id="mo-1",
+        taxonomy_library_id="tax-1",
+        created_at=now,
+        updated_at=now,
+        embedding=[0.4, 0.4],
     )
     assets = [
-        VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.TAXONOMY, "tax-1", 1, embedding=taxonomy.embedding),
-        VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.MODUS_OPERANDI, "mo-1", 1, embedding=mo.embedding),
-        VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.RED_FLAG, "flag-1", 1, embedding=flag.embedding),
-        VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.SIMILAR_CASE, "case-1", 1, embedding=case.embedding),
+        VectorStoreInstanceAsset(
+            "vector-store-v1",
+            KnowledgeAssetType.TAXONOMY,
+            "tax-1",
+            1,
+            embedding=taxonomy.embedding,
+        ),
+        VectorStoreInstanceAsset(
+            "vector-store-v1",
+            KnowledgeAssetType.MODUS_OPERANDI,
+            "mo-1",
+            1,
+            embedding=mo.embedding,
+        ),
+        VectorStoreInstanceAsset(
+            "vector-store-v1",
+            KnowledgeAssetType.RED_FLAG,
+            "flag-1",
+            1,
+            embedding=flag.embedding,
+        ),
+        VectorStoreInstanceAsset(
+            "vector-store-v1",
+            KnowledgeAssetType.SIMILAR_CASE,
+            "case-1",
+            1,
+            embedding=case.embedding,
+        ),
     ]
     return taxonomy, mo, flag, case, assets
 
@@ -223,8 +295,13 @@ def test_promote_loads_full_tree_and_recycles_every_embedding() -> None:
     taxonomy, mo, flag, case, assets = _seed_full_tree(now)
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, fraud_repo, instances = _full_tree_use_case(
-        instance=_instance(), assets=assets, taxonomy=taxonomy, modus_operandi=mo,
-        flag=flag, case=case, embedding_factory=embedding_factory,
+        instance=_instance(),
+        assets=assets,
+        taxonomy=taxonomy,
+        modus_operandi=mo,
+        flag=flag,
+        case=case,
+        embedding_factory=embedding_factory,
     )
 
     promoted = use_case.execute("vector-store-v1", actor="manager")
@@ -236,7 +313,9 @@ def test_promote_loads_full_tree_and_recycles_every_embedding() -> None:
     # the embedding API.
     assert embedding_factory.calls[0] == 0
 
-    documents = fraud_repo.list(vector_store_id="vector-store-v1", vector_store_version=1)
+    documents = fraud_repo.list(
+        vector_store_id="vector-store-v1", vector_store_version=1
+    )
     assert len(documents) == 4
     by_type = {doc.type: doc for doc in documents}
     mo_doc = by_type[DocumentType.MODUS_OPERANDI]
@@ -254,16 +333,26 @@ def test_repromoting_deletes_previous_generation_after_loading_the_new_one() -> 
     taxonomy, mo, flag, case, assets = _seed_full_tree(now)
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, fraud_repo, instances = _full_tree_use_case(
-        instance=_instance(), assets=assets, taxonomy=taxonomy, modus_operandi=mo,
-        flag=flag, case=case, embedding_factory=embedding_factory,
+        instance=_instance(),
+        assets=assets,
+        taxonomy=taxonomy,
+        modus_operandi=mo,
+        flag=flag,
+        case=case,
+        embedding_factory=embedding_factory,
     )
     use_case.execute("vector-store-v1", actor="manager")
 
     promoted_again = use_case.execute("vector-store-v1", actor="manager")
 
     assert promoted_again.promoted_version == 2
-    assert fraud_repo.list(vector_store_id="vector-store-v1", vector_store_version=1) == []
-    assert len(fraud_repo.list(vector_store_id="vector-store-v1", vector_store_version=2)) == 4
+    assert (
+        fraud_repo.list(vector_store_id="vector-store-v1", vector_store_version=1) == []
+    )
+    assert (
+        len(fraud_repo.list(vector_store_id="vector-store-v1", vector_store_version=2))
+        == 4
+    )
 
 
 def test_promote_unknown_instance_raises() -> None:
@@ -271,8 +360,13 @@ def test_promote_unknown_instance_raises() -> None:
     taxonomy, mo, flag, case, assets = _seed_full_tree(now)
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, _, _ = _full_tree_use_case(
-        instance=_instance(), assets=assets, taxonomy=taxonomy, modus_operandi=mo,
-        flag=flag, case=case, embedding_factory=embedding_factory,
+        instance=_instance(),
+        assets=assets,
+        taxonomy=taxonomy,
+        modus_operandi=mo,
+        flag=flag,
+        case=case,
+        embedding_factory=embedding_factory,
     )
 
     with pytest.raises(VectorStoreInstanceNotFoundError):
@@ -284,8 +378,13 @@ def test_promote_empty_instance_raises() -> None:
     taxonomy, mo, flag, case, _ = _seed_full_tree(now)
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, _, _ = _full_tree_use_case(
-        instance=_instance(), assets=[], taxonomy=taxonomy, modus_operandi=mo,
-        flag=flag, case=case, embedding_factory=embedding_factory,
+        instance=_instance(),
+        assets=[],
+        taxonomy=taxonomy,
+        modus_operandi=mo,
+        flag=flag,
+        case=case,
+        embedding_factory=embedding_factory,
     )
 
     with pytest.raises(EmptyVectorStoreInstanceError):
@@ -295,11 +394,24 @@ def test_promote_empty_instance_raises() -> None:
 def test_promote_modus_operandi_without_its_taxonomy_raises() -> None:
     now = datetime.now(UTC)
     taxonomy, mo, flag, case, _ = _seed_full_tree(now)
-    assets = [VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.MODUS_OPERANDI, "mo-1", 1, embedding=mo.embedding)]
+    assets = [
+        VectorStoreInstanceAsset(
+            "vector-store-v1",
+            KnowledgeAssetType.MODUS_OPERANDI,
+            "mo-1",
+            1,
+            embedding=mo.embedding,
+        )
+    ]
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, _, _ = _full_tree_use_case(
-        instance=_instance(), assets=assets, taxonomy=taxonomy, modus_operandi=mo,
-        flag=flag, case=case, embedding_factory=embedding_factory,
+        instance=_instance(),
+        assets=assets,
+        taxonomy=taxonomy,
+        modus_operandi=mo,
+        flag=flag,
+        case=case,
+        embedding_factory=embedding_factory,
     )
 
     with pytest.raises(ValueError, match="taxonomy"):
@@ -309,16 +421,31 @@ def test_promote_modus_operandi_without_its_taxonomy_raises() -> None:
 def test_promote_flag_without_its_modus_operandi_drops_the_reference() -> None:
     now = datetime.now(UTC)
     taxonomy, mo, flag, case, _ = _seed_full_tree(now)
-    assets = [VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.RED_FLAG, "flag-1", 1, embedding=flag.embedding)]
+    assets = [
+        VectorStoreInstanceAsset(
+            "vector-store-v1",
+            KnowledgeAssetType.RED_FLAG,
+            "flag-1",
+            1,
+            embedding=flag.embedding,
+        )
+    ]
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, fraud_repo, _ = _full_tree_use_case(
-        instance=_instance(), assets=assets, taxonomy=taxonomy, modus_operandi=mo,
-        flag=flag, case=case, embedding_factory=embedding_factory,
+        instance=_instance(),
+        assets=assets,
+        taxonomy=taxonomy,
+        modus_operandi=mo,
+        flag=flag,
+        case=case,
+        embedding_factory=embedding_factory,
     )
 
     use_case.execute("vector-store-v1", actor="manager")
 
-    [flag_doc] = fraud_repo.list(vector_store_id="vector-store-v1", vector_store_version=1)
+    [flag_doc] = fraud_repo.list(
+        vector_store_id="vector-store-v1", vector_store_version=1
+    )
     assert flag_doc.modus_operandi_ids == []
 
 
@@ -326,29 +453,57 @@ def test_promote_similar_case_without_its_modus_operandi_raises() -> None:
     now = datetime.now(UTC)
     taxonomy, mo, flag, case, _ = _seed_full_tree(now)
     assets = [
-        VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.TAXONOMY, "tax-1", 1, embedding=taxonomy.embedding),
-        VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.SIMILAR_CASE, "case-1", 1, embedding=case.embedding),
+        VectorStoreInstanceAsset(
+            "vector-store-v1",
+            KnowledgeAssetType.TAXONOMY,
+            "tax-1",
+            1,
+            embedding=taxonomy.embedding,
+        ),
+        VectorStoreInstanceAsset(
+            "vector-store-v1",
+            KnowledgeAssetType.SIMILAR_CASE,
+            "case-1",
+            1,
+            embedding=case.embedding,
+        ),
     ]
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, _, _ = _full_tree_use_case(
-        instance=_instance(), assets=assets, taxonomy=taxonomy, modus_operandi=mo,
-        flag=flag, case=case, embedding_factory=embedding_factory,
+        instance=_instance(),
+        assets=assets,
+        taxonomy=taxonomy,
+        modus_operandi=mo,
+        flag=flag,
+        case=case,
+        embedding_factory=embedding_factory,
     )
 
     with pytest.raises(ValueError, match="modus operandi"):
         use_case.execute("vector-store-v1", actor="manager")
 
 
-def test_promote_falls_back_to_embedding_when_asset_relation_lacks_a_cached_one() -> None:
+def test_promote_falls_back_to_embedding_when_asset_relation_lacks_a_cached_one() -> (
+    None
+):
     now = datetime.now(UTC)
     taxonomy, mo, flag, case, _ = _seed_full_tree(now)
     # Relation row has no embedding, but the Library entry does - Library
     # entry embedding is the fallback, still no re-embedding needed.
-    assets = [VectorStoreInstanceAsset("vector-store-v1", KnowledgeAssetType.TAXONOMY, "tax-1", 1, embedding=None)]
+    assets = [
+        VectorStoreInstanceAsset(
+            "vector-store-v1", KnowledgeAssetType.TAXONOMY, "tax-1", 1, embedding=None
+        )
+    ]
     embedding_factory = CountingEmbeddingUnitOfWorkFactory()
     use_case, fraud_repo, _ = _full_tree_use_case(
-        instance=_instance(), assets=assets, taxonomy=taxonomy, modus_operandi=mo,
-        flag=flag, case=case, embedding_factory=embedding_factory,
+        instance=_instance(),
+        assets=assets,
+        taxonomy=taxonomy,
+        modus_operandi=mo,
+        flag=flag,
+        case=case,
+        embedding_factory=embedding_factory,
     )
 
     use_case.execute("vector-store-v1", actor="manager")

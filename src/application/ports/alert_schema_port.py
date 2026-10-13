@@ -46,7 +46,15 @@ SYSTEM_ROLES: dict[str, AlertSchemaFieldType] = {
 }
 
 REQUIRED_SYSTEM_ROLES = frozenset(
-    {"event_id", "event_time", "event_type", "channel", "entrypoint", "amount", "customer_id"}
+    {
+        "event_id",
+        "event_time",
+        "event_type",
+        "channel",
+        "entrypoint",
+        "amount",
+        "customer_id",
+    }
 )
 
 
@@ -130,7 +138,9 @@ class AlertSchemaPresenceReportRepository(Protocol):
     def save(self, report: AlertSchemaPresenceReport) -> AlertSchemaPresenceReport: ...
     def get(self, report_day: date) -> AlertSchemaPresenceReport | None: ...
     def get_latest(self) -> AlertSchemaPresenceReport | None: ...
-    def list_before(self, report_day: date, limit: int = 30) -> list[AlertSchemaPresenceReport]: ...
+    def list_before(
+        self, report_day: date, limit: int = 30
+    ) -> list[AlertSchemaPresenceReport]: ...
 
 
 class AlertSchemaSuggestionRepository(Protocol):
@@ -158,8 +168,13 @@ def validate_schema(version: AlertSchemaVersion) -> None:
             raise AlertSchemaValidationError("Core fields require field_name")
         if item.is_label and item.is_history:
             raise AlertSchemaValidationError("A label cannot be a history field")
-        if item.is_sensible and item.sensitivity_strategy not in {"anonymize", "obfuscate"}:
-            raise AlertSchemaValidationError("Sensitive fields require a valid strategy")
+        if item.is_sensible and item.sensitivity_strategy not in {
+            "anonymize",
+            "obfuscate",
+        }:
+            raise AlertSchemaValidationError(
+                "Sensitive fields require a valid strategy"
+            )
         if item.use_locale and not item.locale_type:
             raise AlertSchemaValidationError("Localized fields require locale_type")
         if item.data_source == AlertSchemaDataSource.ARIA and item.is_mandatory:
@@ -179,7 +194,9 @@ def validate_schema(version: AlertSchemaVersion) -> None:
         if selected is None:
             raise AlertSchemaValidationError(f"Role {role} references an unknown field")
         if not selected.is_alert or selected.is_label or selected.type != expected_type:
-            raise AlertSchemaValidationError(f"Role {role} references an incompatible field")
+            raise AlertSchemaValidationError(
+                f"Role {role} references an incompatible field"
+            )
 
 
 class AlertSchemaRepository(Protocol):

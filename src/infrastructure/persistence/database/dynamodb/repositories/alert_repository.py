@@ -86,13 +86,14 @@ class DynamoAlertRepository:
         # metrics snapshot (and its snapshot_version guard) is written by a
         # separate transaction and must not be overwritten with a stale copy.
         names: dict[str, str] = {"#updated_at": "updated_at"}
-        values: dict[str, Any] = {
-            ":updated_at": datetime.now(UTC).isoformat()
-        }
+        values: dict[str, Any] = {":updated_at": datetime.now(UTC).isoformat()}
         sets = ["#updated_at = :updated_at"]
         for field_name, value in (
             ("status", status.value if status else None),
-            ("async_operation_id", str(async_operation_id) if async_operation_id else None),
+            (
+                "async_operation_id",
+                str(async_operation_id) if async_operation_id else None,
+            ),
             (
                 "workflow_execution_id",
                 str(workflow_execution_id) if workflow_execution_id else None,
@@ -102,9 +103,28 @@ class DynamoAlertRepository:
             ("schema_version", schema_version),
             ("input", to_dynamodb(input) if input is not None else None),
             ("labels", to_dynamodb(labels) if labels is not None else None),
-            ("history_prev_alerta", to_dynamodb(history_prev_alerta) if history_prev_alerta is not None else None),
-            ("agent_output", to_dynamodb(agent_output) if agent_output is not None else None),
-            ("agent_output_ref", to_dynamodb({"bucket": agent_output_ref.bucket, "key": agent_output_ref.key, "uri": agent_output_ref.uri}) if agent_output_ref else None),
+            (
+                "history_prev_alerta",
+                to_dynamodb(history_prev_alerta)
+                if history_prev_alerta is not None
+                else None,
+            ),
+            (
+                "agent_output",
+                to_dynamodb(agent_output) if agent_output is not None else None,
+            ),
+            (
+                "agent_output_ref",
+                to_dynamodb(
+                    {
+                        "bucket": agent_output_ref.bucket,
+                        "key": agent_output_ref.key,
+                        "uri": agent_output_ref.uri,
+                    }
+                )
+                if agent_output_ref
+                else None,
+            ),
         ):
             if value is None:
                 continue
@@ -282,7 +302,9 @@ def snapshot_to_item(snapshot: AlertMetricsSnapshot) -> dict[str, Any]:
         "segment": snapshot.segment,
         "channel": snapshot.channel,
         "subchannel": snapshot.subchannel,
-        "amount": Decimal(str(snapshot.amount)) if snapshot.amount is not None else None,
+        "amount": Decimal(str(snapshot.amount))
+        if snapshot.amount is not None
+        else None,
         "amount_tier": snapshot.amount_tier,
         "schema_version": snapshot.schema_version,
         "configuration_id": snapshot.configuration_id,
@@ -293,7 +315,9 @@ def snapshot_to_item(snapshot: AlertMetricsSnapshot) -> dict[str, Any]:
         "fraud_label": snapshot.fraud_label.value,
         "marked_at": snapshot.marked_at.isoformat() if snapshot.marked_at else None,
         "fraud_reviewed_at": (
-            snapshot.fraud_reviewed_at.isoformat() if snapshot.fraud_reviewed_at else None
+            snapshot.fraud_reviewed_at.isoformat()
+            if snapshot.fraud_reviewed_at
+            else None
         ),
         "fraud_review_count": snapshot.fraud_review_count,
         "resolution_time_seconds": (
@@ -332,9 +356,13 @@ def snapshot_from_item(item: dict[str, Any] | None) -> AlertMetricsSnapshot | No
         subchannel=item.get("subchannel"),
         amount=float(amount) if amount is not None else None,
         amount_tier=item.get("amount_tier") or "unknown",
-        schema_version=int(item["schema_version"]) if item.get("schema_version") is not None else None,
+        schema_version=int(item["schema_version"])
+        if item.get("schema_version") is not None
+        else None,
         configuration_id=item.get("configuration_id"),
-        resolution_method=_enum(AlertResolutionMethod, item.get("resolution_method"), None),
+        resolution_method=_enum(
+            AlertResolutionMethod, item.get("resolution_method"), None
+        ),
         mark=_enum(Mark, item.get("mark"), Mark.PENDING),
         fraud_label=_enum(Mark, item.get("fraud_label"), Mark.PENDING),
         marked_at=_dt(item.get("marked_at")),
@@ -361,15 +389,20 @@ def _to_item(alert: AlertRecord, timezone_name: str | None = None) -> dict[str, 
             str(alert.async_operation_id) if alert.async_operation_id else None
         ),
         "workflow_execution_id": (
-            str(alert.workflow_execution_id)
-            if alert.workflow_execution_id
-            else None
+            str(alert.workflow_execution_id) if alert.workflow_execution_id else None
         ),
         "configuration_id": alert.configuration_id,
         "configuration_version": alert.configuration_version,
         "raw_payload_ref": (
-            to_dynamodb({"bucket": alert.raw_payload_ref.bucket, "key": alert.raw_payload_ref.key, "uri": alert.raw_payload_ref.uri})
-            if alert.raw_payload_ref else None
+            to_dynamodb(
+                {
+                    "bucket": alert.raw_payload_ref.bucket,
+                    "key": alert.raw_payload_ref.key,
+                    "uri": alert.raw_payload_ref.uri,
+                }
+            )
+            if alert.raw_payload_ref
+            else None
         ),
         "schema_version": alert.schema_version,
         "input": to_dynamodb(alert.input),
@@ -377,8 +410,15 @@ def _to_item(alert: AlertRecord, timezone_name: str | None = None) -> dict[str, 
         "history_prev_alerta": to_dynamodb(alert.history_prev_alerta),
         "agent_output": to_dynamodb(alert.agent_output),
         "agent_output_ref": (
-            to_dynamodb({"bucket": alert.agent_output_ref.bucket, "key": alert.agent_output_ref.key, "uri": alert.agent_output_ref.uri})
-            if alert.agent_output_ref else None
+            to_dynamodb(
+                {
+                    "bucket": alert.agent_output_ref.bucket,
+                    "key": alert.agent_output_ref.key,
+                    "uri": alert.agent_output_ref.uri,
+                }
+            )
+            if alert.agent_output_ref
+            else None
         ),
         "created_at": alert.created_at.isoformat(),
         "updated_at": alert.updated_at.isoformat(),
@@ -395,14 +435,13 @@ def _from_item(item: dict[str, Any]) -> AlertRecord:
         event_type=item["event_type"],
         raw_payload_ref=(
             ObjectStorageRef(**from_dynamodb(item["raw_payload_ref"]))
-            if item.get("raw_payload_ref") else None
+            if item.get("raw_payload_ref")
+            else None
         ),
         status=AlertStatus(item["status"]),
         customer_id=item.get("customer_id"),
         async_operation_id=(
-            UUID(item["async_operation_id"])
-            if item.get("async_operation_id")
-            else None
+            UUID(item["async_operation_id"]) if item.get("async_operation_id") else None
         ),
         workflow_execution_id=(
             UUID(item["workflow_execution_id"])
@@ -418,13 +457,16 @@ def _from_item(item: dict[str, Any]) -> AlertRecord:
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
         metrics=snapshot_from_item(item.get(METRICS_ATTRIBUTE)),
-        schema_version=int(item["schema_version"]) if item.get("schema_version") is not None else None,
+        schema_version=int(item["schema_version"])
+        if item.get("schema_version") is not None
+        else None,
         input=from_dynamodb(item.get("input") or {}),
         labels=from_dynamodb(item.get("labels") or {}),
         history_prev_alerta=from_dynamodb(item.get("history_prev_alerta") or []),
         agent_output=from_dynamodb(item.get("agent_output") or {}),
         agent_output_ref=(
             ObjectStorageRef(**from_dynamodb(item["agent_output_ref"]))
-            if item.get("agent_output_ref") else None
+            if item.get("agent_output_ref")
+            else None
         ),
     )

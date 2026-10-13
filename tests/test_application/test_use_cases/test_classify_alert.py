@@ -33,7 +33,12 @@ from src.application.use_cases.alerts.classify_alert import (
 # Default tool set (no enabled_tools filter, no watchlist configured) - see
 # ClassifyAlertUseCase.__init__.
 _DEFAULT_SYSTEM_PROMPT = _build_system_prompt(
-    ["get_similar_frauds", "get_similar_taxonomy", "get_similar_modus_operandi", "calculator"],
+    [
+        "get_similar_frauds",
+        "get_similar_taxonomy",
+        "get_similar_modus_operandi",
+        "calculator",
+    ],
     None,
 )
 
@@ -205,7 +210,9 @@ def test_classify_alert_marks_unknown_when_no_final_answer_reached() -> None:
     assert output.fraud_classification == "unknown"
 
 
-def test_classify_alert_echoes_expected_classification_without_leaking_it_to_llm() -> None:
+def test_classify_alert_echoes_expected_classification_without_leaking_it_to_llm() -> (
+    None
+):
     # marcacion_final ground truth (see dataset_sampling.py) - carried
     # through to the output for the test-run UI to diff against, but must
     # never reach the LLM's messages, or the "test" stops testing anything.
@@ -277,7 +284,9 @@ def test_classify_alert_echoes_ground_truth_tipo_without_leaking_it_to_llm() -> 
     assert "Fraude" not in sent_content
 
 
-def test_classify_alert_echoes_ground_truth_tipo_when_reasoning_never_concludes() -> None:
+def test_classify_alert_echoes_ground_truth_tipo_when_reasoning_never_concludes() -> (
+    None
+):
     responses = ["Thought: I am confused, no clear action"] * 6
     llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
     use_case = ClassifyAlertUseCase(
@@ -336,7 +345,9 @@ def test_classify_alert_appends_segment_extra_instructions() -> None:
 
     system_message = llm_factory.created[0].received_messages[0][0]
     assert system_message.content.startswith(_DEFAULT_SYSTEM_PROMPT)
-    assert "Presta especial atención a compras internacionales." in system_message.content
+    assert (
+        "Presta especial atención a compras internacionales." in system_message.content
+    )
 
 
 def test_classify_alert_system_prompt_override_wins_over_extra_instructions() -> None:
@@ -369,7 +380,7 @@ def test_classify_alert_enabled_tools_restricts_tool_dict() -> None:
         "Thought: try similar cases\n"
         "Action: get_similar_frauds\n"
         "Action Input: some query",
-        "Thought: done\nFinal Answer: {\"is_fraud\": \"unknown\", "
+        'Thought: done\nFinal Answer: {"is_fraud": "unknown", '
         '"fraud_classification": "unknown", "reasoning": "no tool available"}',
     ]
     llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
@@ -397,7 +408,7 @@ def test_classify_alert_calculator_tool_computes_exact_result() -> None:
         "Thought: need the exact ratio\n"
         "Action: calculator\n"
         "Action Input: 1500000 / 3",
-        "Thought: done\nFinal Answer: {\"is_fraud\": \"fraud\", "
+        'Thought: done\nFinal Answer: {"is_fraud": "fraud", '
         '"fraud_classification": "unknown", "reasoning": "500000.0"}',
     ]
     llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
@@ -420,7 +431,7 @@ def test_classify_alert_calculator_tool_computes_exact_result() -> None:
 def test_classify_alert_calculator_disabled_when_not_in_enabled_tools() -> None:
     responses = [
         "Thought: need math\nAction: calculator\nAction Input: 1 + 1",
-        "Thought: done\nFinal Answer: {\"is_fraud\": \"unknown\", "
+        'Thought: done\nFinal Answer: {"is_fraud": "unknown", '
         '"fraud_classification": "unknown", "reasoning": "no calculator"}',
     ]
     llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
@@ -453,11 +464,7 @@ class InMemoryWatchlistRepository:
 
     def elements_containing(self, watchlist_ids: list[str], value: str) -> set[str]:
         self.elements_containing_calls.append((list(watchlist_ids), value))
-        return {
-            wid
-            for wid in watchlist_ids
-            if value in self._matches.get(wid, set())
-        }
+        return {wid for wid in watchlist_ids if value in self._matches.get(wid, set())}
 
     def get(self, watchlist_id: str):
         from datetime import datetime
@@ -484,7 +491,7 @@ def test_classify_alert_check_watchlist_tool_reports_matches() -> None:
     )
     responses = [
         "Thought: check the document\nAction: check_watchlist\nAction Input: -",
-        "Thought: done\nFinal Answer: {\"is_fraud\": \"fraud\", "
+        'Thought: done\nFinal Answer: {"is_fraud": "fraud", '
         '"fraud_classification": "unknown", "reasoning": "listed document"}',
     ]
     llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
@@ -512,7 +519,7 @@ def test_classify_alert_check_watchlist_tool_reports_matches() -> None:
 def test_classify_alert_without_watchlist_config_does_not_register_tool() -> None:
     responses = [
         "Thought: check the document\nAction: check_watchlist\nAction Input: -",
-        "Thought: done\nFinal Answer: {\"is_fraud\": \"unknown\", "
+        'Thought: done\nFinal Answer: {"is_fraud": "unknown", '
         '"fraud_classification": "unknown", "reasoning": "no watchlist"}',
     ]
     llm_factory = ScriptedLLMUnitOfWorkFactory(responses)
@@ -619,7 +626,11 @@ class CannedResearchAgent:
         return ResearchResult(
             ResearchSource.VECTOR_STORE,
             ResearchStatus.EXECUTED,
-            [ResearchFinding("vector_store_match", "mo-7", "vishing con nuevo beneficiario")],
+            [
+                ResearchFinding(
+                    "vector_store_match", "mo-7", "vishing con nuevo beneficiario"
+                )
+            ],
         )
 
 
@@ -631,7 +642,7 @@ def test_classify_alert_consults_vector_store_research_and_logs_interactions() -
         "Thought: necesito patrones similares\n"
         "Action: search_vector_store\n"
         "Action Input: transferencia a beneficiario nuevo tras llamada",
-        "Thought: listo\nFinal Answer: {\"is_fraud\": \"fraud\", "
+        'Thought: listo\nFinal Answer: {"is_fraud": "fraud", '
         '"fraud_classification": "unknown", "reasoning": "coincide con mo-7"}',
     ]
     llm_factory = ScriptedLLMUnitOfWorkFactory(responses)

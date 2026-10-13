@@ -33,9 +33,20 @@ class ApproveAlertSchemaUseCase:
             raise ValueError("Schema proposal is based on a stale version")
         if schema.impact and not input.impact_acknowledged:
             raise ImpactAcknowledgementRequired("Impact acknowledgement is required")
-        approved = AlertSchemaVersion(**{**schema.__dict__, "status": AlertSchemaStatus.ACTIVE,
-            "approved_by": input.approver_id, "approved_at": datetime.now(UTC),
-            "impact_acknowledged": bool(schema.impact) and input.impact_acknowledged})
+        approved = AlertSchemaVersion(
+            **{
+                **schema.__dict__,
+                "status": AlertSchemaStatus.ACTIVE,
+                "approved_by": input.approver_id,
+                "approved_at": datetime.now(UTC),
+                "impact_acknowledged": bool(schema.impact)
+                and input.impact_acknowledged,
+            }
+        )
         if active is not None:
-            self._repository.update(AlertSchemaVersion(**{**active.__dict__, "status": AlertSchemaStatus.HISTORICAL}))
+            self._repository.update(
+                AlertSchemaVersion(
+                    **{**active.__dict__, "status": AlertSchemaStatus.HISTORICAL}
+                )
+            )
         return self._repository.update(approved)

@@ -11,11 +11,9 @@ class DatasetRecord:
 
 
 class DatasetRepository(Protocol):
-    def list(self) -> list[DatasetRecord]:
-        ...
+    def list(self) -> list[DatasetRecord]: ...
 
-    def get_rows(self, name: str) -> list[dict[str, Any]]:
-        ...
+    def get_rows(self, name: str) -> list[dict[str, Any]]: ...
 
     def get_fields(self, name: str) -> list[str]:
         """Return dataset columns without loading all rows when possible."""
@@ -25,7 +23,9 @@ class DatasetRepository(Protocol):
         """Return the stored CSV size without loading its contents."""
         ...
 
-    def get_rows_page(self, name: str, offset: int, limit: int) -> tuple[list[dict[str, Any]], int]:
+    def get_rows_page(
+        self, name: str, offset: int, limit: int
+    ) -> tuple[list[dict[str, Any]], int]:
         """Return one page of rows plus the dataset's total row count."""
         ...
 
@@ -48,5 +48,4 @@ class DatasetRepository(Protocol):
         """Append rows to an existing dataset. Returns the new total row count."""
         ...
 
-    def delete(self, name: str) -> None:
-        ...
+    def delete(self, name: str) -> None: ...

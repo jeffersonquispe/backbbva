@@ -32,7 +32,9 @@ class InMemoryObjectStoragePort(ObjectStoragePort):
         content_type: str = "application/octet-stream",
     ) -> ObjectStorageRef:
         self._objects[key] = content
-        return ObjectStorageRef(bucket="test-bucket", key=key, uri=f"s3://test-bucket/{key}")
+        return ObjectStorageRef(
+            bucket="test-bucket", key=key, uri=f"s3://test-bucket/{key}"
+        )
 
     def get_bytes(self, key: str) -> bytes:
         return self._objects[key]
@@ -111,7 +113,9 @@ def test_append_rows_flattens_nested_values_and_returns_new_total() -> None:
     ]
 
     # A second append should accumulate on top of the existing rows.
-    new_total = repo.append_rows("events", [{"name": "carol", "amount": {"baseValue": 30}}])
+    new_total = repo.append_rows(
+        "events", [{"name": "carol", "amount": {"baseValue": 30}}]
+    )
     assert new_total == 3
     assert len(repo.get_rows("events")) == 3
 
@@ -126,7 +130,9 @@ def test_append_rows_preserves_column_alignment_with_leading_unnamed_column() ->
     # whole object on every append. Found by testing against a real, larger
     # reference dataset with this shape.
     storage = InMemoryObjectStoragePort()
-    storage.put_text("sample.csv", ",name,amount\n0,alice,100\n1,bob,200\n", content_type="text/csv")
+    storage.put_text(
+        "sample.csv", ",name,amount\n0,alice,100\n1,bob,200\n", content_type="text/csv"
+    )
     repo = MinioCsvDatasetRepository(object_storage=storage)
 
     repo.append_rows("sample", [{"name": "carol", "amount": "300"}])

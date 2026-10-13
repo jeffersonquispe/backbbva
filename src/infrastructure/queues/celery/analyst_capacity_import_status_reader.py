@@ -19,13 +19,16 @@ class CeleryAnalystCapacityImportStatusReader(AnalystCapacityImportStatusReader)
         result = AsyncResult(task_id, app=app)
 
         if result.state in _PENDING_STATES:
-            return AnalystCapacityImportResult(status=AnalystCapacityImportStatus.PENDING)
+            return AnalystCapacityImportResult(
+                status=AnalystCapacityImportStatus.PENDING
+            )
 
         if result.state == states.SUCCESS:
             payload = result.result
             profiles = [DayProfile(**p) for p in payload["profiles"]]
             day_overrides = {
-                int(day): profile_id for day, profile_id in payload["day_overrides"].items()
+                int(day): profile_id
+                for day, profile_id in payload["day_overrides"].items()
             }
             return AnalystCapacityImportResult(
                 status=AnalystCapacityImportStatus.READY,

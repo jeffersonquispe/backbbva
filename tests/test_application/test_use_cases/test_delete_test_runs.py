@@ -42,7 +42,9 @@ class InMemoryTestRunRepository:
 
 class InMemoryWorkflowExecutionRepository:
     def __init__(self, workflows: list[WorkflowExecutionRecord]) -> None:
-        self.workflows: dict[UUID, WorkflowExecutionRecord] = {w.id: w for w in workflows}
+        self.workflows: dict[UUID, WorkflowExecutionRecord] = {
+            w.id: w for w in workflows
+        }
 
     def create(self, workflow):
         raise NotImplementedError
@@ -74,7 +76,9 @@ class InMemoryWorkflowStepExecutionRepository:
         self, workflow_execution_id: UUID
     ) -> list[WorkflowStepExecutionRecord]:
         return [
-            s for s in self.steps.values() if s.workflow_execution_id == workflow_execution_id
+            s
+            for s in self.steps.values()
+            if s.workflow_execution_id == workflow_execution_id
         ]
 
     def update(self, workflow_execution_id, step_id, **changes):
@@ -103,7 +107,9 @@ class InMemoryAlertRepository:
 
 class InMemoryAsyncOperationRepository:
     def __init__(self, operations: list[AsyncOperationRecord]) -> None:
-        self.operations: dict[UUID, AsyncOperationRecord] = {o.id: o for o in operations}
+        self.operations: dict[UUID, AsyncOperationRecord] = {
+            o.id: o for o in operations
+        }
 
     def create(self, operation):
         raise NotImplementedError
@@ -140,8 +146,13 @@ def _test_run(total: int) -> TestRunRecord:
     )
 
 
-def _case(test_run_id: UUID) -> tuple[
-    WorkflowExecutionRecord, list[WorkflowStepExecutionRecord], AlertRecord, AsyncOperationRecord
+def _case(
+    test_run_id: UUID,
+) -> tuple[
+    WorkflowExecutionRecord,
+    list[WorkflowStepExecutionRecord],
+    AlertRecord,
+    AsyncOperationRecord,
 ]:
     now = datetime.now(UTC)
     alert_id = uuid.uuid4()

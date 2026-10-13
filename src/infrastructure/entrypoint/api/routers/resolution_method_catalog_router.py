@@ -30,7 +30,9 @@ from src.infrastructure.entrypoint.api.schemas import (
     UpdateResolutionMethodRequest,
 )
 
-router = APIRouter(prefix="/resolution-method-catalog", tags=["resolution-method-catalog"])
+router = APIRouter(
+    prefix="/resolution-method-catalog", tags=["resolution-method-catalog"]
+)
 
 
 @router.get("", response_model=list[ResolutionMethodSchema])

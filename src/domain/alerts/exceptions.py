@@ -5,8 +5,7 @@ class MandatoryAlertDataMissingError(Exception):
     def __init__(self, missing_fields: list[str]) -> None:
         self.missing_fields = missing_fields
         super().__init__(
-            "Alert payload missing mandatory fields: "
-            + ", ".join(missing_fields)
+            "Alert payload missing mandatory fields: " + ", ".join(missing_fields)
         )
 
 
@@ -81,7 +80,9 @@ class AnalystBusyError(Exception):
 class AlertAlreadyTakenError(Exception):
     def __init__(self, alert_id: str) -> None:
         self.alert_id = alert_id
-        super().__init__(f"Alert {alert_id} is already being handled by another analyst.")
+        super().__init__(
+            f"Alert {alert_id} is already being handled by another analyst."
+        )
 
 
 class NoAnalystCapacityError(Exception):

@@ -6,9 +6,7 @@ from src.application.ports.host_service_transaction_history_port import (
 )
 
 
-class MockHostServiceTransactionHistoryAdapter(
-    HostServiceTransactionHistoryPort
-):
+class MockHostServiceTransactionHistoryAdapter(HostServiceTransactionHistoryPort):
     """Deterministic local host history for the synthetic customers."""
 
     _TEST_CUSTOMERS = frozenset({"10264559", "8867889", "cust-1"})

@@ -13,7 +13,9 @@ from tests.test_infrastructure.test_llm.test_chat_model_unit_of_work import (
 
 
 def test_factory_wires_azure_deployment_as_model(monkeypatch):
-    monkeypatch.setattr(genai_config, "OPENAI_ENDPOINT", "https://example.openai.azure.com")
+    monkeypatch.setattr(
+        genai_config, "OPENAI_ENDPOINT", "https://example.openai.azure.com"
+    )
     monkeypatch.setattr(genai_config, "OPENAI_KEY", "dummy")
     monkeypatch.setattr(genai_config, "OPENAI_VERSION", "2024-08-01-preview")
 

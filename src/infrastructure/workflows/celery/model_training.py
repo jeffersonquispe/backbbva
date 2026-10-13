@@ -101,9 +101,7 @@ def build_feature_frame(
     here and returned) and passed in at scoring time (fixed, from the
     persisted bundle).
     """
-    requested_fields = {
-        transform.field for transform in transforms
-    } | {
+    requested_fields = {transform.field for transform in transforms} | {
         transform.reference_field
         for transform in transforms
         if transform.reference_field
@@ -163,7 +161,13 @@ def build_feature_frame(
                 )
             feats[f"{col}__n_tokens"] = token_sets.map(len)
 
-    feats = pd.concat([feats.reset_index(drop=True), build_history_frame(rows, historical_features or [], timezone)], axis=1)
+    feats = pd.concat(
+        [
+            feats.reset_index(drop=True),
+            build_history_frame(rows, historical_features or [], timezone),
+        ],
+        axis=1,
+    )
     if feature_configuration is not None:
         from src.domain.models.feature_recipe import (
             evaluate_feature_definition,
@@ -174,20 +178,34 @@ def build_feature_frame(
         evaluated = []
         for index, row in enumerate(rows):
             result = evaluate_feature_definition(definition, row, validated=True)
-            errors = [feature for feature in result["features"] if feature["status"] == "error"]
+            errors = [
+                feature
+                for feature in result["features"]
+                if feature["status"] == "error"
+            ]
             if errors:
-                raise ValueError(f"Fila {index + 1}, característica {errors[0]['name']}: {errors[0].get('error')}")
+                raise ValueError(
+                    f"Fila {index + 1}, característica {errors[0]['name']}: {errors[0].get('error')}"
+                )
             evaluated.append(result["values"])
         recipe_frame = pd.DataFrame(index=range(len(rows)))
         for recipe in definition["recipes"]:
             if not recipe.get("enabled", True):
                 continue
             name = recipe["name"]
-            values = pd.Series([result.get(name) for result in evaluated], index=recipe_frame.index, dtype=object)
+            values = pd.Series(
+                [result.get(name) for result in evaluated],
+                index=recipe_frame.index,
+                dtype=object,
+            )
             if recipe.get("output_type", "number") == "string":
-                recipe_frame[name] = values.map(lambda value: str(value) if value is not None else np.nan).astype("category")
+                recipe_frame[name] = values.map(
+                    lambda value: str(value) if value is not None else np.nan
+                ).astype("category")
             else:
-                recipe_frame[name] = pd.to_numeric(values, errors="coerce").astype(float)
+                recipe_frame[name] = pd.to_numeric(values, errors="coerce").astype(
+                    float
+                )
         feats = pd.concat([feats, recipe_frame], axis=1)
     if feats.columns.duplicated().any():
         raise ValueError("Las transformaciones generan nombres de columnas duplicados")
@@ -202,9 +220,7 @@ def train_xgboost_model(
     )
     n_pos = int(y_train.sum())
     n_neg = int(len(y_train) - n_pos)
-    model = XGBClassifier(
-        **XGB_PARAMS, scale_pos_weight=(n_neg / max(n_pos, 1))
-    )
+    model = XGBClassifier(**XGB_PARAMS, scale_pos_weight=(n_neg / max(n_pos, 1)))
     model.fit(X_train, y_train)
 
     p_cal_raw = model.predict_proba(X_cal)[:, 1]
@@ -217,26 +233,27 @@ def train_xgboost_model(
         "n_calibration": float(len(y_cal)),
         "n_positive": float(int(y.sum())),
         "roc_auc": float(roc_auc_score(y_cal, p_cal_raw)),
-        "accuracy_at_0.5": float(
-            accuracy_score(y_cal, (p_cal >= 0.5).astype(int))
-        ),
-        "f1_macro": float(
-            f1_score(y_cal, (p_cal >= 0.5).astype(int), average="macro")
-        ),
+        "accuracy_at_0.5": float(accuracy_score(y_cal, (p_cal >= 0.5).astype(int))),
+        "f1_macro": float(f1_score(y_cal, (p_cal >= 0.5).astype(int), average="macro")),
     }
     return model, isotonic, metrics
 
 
-def target_vector(rows: list[dict[str, Any]], target_field: str, positive_labels: list[str]) -> np.ndarray:
+def target_vector(
+    rows: list[dict[str, Any]], target_field: str, positive_labels: list[str]
+) -> np.ndarray:
     positive = set(positive_labels)
     values = [_field_value(row, target_field) for row in rows]
     if not positive or any(v is None or str(v).strip() == "" for v in values):
-        raise ValueError("El objetivo contiene valores ausentes o faltan etiquetas positivas")
+        raise ValueError(
+            "El objetivo contiene valores ausentes o faltan etiquetas positivas"
+        )
     classes = {str(v).strip() for v in values}
     if len(classes) < 2:
-        raise ValueError("El campo objetivo debe contener al menos dos clases distintas para entrenar")
+        raise ValueError(
+            "El campo objetivo debe contener al menos dos clases distintas para entrenar"
+        )
     return np.array([int(str(v) in positive) for v in values])
-
 
 
 def run_model_training(

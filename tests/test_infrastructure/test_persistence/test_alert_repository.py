@@ -1,5 +1,6 @@
 """C1: alert item <-> AlertRecord, tolerant of alerts written before the
 metrics snapshot existed."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -82,6 +83,8 @@ def test_partial_or_unknown_snapshot_fields_fall_back_to_defaults() -> None:
     restored = snapshot_from_item(
         {"snapshot_version": Decimal(3), "mark": "bogus", "status": "CLOSED"}
     )
-    assert restored == AlertMetricsSnapshot(status=AlertStatus.CLOSED, snapshot_version=3)
+    assert restored == AlertMetricsSnapshot(
+        status=AlertStatus.CLOSED, snapshot_version=3
+    )
     assert snapshot_from_item(None) is None
     assert "segment" not in snapshot_to_item(AlertMetricsSnapshot())

@@ -18,7 +18,11 @@ class DynamoAlertSchemaSuggestionRepository(AlertSchemaSuggestionRepository):
         self._table = get_dynamodb_resource().Table("alert_schema_suggestions")
 
     def create(self, suggestion: AlertSchemaSuggestion) -> AlertSchemaSuggestion:
-        self._table.put_item(Item=to_dynamodb({**suggestion.__dict__, "created_at": suggestion.created_at.isoformat()}))
+        self._table.put_item(
+            Item=to_dynamodb(
+                {**suggestion.__dict__, "created_at": suggestion.created_at.isoformat()}
+            )
+        )
         return suggestion
 
     def get(self, suggestion_id: str) -> AlertSchemaSuggestion | None:

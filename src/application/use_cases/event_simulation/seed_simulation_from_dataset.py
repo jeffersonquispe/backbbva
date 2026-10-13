@@ -46,8 +46,7 @@ class SeedSimulationFromDatasetUseCase:
             and field.field_ds_loc
         ]
         return {
-            field.field_ds_loc: self._generator_for(field, rows)
-            for field in fields
+            field.field_ds_loc: self._generator_for(field, rows) for field in fields
         }
 
     def _generator_for(
@@ -67,7 +66,9 @@ class SeedSimulationFromDatasetUseCase:
             return _numeric_generator(numeric)
         return FieldGenerator(
             kind=GeneratorKind.CATEGORICAL,
-            weights={str(value): float(count) for value, count in Counter(values).items()},
+            weights={
+                str(value): float(count) for value, count in Counter(values).items()
+            },
         )
 
 
@@ -83,7 +84,11 @@ def _read_value(row: dict[str, Any], location: str) -> Any:
 
 
 def _is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def _as_number(value: Any) -> float | None:
@@ -100,7 +105,9 @@ def _as_number(value: Any) -> float | None:
 
 def _numeric_generator(values: list[float]) -> FieldGenerator:
     if not values:
-        return FieldGenerator(kind=GeneratorKind.NORMAL, params={"mu": 0.0, "sigma": 1.0})
+        return FieldGenerator(
+            kind=GeneratorKind.NORMAL, params={"mu": 0.0, "sigma": 1.0}
+        )
 
     mean = statistics.fmean(values)
     variance = statistics.pvariance(values)
@@ -114,7 +121,10 @@ def _numeric_generator(values: list[float]) -> FieldGenerator:
             logged = [math.log(value) for value in values]
             return FieldGenerator(
                 kind=GeneratorKind.LOGNORMAL,
-                params={"mu": statistics.fmean(logged), "sigma": statistics.pstdev(logged)},
+                params={
+                    "mu": statistics.fmean(logged),
+                    "sigma": statistics.pstdev(logged),
+                },
             )
 
     return FieldGenerator(
@@ -125,7 +135,9 @@ def _numeric_generator(values: list[float]) -> FieldGenerator:
 
 def _synthetic_generator(field: AlertSchemaField) -> FieldGenerator:
     if field.type == AlertSchemaFieldType.NUMBER:
-        return FieldGenerator(kind=GeneratorKind.NORMAL, params={"mu": 0.0, "sigma": 1.0})
+        return FieldGenerator(
+            kind=GeneratorKind.NORMAL, params={"mu": 0.0, "sigma": 1.0}
+        )
     if field.type == AlertSchemaFieldType.BOOL:
         return FieldGenerator(
             kind=GeneratorKind.CATEGORICAL,

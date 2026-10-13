@@ -21,12 +21,8 @@ class InMemoryConfigurationRepository:
     def get(self, configuration_id: str, version: int) -> ConfigurationRecord | None:
         return self._items.get((configuration_id, version))
 
-    def get_latest_version(
-        self, configuration_id: str
-    ) -> ConfigurationRecord | None:
-        versions = [
-            c for (cid, _), c in self._items.items() if cid == configuration_id
-        ]
+    def get_latest_version(self, configuration_id: str) -> ConfigurationRecord | None:
+        versions = [c for (cid, _), c in self._items.items() if cid == configuration_id]
         return max(versions, key=lambda c: c.version) if versions else None
 
     def get_active(self) -> ConfigurationRecord | None:
@@ -85,9 +81,7 @@ def test_resolve_configuration_raises_when_ref_does_not_resolve(monkeypatch) -> 
     monkeypatch.setattr(workflow_module, "get_configuration_repository", lambda: repo)
 
     context = {
-        "input": {
-            "configuration_ref": {"configuration_id": "missing", "version": 1}
-        }
+        "input": {"configuration_ref": {"configuration_id": "missing", "version": 1}}
     }
 
     with pytest.raises(ConfigurationNotFoundError):

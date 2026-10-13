@@ -64,7 +64,9 @@ class InMemoryFraudKnowledgeRepository:
         if vector_store_id is not None:
             results = [d for d in results if d.vector_store_id == vector_store_id]
         if vector_store_version is not None:
-            results = [d for d in results if d.vector_store_version == vector_store_version]
+            results = [
+                d for d in results if d.vector_store_version == vector_store_version
+            ]
         return results
 
 

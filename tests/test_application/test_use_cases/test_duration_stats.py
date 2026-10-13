@@ -16,9 +16,15 @@ from src.application.use_cases.test_runs.duration_stats import (
 )
 
 
-def _step(step_name: str, duration_seconds: float | None) -> WorkflowStepExecutionRecord:
+def _step(
+    step_name: str, duration_seconds: float | None
+) -> WorkflowStepExecutionRecord:
     now = datetime.now(UTC)
-    finished = now + timedelta(seconds=duration_seconds) if duration_seconds is not None else None
+    finished = (
+        now + timedelta(seconds=duration_seconds)
+        if duration_seconds is not None
+        else None
+    )
     return WorkflowStepExecutionRecord(
         id=uuid.uuid4(),
         workflow_execution_id=uuid.uuid4(),

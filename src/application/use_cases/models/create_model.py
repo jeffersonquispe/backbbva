@@ -43,7 +43,10 @@ class CreateModelUseCase:
     def execute(self, input: CreateModelInput) -> ModelOutput:
         if input.feature_configuration is not None:
             from src.domain.models.feature_recipe import validate_feature_definition
-            validate_feature_definition(input.feature_configuration, forbidden_paths=(input.target_field,))
+
+            validate_feature_definition(
+                input.feature_configuration, forbidden_paths=(input.target_field,)
+            )
         now = datetime.now(UTC)
         model = ModelRecord(
             id=uuid.uuid4(),

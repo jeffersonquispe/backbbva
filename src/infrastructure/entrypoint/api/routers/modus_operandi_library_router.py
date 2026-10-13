@@ -43,7 +43,11 @@ from src.infrastructure.entrypoint.api.schemas import (
     UpdateModusOperandiLibraryEntryRequest,
 )
 
-router = APIRouter(prefix="/library/modus-operandi", tags=["knowledge-library"], dependencies=[Depends(require_library_access)])
+router = APIRouter(
+    prefix="/library/modus-operandi",
+    tags=["knowledge-library"],
+    dependencies=[Depends(require_library_access)],
+)
 
 
 @router.get("", response_model=list[ModusOperandiLibraryEntrySchema])
@@ -58,7 +62,9 @@ def list_modus_operandi_library_entries(
 
 
 @router.post(
-    "", response_model=ModusOperandiLibraryEntrySchema, status_code=status.HTTP_201_CREATED
+    "",
+    response_model=ModusOperandiLibraryEntrySchema,
+    status_code=status.HTTP_201_CREATED,
 )
 def create_modus_operandi_library_entry(
     request: CreateModusOperandiLibraryEntryRequest,
@@ -68,12 +74,14 @@ def create_modus_operandi_library_entry(
     ],
 ):
     entry = use_case.execute(
-            request.title,
-            request.narrative,
-            request.taxonomy_library_id,
-            request.evolved_variables,
-        )
-    get_knowledge_graph_service().synchronize_new_asset(KnowledgeAssetType.MODUS_OPERANDI, entry.id)
+        request.title,
+        request.narrative,
+        request.taxonomy_library_id,
+        request.evolved_variables,
+    )
+    get_knowledge_graph_service().synchronize_new_asset(
+        KnowledgeAssetType.MODUS_OPERANDI, entry.id
+    )
     return _to_schema(entry)
 
 
@@ -87,7 +95,11 @@ def update_modus_operandi_library_entry(
     ],
 ):
     current = get_modus_operandi_library_repository().get(entry_id)
-    if current and request.taxonomy_library_id and request.taxonomy_library_id != current.taxonomy_library_id:
+    if (
+        current
+        and request.taxonomy_library_id
+        and request.taxonomy_library_id != current.taxonomy_library_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Changing a modus operandi's taxonomy would break instance lineage; create an independent copy instead.",

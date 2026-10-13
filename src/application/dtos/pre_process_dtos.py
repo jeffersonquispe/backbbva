@@ -32,8 +32,14 @@ class PreProcessAlertOutput:
             self.roles = {
                 role: self.input[role]
                 for role in (
-                    "event_id", "event_time", "event_type", "channel",
-                    "entrypoint", "amount", "customer_id", "account_id",
+                    "event_id",
+                    "event_time",
+                    "event_type",
+                    "channel",
+                    "entrypoint",
+                    "amount",
+                    "customer_id",
+                    "account_id",
                     "session_id",
                 )
                 if role in self.input

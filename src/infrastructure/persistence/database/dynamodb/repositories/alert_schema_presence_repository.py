@@ -30,7 +30,9 @@ class DynamoAlertSchemaPresenceReportRepository(AlertSchemaPresenceReportReposit
         return report
 
     def get(self, report_day: date) -> AlertSchemaPresenceReport | None:
-        item = self._table.get_item(Key={"report_day": report_day.isoformat()}).get("Item")
+        item = self._table.get_item(Key={"report_day": report_day.isoformat()}).get(
+            "Item"
+        )
         return _from_item(item) if item else None
 
     def get_latest(self) -> AlertSchemaPresenceReport | None:
@@ -38,9 +40,15 @@ class DynamoAlertSchemaPresenceReportRepository(AlertSchemaPresenceReportReposit
         reports = [_from_item(item) for item in result.get("Items", [])]
         return max(reports, key=lambda item: item.report_day, default=None)
 
-    def list_before(self, report_day: date, limit: int = 30) -> list[AlertSchemaPresenceReport]:
+    def list_before(
+        self, report_day: date, limit: int = 30
+    ) -> list[AlertSchemaPresenceReport]:
         result = self._table.scan()
-        reports = [_from_item(item) for item in result.get("Items", []) if item.get("report_day", "") < report_day.isoformat()]
+        reports = [
+            _from_item(item)
+            for item in result.get("Items", [])
+            if item.get("report_day", "") < report_day.isoformat()
+        ]
         return sorted(reports, key=lambda item: item.report_day, reverse=True)[:limit]
 
 
@@ -61,6 +69,19 @@ def _from_item(item: dict[str, Any]) -> AlertSchemaPresenceReport:
         generated_at=datetime.fromisoformat(value["generated_at"]),
         schema_version=int(value["schema_version"]),
         alert_count=int(value.get("alert_count", 0)),
-        fields=[AlertSchemaPresenceField(**{**field, "last_seen": datetime.fromisoformat(field["last_seen"]) if field.get("last_seen") else None}) for field in value.get("fields", [])],
-        unknown_locations=[AlertSchemaUnknownLocation(**location) for location in value.get("unknown_locations", [])],
+        fields=[
+            AlertSchemaPresenceField(
+                **{
+                    **field,
+                    "last_seen": datetime.fromisoformat(field["last_seen"])
+                    if field.get("last_seen")
+                    else None,
+                }
+            )
+            for field in value.get("fields", [])
+        ],
+        unknown_locations=[
+            AlertSchemaUnknownLocation(**location)
+            for location in value.get("unknown_locations", [])
+        ],
     )

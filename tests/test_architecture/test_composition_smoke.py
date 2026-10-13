@@ -40,7 +40,8 @@ def _zero_arg_factories() -> list[tuple[str, str]]:
             if not name.startswith("get_") or fn.__module__ != module_name:
                 continue
             required = [
-                p for p in inspect.signature(fn).parameters.values()
+                p
+                for p in inspect.signature(fn).parameters.values()
                 if p.default is p.empty
                 and p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
             ]

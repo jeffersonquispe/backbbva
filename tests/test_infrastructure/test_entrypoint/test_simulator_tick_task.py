@@ -26,7 +26,9 @@ class InMemorySimulationScenarioRepository:
     def get(self, scenario_id: UUID) -> SimulationScenarioRecord | None:
         return self.scenarios.get(scenario_id)
 
-    def update(self, scenario_id: UUID, **changes: Any) -> SimulationScenarioRecord | None:
+    def update(
+        self, scenario_id: UUID, **changes: Any
+    ) -> SimulationScenarioRecord | None:
         current = self.scenarios.get(scenario_id)
         if current is None:
             return None
@@ -92,7 +94,9 @@ def _scenario(**overrides) -> SimulationScenarioRecord:
         status=ScenarioStatus.RUNNING,
         output_mode=OutputMode.DATASET,
         rate_schedule=[RateInterval(0, 120, events_per_minute=10)],
-        field_specs={"channel": FieldGenerator(kind=GeneratorKind.CONSTANT, value="app")},
+        field_specs={
+            "channel": FieldGenerator(kind=GeneratorKind.CONSTANT, value="app")
+        },
         target_dataset_name="synthetic_events",
         created_at=now,
         updated_at=now,
@@ -102,7 +106,9 @@ def _scenario(**overrides) -> SimulationScenarioRecord:
     return SimulationScenarioRecord(**defaults)
 
 
-def _wire(monkeypatch, scenario, *, batch_output, event_sink=None, dispatch_gateway=None):
+def _wire(
+    monkeypatch, scenario, *, batch_output, event_sink=None, dispatch_gateway=None
+):
     repo = InMemorySimulationScenarioRepository(scenario)
     generate_batch = StubGenerateEventBatchUseCase(batch_output)
     apply_async = RecordingApplyAsync()
@@ -111,13 +117,17 @@ def _wire(monkeypatch, scenario, *, batch_output, event_sink=None, dispatch_gate
         tasks_module, "get_simulation_scenario_repository", lambda: repo
     )
     monkeypatch.setattr(
-        tasks_module, "get_record_tick_result_use_case", lambda: RecordTickResultUseCase(repo)
+        tasks_module,
+        "get_record_tick_result_use_case",
+        lambda: RecordTickResultUseCase(repo),
     )
     monkeypatch.setattr(
         tasks_module, "get_generate_event_batch_use_case", lambda: generate_batch
     )
     monkeypatch.setattr(tasks_module, "get_event_sink", lambda: event_sink)
-    monkeypatch.setattr(tasks_module, "get_alert_dispatch_gateway", lambda: dispatch_gateway)
+    monkeypatch.setattr(
+        tasks_module, "get_alert_dispatch_gateway", lambda: dispatch_gateway
+    )
     monkeypatch.setattr(tasks_module.tick, "apply_async", apply_async)
 
     return repo, generate_batch, apply_async
@@ -139,14 +149,18 @@ def test_tick_writes_to_dataset_and_reschedules_when_not_exhausted(monkeypatch) 
 
     result = tasks_module.tick(str(scenario.id))
 
-    assert sink.written == [("synthetic_events", [{"channel": "app"}, {"channel": "app"}])]
+    assert sink.written == [
+        ("synthetic_events", [{"channel": "app"}, {"channel": "app"}])
+    ]
     assert repo.scenarios[scenario.id].events_emitted == 2
     assert repo.scenarios[scenario.id].last_tick_offset_seconds == 10
     assert apply_async.calls == [{"args": [str(scenario.id)], "countdown": 10}]
     assert result["rescheduled"] is True
 
 
-def test_tick_completes_scenario_and_stops_rescheduling_when_exhausted(monkeypatch) -> None:
+def test_tick_completes_scenario_and_stops_rescheduling_when_exhausted(
+    monkeypatch,
+) -> None:
     scenario = _scenario()
     sink = RecordingEventSink()
     repo, generate_batch, apply_async = _wire(
@@ -189,7 +203,9 @@ def test_tick_is_a_noop_when_scenario_missing(monkeypatch) -> None:
     repo, generate_batch, apply_async = _wire(
         monkeypatch,
         scenario,
-        batch_output=GenerateEventBatchOutput(rows=[], events_generated=0, schedule_exhausted=False),
+        batch_output=GenerateEventBatchOutput(
+            rows=[], events_generated=0, schedule_exhausted=False
+        ),
     )
 
     result = tasks_module.tick(str(uuid4()))
@@ -203,7 +219,9 @@ def test_tick_is_a_noop_when_scenario_paused(monkeypatch) -> None:
     repo, generate_batch, apply_async = _wire(
         monkeypatch,
         scenario,
-        batch_output=GenerateEventBatchOutput(rows=[], events_generated=0, schedule_exhausted=False),
+        batch_output=GenerateEventBatchOutput(
+            rows=[], events_generated=0, schedule_exhausted=False
+        ),
     )
 
     result = tasks_module.tick(str(scenario.id))

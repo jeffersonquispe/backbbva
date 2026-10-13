@@ -89,7 +89,9 @@ class RecordingObjectStoragePort(ObjectStoragePort):
         content_type: str = "text/plain",
     ) -> ObjectStorageRef:
         self.calls.append((key, content, content_type))
-        return ObjectStorageRef(bucket="aria-reports", key=key, uri=f"s3://aria-reports/{key}")
+        return ObjectStorageRef(
+            bucket="aria-reports", key=key, uri=f"s3://aria-reports/{key}"
+        )
 
 
 def test_document_analyst_decision_stores_llm_report() -> None:
@@ -120,7 +122,9 @@ def test_document_analyst_decision_stores_llm_report() -> None:
         )
     )
 
-    assert output.report == "# Alert Review Report\n\nThe alert was classified as fraud."
+    assert (
+        output.report == "# Alert Review Report\n\nThe alert was classified as fraud."
+    )
     assert output.object_storage_ref.uri == (
         f"s3://aria-reports/alerts/{alert_id}/{workflow_execution_id}/analyst_report.md"
     )

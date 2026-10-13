@@ -133,9 +133,7 @@ def test_append_dataset_rows_preserves_provenance_from_prior_summary() -> None:
         dispatcher=dispatcher,
     )
 
-    output = use_case.execute(
-        AppendDatasetRowsInput(name="ds2", rows=[{"field": "x"}])
-    )
+    output = use_case.execute(AppendDatasetRowsInput(name="ds2", rows=[{"field": "x"}]))
 
     assert output.total_rows == 10
     summary = summaries.get("ds2")

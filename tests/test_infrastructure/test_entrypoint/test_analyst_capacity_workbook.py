@@ -10,7 +10,9 @@ from src.infrastructure.entrypoint.worker.analyst_capacity_workbook import (
 )
 
 
-def _workbook(profiles_rows: list[tuple], assignment_rows: list[tuple] | None = None) -> bytes:
+def _workbook(
+    profiles_rows: list[tuple], assignment_rows: list[tuple] | None = None
+) -> bytes:
     workbook = openpyxl.Workbook()
     profiles_sheet = workbook.active
     profiles_sheet.title = "Perfiles"

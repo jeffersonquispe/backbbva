@@ -36,7 +36,8 @@ router = APIRouter(prefix="/library/channels", tags=["knowledge-library"])
 @router.get("", response_model=list[ChannelLibraryEntrySchema])
 def list_channel_library_entries(
     use_case: Annotated[
-        ListChannelLibraryEntriesUseCase, Depends(get_list_channel_library_entries_use_case)
+        ListChannelLibraryEntriesUseCase,
+        Depends(get_list_channel_library_entries_use_case),
     ],
     active_only: bool = False,
 ):
@@ -49,7 +50,8 @@ def list_channel_library_entries(
 def create_channel_library_entry(
     request: CreateChannelLibraryEntryRequest,
     use_case: Annotated[
-        CreateChannelLibraryEntryUseCase, Depends(get_create_channel_library_entry_use_case)
+        CreateChannelLibraryEntryUseCase,
+        Depends(get_create_channel_library_entry_use_case),
     ],
 ):
     return _to_schema(use_case.execute(request.code, request.name, request.description))
@@ -60,7 +62,8 @@ def update_channel_library_entry(
     entry_id: str,
     request: UpdateChannelLibraryEntryRequest,
     use_case: Annotated[
-        UpdateChannelLibraryEntryUseCase, Depends(get_update_channel_library_entry_use_case)
+        UpdateChannelLibraryEntryUseCase,
+        Depends(get_update_channel_library_entry_use_case),
     ],
 ):
     try:
@@ -80,7 +83,8 @@ def update_channel_library_entry(
 def delete_channel_library_entry(
     entry_id: str,
     use_case: Annotated[
-        DeleteChannelLibraryEntryUseCase, Depends(get_delete_channel_library_entry_use_case)
+        DeleteChannelLibraryEntryUseCase,
+        Depends(get_delete_channel_library_entry_use_case),
     ],
 ):
     use_case.execute(entry_id)

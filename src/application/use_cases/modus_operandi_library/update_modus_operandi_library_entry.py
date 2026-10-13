@@ -94,7 +94,9 @@ class UpdateModusOperandiLibraryEntryUseCase:
                 [
                     embedding_text(
                         title=title if title is not None else current.title,
-                        narrative=narrative if narrative is not None else current.narrative,
+                        narrative=narrative
+                        if narrative is not None
+                        else current.narrative,
                     )
                 ]
             ).vectors[0]

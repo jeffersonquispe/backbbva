@@ -36,7 +36,12 @@ from src.application.use_cases.alerts.adversarial_review_alert import (
 # Default tool set (no enabled_tools filter, no watchlist configured) - see
 # AdversarialReviewAlertUseCase.__init__.
 _DEFAULT_SYSTEM_PROMPT = _build_system_prompt(
-    ["get_similar_frauds", "get_similar_taxonomy", "get_similar_modus_operandi", "calculator"]
+    [
+        "get_similar_frauds",
+        "get_similar_taxonomy",
+        "get_similar_modus_operandi",
+        "calculator",
+    ]
 )
 
 
@@ -261,10 +266,14 @@ def test_adversarial_review_appends_segment_extra_instructions() -> None:
 
     system_message = llm_factory.created[0].received_messages[0][0]
     assert system_message.content.startswith(_DEFAULT_SYSTEM_PROMPT)
-    assert "Presta especial atención a compras internacionales." in system_message.content
+    assert (
+        "Presta especial atención a compras internacionales." in system_message.content
+    )
 
 
-def test_adversarial_review_system_prompt_override_wins_over_extra_instructions() -> None:
+def test_adversarial_review_system_prompt_override_wins_over_extra_instructions() -> (
+    None
+):
     responses = [
         'Thought: done\nFinal Answer: {"has_issues": false, "feedback": "", '
         '"weak_points": [], "reasoning": "r"}'

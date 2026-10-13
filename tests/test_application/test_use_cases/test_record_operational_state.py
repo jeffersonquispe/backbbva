@@ -1,4 +1,5 @@
 """RecordOperationalState: the 60 s operational-gauge sample, with fakes."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -85,8 +86,13 @@ class RecordingMonitoring(MonitoringPort):
 def _alert(status: AlertStatus, age_minutes: float) -> AlertRecord:
     created = NOW - timedelta(minutes=age_minutes)
     return AlertRecord(
-        id=uuid4(), event_id="e", event_type="payment", input={},
-        status=status, created_at=created, updated_at=created,
+        id=uuid4(),
+        event_id="e",
+        event_type="payment",
+        input={},
+        status=status,
+        created_at=created,
+        updated_at=created,
     )
 
 
@@ -102,11 +108,13 @@ def _use_case(settings, alerts, capacity, monitoring):
 
 
 def test_samples_agent_hours_queue_and_capacity() -> None:
-    alerts = InMemoryAlertRepository([
-        _alert(AlertStatus.ESCALATED, 5),
-        _alert(AlertStatus.ESCALATED, 20),
-        _alert(AlertStatus.CLOSED, 90),
-    ])
+    alerts = InMemoryAlertRepository(
+        [
+            _alert(AlertStatus.ESCALATED, 5),
+            _alert(AlertStatus.ESCALATED, 20),
+            _alert(AlertStatus.CLOSED, 90),
+        ]
+    )
     monitoring = RecordingMonitoring()
 
     snapshot = _use_case(
@@ -140,6 +148,9 @@ def test_empty_queue_and_unstaffed_hour() -> None:
 
     assert snapshot.agent_enabled is False
     assert snapshot.within_operating_hours is False
-    assert (snapshot.analyst_queue_depth, snapshot.analyst_queue_oldest_age_seconds) == (0, 0.0)
+    assert (
+        snapshot.analyst_queue_depth,
+        snapshot.analyst_queue_oldest_age_seconds,
+    ) == (0, 0.0)
     # The live counter said 0: the queue is never listed.
     assert alerts.list_calls == 0

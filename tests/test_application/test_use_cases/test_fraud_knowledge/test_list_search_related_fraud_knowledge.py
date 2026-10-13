@@ -85,7 +85,9 @@ class InMemoryVectorStoreInstanceRepository:
         raise NotImplementedError
 
 
-def _promoted_instance(instance_id: str = "vs-1", version: int = 1) -> VectorStoreInstance:
+def _promoted_instance(
+    instance_id: str = "vs-1", version: int = 1
+) -> VectorStoreInstance:
     return VectorStoreInstance(
         id=instance_id,
         version=1,
@@ -158,12 +160,16 @@ def test_list_fraud_knowledge_documents_delegates_to_repository() -> None:
     assert results == [taxonomia]
 
 
-def test_search_fraud_knowledge_resolves_current_version_and_delegates_to_search_port() -> None:
+def test_search_fraud_knowledge_resolves_current_version_and_delegates_to_search_port() -> (
+    None
+):
     taxonomia = _taxonomia()
     search_port = RecordingFraudKnowledgeSearchPort(
         FraudKnowledgeSearchResult(document=taxonomia, score=0.87)
     )
-    instances = InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=3)])
+    instances = InMemoryVectorStoreInstanceRepository(
+        [_promoted_instance("vs-1", version=3)]
+    )
 
     results = SearchFraudKnowledgeUseCase(search_port, instances).execute(
         "suplantacion de identidad",

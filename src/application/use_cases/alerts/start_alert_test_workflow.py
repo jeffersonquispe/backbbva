@@ -67,7 +67,9 @@ class StartAlertTestWorkflowUseCase:
         self._workflow_executor = workflow_executor
         self._metrics = metrics_recorder
         self._raw_payloads = (
-            RawAlertPayloadLoader(object_storage) if object_storage is not None else None
+            RawAlertPayloadLoader(object_storage)
+            if object_storage is not None
+            else None
         )
 
     def execute(
@@ -129,7 +131,8 @@ class StartAlertTestWorkflowUseCase:
                     "raw_payload_ref": dataclasses.asdict(raw_ref) if raw_ref else None,
                     "test_labels": (
                         {"marcacion_final": input.payload.get("marcacion_final")}
-                        if input.test_run_id is not None and "marcacion_final" in input.payload
+                        if input.test_run_id is not None
+                        and "marcacion_final" in input.payload
                         else {}
                     ),
                     "config_overrides": input.config_overrides,
@@ -178,7 +181,6 @@ class StartAlertTestWorkflowUseCase:
             workflow_execution_id=workflow.id,
             status=WorkflowStatus.DISPATCHED.value,
         )
-
 
     def _record_created(self, alert_id, input: StartAlertWorkflowInput, now) -> None:
         # Best effort: never fail alert intake over metrics; a missed

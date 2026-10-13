@@ -1,4 +1,5 @@
 """Docker-only integration tests against the real DynamoDB Local service."""
+
 from __future__ import annotations
 
 import os
@@ -7,7 +8,10 @@ import uuid
 import pytest
 
 if not os.getenv("DYNAMO_ENDPOINT"):
-    pytest.skip("Requires DynamoDB Local; run through make test-integration-docker-vector-store", allow_module_level=True)
+    pytest.skip(
+        "Requires DynamoDB Local; run through make test-integration-docker-vector-store",
+        allow_module_level=True,
+    )
 
 from src.application.ports.configuration_port import FlagType
 from src.application.ports.embedding_port import (
@@ -57,21 +61,36 @@ pytestmark = pytest.mark.docker_integration
 
 class _ScriptedEmbeddingUnitOfWork(EmbeddingUnitOfWork):
     def embed(self, texts: list[str]) -> EmbeddingResult:
-        return EmbeddingResult(vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3)
+        return EmbeddingResult(
+            vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3
+        )
 
 
 class _ScriptedEmbeddingUnitOfWorkFactory(EmbeddingUnitOfWorkFactory):
-    def create(self, *, model: str, monitoring: MonitoringPort, operation_name: str) -> EmbeddingUnitOfWork:
+    def create(
+        self, *, model: str, monitoring: MonitoringPort, operation_name: str
+    ) -> EmbeddingUnitOfWork:
         return _ScriptedEmbeddingUnitOfWork()
 
 
 class _NullSpan(MonitoringSpan):
-    def write_input(self, data) -> None: pass
-    def write_result(self, data) -> None: pass
-    def write_inner_logs(self, entries) -> None: pass
-    def write_operation_metas(self, metadata) -> None: pass
-    def record_dependency(self, name, kind, metadata=None) -> None: pass
-    def finish(self, error=None) -> None: pass
+    def write_input(self, data) -> None:
+        pass
+
+    def write_result(self, data) -> None:
+        pass
+
+    def write_inner_logs(self, entries) -> None:
+        pass
+
+    def write_operation_metas(self, metadata) -> None:
+        pass
+
+    def record_dependency(self, name, kind, metadata=None) -> None:
+        pass
+
+    def finish(self, error=None) -> None:
+        pass
 
 
 class _NullMonitoringPort(MonitoringPort):
@@ -108,11 +127,21 @@ def _seed_tree():
     modus = DynamoModusOperandiLibraryRepository()
     flags = DynamoFlagLibraryRepository()
     cases = DynamoSimilarCaseLibraryRepository()
-    tax = CreateTaxonomyLibraryEntryUseCase(taxonomies, **_embedding_kwargs()).execute(f"T-{suffix[:8]}", f"Taxonomía {suffix}")
-    mo = CreateModusOperandiLibraryEntryUseCase(modus, **_embedding_kwargs()).execute(f"MO {suffix}", "Narrativa de prueba", tax.id)
-    case = CreateSimilarCaseLibraryEntryUseCase(cases, **_embedding_kwargs()).execute(f"Caso {suffix}", mo.id, tax.id)
-    yellow = CreateFlagLibraryEntryUseCase(flags, **_embedding_kwargs()).execute(FlagType.YELLOW, f"Yellow {suffix}", modus_operandi_library_ids=[mo.id])
-    red = CreateFlagLibraryEntryUseCase(flags, **_embedding_kwargs()).execute(FlagType.RED, f"Red {suffix}", modus_operandi_library_ids=[mo.id])
+    tax = CreateTaxonomyLibraryEntryUseCase(taxonomies, **_embedding_kwargs()).execute(
+        f"T-{suffix[:8]}", f"Taxonomía {suffix}"
+    )
+    mo = CreateModusOperandiLibraryEntryUseCase(modus, **_embedding_kwargs()).execute(
+        f"MO {suffix}", "Narrativa de prueba", tax.id
+    )
+    case = CreateSimilarCaseLibraryEntryUseCase(cases, **_embedding_kwargs()).execute(
+        f"Caso {suffix}", mo.id, tax.id
+    )
+    yellow = CreateFlagLibraryEntryUseCase(flags, **_embedding_kwargs()).execute(
+        FlagType.YELLOW, f"Yellow {suffix}", modus_operandi_library_ids=[mo.id]
+    )
+    red = CreateFlagLibraryEntryUseCase(flags, **_embedding_kwargs()).execute(
+        FlagType.RED, f"Red {suffix}", modus_operandi_library_ids=[mo.id]
+    )
     return tax, mo, case, yellow, red
 
 
@@ -120,7 +149,10 @@ def test_dynamodb_persists_full_tree_and_idempotent_relations() -> None:
     tax, mo, case, yellow, red = _seed_tree()
     repository = DynamoVectorStoreInstanceRepository()
     instance = CreateVectorStoreInstanceUseCase(repository).execute(
-        name=f"Integration {uuid.uuid4().hex}", description="DynamoDB local", created_by="integration-test", assets=[]
+        name=f"Integration {uuid.uuid4().hex}",
+        description="DynamoDB local",
+        created_by="integration-test",
+        assets=[],
     )
     graph = _graph()
 
@@ -131,8 +163,10 @@ def test_dynamodb_persists_full_tree_and_idempotent_relations() -> None:
     assert len(first) == 5
     assert second == []
     assert {(asset.asset_type, asset.asset_id) for asset in persisted} == {
-        (KnowledgeAssetType.TAXONOMY, tax.id), (KnowledgeAssetType.MODUS_OPERANDI, mo.id),
-        (KnowledgeAssetType.SIMILAR_CASE, case.id), (KnowledgeAssetType.YELLOW_FLAG, yellow.id),
+        (KnowledgeAssetType.TAXONOMY, tax.id),
+        (KnowledgeAssetType.MODUS_OPERANDI, mo.id),
+        (KnowledgeAssetType.SIMILAR_CASE, case.id),
+        (KnowledgeAssetType.YELLOW_FLAG, yellow.id),
         (KnowledgeAssetType.RED_FLAG, red.id),
     }
 
@@ -141,16 +175,25 @@ def test_dynamodb_propagates_new_descendant_and_removes_recursive_tree() -> None
     tax, mo, _, _, _ = _seed_tree()
     repository = DynamoVectorStoreInstanceRepository()
     instance = CreateVectorStoreInstanceUseCase(repository).execute(
-        name=f"Propagation {uuid.uuid4().hex}", description="DynamoDB local", created_by="integration-test", assets=[]
+        name=f"Propagation {uuid.uuid4().hex}",
+        description="DynamoDB local",
+        created_by="integration-test",
+        assets=[],
     )
     graph = _graph()
     graph.attach(instance.id, KnowledgeAssetType.TAXONOMY, tax.id)
 
-    new_case = CreateSimilarCaseLibraryEntryUseCase(DynamoSimilarCaseLibraryRepository(), **_embedding_kwargs()).execute(
-        f"Caso posterior {uuid.uuid4().hex}", mo.id, tax.id
+    new_case = CreateSimilarCaseLibraryEntryUseCase(
+        DynamoSimilarCaseLibraryRepository(), **_embedding_kwargs()
+    ).execute(f"Caso posterior {uuid.uuid4().hex}", mo.id, tax.id)
+    assert graph.synchronize_new_asset(
+        KnowledgeAssetType.SIMILAR_CASE, new_case.id
+    ) == [instance.id]
+    assert any(
+        asset.asset_id == new_case.id for asset in repository.list_assets(instance.id)
     )
-    assert graph.synchronize_new_asset(KnowledgeAssetType.SIMILAR_CASE, new_case.id) == [instance.id]
-    assert any(asset.asset_id == new_case.id for asset in repository.list_assets(instance.id))
 
-    assert graph.detach_tree_from_all_instances(KnowledgeAssetType.TAXONOMY, tax.id) == [instance.id]
+    assert graph.detach_tree_from_all_instances(
+        KnowledgeAssetType.TAXONOMY, tax.id
+    ) == [instance.id]
     assert repository.list_assets(instance.id) == []

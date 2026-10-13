@@ -188,4 +188,6 @@ def test_composed_filter_then_sample_percentage() -> None:
 
     assert len(filtered) == 10
     assert len(sampled) == 5
-    assert all(r["marcacion_final"] == "risk" and r["region"] == "west" for r in sampled)
+    assert all(
+        r["marcacion_final"] == "risk" and r["region"] == "west" for r in sampled
+    )

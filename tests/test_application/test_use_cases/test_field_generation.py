@@ -78,7 +78,11 @@ def test_poisson_generator_terminates_quickly_at_large_lambda() -> None:
 
 
 def test_due_event_count_is_zero_outside_every_interval() -> None:
-    schedule = [RateInterval(start_offset_seconds=0, end_offset_seconds=60, events_per_minute=10)]
+    schedule = [
+        RateInterval(
+            start_offset_seconds=0, end_offset_seconds=60, events_per_minute=10
+        )
+    ]
     rng = random.Random(0)
 
     assert due_event_count(schedule, 60, 120, rng) == 0
@@ -86,8 +90,12 @@ def test_due_event_count_is_zero_outside_every_interval() -> None:
 
 def test_due_event_count_sums_across_overlapping_intervals() -> None:
     schedule = [
-        RateInterval(start_offset_seconds=0, end_offset_seconds=60, events_per_minute=60),
-        RateInterval(start_offset_seconds=60, end_offset_seconds=120, events_per_minute=600),
+        RateInterval(
+            start_offset_seconds=0, end_offset_seconds=60, events_per_minute=60
+        ),
+        RateInterval(
+            start_offset_seconds=60, end_offset_seconds=120, events_per_minute=600
+        ),
     ]
     rng = random.Random(7)
 
@@ -99,7 +107,11 @@ def test_due_event_count_sums_across_overlapping_intervals() -> None:
 
 
 def test_schedule_exhausted_true_once_every_interval_has_ended() -> None:
-    schedule = [RateInterval(start_offset_seconds=0, end_offset_seconds=60, events_per_minute=10)]
+    schedule = [
+        RateInterval(
+            start_offset_seconds=0, end_offset_seconds=60, events_per_minute=10
+        )
+    ]
 
     assert schedule_exhausted(schedule, 60) is True
     assert schedule_exhausted(schedule, 59) is False

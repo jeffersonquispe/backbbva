@@ -32,7 +32,9 @@ class FakeStorage:
     def get_bytes(self, key: str) -> bytes:
         return json.dumps(self.payload).encode()
 
-    def put_text(self, key: str, content: str, content_type: str = "text/plain") -> ObjectStorageRef:
+    def put_text(
+        self, key: str, content: str, content_type: str = "text/plain"
+    ) -> ObjectStorageRef:
         self.audit.append((key, content))
         return ObjectStorageRef("test", key, f"test://{key}")
 
@@ -60,7 +62,9 @@ def _alert(schema_version: int = 1) -> AlertRecord:
         status=AlertStatus.RECEIVED,
         created_at=now,
         updated_at=now,
-        raw_payload_ref=ObjectStorageRef("test", "raw/event-1.json", "test://raw/event-1.json"),
+        raw_payload_ref=ObjectStorageRef(
+            "test", "raw/event-1.json", "test://raw/event-1.json"
+        ),
         schema_version=schema_version,
         input={"event_id": "event-1"},
         labels={"fraud": "pending"},
@@ -95,33 +99,49 @@ def _schema() -> AlertSchemaVersion:
     )
 
 
-def _raw_client(user: LocalUser, alert: AlertRecord, schema: AlertSchemaVersion, storage: FakeStorage) -> TestClient:
+def _raw_client(
+    user: LocalUser,
+    alert: AlertRecord,
+    schema: AlertSchemaVersion,
+    storage: FakeStorage,
+) -> TestClient:
     app = FastAPI()
     app.include_router(alerts_router.router)
     app.dependency_overrides[get_current_user] = lambda: user
     alerts_router.get_alert_repository = lambda: FakeAlertRepository(alert)
-    alerts_router.get_alert_schema_repository = lambda: SimpleNamespace(get=lambda _: schema)
+    alerts_router.get_alert_schema_repository = lambda: SimpleNamespace(
+        get=lambda _: schema
+    )
     alerts_router.get_alert_object_storage = lambda: storage
     return TestClient(app)
 
 
 def test_raw_endpoint_requires_schema_permission() -> None:
     alert = _alert()
-    client = _raw_client(_user(LocalRole.CHANNEL_MANAGER), alert, _schema(), FakeStorage({}))
+    client = _raw_client(
+        _user(LocalRole.CHANNEL_MANAGER), alert, _schema(), FakeStorage({})
+    )
     assert client.get(f"/alerts/{alert.id}/raw").status_code == 403
 
 
 def test_raw_endpoint_redacts_aric_nested_list_and_audits_access() -> None:
     alert = _alert()
-    storage = FakeStorage({
-        "payment": {"card": {"number": [{"value": "1234567890123456"}]}, "customer_id": "host-secret"},
-    })
+    storage = FakeStorage(
+        {
+            "payment": {
+                "card": {"number": [{"value": "1234567890123456"}]},
+                "customer_id": "host-secret",
+            },
+        }
+    )
     client = _raw_client(_user(LocalRole.MANAGER), alert, _schema(), storage)
 
     response = client.get(f"/alerts/{alert.id}/raw")
 
     assert response.status_code == 200
-    assert response.json()["payment"]["card"]["number"][0]["value"] == "************3456"
+    assert (
+        response.json()["payment"]["card"]["number"][0]["value"] == "************3456"
+    )
     assert response.json()["payment"]["customer_id"] == "host-secret"
     assert len(storage.audit) == 1
     audit = json.loads(storage.audit[0][1])
@@ -132,7 +152,9 @@ def test_raw_endpoint_redacts_aric_nested_list_and_audits_access() -> None:
 def test_raw_endpoint_returns_404_without_a_payload_reference() -> None:
     alert = _alert()
     alert = replace(alert, raw_payload_ref=None)
-    client = _raw_client(_user(LocalRole.RELEASE_MANAGER), alert, _schema(), FakeStorage({}))
+    client = _raw_client(
+        _user(LocalRole.RELEASE_MANAGER), alert, _schema(), FakeStorage({})
+    )
     assert client.get(f"/alerts/{alert.id}/raw").status_code == 404
 
 
@@ -148,13 +170,19 @@ def _schema_client(role: LocalRole, schema: AlertSchemaVersion | None) -> TestCl
     app = FastAPI()
     app.include_router(alert_schema_router.router)
     app.dependency_overrides[get_current_user] = lambda: _user(role)
-    alert_schema_router.get_get_active_alert_schema_use_case = lambda: FakeSchemaUseCase(schema)
-    alert_schema_router.get_list_alert_schema_versions_use_case = lambda: FakeSchemaUseCase([schema] if schema else [])
+    alert_schema_router.get_get_active_alert_schema_use_case = (
+        lambda: FakeSchemaUseCase(schema)
+    )
+    alert_schema_router.get_list_alert_schema_versions_use_case = (
+        lambda: FakeSchemaUseCase([schema] if schema else [])
+    )
     return TestClient(app)
 
 
 def test_active_schema_is_available_to_any_authenticated_role() -> None:
-    response = _schema_client(LocalRole.FRAUD_ANALYST, _schema()).get("/alert-schema/active")
+    response = _schema_client(LocalRole.FRAUD_ANALYST, _schema()).get(
+        "/alert-schema/active"
+    )
     assert response.status_code == 200
     assert response.json()["status"] == "active"
 
@@ -166,6 +194,8 @@ def test_schema_history_is_restricted_to_read_roles(role: LocalRole) -> None:
 
 
 def test_schema_history_is_readable_by_data_analyst() -> None:
-    response = _schema_client(LocalRole.DATA_ANALYST, _schema()).get("/alert-schema/versions")
+    response = _schema_client(LocalRole.DATA_ANALYST, _schema()).get(
+        "/alert-schema/versions"
+    )
     assert response.status_code == 200
     assert response.json()[0]["version"] == 1

@@ -2,6 +2,7 @@
 range (`from`, `to`) and the dimension filters. Each filter is repeatable
 (`?channel=WEB&channel=APP` = either). A datetime without an offset is read
 in the operations timezone (America/Bogota), like every metrics bucket."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

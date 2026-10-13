@@ -1,5 +1,6 @@
 """A3: ListAlertHistory - newest first, paged by created day through the
 index (page_by_created_day), filters on the snapshot, opaque cursor."""
+
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
@@ -45,7 +46,9 @@ class InMemoryAlertRepository:
         return sorted(day, key=lambda a: a.created_at, reverse=True)[:limit]
 
 
-def _alert(created_at: datetime, channel: str = "WEB", metrics: bool = True) -> AlertRecord:
+def _alert(
+    created_at: datetime, channel: str = "WEB", metrics: bool = True
+) -> AlertRecord:
     return AlertRecord(
         id=uuid4(),
         event_id="e",
@@ -90,7 +93,9 @@ def test_pages_newest_first_across_days_without_gaps_or_repeats() -> None:
     alerts = [_alert(NOW - timedelta(hours=7 * i + 1)) for i in range(40)]  # ~12 days
     repo = InMemoryAlertRepository(alerts)
 
-    ids, pages = _all_pages(_use_case(repo), from_=NOW - timedelta(days=30), to=NOW, limit=7)
+    ids, pages = _all_pages(
+        _use_case(repo), from_=NOW - timedelta(days=30), to=NOW, limit=7
+    )
 
     expected = [a.id for a in sorted(alerts, key=lambda a: a.created_at, reverse=True)]
     assert ids == expected

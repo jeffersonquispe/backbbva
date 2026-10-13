@@ -28,7 +28,11 @@ def test_no_recipes_short_circuits_without_validating():
     # The default/untouched state for a segment (see configuration_port.py's
     # _default_field_enrichment) - validate_feature_definition itself
     # requires 1-200 recipes, so this must not raise.
-    empty = {"schema_version": 2, "mappings": {"timezone": "America/Bogota"}, "recipes": []}
+    empty = {
+        "schema_version": 2,
+        "mappings": {"timezone": "America/Bogota"},
+        "recipes": [],
+    }
 
     assert use_case.execute(empty, current={}, history=[]) == {}
 

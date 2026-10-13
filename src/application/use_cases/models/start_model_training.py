@@ -45,7 +45,10 @@ class StartModelTrainingUseCase:
 
         if model.feature_configuration is not None:
             from src.domain.models.feature_recipe import validate_feature_definition
-            validate_feature_definition(model.feature_configuration, forbidden_paths=(model.target_field,))
+
+            validate_feature_definition(
+                model.feature_configuration, forbidden_paths=(model.target_field,)
+            )
 
         now = datetime.now(UTC)
         operation = self._async_operations.create(
@@ -73,7 +76,9 @@ class StartModelTrainingUseCase:
             model.status = ModelStatus.FAILED
             model.error = "No se pudo enviar el entrenamiento a la cola; crea un nuevo modelo para intentarlo de nuevo"
             self._models.update(model)
-            self._async_operations.update(operation.id, status=AsyncOperationStatus.FAILED, error=model.error)
+            self._async_operations.update(
+                operation.id, status=AsyncOperationStatus.FAILED, error=model.error
+            )
             raise
 
         return StartModelTrainingOutput(

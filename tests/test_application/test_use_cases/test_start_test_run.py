@@ -112,7 +112,9 @@ class InMemoryWorkflowExecutionRepository:
     def get(self, workflow_id: UUID) -> WorkflowExecutionRecord | None:
         return self.workflows.get(workflow_id)
 
-    def update(self, workflow_id: UUID, **changes: Any) -> WorkflowExecutionRecord | None:
+    def update(
+        self, workflow_id: UUID, **changes: Any
+    ) -> WorkflowExecutionRecord | None:
         workflow = self.workflows.get(workflow_id)
         if workflow is None:
             return None
@@ -198,7 +200,9 @@ class RecordingWorkflowExecutor(WorkflowExecutor):
 
     def start(self, workflow: WorkflowExecutionRecord) -> WorkflowExecutionRef:
         self.started.append(workflow)
-        return WorkflowExecutionRef(backend="celery", external_id=f"task-{len(self.started)}")
+        return WorkflowExecutionRef(
+            backend="celery", external_id=f"task-{len(self.started)}"
+        )
 
 
 def test_start_test_run_dispatches_one_workflow_per_dataset_row() -> None:
@@ -253,7 +257,9 @@ def test_start_test_run_dispatches_one_workflow_per_dataset_row() -> None:
         }
 
 
-def test_start_test_run_threads_configuration_ref_separately_from_config_overrides() -> None:
+def test_start_test_run_threads_configuration_ref_separately_from_config_overrides() -> (
+    None
+):
     datasets = InMemoryDatasetRepository({"sample": [{"eventId": "e-1"}]})
     workflows = InMemoryWorkflowExecutionRepository()
     use_case = StartTestRunUseCase(
@@ -288,7 +294,9 @@ def test_start_test_run_threads_configuration_ref_separately_from_config_overrid
 
 def _use_case(
     rows_by_name: dict[str, list[dict[str, Any]]],
-) -> tuple[StartTestRunUseCase, InMemoryTestRunRepository, InMemoryWorkflowExecutionRepository]:
+) -> tuple[
+    StartTestRunUseCase, InMemoryTestRunRepository, InMemoryWorkflowExecutionRepository
+]:
     test_runs = InMemoryTestRunRepository()
     workflows = InMemoryWorkflowExecutionRepository()
     use_case = StartTestRunUseCase(
@@ -338,9 +346,7 @@ def test_start_test_run_without_sample_size_dispatches_every_row() -> None:
     rows = _labeled_rows({"no-risk": 5, "risk": 2, "risk-suspected": 1})
     use_case, test_runs, _ = _use_case({"sample": rows})
 
-    output = use_case.execute(
-        StartTestRunInput(name="run", dataset_name="sample")
-    )
+    output = use_case.execute(StartTestRunInput(name="run", dataset_name="sample"))
 
     assert output.dispatched_count == 8
     assert test_runs.get(output.test_run_id).total == 8
@@ -429,9 +435,11 @@ class InMemoryAlertSchemaRepository:
 
 def test_start_test_run_pins_draft_schema_version_on_each_workflow() -> None:
     use_case, _, workflows = _use_case({"sample": [{"eventId": "e-1"}]})
-    use_case._schemas = InMemoryAlertSchemaRepository([
-        AlertSchemaVersion(version=7),
-    ])
+    use_case._schemas = InMemoryAlertSchemaRepository(
+        [
+            AlertSchemaVersion(version=7),
+        ]
+    )
 
     output = use_case.execute(
         StartTestRunInput(
@@ -476,9 +484,16 @@ def test_start_freezes_and_records_resolved_configuration(explicit: bool) -> Non
         workflow_executor=RecordingWorkflowExecutor(),
         configuration_repository=configurations,
     )
-    output = use_case.execute(StartTestRunInput(
-        name="Freeze", dataset_name="sample",
-        config=TestRunConfig(configuration_ref=ConfigurationRef("cfg", 3) if explicit else None),
-    ))
+    output = use_case.execute(
+        StartTestRunInput(
+            name="Freeze",
+            dataset_name="sample",
+            config=TestRunConfig(
+                configuration_ref=ConfigurationRef("cfg", 3) if explicit else None
+            ),
+        )
+    )
     assert configurations.marked_tested == [("cfg", 3)]
-    assert runs.get(output.test_run_id).config.configuration_ref == ConfigurationRef("cfg", 3)
+    assert runs.get(output.test_run_id).config.configuration_ref == ConfigurationRef(
+        "cfg", 3
+    )

@@ -6,7 +6,9 @@ from src.application.ports.similar_case_library_port import (
 
 
 class DeleteSimilarCaseLibraryEntryUseCase:
-    def __init__(self, similar_case_library_repository: SimilarCaseLibraryRepository) -> None:
+    def __init__(
+        self, similar_case_library_repository: SimilarCaseLibraryRepository
+    ) -> None:
         self._entries = similar_case_library_repository
 
     def execute(self, entry_id: str) -> None:

@@ -40,7 +40,14 @@ class InMemoryAlertRepository(AlertRepository):
     def get(self, alert_id: UUID) -> AlertRecord | None:
         return self._alerts.get(alert_id)
 
-    def update(self, alert_id, *, status=None, async_operation_id=None, workflow_execution_id=None):
+    def update(
+        self,
+        alert_id,
+        *,
+        status=None,
+        async_operation_id=None,
+        workflow_execution_id=None,
+    ):
         return self._alerts.get(alert_id)
 
     def delete(self, alert_id: UUID) -> None:
@@ -125,7 +132,9 @@ class InMemoryFeedbackRepository(FeedbackRepository):
 
 
 class InMemoryWorkflowExecutionRepository(WorkflowExecutionRepository):
-    def __init__(self, executions: dict[UUID, WorkflowExecutionRecord] | None = None) -> None:
+    def __init__(
+        self, executions: dict[UUID, WorkflowExecutionRecord] | None = None
+    ) -> None:
         self._by_id = executions or {}
 
     def create(self, workflow: WorkflowExecutionRecord) -> WorkflowExecutionRecord:
@@ -160,7 +169,9 @@ def _alert(
     )
 
 
-def _execution(execution_id: UUID, configuration_ref: dict[str, Any] | None) -> WorkflowExecutionRecord:
+def _execution(
+    execution_id: UUID, configuration_ref: dict[str, Any] | None
+) -> WorkflowExecutionRecord:
     now = datetime.now(UTC)
     return WorkflowExecutionRecord(
         id=execution_id,
@@ -195,7 +206,8 @@ def _make_use_case(
         summary_repository=summaries or InMemoryDatasetSummaryRepository(),
         dispatcher=dispatcher or RecordingDatasetAnalysisDispatcher(),
         feedback_repository=feedback,
-        workflow_execution_repository=executions or InMemoryWorkflowExecutionRepository(),
+        workflow_execution_repository=executions
+        or InMemoryWorkflowExecutionRepository(),
     )
     return use_case, feedback
 
@@ -278,9 +290,15 @@ def test_curate_auto_detects_configuration_from_workflow_execution() -> None:
     alerts = InMemoryAlertRepository({alert.id: alert})
     datasets = FakeDatasetRepository()
     executions = InMemoryWorkflowExecutionRepository(
-        {execution_id: _execution(execution_id, {"configuration_id": "cfg-auto", "version": 7})}
+        {
+            execution_id: _execution(
+                execution_id, {"configuration_id": "cfg-auto", "version": 7}
+            )
+        }
     )
-    use_case, feedback = _make_use_case(alerts=alerts, datasets=datasets, executions=executions)
+    use_case, feedback = _make_use_case(
+        alerts=alerts, datasets=datasets, executions=executions
+    )
 
     output = use_case.execute(
         CurateAlertToDatasetInput(
@@ -310,7 +328,9 @@ def test_curate_auto_detects_configuration_stored_on_the_alert() -> None:
     executions = InMemoryWorkflowExecutionRepository(
         {execution_id: _execution(execution_id, None)}
     )
-    use_case, feedback = _make_use_case(alerts=alerts, datasets=datasets, executions=executions)
+    use_case, feedback = _make_use_case(
+        alerts=alerts, datasets=datasets, executions=executions
+    )
 
     output = use_case.execute(
         CurateAlertToDatasetInput(
@@ -321,7 +341,10 @@ def test_curate_auto_detects_configuration_stored_on_the_alert() -> None:
     )
 
     assert (output.configuration_id, output.version) == ("cfg-active", 3)
-    assert (feedback.created[0].configuration_id, feedback.created[0].version) == ("cfg-active", 3)
+    assert (feedback.created[0].configuration_id, feedback.created[0].version) == (
+        "cfg-active",
+        3,
+    )
 
 
 def test_curate_raises_value_error_when_configuration_cannot_be_determined() -> None:

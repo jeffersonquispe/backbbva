@@ -2,7 +2,6 @@ from src.infrastructure import InfrastructureException
 
 
 class TestInfrastructureException:
-
     def test_init(self):
         """Ensure InfrastructureException
         initializes with the correct message."""

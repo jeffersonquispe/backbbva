@@ -56,7 +56,10 @@ class PreviewConfigurationUseCase:
             raise ConfigurationBaseNotFoundError(
                 f"Configuration {input.configuration_id} not found"
             )
-        if input.based_on_version is not None and latest.version != input.based_on_version:
+        if (
+            input.based_on_version is not None
+            and latest.version != input.based_on_version
+        ):
             raise ConfigurationVersionConflictError(
                 f"Configuration {input.configuration_id} latest version is "
                 f"{latest.version}, but this draft was based on version "

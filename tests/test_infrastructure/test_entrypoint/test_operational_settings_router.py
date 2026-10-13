@@ -1,4 +1,5 @@
 """C2: amount tier validation surfaces as 422; omitted tiers are kept."""
+
 from __future__ import annotations
 
 from dataclasses import replace

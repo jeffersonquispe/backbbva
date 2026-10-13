@@ -48,9 +48,7 @@ def test_log_record_carries_active_trace_id():
 
 
 def test_exporter_own_logs_are_dropped():
-    logger, handler, exporter = _logger_with_handler(
-        "opentelemetry.exporter.otlp.test"
-    )
+    logger, handler, exporter = _logger_with_handler("opentelemetry.exporter.otlp.test")
     try:
         logger.warning("Transient error exporting")
     finally:

@@ -71,8 +71,6 @@ def test_escalate_alert_to_analyst_calls_aric_and_reports_span() -> None:
 
     assert aric.calls == [("evt-1", "sess-1")]
     assert output.aric_signals.is_rat is True
-    assert monitoring.started == [
-        ("escalate_alert_to_analyst", "workflow.escalation")
-    ]
+    assert monitoring.started == [("escalate_alert_to_analyst", "workflow.escalation")]
     assert "dependency:aric" in monitoring.events
     assert "finish:None" in monitoring.events

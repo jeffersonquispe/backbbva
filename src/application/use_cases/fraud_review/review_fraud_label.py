@@ -12,6 +12,7 @@
 The audit row is written first on purpose: if the metrics write then fails
 (e.g. SnapshotVersionConflictError after its retries) the attempt is still
 on record, and re-submitting simply appends another row."""
+
 from __future__ import annotations
 
 from collections.abc import Callable

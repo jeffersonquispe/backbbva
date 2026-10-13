@@ -45,7 +45,9 @@ def test_interaction_budget_is_enforced_and_every_exchange_is_logged() -> None:
 
     assert len(agent.requests) == 1
     assert "Límite de interacciones" in refused
-    assert [(item["turn"], item["insights"], item["status"]) for item in tool.interactions] == [
+    assert [
+        (item["turn"], item["insights"], item["status"]) for item in tool.interactions
+    ] == [
         (1, "primera pregunta", "executed"),
         (2, "segunda pregunta", "refused"),
     ]
@@ -57,11 +59,15 @@ class FailingResearchAgent:
 
     def research(self, request: ResearchRequest) -> ResearchResult:
         self.calls += 1
-        return ResearchResult(ResearchSource.VECTOR_STORE, ResearchStatus.FAILED, error="timeout")
+        return ResearchResult(
+            ResearchSource.VECTOR_STORE, ResearchStatus.FAILED, error="timeout"
+        )
 
 
 def test_failed_calls_do_not_spend_the_interaction_budget() -> None:
-    tool = BoundedResearchTool(FailingResearchAgent(), ResearchSource.VECTOR_STORE, max_interactions=1)
+    tool = BoundedResearchTool(
+        FailingResearchAgent(), ResearchSource.VECTOR_STORE, max_interactions=1
+    )
 
     observation = json.loads(tool("pregunta"))
 
@@ -71,7 +77,9 @@ def test_failed_calls_do_not_spend_the_interaction_budget() -> None:
 
 def test_tool_becomes_unavailable_after_max_failures() -> None:
     agent = FailingResearchAgent()
-    tool = BoundedResearchTool(agent, ResearchSource.VECTOR_STORE, max_interactions=5, max_failures=2)
+    tool = BoundedResearchTool(
+        agent, ResearchSource.VECTOR_STORE, max_interactions=5, max_failures=2
+    )
 
     tool("uno")
     tool("dos")
@@ -79,5 +87,9 @@ def test_tool_becomes_unavailable_after_max_failures() -> None:
 
     assert agent.calls == 2
     assert "no está disponible" in refused
-    assert [item["status"] for item in tool.interactions] == ["failed", "failed", "refused"]
+    assert [item["status"] for item in tool.interactions] == [
+        "failed",
+        "failed",
+        "refused",
+    ]
     assert tool.interactions[-1]["error"] == "research tool unavailable"

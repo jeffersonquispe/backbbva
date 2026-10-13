@@ -91,7 +91,9 @@ def test_update_marcacion_category_changes_value_and_risk_label() -> None:
     update = UpdateMarcacionCategoryUseCase(repo)
 
     entry = create.execute("old-value", RiskLabel.NO_RISK)
-    updated = update.execute(entry.id, value="new-value", risk_label=RiskLabel.RISK_SUSPECTED)
+    updated = update.execute(
+        entry.id, value="new-value", risk_label=RiskLabel.RISK_SUSPECTED
+    )
 
     assert updated.value == "new-value"
     assert updated.risk_label == RiskLabel.RISK_SUSPECTED

@@ -28,6 +28,7 @@ it at a THROWAWAY DynamoDB Local (the Make target defaults to port 8012),
 never at the stack's 8002: it creates `alerts` and `metrics_rollups` there.
 Every DynamoDB call's ConsumedCapacity is tallied per event type and the
 run ends with rows/items/bytes per level and throughput."""
+
 from __future__ import annotations
 
 import argparse
@@ -53,18 +54,51 @@ TZ = ZoneInfo(TZ_NAME)
 # --- distributions ------------------------------------------------------------
 
 # Bogota hour-of-day weights: quiet night, morning ramp, evening peak.
-HOUR_WEIGHTS = [1, 1, 1, 1, 1, 2, 3, 5, 7, 8, 8, 8, 9, 8, 8, 8, 8, 9, 10, 10, 9, 7, 4, 2]
+HOUR_WEIGHTS = [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    3,
+    5,
+    7,
+    8,
+    8,
+    8,
+    9,
+    8,
+    8,
+    8,
+    8,
+    9,
+    10,
+    10,
+    9,
+    7,
+    4,
+    2,
+]
 ORIGINS = [("production", 0.90), ("simulator", 0.08), ("manual", 0.02)]
 CHANNELS: list[tuple[str, float, list[tuple[str, float]]]] = [
-    ("APP", 0.48, [("PSE", 0.35), ("TRANSFER", 0.40), ("BILLPAY", 0.15), ("camel", 0.10)]),
+    (
+        "APP",
+        0.48,
+        [("PSE", 0.35), ("TRANSFER", 0.40), ("BILLPAY", 0.15), ("camel", 0.10)],
+    ),
     ("WEB", 0.22, [("PSE", 0.50), ("TRANSFER", 0.35), ("BILLPAY", 0.15)]),
     ("POS", 0.18, [("ECOM", 0.70), ("PRESENTIAL", 0.30)]),
     ("ATM", 0.07, [("WITHDRAWAL", 1.0)]),
     ("GL", 0.05, [("BRANCH", 0.6), ("CALLCENTER", 0.4)]),
 ]
 SEGMENTS = [
-    ("retail", 0.62), ("premium", 0.14), ("pyme", 0.12),
-    ("empresas", 0.06), ("private_banking", 0.03), (None, 0.03),
+    ("retail", 0.62),
+    ("premium", 0.14),
+    ("pyme", 0.12),
+    ("empresas", 0.06),
+    ("private_banking", 0.03),
+    (None, 0.03),
 ]
 # executed_action, final status for the run, probability.
 WORKFLOW_OUTCOMES = [
@@ -78,8 +112,10 @@ WORKFLOW_OUTCOMES = [
 ]
 ANALYST_DECISIONS = [("pass", 0.72), ("block", 0.25), ("bidi", 0.03)]
 VOICEBOT_OUTCOMES = [
-    ("customer_recognized", 0.62), ("customer_not_recognized", 0.14),
-    ("no_answer", 0.18), ("busy", 0.06),
+    ("customer_recognized", 0.62),
+    ("customer_not_recognized", 0.14),
+    ("no_answer", 0.18),
+    ("busy", 0.06),
 ]
 CONFIGURATION_IDS = ("cfg-2026-06", "cfg-2026-08")
 # Share of decided alerts the fraud team ever reviews, and of those, how
@@ -181,7 +217,12 @@ def install_capacity_hooks(client: Any, tally: Tally, probe_rate: float) -> None
                 key = op.get("Key") or {
                     k: op["Item"][k] for k in ("pk", "sk") if k in op["Item"]
                 }
-                item = client.get_item(TableName=op["TableName"], Key=key, ConsistentRead=True).get("Item") or {}
+                item = (
+                    client.get_item(
+                        TableName=op["TableName"], Key=key, ConsistentRead=True
+                    ).get("Item")
+                    or {}
+                )
                 size = item_size(item)
                 wcu += 2 * _kb(size)
                 if op["TableName"] == "alerts":
@@ -194,7 +235,9 @@ def install_capacity_hooks(client: Any, tally: Tally, probe_rate: float) -> None
         finally:
             _current.probing = False
 
-    def record(http_response: Any, parsed: dict[str, Any], model: Any, **_: Any) -> None:
+    def record(
+        http_response: Any, parsed: dict[str, Any], model: Any, **_: Any
+    ) -> None:
         if getattr(_current, "probing", False):
             return
         if not isinstance(parsed, dict) or parsed.get("Error", {}).get("Code"):
@@ -276,7 +319,15 @@ def _amount(rng: random.Random) -> float:
 
 def _created_at(rng: random.Random, day: date) -> datetime:
     hour = rng.choices(range(24), weights=HOUR_WEIGHTS)[0]
-    local = datetime(day.year, day.month, day.day, hour, rng.randrange(60), rng.randrange(60), tzinfo=TZ)
+    local = datetime(
+        day.year,
+        day.month,
+        day.day,
+        hour,
+        rng.randrange(60),
+        rng.randrange(60),
+        tzinfo=TZ,
+    )
     return local.astimezone(UTC)
 
 
@@ -311,18 +362,29 @@ def _steps_for(
                 {
                     "source": rng.choice(["vector_store", "transaction_history"]),
                     "status": "failed" if (r := rng.random()) < 0.04 else "executed",
-                    "error": ("timeout after 20s" if r < 0.02 else "backend error") if r < 0.04 else None,
+                    "error": ("timeout after 20s" if r < 0.02 else "backend error")
+                    if r < 0.04
+                    else None,
                 }
                 for _ in range(rng.randint(1, 3))
             ]
         finished = t + timedelta(seconds=seconds)
         records.append(
             WorkflowStepExecutionRecord(
-                id=uuid.uuid4(), workflow_execution_id=workflow_id, step_name=name,
-                status=WorkflowStepStatus.FAILED if failed else WorkflowStepStatus.SUCCEEDED,
-                attempt=1, input=None, output=output,
+                id=uuid.uuid4(),
+                workflow_execution_id=workflow_id,
+                step_name=name,
+                status=WorkflowStepStatus.FAILED
+                if failed
+                else WorkflowStepStatus.SUCCEEDED,
+                attempt=1,
+                input=None,
+                output=output,
                 error="synthetic failure" if failed else None,
-                started_at=t, finished_at=finished, created_at=t, updated_at=finished,
+                started_at=t,
+                finished_at=finished,
+                created_at=t,
+                updated_at=finished,
             )
         )
         t = finished
@@ -352,72 +414,127 @@ def plan_alert(rng: random.Random, created_at: datetime, now: datetime, tech: bo
         # (the alert item's size drives the WCU of every metrics event).
         "transactionId": uuid.uuid4().hex,
         "operationDate": created_at.isoformat(),
-        "triggeredRules": [f"R{rng.randint(100, 999)}" for _ in range(rng.randint(1, 4))],
+        "triggeredRules": [
+            f"R{rng.randint(100, 999)}" for _ in range(rng.randint(1, 4))
+        ],
         "score": round(rng.random(), 4),
-        "device": {"id": uuid.uuid4().hex, "os": rng.choice(["android", "ios", "web"]),
-                   "ip": f"10.{rng.randrange(256)}.{rng.randrange(256)}.{rng.randrange(256)}"},
-        "beneficiary": {"bank": rng.choice(["0001", "0007", "0013", "0051"]),
-                        "accountHash": uuid.uuid4().hex + uuid.uuid4().hex},
+        "device": {
+            "id": uuid.uuid4().hex,
+            "os": rng.choice(["android", "ios", "web"]),
+            "ip": f"10.{rng.randrange(256)}.{rng.randrange(256)}.{rng.randrange(256)}",
+        },
+        "beneficiary": {
+            "bank": rng.choice(["0001", "0007", "0013", "0051"]),
+            "accountHash": uuid.uuid4().hex + uuid.uuid4().hex,
+        },
         "description": "synthetic load alert " + "x" * rng.randint(150, 350),
     }
     alert = AlertRecord(
-        id=alert_id, event_id=f"syn-{alert_id.hex[:12]}", event_type="payment",
-        input=payload, status=AlertStatus.RECEIVED, created_at=created_at,
-        updated_at=created_at, customer_id=None,
+        id=alert_id,
+        event_id=f"syn-{alert_id.hex[:12]}",
+        event_type="payment",
+        input=payload,
+        status=AlertStatus.RECEIVED,
+        created_at=created_at,
+        updated_at=created_at,
+        customer_id=None,
     )
     # Configuration switched one third of the way through the 90 days.
     configuration_id = CONFIGURATION_IDS[0 if (now - created_at).days > 60 else 1]
     events = [
-        PlannedEvent(created_at, "created", I(alert_id, E.CREATED, created_at, origin=_pick(rng, ORIGINS))),
         PlannedEvent(
-            created_at + timedelta(seconds=3), "pre_processed",
-            I(alert_id, E.PRE_PROCESSED, created_at + timedelta(seconds=3),
-              segment=_pick(rng, SEGMENTS), configuration_id=configuration_id),
+            created_at,
+            "created",
+            I(alert_id, E.CREATED, created_at, origin=_pick(rng, ORIGINS)),
+        ),
+        PlannedEvent(
+            created_at + timedelta(seconds=3),
+            "pre_processed",
+            I(
+                alert_id,
+                E.PRE_PROCESSED,
+                created_at + timedelta(seconds=3),
+                segment=_pick(rng, SEGMENTS),
+                configuration_id=configuration_id,
+            ),
         ),
     ]
     action, status = rng.choices(
-        [(a, s) for a, s, _ in WORKFLOW_OUTCOMES], weights=[w for *_, w in WORKFLOW_OUTCOMES]
+        [(a, s) for a, s, _ in WORKFLOW_OUTCOMES],
+        weights=[w for *_, w in WORKFLOW_OUTCOMES],
     )[0]
     workflow_id = uuid.uuid4()
-    steps, finished = _steps_for(rng, workflow_id, created_at + timedelta(seconds=3), action)
+    steps, finished = _steps_for(
+        rng, workflow_id, created_at + timedelta(seconds=3), action
+    )
     # Queue wait before the run (Celery backlog), 0-90 s.
     finished += timedelta(seconds=rng.uniform(0, 90))
     events.append(
-        PlannedEvent(finished, "workflow_finished",
-                     I(alert_id, E.WORKFLOW_FINISHED, finished,
-                       status=AlertStatus(status), executed_action=action))
+        PlannedEvent(
+            finished,
+            "workflow_finished",
+            I(
+                alert_id,
+                E.WORKFLOW_FINISHED,
+                finished,
+                status=AlertStatus(status),
+                executed_action=action,
+            ),
+        )
     )
     if tech:
         events.append(PlannedEvent(finished, "steps", workflow_id))
-    mark = {"none": Mark.NO_FRAUD, "discarded": Mark.NO_FRAUD, "block": Mark.FRAUD}.get(action or "")
+    mark = {"none": Mark.NO_FRAUD, "discarded": Mark.NO_FRAUD, "block": Mark.FRAUD}.get(
+        action or ""
+    )
     decided_at = finished
     if action == "scale_to_analyst":
         decided_at = finished + timedelta(minutes=rng.lognormvariate(math.log(20), 0.9))
         decision = _pick(rng, ANALYST_DECISIONS)
-        events.append(PlannedEvent(decided_at, "analyst_resolved",
-                                   I(alert_id, E.ANALYST_RESOLVED, decided_at, decision=decision)))
+        events.append(
+            PlannedEvent(
+                decided_at,
+                "analyst_resolved",
+                I(alert_id, E.ANALYST_RESOLVED, decided_at, decision=decision),
+            )
+        )
         mark = {"pass": Mark.NO_FRAUD, "block": Mark.FRAUD}.get(decision)
     elif action == "voicebot":
         decided_at = finished + timedelta(minutes=rng.uniform(1, 25))
         outcome = _pick(rng, VOICEBOT_OUTCOMES)
-        events.append(PlannedEvent(decided_at, "voicebot_completed",
-                                   I(alert_id, E.VOICEBOT_COMPLETED, decided_at, outcome=outcome)))
-        mark = {"customer_recognized": Mark.NO_FRAUD, "customer_not_recognized": Mark.FRAUD}.get(outcome)
+        events.append(
+            PlannedEvent(
+                decided_at,
+                "voicebot_completed",
+                I(alert_id, E.VOICEBOT_COMPLETED, decided_at, outcome=outcome),
+            )
+        )
+        mark = {
+            "customer_recognized": Mark.NO_FRAUD,
+            "customer_not_recognized": Mark.FRAUD,
+        }.get(outcome)
     if mark is not None and rng.random() < REVIEW_PROBABILITY:
         reviews = 2 if rng.random() < SECOND_REVIEW_PROBABILITY else 1
         at = decided_at
         label = mark
         for _ in range(reviews):
             if rng.random() < 0.98:
-                at = at + timedelta(seconds=rng.expovariate(1 / (1.2 * 86400)) % (4 * 86400))
+                at = at + timedelta(
+                    seconds=rng.expovariate(1 / (1.2 * 86400)) % (4 * 86400)
+                )
             else:
                 at = at + timedelta(days=rng.uniform(4, 183))
             if rng.random() < REVIEW_FLIP_PROBABILITY:
                 label = Mark.FRAUD if label == Mark.NO_FRAUD else Mark.NO_FRAUD
             if at > now:
                 break
-            events.append(PlannedEvent(at, "fraud_reviewed",
-                                       I(alert_id, E.FRAUD_REVIEWED, at, fraud_label=label)))
+            events.append(
+                PlannedEvent(
+                    at,
+                    "fraud_reviewed",
+                    I(alert_id, E.FRAUD_REVIEWED, at, fraud_label=label),
+                )
+            )
     events.sort(key=lambda e: e.at)
     return alert, events, (workflow_id, steps) if tech else None
 
@@ -433,16 +550,22 @@ def _with_retry(fn, tally: Tally, attempts: int = 8):
             code = exc.response["Error"]["Code"]
             # InternalServerError: DynamoDB Local's "timed out waiting for a
             # lock" under concurrent transactions (real DynamoDB would not).
-            if code not in ("TransactionCanceledException", "TransactionConflictException",
-                            "ThrottlingException", "ProvisionedThroughputExceededException",
-                            "InternalServerError"):
+            if code not in (
+                "TransactionCanceledException",
+                "TransactionConflictException",
+                "ThrottlingException",
+                "ProvisionedThroughputExceededException",
+                "InternalServerError",
+            ):
                 raise
             tally.conflicts += 1
-            time.sleep(0.01 * (2 ** attempt) * random.random())
+            time.sleep(0.01 * (2**attempt) * random.random())
     return fn()
 
 
-def run_worker(args: tuple[list[str], int, float, str, str, int, float]) -> dict[str, Any]:
+def run_worker(
+    args: tuple[list[str], int, float, str, str, int, float],
+) -> dict[str, Any]:
     day_isos, per_day, tech_sample, now_iso, tier_change_iso, seed, probe_rate = args
     from src.application.dtos.technical_metrics_dtos import (
         RecordWorkflowStepMetricsInput,
@@ -471,13 +594,20 @@ def run_worker(args: tuple[list[str], int, float, str, str, int, float]) -> dict
     rollups = DynamoMetricsRollupRepository(TZ_NAME)
     steps_repo = InMemoryStepRepository()
     writer = RecordAlertMetricsEvent(
-        alert_repository=alerts, rollup_repository=rollups,
-        settings_repository=TierSwitchingSettings(clock, datetime.fromisoformat(tier_change_iso)),
-        timezone_name=TZ_NAME, clock=clock,
+        alert_repository=alerts,
+        rollup_repository=rollups,
+        settings_repository=TierSwitchingSettings(
+            clock, datetime.fromisoformat(tier_change_iso)
+        ),
+        timezone_name=TZ_NAME,
+        clock=clock,
     )
     technical = RecordWorkflowStepMetrics(
-        alert_repository=alerts, step_repository=steps_repo, rollup_repository=rollups,
-        timezone_name=TZ_NAME, clock=clock,
+        alert_repository=alerts,
+        step_repository=steps_repo,
+        rollup_repository=rollups,
+        timezone_name=TZ_NAME,
+        clock=clock,
     )
     counts: Counter = Counter()
     for day_iso in day_isos:
@@ -488,7 +618,9 @@ def run_worker(args: tuple[list[str], int, float, str, str, int, float]) -> dict
         for created_at in created:
             if created_at >= now:
                 continue
-            alert, events, tech = plan_alert(rng, created_at, now, rng.random() < tech_sample)
+            alert, events, tech = plan_alert(
+                rng, created_at, now, rng.random() < tech_sample
+            )
             if tech is not None:
                 steps_repo.by_workflow = {tech[0]: tech[1]}
             try:
@@ -499,9 +631,16 @@ def run_worker(args: tuple[list[str], int, float, str, str, int, float]) -> dict
                     clock.now = event.at
                     _current.tag = event.tag
                     if event.tag == "steps":
-                        _with_retry(lambda: technical.execute(RecordWorkflowStepMetricsInput(
-                            alert_id=alert.id, workflow_execution_id=event.input,
-                            step_models=LLM_STEP_MODELS)), tally)
+                        _with_retry(
+                            lambda: technical.execute(
+                                RecordWorkflowStepMetricsInput(
+                                    alert_id=alert.id,
+                                    workflow_execution_id=event.input,
+                                    step_models=LLM_STEP_MODELS,
+                                )
+                            ),
+                            tally,
+                        )
                         counts["step_records"] += len(tech[1])
                     else:
                         _with_retry(lambda: writer.execute(event.input), tally)
@@ -631,7 +770,9 @@ def _refuse_shared_endpoint(allow: bool) -> None:
 
     endpoint = genai_config.DYNAMO_ENDPOINT or ""
     if not endpoint:
-        raise SystemExit("Refusing to run against real AWS DynamoDB (DYNAMO_ENDPOINT is empty).")
+        raise SystemExit(
+            "Refusing to run against real AWS DynamoDB (DYNAMO_ENDPOINT is empty)."
+        )
     if endpoint.rstrip("/").endswith(":8002") and not allow:
         raise SystemExit(
             f"Refusing to write synthetic data into the local stack's DynamoDB ({endpoint}). "
@@ -644,18 +785,33 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--days", type=int, default=90)
     parser.add_argument("--per-day", type=int, default=1500)
-    parser.add_argument("--offset-days", type=int, default=0,
-                        help="Shift the window this many days into the past (older history).")
+    parser.add_argument(
+        "--offset-days",
+        type=int,
+        default=0,
+        help="Shift the window this many days into the past (older history).",
+    )
     parser.add_argument("--tech-sample", type=float, default=0.1)
-    parser.add_argument("--tier-change-day", type=int, default=None,
-                        help="Day index (from the oldest) the amount tiers are configured. Default: middle.")
+    parser.add_argument(
+        "--tier-change-day",
+        type=int,
+        default=None,
+        help="Day index (from the oldest) the amount tiers are configured. Default: middle.",
+    )
     parser.add_argument("--workers", type=int, default=1)
-    parser.add_argument("--probe-rate", type=float, default=0.02,
-                        help="Share of transactions re-read to model their size-based WCU.")
+    parser.add_argument(
+        "--probe-rate",
+        type=float,
+        default=0.02,
+        help="Share of transactions re-read to model their size-based WCU.",
+    )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--report-only", action="store_true")
-    parser.add_argument("--skip-report", action="store_true",
-                        help="Skip the final table scan (when loading in chunks).")
+    parser.add_argument(
+        "--skip-report",
+        action="store_true",
+        help="Skip the final table scan (when loading in chunks).",
+    )
     parser.add_argument("--json", dest="json_path", default=None)
     parser.add_argument("--i-know-this-is-shared", action="store_true")
     args = parser.parse_args(argv)
@@ -667,19 +823,46 @@ def main(argv: list[str] | None = None) -> int:
     result: dict[str, Any] = {"args": vars(args)}
     if not args.report_only:
         _ensure_tables()
-        change_index = args.tier_change_day if args.tier_change_day is not None else args.days // 2
+        change_index = (
+            args.tier_change_day if args.tier_change_day is not None else args.days // 2
+        )
         change_day = days[min(change_index, len(days) - 1)]
-        tier_change_at = datetime(change_day.year, change_day.month, change_day.day, tzinfo=TZ)
-        chunks = [[d.isoformat() for d in days[i :: args.workers]] for i in range(args.workers)]
-        jobs = [(c, args.per_day, args.tech_sample, now.isoformat(),
-                 tier_change_at.isoformat(), args.seed, args.probe_rate) for c in chunks if c]
+        tier_change_at = datetime(
+            change_day.year, change_day.month, change_day.day, tzinfo=TZ
+        )
+        chunks = [
+            [d.isoformat() for d in days[i :: args.workers]]
+            for i in range(args.workers)
+        ]
+        jobs = [
+            (
+                c,
+                args.per_day,
+                args.tech_sample,
+                now.isoformat(),
+                tier_change_at.isoformat(),
+                args.seed,
+                args.probe_rate,
+            )
+            for c in chunks
+            if c
+        ]
         started = time.perf_counter()
         with multiprocessing.get_context("spawn").Pool(len(jobs)) as pool:
             parts = pool.map(run_worker, jobs)
         elapsed = time.perf_counter() - started
         merged: dict[str, Counter] = {
-            k: Counter() for k in ("counts", "calls", "items", "units", "probed",
-                                   "modeled_wcu", "probed_items", "probed_items_over_1kb")
+            k: Counter()
+            for k in (
+                "counts",
+                "calls",
+                "items",
+                "units",
+                "probed",
+                "modeled_wcu",
+                "probed_items",
+                "probed_items_over_1kb",
+            )
         }
         conflicts = 0
         for part in parts:
@@ -687,37 +870,53 @@ def main(argv: list[str] | None = None) -> int:
                 merged[k].update(part[k])
             conflicts += part["conflicts"]
         counts = merged["counts"]
-        writer_events = sum(v for k, v in counts.items()
-                            if k not in ("alerts", "steps", "step_records", "failed_alerts")
-                            and not k.startswith("error:"))
-        result.update({
-            "elapsed_seconds": round(elapsed, 1),
-            "alerts_per_second": round(counts["alerts"] / elapsed, 1),
-            "metrics_events_per_second": round(writer_events / elapsed, 1),
-            "tier_change_day": change_day.isoformat(),
-            "counts": dict(counts),
-            "transaction_retries": conflicts,
-            "capacity": {
-                key: {
-                    "calls": merged["calls"][key],
-                    "items": merged["items"].get(key, 0),
-                    "units": round(merged["units"][key], 1),
-                    "units_per_call": round(merged["units"][key] / merged["calls"][key], 2),
-                    "items_per_call": round(merged["items"].get(key, 0) / merged["calls"][key], 2),
-                }
-                for key in sorted(merged["calls"])
-            },
-            "modeled_transaction_wcu": {
-                tag: {
-                    "sampled_transactions": merged["probed"][tag],
-                    "wcu_per_transaction": round(merged["modeled_wcu"][tag] / merged["probed"][tag], 2),
-                    "items_per_transaction": round(merged["probed_items"][tag] / merged["probed"][tag], 2),
-                    "share_items_over_1kb": round(
-                        merged["probed_items_over_1kb"][tag] / merged["probed_items"][tag], 3),
-                }
-                for tag in sorted(merged["probed"])
-            },
-        })
+        writer_events = sum(
+            v
+            for k, v in counts.items()
+            if k not in ("alerts", "steps", "step_records", "failed_alerts")
+            and not k.startswith("error:")
+        )
+        result.update(
+            {
+                "elapsed_seconds": round(elapsed, 1),
+                "alerts_per_second": round(counts["alerts"] / elapsed, 1),
+                "metrics_events_per_second": round(writer_events / elapsed, 1),
+                "tier_change_day": change_day.isoformat(),
+                "counts": dict(counts),
+                "transaction_retries": conflicts,
+                "capacity": {
+                    key: {
+                        "calls": merged["calls"][key],
+                        "items": merged["items"].get(key, 0),
+                        "units": round(merged["units"][key], 1),
+                        "units_per_call": round(
+                            merged["units"][key] / merged["calls"][key], 2
+                        ),
+                        "items_per_call": round(
+                            merged["items"].get(key, 0) / merged["calls"][key], 2
+                        ),
+                    }
+                    for key in sorted(merged["calls"])
+                },
+                "modeled_transaction_wcu": {
+                    tag: {
+                        "sampled_transactions": merged["probed"][tag],
+                        "wcu_per_transaction": round(
+                            merged["modeled_wcu"][tag] / merged["probed"][tag], 2
+                        ),
+                        "items_per_transaction": round(
+                            merged["probed_items"][tag] / merged["probed"][tag], 2
+                        ),
+                        "share_items_over_1kb": round(
+                            merged["probed_items_over_1kb"][tag]
+                            / merged["probed_items"][tag],
+                            3,
+                        ),
+                    }
+                    for tag in sorted(merged["probed"])
+                },
+            }
+        )
     if not args.skip_report:
         result["storage"] = storage_report(now)
     text = json.dumps(result, indent=2, default=str)

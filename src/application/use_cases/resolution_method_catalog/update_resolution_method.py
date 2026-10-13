@@ -29,5 +29,7 @@ class UpdateResolutionMethodUseCase:
             entry_id, value=value, resolution_tag=resolution_tag, active=active
         )
         if updated is None:
-            raise ResolutionMethodNotFoundError(f"Resolution method not found: {entry_id}")
+            raise ResolutionMethodNotFoundError(
+                f"Resolution method not found: {entry_id}"
+            )
         return updated

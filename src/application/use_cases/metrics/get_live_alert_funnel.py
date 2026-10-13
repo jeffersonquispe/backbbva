@@ -1,6 +1,7 @@
 """GetLiveAlertFunnel (R9): the "Tiempo real" funnel - how many alerts are
 in each live state right now. Not a rollup (these go up and down): current
 counts from the alerts' status index plus the active voicebot calls."""
+
 from __future__ import annotations
 
 from collections.abc import Callable

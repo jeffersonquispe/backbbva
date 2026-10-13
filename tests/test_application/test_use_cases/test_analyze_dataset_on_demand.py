@@ -160,7 +160,9 @@ def test_analyze_dataset_on_demand_preserves_existing_summary_fields() -> None:
     assert dispatcher.dispatched == ["ds1"]
 
 
-def test_analyze_dataset_on_demand_with_no_existing_summary_creates_minimal_pending() -> None:
+def test_analyze_dataset_on_demand_with_no_existing_summary_creates_minimal_pending() -> (
+    None
+):
     # Dataset exists in storage but has no DynamoDB summary yet (defensive
     # path - shouldn't normally happen since every dataset gets a summary at
     # creation, but this must not crash if it does).
@@ -210,7 +212,9 @@ def test_analyze_dataset_on_demand_returns_the_operation_it_dispatched() -> None
     assert operation.status == AsyncOperationStatus.DISPATCHED
 
 
-def test_analyze_dataset_on_demand_raises_file_not_found_for_nonexistent_dataset() -> None:
+def test_analyze_dataset_on_demand_raises_file_not_found_for_nonexistent_dataset() -> (
+    None
+):
     summaries = InMemoryDatasetSummaryRepository()
     dispatcher = RecordingDatasetAnalysisDispatcher()
     use_case = AnalyzeDatasetOnDemandUseCase(

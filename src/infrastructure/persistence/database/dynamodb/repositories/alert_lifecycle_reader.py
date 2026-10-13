@@ -2,6 +2,7 @@
 metrics backfill - its workflow execution (input origin/configuration_ref,
 terminal status, output), the executor step's executed_action, and the
 analyst resolution / voicebot callback recorded on its reservations."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -50,7 +51,9 @@ class DynamoAlertLifecycleReader(AlertLifecycleReader):
     ) -> None:
         self._workflows = workflow_repository
         self._steps = step_repository
-        self._reservations_table = get_dynamodb_resource().Table(RESERVATIONS_TABLE_NAME)
+        self._reservations_table = get_dynamodb_resource().Table(
+            RESERVATIONS_TABLE_NAME
+        )
         # alert_id -> its resolving reservations. resource_reservations has
         # no alert index: built once per reader by ONE filtered Scan of
         # that (small, audit-only) table, only if some alert needs it.
@@ -64,7 +67,9 @@ class DynamoAlertLifecycleReader(AlertLifecycleReader):
             if workflow is not None:
                 origin = workflow.input.get("origin")
                 ref = workflow.input.get("configuration_ref") or {}
-                configuration_id = ref.get("configuration_id") if isinstance(ref, dict) else None
+                configuration_id = (
+                    ref.get("configuration_id") if isinstance(ref, dict) else None
+                )
                 if workflow.status in _TERMINAL:
                     workflow_facts = WorkflowOutcomeFacts(
                         status=workflow.status.value,
@@ -78,10 +83,16 @@ class DynamoAlertLifecycleReader(AlertLifecycleReader):
             configuration_id=configuration_id,
             workflow=workflow_facts,
             analyst_resolution=_latest(
-                resolutions, ReservedResource.ANALYST, ANALYST_RESOLVED_REASON, "decision"
+                resolutions,
+                ReservedResource.ANALYST,
+                ANALYST_RESOLVED_REASON,
+                "decision",
             ),
             voicebot_callback=_latest(
-                resolutions, ReservedResource.VOICEBOT, VOICEBOT_CALLBACK_REASON, "outcome"
+                resolutions,
+                ReservedResource.VOICEBOT,
+                VOICEBOT_CALLBACK_REASON,
+                "outcome",
             ),
         )
 

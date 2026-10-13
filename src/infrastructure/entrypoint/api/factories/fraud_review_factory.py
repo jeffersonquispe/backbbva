@@ -1,4 +1,5 @@
 """Fraud history + fraud_label review (A3 / C5) wiring for the API."""
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -80,8 +81,12 @@ def get_list_fraud_label_reviews_use_case() -> ListFraudLabelReviews:
 
 
 def get_upload_fraud_label_review_import_use_case() -> UploadFraudLabelReviewImport:
-    return UploadFraudLabelReviewImport(dispatcher=get_fraud_label_review_import_dispatcher())
+    return UploadFraudLabelReviewImport(
+        dispatcher=get_fraud_label_review_import_dispatcher()
+    )
 
 
 def get_get_fraud_label_review_import_use_case() -> GetFraudLabelReviewImport:
-    return GetFraudLabelReviewImport(reader=get_fraud_label_review_import_status_reader())
+    return GetFraudLabelReviewImport(
+        reader=get_fraud_label_review_import_status_reader()
+    )

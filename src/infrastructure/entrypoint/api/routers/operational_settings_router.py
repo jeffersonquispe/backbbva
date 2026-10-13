@@ -145,8 +145,7 @@ def _from_schema(schema: OperationalSettingsSchema) -> OperationalSettings:
         voicebot_max_concurrent_calls=schema.voicebot_max_concurrent_calls,
         analyst_capacity=AnalystCapacity(
             profiles=[
-                DayProfile(**p.model_dump())
-                for p in schema.analyst_capacity.profiles
+                DayProfile(**p.model_dump()) for p in schema.analyst_capacity.profiles
             ],
             default_profile_id=schema.analyst_capacity.default_profile_id,
             day_overrides=schema.analyst_capacity.day_overrides,

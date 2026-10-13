@@ -15,7 +15,9 @@ def score_row(bundle: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
     contributions - same shape as the newArquitecture+XGboost branch's
     score_xus()."""
     X, _ = build_feature_frame(
-        [row], bundle["feature_transforms"], rule_vocab=bundle["rule_vocab"],
+        [row],
+        bundle["feature_transforms"],
+        rule_vocab=bundle["rule_vocab"],
         historical_features=bundle.get("historical_features", []),
         timezone=bundle.get("training_config", {}).get("timezone", "UTC"),
         feature_configuration=bundle.get("feature_configuration"),

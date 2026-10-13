@@ -101,9 +101,7 @@ def _resolve_proportions(
         )
     total_pct = sum(distribution.values())
     if abs(total_pct - 1.0) > 1e-6:
-        raise ValueError(
-            f"distribution percentages must sum to 1.0, got {total_pct}"
-        )
+        raise ValueError(f"distribution percentages must sum to 1.0, got {total_pct}")
     return {cls: distribution.get(cls, 0.0) for cls in MARCACION_CLASSES}
 
 
@@ -129,7 +127,9 @@ def filter_rows(
     return [
         row
         for row in rows
-        if all(get_nested_value(row, field) == value for field, value in filters.items())
+        if all(
+            get_nested_value(row, field) == value for field, value in filters.items()
+        )
     ]
 
 
@@ -161,9 +161,7 @@ def _allocate_counts(size: int, proportions: dict[str, float]) -> dict[str, int]
     exact = {cls: size * pct for cls, pct in proportions.items()}
     counts = {cls: int(v) for cls, v in exact.items()}
     leftover = size - sum(counts.values())
-    by_remainder = sorted(
-        exact, key=lambda cls: exact[cls] - counts[cls], reverse=True
-    )
+    by_remainder = sorted(exact, key=lambda cls: exact[cls] - counts[cls], reverse=True)
     for cls in by_remainder[:leftover]:
         counts[cls] += 1
     return counts

@@ -115,9 +115,7 @@ from src.infrastructure.entrypoint.api.schemas import (
 )
 
 router = APIRouter(prefix="/configurations", tags=["configurations"])
-configuration_test_router = APIRouter(
-    prefix="/configuration", tags=["configurations"]
-)
+configuration_test_router = APIRouter(prefix="/configuration", tags=["configurations"])
 
 
 @configuration_test_router.post("/test", response_model=TestConfigurationResponse)
@@ -130,9 +128,13 @@ def test_configuration(
     try:
         result = use_case.execute(_input_from_request(request))
     except ConfigurationVersionConflictError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
     except ConfigurationBaseNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     return TestConfigurationResponse(
         valid=result.valid,
         changes=[
@@ -142,7 +144,9 @@ def test_configuration(
     )
 
 
-@router.post("", response_model=ConfigurationDetailResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=ConfigurationDetailResponse, status_code=status.HTTP_201_CREATED
+)
 def create_configuration(
     request: CreateConfigurationRequest,
     use_case: Annotated[
@@ -152,11 +156,15 @@ def create_configuration(
     try:
         record = use_case.execute(_input_from_request(request))
     except ConfigurationVersionConflictError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
     return _to_detail_response(record)
 
 
-def _input_from_request(request: CreateConfigurationRequest) -> CreateConfigurationInput:
+def _input_from_request(
+    request: CreateConfigurationRequest,
+) -> CreateConfigurationInput:
     return CreateConfigurationInput(
         name=request.name,
         configuration_id=request.configuration_id,
@@ -379,14 +387,20 @@ def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
         deterministic=DeterministicConfigSchema(
             alert_filter=agent.deterministic.alert_filter,
             field_enrichment=agent.deterministic.field_enrichment,
-            rules=[DeterministicRuleSchema(**rule.__dict__) for rule in agent.deterministic.rules],
+            rules=[
+                DeterministicRuleSchema(**rule.__dict__)
+                for rule in agent.deterministic.rules
+            ],
         ),
         profiling=_profiling_to_schema(agent.profiling),
         rubrics=[
             RubricSchema(
                 id=rubric.id,
                 name=rubric.name,
-                conditions=[RuleConditionSchema(**condition.__dict__) for condition in rubric.conditions],
+                conditions=[
+                    RuleConditionSchema(**condition.__dict__)
+                    for condition in rubric.conditions
+                ],
             )
             for rubric in agent.rubrics
         ],
@@ -403,9 +417,7 @@ def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
             ModusOperandiSchema(**m.__dict__) for m in agent.modus_operandi
         ],
         flags=[_flag_to_schema(f) for f in agent.flags],
-        example_cases=[
-            ExampleCaseSchema(**e.__dict__) for e in agent.example_cases
-        ],
+        example_cases=[ExampleCaseSchema(**e.__dict__) for e in agent.example_cases],
         active_fields=agent.active_fields,
         active_model_id=agent.active_model_id,
     )
@@ -448,9 +460,7 @@ def _flag_from_schema(schema: FlagSchema) -> Flag:
 def _profiling_from_schema(schema: ProfilingConfigSchema) -> ProfilingConfig:
     return ProfilingConfig(
         field_enrichment=schema.field_enrichment,
-        strategies=[
-            ProfilingStrategy(**s.model_dump()) for s in schema.strategies
-        ],
+        strategies=[ProfilingStrategy(**s.model_dump()) for s in schema.strategies],
     )
 
 
@@ -517,14 +527,20 @@ def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
         deterministic=DeterministicConfig(
             alert_filter=schema.deterministic.alert_filter,
             field_enrichment=schema.deterministic.field_enrichment,
-            rules=[DeterministicRule(**rule.model_dump()) for rule in schema.deterministic.rules],
+            rules=[
+                DeterministicRule(**rule.model_dump())
+                for rule in schema.deterministic.rules
+            ],
         ),
         profiling=_profiling_from_schema(schema.profiling),
         rubrics=[
             Rubric(
                 id=rubric.id,
                 name=rubric.name,
-                conditions=[RuleCondition(**condition.model_dump()) for condition in rubric.conditions],
+                conditions=[
+                    RuleCondition(**condition.model_dump())
+                    for condition in rubric.conditions
+                ],
             )
             for rubric in schema.rubrics
         ],
@@ -537,13 +553,9 @@ def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
         analyst=_analyst_from_schema(schema.analyst),
         executor=_executor_from_schema(schema.executor),
         taxonomies=[Taxonomy(**t.model_dump()) for t in schema.taxonomies],
-        modus_operandi=[
-            ModusOperandi(**m.model_dump()) for m in schema.modus_operandi
-        ],
+        modus_operandi=[ModusOperandi(**m.model_dump()) for m in schema.modus_operandi],
         flags=[_flag_from_schema(f) for f in schema.flags],
-        example_cases=[
-            ExampleCase(**e.model_dump()) for e in schema.example_cases
-        ],
+        example_cases=[ExampleCase(**e.model_dump()) for e in schema.example_cases],
         active_fields=schema.active_fields,
         active_model_id=schema.active_model_id,
     )

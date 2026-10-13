@@ -31,18 +31,16 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
     def get_fields(self, name: str) -> list[str]:
         path = self._dir / f"{name}.csv"
         with path.open(newline="", encoding="utf-8") as f:
-            return [
-                field
-                for field in (csv.DictReader(f).fieldnames or [])
-                if field
-            ]
+            return [field for field in (csv.DictReader(f).fieldnames or []) if field]
 
     def get_size(self, name: str) -> int:
         return (self._dir / f"{name}.csv").stat().st_size
 
-    def get_rows_page(self, name: str, offset: int, limit: int) -> tuple[list[dict[str, Any]], int]:
+    def get_rows_page(
+        self, name: str, offset: int, limit: int
+    ) -> tuple[list[dict[str, Any]], int]:
         rows = self.get_rows(name)
-        return rows[offset:offset + limit], len(rows)
+        return rows[offset : offset + limit], len(rows)
 
     def create(self, name: str, fields: list[str]) -> None:
         path = self._dir / f"{name}.csv"
@@ -89,4 +87,6 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
         (self._dir / f"{name}.csv").unlink(missing_ok=True)
 
     def _name_exists(self, name: str) -> bool:
-        return any(path.stem.casefold() == name.casefold() for path in self._dir.glob("*.csv"))
+        return any(
+            path.stem.casefold() == name.casefold() for path in self._dir.glob("*.csv")
+        )

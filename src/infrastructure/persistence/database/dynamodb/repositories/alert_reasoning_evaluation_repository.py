@@ -1,6 +1,7 @@
 """DynamoDB AlertReasoningEvaluationRepository (D6): one LLM-judge verdict per
 alert in table alert_reasoning_evaluations (pk alert_id). create() is a
 conditional put - the first verdict stored for an alert wins."""
+
 from __future__ import annotations
 
 from datetime import datetime

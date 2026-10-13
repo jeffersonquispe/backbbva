@@ -64,9 +64,7 @@ class InMemoryConfigurationRepository:
     def get(self, configuration_id: str, version: int) -> ConfigurationRecord | None:
         return self.items.get((configuration_id, version))
 
-    def get_latest_version(
-        self, configuration_id: str
-    ) -> ConfigurationRecord | None:
+    def get_latest_version(self, configuration_id: str) -> ConfigurationRecord | None:
         versions = self.list_versions(configuration_id)
         if not versions:
             return None
@@ -88,9 +86,7 @@ class InMemoryConfigurationRepository:
 
     def list_versions(self, configuration_id: str) -> list[ConfigurationRecord]:
         return [
-            config
-            for (cid, _), config in self.items.items()
-            if cid == configuration_id
+            config for (cid, _), config in self.items.items() if cid == configuration_id
         ]
 
     def activate(self, configuration_id: str, version: int) -> ConfigurationRecord:
@@ -99,9 +95,9 @@ class InMemoryConfigurationRepository:
             current_active.configuration_id,
             current_active.version,
         ) != (configuration_id, version):
-            self.items[
-                (current_active.configuration_id, current_active.version)
-            ] = _with_active(current_active, False)
+            self.items[(current_active.configuration_id, current_active.version)] = (
+                _with_active(current_active, False)
+            )
         target = self.items[(configuration_id, version)]
         activated = _with_active(target, True, ever_activated=True)
         self.items[(configuration_id, version)] = activated
@@ -117,7 +113,9 @@ def _with_active(
         name=config.name,
         description=config.description,
         active=active,
-        ever_activated=config.ever_activated if ever_activated is None else ever_activated,
+        ever_activated=config.ever_activated
+        if ever_activated is None
+        else ever_activated,
         general=config.general,
         infra=config.infra,
         test=config.test,
@@ -180,7 +178,9 @@ def _activate_use_case(
     repo: InMemoryConfigurationRepository,
     test_run_repo: InMemoryTestRunRepository | None = None,
 ) -> ActivateConfigurationUseCase:
-    return ActivateConfigurationUseCase(repo, test_run_repo or InMemoryTestRunRepository())
+    return ActivateConfigurationUseCase(
+        repo, test_run_repo or InMemoryTestRunRepository()
+    )
 
 
 def test_create_configuration_starts_new_lineage_at_version_1_inactive() -> None:
@@ -473,9 +473,13 @@ def test_tested_latest_configuration_is_preserved_after_test_history_deleted() -
     create = _create_use_case(repo)
     original = create.execute(CreateConfigurationInput(name="Protected"))
     original.ever_tested = True
-    saved = create.execute(CreateConfigurationInput(
-        name="Changed", configuration_id=original.configuration_id, based_on_version=1,
-    ))
+    saved = create.execute(
+        CreateConfigurationInput(
+            name="Changed",
+            configuration_id=original.configuration_id,
+            based_on_version=1,
+        )
+    )
     assert saved.version == 2
     assert repo.get(original.configuration_id, 1).name == "Protected"
     assert saved.ever_tested is False
@@ -488,12 +492,20 @@ def test_legacy_test_run_protects_only_its_configuration_version() -> None:
     original = create.execute(CreateConfigurationInput(name="Protected"))
     runs.add_succeeded(original.configuration_id, 1)
     runs._runs[0].status = TestRunStatus.FAILED
-    saved = create.execute(CreateConfigurationInput(
-        name="Changed", configuration_id=original.configuration_id, based_on_version=1,
-    ))
+    saved = create.execute(
+        CreateConfigurationInput(
+            name="Changed",
+            configuration_id=original.configuration_id,
+            based_on_version=1,
+        )
+    )
     assert saved.version == 2
     assert repo.get(original.configuration_id, 1).name == "Protected"
-    edited = create.execute(CreateConfigurationInput(
-        name="Editable", configuration_id=original.configuration_id, based_on_version=2,
-    ))
+    edited = create.execute(
+        CreateConfigurationInput(
+            name="Editable",
+            configuration_id=original.configuration_id,
+            based_on_version=2,
+        )
+    )
     assert edited.version == 2

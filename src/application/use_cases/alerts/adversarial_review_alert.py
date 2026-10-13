@@ -81,7 +81,7 @@ _TOOL_DESCRIPTIONS = {
         "interacciones."
     ),
     "check_watchlist": (
-        "check_watchlist: no necesita Action Input (deja un guion \"-\") - "
+        'check_watchlist: no necesita Action Input (deja un guion "-") - '
         "revisa si el valor relevante de esta alerta pertenece a alguna de "
         "las listas configuradas y devuelve las coincidencias."
     ),
@@ -106,10 +106,17 @@ _RESPONSE_FORMAT = (
 
 def _build_system_prompt(tool_names: list[str]) -> str:
     tools_block = "Herramientas:\n" + "\n".join(
-        f"- {_TOOL_DESCRIPTIONS[name]}" for name in tool_names if name in _TOOL_DESCRIPTIONS
+        f"- {_TOOL_DESCRIPTIONS[name]}"
+        for name in tool_names
+        if name in _TOOL_DESCRIPTIONS
     )
-    return _INTRO + tools_block + "\n\n" + _RESPONSE_FORMAT.format(
-        tool_names=", ".join(tool_names) or "ninguna - concluye directamente"
+    return (
+        _INTRO
+        + tools_block
+        + "\n\n"
+        + _RESPONSE_FORMAT.format(
+            tool_names=", ".join(tool_names) or "ninguna - concluye directamente"
+        )
     )
 
 
@@ -244,7 +251,11 @@ class AdversarialReviewAlertUseCase:
             "get_similar_modus_operandi": modus_operandi_port.find_similar,
             "calculator": self._calculator_tool,
         }
-        if watchlist_repository is not None and watchlist_ids and watchlist_compare_field:
+        if (
+            watchlist_repository is not None
+            and watchlist_ids
+            and watchlist_compare_field
+        ):
             self._tools["check_watchlist"] = self._check_watchlist_tool
         self._vector_store_research = vector_store_research
         if vector_store_research is not None:
@@ -318,7 +329,9 @@ class AdversarialReviewAlertUseCase:
             return result
         return json.dumps([_serializable(r) for r in result], default=str)
 
-    def execute(self, input: AdversarialReviewAlertInput) -> AdversarialReviewAlertOutput:
+    def execute(
+        self, input: AdversarialReviewAlertInput
+    ) -> AdversarialReviewAlertOutput:
         output = self._execute(input)
         if self._vector_store_research is not None:
             output.vector_store_interactions = list(
@@ -326,7 +339,9 @@ class AdversarialReviewAlertUseCase:
             )
         return output
 
-    def _execute(self, input: AdversarialReviewAlertInput) -> AdversarialReviewAlertOutput:
+    def _execute(
+        self, input: AdversarialReviewAlertInput
+    ) -> AdversarialReviewAlertOutput:
         if self._watchlist_compare_field:
             fields = {
                 **input.pre_process.input,

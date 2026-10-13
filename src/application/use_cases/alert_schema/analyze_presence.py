@@ -39,7 +39,9 @@ class AnalyzeAlertSchemaPresenceUseCase:
         self._object_storage = object_storage
         self._timezone = ZoneInfo(timezone_name)
 
-    def execute(self, report_day: date | None = None) -> AlertSchemaPresenceReport | None:
+    def execute(
+        self, report_day: date | None = None
+    ) -> AlertSchemaPresenceReport | None:
         if report_day is None:
             report_day = datetime.now(self._timezone).date() - timedelta(days=1)
         schema = self._schemas.get_active()
@@ -54,7 +56,11 @@ class AnalyzeAlertSchemaPresenceUseCase:
                 previous_by_field.setdefault(item.field_id, item)
         fields: list[AlertSchemaPresenceField] = []
         role_field_ids = set(schema.field_roles.values())
-        schema_locations = {(item.data_source.value, item.field_ds_loc) for item in schema.fields if item.field_ds_loc}
+        schema_locations = {
+            (item.data_source.value, item.field_ds_loc)
+            for item in schema.fields
+            if item.field_ds_loc
+        }
         unknown_counts: Counter[str] = Counter()
 
         for alert in alerts:
@@ -69,7 +75,15 @@ class AnalyzeAlertSchemaPresenceUseCase:
                 if value is not _MISSING and value is not None:
                     values.append((alert.created_at, value))
             previous_count = previous_by_field.get(schema_field.id)
-            fields.append(_field_report(schema_field, values, len(alerts), previous_count, schema_field.id in role_field_ids))
+            fields.append(
+                _field_report(
+                    schema_field,
+                    values,
+                    len(alerts),
+                    previous_count,
+                    schema_field.id in role_field_ids,
+                )
+            )
 
         generated_at = datetime.now(UTC)
         report = AlertSchemaPresenceReport(
@@ -80,7 +94,9 @@ class AnalyzeAlertSchemaPresenceUseCase:
             fields=fields,
             unknown_locations=[
                 AlertSchemaUnknownLocation(location=location, frequency=count)
-                for location, count in sorted(unknown_counts.items(), key=lambda item: (-item[1], item[0]))
+                for location, count in sorted(
+                    unknown_counts.items(), key=lambda item: (-item[1], item[0])
+                )
             ],
         )
         return self._reports.save(report)
@@ -97,12 +113,24 @@ class AnalyzeAlertSchemaPresenceUseCase:
 _MISSING = object()
 
 
-def _field_report(field: AlertSchemaField, values: list[tuple[datetime, Any]], total: int, previous: AlertSchemaPresenceField | None, role_assigned: bool) -> AlertSchemaPresenceField:
+def _field_report(
+    field: AlertSchemaField,
+    values: list[tuple[datetime, Any]],
+    total: int,
+    previous: AlertSchemaPresenceField | None,
+    role_assigned: bool,
+) -> AlertSchemaPresenceField:
     count = len(values)
     previous_count = previous.present_count if previous else None
-    trend = {"present_count": count, "previous_count": previous_count, "delta": None if previous_count is None else count - previous_count}
+    trend = {
+        "present_count": count,
+        "previous_count": previous_count,
+        "delta": None if previous_count is None else count - previous_count,
+    }
     if previous_count:
-        trend["change_percent"] = round((count - previous_count) * 100 / previous_count, 2)
+        trend["change_percent"] = round(
+            (count - previous_count) * 100 / previous_count, 2
+        )
     sanitized_values = [_safe_example(value, field) for _, value in values]
     distribution = _distribution(field, values, role_assigned)
     return AlertSchemaPresenceField(
@@ -117,23 +145,49 @@ def _field_report(field: AlertSchemaField, values: list[tuple[datetime, Any]], t
     )
 
 
-def _distribution(field: AlertSchemaField, values: list[tuple[datetime, Any]], role_assigned: bool) -> dict[str, object] | None:
+def _distribution(
+    field: AlertSchemaField, values: list[tuple[datetime, Any]], role_assigned: bool
+) -> dict[str, object] | None:
     if not role_assigned:
         return None
     raw = [value for _, value in values]
     if field.type.value == "number":
-        numbers = sorted(float(value) for value in raw if isinstance(value, Number) and not isinstance(value, bool))
-        return {"kind": "numeric", "count": len(numbers), "percentiles": {str(p): _percentile(numbers, p) for p in ("p25", "p50", "p75", "p95")}} if numbers else {"kind": "numeric", "count": 0, "percentiles": {}}
+        numbers = sorted(
+            float(value)
+            for value in raw
+            if isinstance(value, Number) and not isinstance(value, bool)
+        )
+        return (
+            {
+                "kind": "numeric",
+                "count": len(numbers),
+                "percentiles": {
+                    str(p): _percentile(numbers, p)
+                    for p in ("p25", "p50", "p75", "p95")
+                },
+            }
+            if numbers
+            else {"kind": "numeric", "count": 0, "percentiles": {}}
+        )
     frequencies = Counter(_safe_example(value, field) for value in raw)
-    return {"kind": "categorical", "frequencies": dict(sorted(frequencies.items(), key=lambda item: (-item[1], item[0])))}
+    return {
+        "kind": "categorical",
+        "frequencies": dict(
+            sorted(frequencies.items(), key=lambda item: (-item[1], item[0]))
+        ),
+    }
 
 
 def _percentile(values: list[float], percentile: str) -> float | None:
     if not values:
         return None
-    fraction = {"p25": 0.25, "p50": 0.5, "p75": 0.75, "p95": 0.95}[percentile] * (len(values) - 1)
+    fraction = {"p25": 0.25, "p50": 0.5, "p75": 0.75, "p95": 0.95}[percentile] * (
+        len(values) - 1
+    )
     lower, upper = math.floor(fraction), math.ceil(fraction)
-    return round(values[lower] + (values[upper] - values[lower]) * (fraction - lower), 6)
+    return round(
+        values[lower] + (values[upper] - values[lower]) * (fraction - lower), 6
+    )
 
 
 def _safe_example(value: Any, field: AlertSchemaField) -> str:
@@ -145,7 +199,9 @@ def _safe_example(value: Any, field: AlertSchemaField) -> str:
     return str(value)
 
 
-def _field_value(alert: AlertRecord, field: AlertSchemaField, raw_payload: dict[str, Any] | None) -> Any:
+def _field_value(
+    alert: AlertRecord, field: AlertSchemaField, raw_payload: dict[str, Any] | None
+) -> Any:
     roots = []
     if field.data_source.value == "aria":
         roots = [alert.agent_output]
@@ -173,7 +229,9 @@ def _get_path(root: Any, path: str) -> Any:
     return value
 
 
-def _unknown_locations(alert: AlertRecord, raw_payload: dict[str, Any] | None = None) -> set[str]:
+def _unknown_locations(
+    alert: AlertRecord, raw_payload: dict[str, Any] | None = None
+) -> set[str]:
     payload = raw_payload
     return _dotted_paths(payload) if payload else set()
 

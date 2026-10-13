@@ -43,8 +43,6 @@ class AnalystReviewAlertOutput:
     # datetimes - this DTO gets dataclasses.asdict()'d straight into a
     # DynamoDB step record and into a Celery task's JSON args, both of
     # which reject raw datetime values.
-    operations_capacity: dict[str, dict[str, object]] = field(
-        default_factory=dict
-    )
+    operations_capacity: dict[str, dict[str, object]] = field(default_factory=dict)
     input_tokens: int = 0
     output_tokens: int = 0

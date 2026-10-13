@@ -8,6 +8,7 @@ transaction conditioned on snapshot_version. A version conflict (another
 event for the same alert won the race) re-reads and retries, up to
 MAX_ATTEMPTS. Re-recording an event that changes nothing (e.g. a Celery
 retry) is a no-op: no write, no delta - so nothing is ever counted twice."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -54,7 +55,9 @@ from src.domain.alerts.exceptions import SnapshotVersionConflictError
 MAX_ATTEMPTS = 3
 
 
-def payload_dimensions(roles: dict[str, Any]) -> tuple[str | None, str | None, float | None]:
+def payload_dimensions(
+    roles: dict[str, Any],
+) -> tuple[str | None, str | None, float | None]:
     """Return dimensions from the canonical role values."""
     channel = roles.get("channel")
     subchannel = roles.get("entrypoint")
@@ -66,7 +69,9 @@ def payload_dimensions(roles: dict[str, Any]) -> tuple[str | None, str | None, f
     )
 
 
-def canonical_role_values(alert: AlertRecord, schemas: AlertSchemaRepository) -> dict[str, Any]:
+def canonical_role_values(
+    alert: AlertRecord, schemas: AlertSchemaRepository
+) -> dict[str, Any]:
     if alert.schema_version is None:
         raise ValueError("Metrics require the alert's processed schema version")
     schema = schemas.get(alert.schema_version)
@@ -101,7 +106,9 @@ class RecordAlertMetricsEvent:
         # pure-metrics callers/tests can omit it.
         self._monitoring = monitoring
 
-    def execute(self, input: RecordAlertMetricsEventInput) -> AlertMetricsSnapshot | None:
+    def execute(
+        self, input: RecordAlertMetricsEventInput
+    ) -> AlertMetricsSnapshot | None:
         """The stored snapshot after the event, or None if the alert does
         not exist. Raises SnapshotVersionConflictError after MAX_ATTEMPTS
         lost races."""
@@ -155,7 +162,9 @@ class RecordAlertMetricsEvent:
         }
         if new.resolution_time_seconds is not None:
             metadata[ATTR_RESOLUTION_TIME_SECONDS] = new.resolution_time_seconds
-        with self._monitoring.start("alert.mark_set", "metrics.mark", metadata=metadata):
+        with self._monitoring.start(
+            "alert.mark_set", "metrics.mark", metadata=metadata
+        ):
             pass
 
     def execute_backfill(
@@ -224,12 +233,16 @@ class RecordAlertMetricsEvent:
         if event == AlertMetricsEventType.PRE_PROCESSED:
             return dataclasses.replace(
                 snapshot,
-                segment=input.segment if input.segment is not None else snapshot.segment,
+                segment=input.segment
+                if input.segment is not None
+                else snapshot.segment,
                 configuration_id=input.configuration_id or snapshot.configuration_id,
             )
         if event == AlertMetricsEventType.WORKFLOW_FINISHED:
             mark, method = workflow_resolution(input.executed_action)
-            snapshot = dataclasses.replace(snapshot, status=input.status or alert.status)
+            snapshot = dataclasses.replace(
+                snapshot, status=input.status or alert.status
+            )
             return _decide(snapshot, mark, method, occurred_at, alert.created_at)
         if event == AlertMetricsEventType.ANALYST_RESOLVED:
             mark, method = analyst_resolution(input.decision or "")
@@ -259,7 +272,10 @@ class RecordAlertMetricsEvent:
         roles = (
             canonical_role_values(alert, self._schemas)
             if self._schemas is not None and alert.schema_version is not None
-            else {role: alert.input.get(role) for role in ("channel", "entrypoint", "amount")}
+            else {
+                role: alert.input.get(role)
+                for role in ("channel", "entrypoint", "amount")
+            }
         )
         dimensions = payload_dimensions(roles)
         channel, subchannel, amount = dimensions
@@ -296,5 +312,7 @@ def _decide(
         mark=mark,
         marked_at=occurred_at,
         resolution_time_seconds=max((occurred_at - created_at).total_seconds(), 0.0),
-        fraud_label=mark if snapshot.fraud_reviewed_at is None else snapshot.fraud_label,
+        fraud_label=mark
+        if snapshot.fraud_reviewed_at is None
+        else snapshot.fraud_label,
     )

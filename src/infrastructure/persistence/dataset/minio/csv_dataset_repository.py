@@ -26,7 +26,9 @@ class MinioCsvDatasetRepository(DatasetRepository):
         ]
 
     def get_rows(self, name: str) -> list[dict[str, Any]]:
-        return [unflatten_row(row) for row in csv.DictReader(self._lines(f"{name}.csv"))]
+        return [
+            unflatten_row(row) for row in csv.DictReader(self._lines(f"{name}.csv"))
+        ]
 
     def iter_rows(self, name: str):
         """Yield rows directly from MinIO without materializing the CSV."""
@@ -50,7 +52,9 @@ class MinioCsvDatasetRepository(DatasetRepository):
     def get_size(self, name: str) -> int:
         return self._object_storage.get_size(f"{name}.csv")
 
-    def get_rows_page(self, name: str, offset: int, limit: int) -> tuple[list[dict[str, Any]], int]:
+    def get_rows_page(
+        self, name: str, offset: int, limit: int
+    ) -> tuple[list[dict[str, Any]], int]:
         # Preview paths must not materialize or scan a multi-GB CSV merely to
         # show 25 rows. The API enriches the total from the persisted summary.
         page: list[dict[str, Any]] = []
@@ -67,7 +71,9 @@ class MinioCsvDatasetRepository(DatasetRepository):
             raise FileExistsError(f"Dataset '{name}' already exists")
         buffer = io.StringIO()
         csv.writer(buffer).writerow(fields)
-        self._object_storage.put_text(f"{name}.csv", buffer.getvalue(), content_type="text/csv")
+        self._object_storage.put_text(
+            f"{name}.csv", buffer.getvalue(), content_type="text/csv"
+        )
 
     def create_from_csv_bytes(self, name: str, content: bytes) -> None:
         if self._name_exists(name):

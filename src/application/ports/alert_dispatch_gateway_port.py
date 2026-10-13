@@ -24,5 +24,4 @@ class AlertDispatchGateway(ABC):
     @abstractmethod
     def dispatch(
         self, payload: dict, *, created_by: str | None = None
-    ) -> AlertDispatchResult:
-        ...
+    ) -> AlertDispatchResult: ...

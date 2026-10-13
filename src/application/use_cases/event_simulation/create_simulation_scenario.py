@@ -30,7 +30,9 @@ class CreateSimulationScenarioUseCase:
 
     def execute(self, input: CreateSimulationScenarioInput) -> SimulationScenarioRecord:
         if input.output_mode == OutputMode.DATASET and not input.target_dataset_name:
-            raise ValueError("target_dataset_name is required when output_mode is DATASET")
+            raise ValueError(
+                "target_dataset_name is required when output_mode is DATASET"
+            )
 
         now = datetime.now(UTC)
         field_specs = input.field_specs
@@ -69,7 +71,9 @@ class CreateSimulationScenarioUseCase:
 
 def _default_generator(field_type: AlertSchemaFieldType) -> FieldGenerator:
     if field_type == AlertSchemaFieldType.NUMBER:
-        return FieldGenerator(kind=GeneratorKind.NORMAL, params={"mu": 0.0, "sigma": 1.0})
+        return FieldGenerator(
+            kind=GeneratorKind.NORMAL, params={"mu": 0.0, "sigma": 1.0}
+        )
     if field_type == AlertSchemaFieldType.BOOL:
         return FieldGenerator(
             kind=GeneratorKind.CATEGORICAL, weights={"true": 1.0, "false": 1.0}

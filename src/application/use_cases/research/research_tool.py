@@ -9,6 +9,7 @@ of the step, so a down backend can't be retried forever. Every exchange is
 recorded in `interactions` (the audit list surfaced on the step's output),
 including refused calls.
 """
+
 from __future__ import annotations
 
 import json
@@ -50,22 +51,31 @@ class BoundedResearchTool:
         turn = len(self.interactions) + 1
         if self.remaining == 0:
             return self._refuse(
-                turn, insights, "interaction budget exhausted",
+                turn,
+                insights,
+                "interaction budget exhausted",
                 "Límite de interacciones con la herramienta alcanzado "
                 f"({self._max_interactions}). Concluye con la evidencia disponible.",
             )
         if self._count(ResearchStatus.FAILED) >= self._max_failures:
             return self._refuse(
-                turn, insights, "research tool unavailable",
+                turn,
+                insights,
+                "research tool unavailable",
                 f"La herramienta falló {self._max_failures} veces y no está "
                 "disponible en este paso. Concluye con la evidencia disponible.",
             )
         result = self._agent.research(ResearchRequest(self._source, insights))
         findings = [asdict(finding) for finding in result.findings]
-        self.interactions.append({
-            "turn": turn, "insights": insights, "status": str(result.status),
-            "findings": findings, "error": result.error,
-        })
+        self.interactions.append(
+            {
+                "turn": turn,
+                "insights": insights,
+                "status": str(result.status),
+                "findings": findings,
+                "error": result.error,
+            }
+        )
         return json.dumps(
             {
                 "status": str(result.status),
@@ -78,8 +88,13 @@ class BoundedResearchTool:
         )
 
     def _refuse(self, turn: int, insights: str, error: str, observation: str) -> str:
-        self.interactions.append({
-            "turn": turn, "insights": insights, "status": "refused",
-            "findings": [], "error": error,
-        })
+        self.interactions.append(
+            {
+                "turn": turn,
+                "insights": insights,
+                "status": "refused",
+                "findings": [],
+                "error": error,
+            }
+        )
         return observation

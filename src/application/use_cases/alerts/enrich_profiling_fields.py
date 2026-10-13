@@ -16,7 +16,10 @@ class EnrichProfilingFieldsUseCase:
     an already-async workflow step, so a plain synchronous call is enough."""
 
     def execute(
-        self, configuration: dict[str, Any], current: dict[str, Any], history: list[dict[str, Any]]
+        self,
+        configuration: dict[str, Any],
+        current: dict[str, Any],
+        history: list[dict[str, Any]],
     ) -> dict[str, Any]:
         # No recipes configured yet is the default/untouched state for a
         # segment (see configuration_port.py's _default_field_enrichment) -

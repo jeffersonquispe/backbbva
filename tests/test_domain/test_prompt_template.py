@@ -2,13 +2,18 @@ from src.domain.models.prompt_template import substitute_variables
 
 
 def test_known_tokens_are_replaced_with_their_values():
-    assert substitute_variables(
-        "Saldo: {saldo}, canal: {canal}", {"saldo": 1200.5, "canal": "App"}
-    ) == "Saldo: 1200.5, canal: App"
+    assert (
+        substitute_variables(
+            "Saldo: {saldo}, canal: {canal}", {"saldo": 1200.5, "canal": "App"}
+        )
+        == "Saldo: 1200.5, canal: App"
+    )
 
 
 def test_unknown_token_is_left_literal():
-    assert substitute_variables("Hola {desconocido}", {"saldo": 1}) == "Hola {desconocido}"
+    assert (
+        substitute_variables("Hola {desconocido}", {"saldo": 1}) == "Hola {desconocido}"
+    )
 
 
 def test_non_string_values_are_stringified():

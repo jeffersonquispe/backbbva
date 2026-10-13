@@ -57,7 +57,9 @@ def main() -> None:
     try:
         reload_active_model()
     except Exception as exc:  # noqa: BLE001
-        print(f"reload_active_model failed at startup, starting without a loaded model: {exc}")
+        print(
+            f"reload_active_model failed at startup, starting without a loaded model: {exc}"
+        )
     mcp.run(transport="streamable-http", host="0.0.0.0", port=genai_config.MCP_PORT)
 
 

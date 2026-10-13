@@ -81,26 +81,41 @@ class ScriptedEmbeddingUnitOfWork(EmbeddingUnitOfWork):
 
     def embed(self, texts: list[str]) -> EmbeddingResult:
         self.embedded_texts.append(list(texts))
-        return EmbeddingResult(vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3)
+        return EmbeddingResult(
+            vectors=[[0.1, 0.2, 0.3] for _ in texts], model="fake", dimensions=3
+        )
 
 
 class ScriptedEmbeddingUnitOfWorkFactory(EmbeddingUnitOfWorkFactory):
     def __init__(self) -> None:
         self.calls: list[ScriptedEmbeddingUnitOfWork] = []
 
-    def create(self, *, model: str, monitoring: MonitoringPort, operation_name: str) -> EmbeddingUnitOfWork:
+    def create(
+        self, *, model: str, monitoring: MonitoringPort, operation_name: str
+    ) -> EmbeddingUnitOfWork:
         uow = ScriptedEmbeddingUnitOfWork()
         self.calls.append(uow)
         return uow
 
 
 class NullSpan(MonitoringSpan):
-    def write_input(self, data) -> None: pass
-    def write_result(self, data) -> None: pass
-    def write_inner_logs(self, entries) -> None: pass
-    def write_operation_metas(self, metadata) -> None: pass
-    def record_dependency(self, name, kind, metadata=None) -> None: pass
-    def finish(self, error=None) -> None: pass
+    def write_input(self, data) -> None:
+        pass
+
+    def write_result(self, data) -> None:
+        pass
+
+    def write_inner_logs(self, entries) -> None:
+        pass
+
+    def write_operation_metas(self, metadata) -> None:
+        pass
+
+    def record_dependency(self, name, kind, metadata=None) -> None:
+        pass
+
+    def finish(self, error=None) -> None:
+        pass
 
 
 class NullMonitoringPort(MonitoringPort):
@@ -108,29 +123,39 @@ class NullMonitoringPort(MonitoringPort):
         return NullSpan()
 
 
-def _create_use_case(repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None) -> CreateTaxonomyLibraryEntryUseCase:
+def _create_use_case(
+    repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None
+) -> CreateTaxonomyLibraryEntryUseCase:
     return CreateTaxonomyLibraryEntryUseCase(
         repo,
-        embedding_unit_of_work_factory=embedding_factory or ScriptedEmbeddingUnitOfWorkFactory(),
+        embedding_unit_of_work_factory=embedding_factory
+        or ScriptedEmbeddingUnitOfWorkFactory(),
         monitoring=NullMonitoringPort(),
         embedding_model="fake-deployment",
     )
 
 
-def _update_use_case(repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None) -> UpdateTaxonomyLibraryEntryUseCase:
+def _update_use_case(
+    repo, embedding_factory: ScriptedEmbeddingUnitOfWorkFactory | None = None
+) -> UpdateTaxonomyLibraryEntryUseCase:
     return UpdateTaxonomyLibraryEntryUseCase(
         repo,
-        embedding_unit_of_work_factory=embedding_factory or ScriptedEmbeddingUnitOfWorkFactory(),
+        embedding_unit_of_work_factory=embedding_factory
+        or ScriptedEmbeddingUnitOfWorkFactory(),
         monitoring=NullMonitoringPort(),
         embedding_model="fake-deployment",
     )
 
 
-def test_create_taxonomy_library_entry_defaults_to_active_and_computes_embedding() -> None:
+def test_create_taxonomy_library_entry_defaults_to_active_and_computes_embedding() -> (
+    None
+):
     repo = InMemoryTaxonomyLibraryRepository()
     use_case = _create_use_case(repo)
 
-    entry = use_case.execute("FRD-CARD", "Fraude con tarjeta", "desc", ["Saldo"], ["ej"])
+    entry = use_case.execute(
+        "FRD-CARD", "Fraude con tarjeta", "desc", ["Saldo"], ["ej"]
+    )
 
     assert entry.code == "FRD-CARD"
     assert entry.variables == ["Saldo"]
@@ -152,7 +177,9 @@ def test_list_taxonomy_library_entries_filters_active_only() -> None:
     assert len(list_entries.execute(active_only=True)) == 1
 
 
-def test_update_taxonomy_library_entry_changes_fields_and_reembeds_on_text_change() -> None:
+def test_update_taxonomy_library_entry_changes_fields_and_reembeds_on_text_change() -> (
+    None
+):
     repo = InMemoryTaxonomyLibraryRepository()
     embedding_factory = ScriptedEmbeddingUnitOfWorkFactory()
     create = _create_use_case(repo, embedding_factory)

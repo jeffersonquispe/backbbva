@@ -1,6 +1,7 @@
 """A4: the 60 s per-query cache in front of the /metrics read use cases -
 hits within the TTL, expiry, key normalization (hour slots, filter order,
 defaults), re-stamped range, errors never cached, LRU bound."""
+
 from __future__ import annotations
 
 import os
@@ -47,7 +48,11 @@ class RecordingQuery:
         self.calls.append(input)
         to = input.to or NOW
         return FakeOutput(
-            range=MetricsRange(from_=input.from_ or to - timedelta(hours=24), to=to, timezone="America/Bogota"),
+            range=MetricsRange(
+                from_=input.from_ or to - timedelta(hours=24),
+                to=to,
+                timezone="America/Bogota",
+            ),
             total=len(self.calls),
         )
 
@@ -88,10 +93,18 @@ def test_entry_expires_after_the_ttl() -> None:
     assert again.total == 2
 
 
-def test_ranges_reading_the_same_hour_slots_share_an_entry_and_keep_their_own_range() -> None:
+def test_ranges_reading_the_same_hour_slots_share_an_entry_and_keep_their_own_range() -> (
+    None
+):
     inner, _, cached = _cached(FakeMonotonic())
-    a = _input(datetime(2026, 9, 30, 15, 0, 1, tzinfo=UTC), datetime(2026, 10, 1, 15, 0, 1, tzinfo=UTC))
-    b = _input(datetime(2026, 9, 30, 15, 40, tzinfo=UTC), datetime(2026, 10, 1, 15, 40, tzinfo=UTC))
+    a = _input(
+        datetime(2026, 9, 30, 15, 0, 1, tzinfo=UTC),
+        datetime(2026, 10, 1, 15, 0, 1, tzinfo=UTC),
+    )
+    b = _input(
+        datetime(2026, 9, 30, 15, 40, tzinfo=UTC),
+        datetime(2026, 10, 1, 15, 40, tzinfo=UTC),
+    )
 
     cached.execute(a)
     out_b = cached.execute(b)
@@ -154,7 +167,9 @@ def test_errors_are_not_cached() -> None:
 def test_naive_datetimes_go_straight_to_the_use_case() -> None:
     inner, cache, cached = _cached(FakeMonotonic())
 
-    cached.execute(MetricsQueryInput(from_=datetime(2026, 9, 1), to=datetime(2026, 9, 2)))
+    cached.execute(
+        MetricsQueryInput(from_=datetime(2026, 9, 1), to=datetime(2026, 9, 2))
+    )
 
     assert len(cache) == 0 and len(inner.calls) == 1
 
@@ -182,9 +197,15 @@ def test_read_factories_serve_through_the_shared_cache() -> None:
     from src.infrastructure.entrypoint.api.factories import metrics_factory
 
     built = {
-        "overview": (metrics_factory.get_metrics_overview_use_case(), GetMetricsOverview),
+        "overview": (
+            metrics_factory.get_metrics_overview_use_case(),
+            GetMetricsOverview,
+        ),
         "agent": (metrics_factory.get_agent_metrics_use_case(), GetAgentMetrics),
-        "technical": (metrics_factory.get_technical_metrics_use_case(), GetTechnicalMetrics),
+        "technical": (
+            metrics_factory.get_technical_metrics_use_case(),
+            GetTechnicalMetrics,
+        ),
     }
 
     for endpoint, (use_case, inner_type) in built.items():

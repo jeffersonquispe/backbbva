@@ -39,7 +39,10 @@ class CreateFlagLibraryEntryUseCase:
     ) -> FlagLibraryEntry:
         normalized_name = " ".join(name.split()).casefold()
         for existing in self._entries.list():
-            if " ".join(existing.name.split()).casefold() == normalized_name and existing.flag_type == flag_type:
+            if (
+                " ".join(existing.name.split()).casefold() == normalized_name
+                and existing.flag_type == flag_type
+            ):
                 return existing
         now = datetime.now(UTC)
         uow = self._embedding_unit_of_work_factory.create(
@@ -47,7 +50,9 @@ class CreateFlagLibraryEntryUseCase:
             monitoring=self._monitoring,
             operation_name="embed_flag_library_entry",
         )
-        embedding = uow.embed([embedding_text(name=name, description=description)]).vectors[0]
+        embedding = uow.embed(
+            [embedding_text(name=name, description=description)]
+        ).vectors[0]
         return self._entries.create(
             FlagLibraryEntry(
                 id=str(uuid.uuid4()),

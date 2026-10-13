@@ -77,7 +77,9 @@ def _require_fraud_analyst(user: LocalUser) -> None:
 def list_analyst_queue(
     _: CurrentUser,
     users: UserLookup,
-    use_case: Annotated[ListAnalystQueueUseCase, Depends(get_list_analyst_queue_use_case)],
+    use_case: Annotated[
+        ListAnalystQueueUseCase, Depends(get_list_analyst_queue_use_case)
+    ],
 ):
     return [_queue_item_response(item, users) for item in use_case.execute()]
 
@@ -101,7 +103,9 @@ def take_alert(
     alert_id: UUID,
     user: CurrentUser,
     users: UserLookup,
-    use_case: Annotated[TakeEscalatedAlertUseCase, Depends(get_take_escalated_alert_use_case)],
+    use_case: Annotated[
+        TakeEscalatedAlertUseCase, Depends(get_take_escalated_alert_use_case)
+    ],
 ):
     _require_fraud_analyst(user)
     try:
@@ -178,7 +182,9 @@ def _conflict_code(exc: Exception) -> str:
     }[type(exc)]
 
 
-def _holder_name(reservation: ResourceReservation, users: GetCurrentLocalUserUseCase) -> str | None:
+def _holder_name(
+    reservation: ResourceReservation, users: GetCurrentLocalUserUseCase
+) -> str | None:
     try:
         user = users.execute(UUID(reservation.holder))
     except ValueError:
@@ -217,8 +223,12 @@ def _queue_item_response(
         created_at=alert.created_at,
         schema_version=alert.schema_version,
         configuration_ref=(
-            {"configuration_id": alert.configuration_id, "version": alert.configuration_version}
-            if alert.configuration_id is not None else None
+            {
+                "configuration_id": alert.configuration_id,
+                "version": alert.configuration_version,
+            }
+            if alert.configuration_id is not None
+            else None
         ),
         input=alert.input,
         labels=alert.labels,

@@ -130,8 +130,7 @@ class ProfileAlertUseCase:
         self._output_tokens = 0
         pre_process = input.pre_process
         enrichment = {
-            key: _serializable(value)
-            for key, value in pre_process.enrichment.items()
+            key: _serializable(value) for key, value in pre_process.enrichment.items()
         }
         base_data = {
             "input": pre_process.input,
@@ -154,9 +153,7 @@ class ProfileAlertUseCase:
 
         return ProfileAlertOutput(
             user_profile=self._infer("user_profile", user_data),
-            transaction_profile=self._infer(
-                "transaction_profile", transaction_data
-            ),
+            transaction_profile=self._infer("transaction_profile", transaction_data),
             transactional_profile=self._infer(
                 "transactional_profile", transactional_data
             ),

@@ -97,9 +97,7 @@ def _to_item(settings: OperationalSettings) -> dict[str, Any]:
 def _from_item(item: dict[str, Any]) -> OperationalSettings:
     capacity_item = item.get("analyst_capacity") or {}
     defaults = AnalystCapacity()
-    profiles = [
-        _day_profile_from_item(p) for p in capacity_item.get("profiles") or []
-    ]
+    profiles = [_day_profile_from_item(p) for p in capacity_item.get("profiles") or []]
     return OperationalSettings(
         agent_enabled=bool(item.get("agent_enabled", True)),
         # Pre-rename items stored these as *_escalation_enabled.

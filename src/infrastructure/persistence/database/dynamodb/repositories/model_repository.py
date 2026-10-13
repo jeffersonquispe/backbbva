@@ -96,7 +96,9 @@ def _to_item(model: ModelRecord) -> dict[str, Any]:
         "updated_at": model.updated_at.isoformat(),
         "created_by": model.created_by,
         "error": model.error,
-        "historical_features": to_dynamodb([asdict(f) for f in model.historical_features]),
+        "historical_features": to_dynamodb(
+            [asdict(f) for f in model.historical_features]
+        ),
         "training_config": to_dynamodb(asdict(model.training_config)),
         "training_report": to_dynamodb(model.training_report),
         "feature_configuration": to_dynamodb(model.feature_configuration),
@@ -128,8 +130,13 @@ def _from_item(item: dict[str, Any]) -> ModelRecord:
         updated_at=datetime.fromisoformat(item["updated_at"]),
         created_by=item.get("created_by"),
         error=item.get("error"),
-        historical_features=[HistoricalFeature(**f) for f in from_dynamodb(item.get("historical_features", []))],
-        training_config=TrainingConfig(**from_dynamodb(item.get("training_config", {}))),
+        historical_features=[
+            HistoricalFeature(**f)
+            for f in from_dynamodb(item.get("historical_features", []))
+        ],
+        training_config=TrainingConfig(
+            **from_dynamodb(item.get("training_config", {}))
+        ),
         training_report=from_dynamodb(item.get("training_report")),
         feature_configuration=from_dynamodb(item.get("feature_configuration")),
     )

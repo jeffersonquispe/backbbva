@@ -97,7 +97,9 @@ def test_run_adversarial_substitutes_variables_into_prompt(monkeypatch) -> None:
     segment = SegmentSettings(
         enabled=True,
         agent=AgentSettings(
-            adversarial=AdversarialConfig(prompt="Cliente {customer_id}, revisa {amount}"),
+            adversarial=AdversarialConfig(
+                prompt="Cliente {customer_id}, revisa {amount}"
+            ),
         ),
     )
 
@@ -181,7 +183,9 @@ def test_run_adversarial_runs_history_analysis_when_it_challenges(monkeypatch) -
     monkeypatch.setattr(
         history_research_module,
         "_history_research",
-        lambda context, cfg, reasoning: [{"source": "history_pandas", "reasoning": reasoning}],
+        lambda context, cfg, reasoning: [
+            {"source": "history_pandas", "reasoning": reasoning}
+        ],
     )
     segment = SegmentSettings(
         enabled=True,
@@ -207,12 +211,18 @@ def test_run_adversarial_runs_history_analysis_when_it_challenges(monkeypatch) -
 def test_run_adversarial_adds_xgboost_output_as_separate_evidence(monkeypatch) -> None:
     calls = _patched(monkeypatch)
     score = workflow_module._XGBoostScore(
-        score=0.9, model_id="model-1", model_tag="v1", is_fraud="fraud",
-        verdict="superó el umbral de fraude", fraud_threshold=0.8,
+        score=0.9,
+        model_id="model-1",
+        model_tag="v1",
+        is_fraud="fraud",
+        verdict="superó el umbral de fraude",
+        fraud_threshold=0.8,
         uncertainty_threshold=0.4,
         top_features=[{"feature": "amount", "contribution": 0.3, "value": "5000"}],
     )
-    monkeypatch.setattr(workflow_module, "_score_with_xgboost", lambda context, cfg: score)
+    monkeypatch.setattr(
+        workflow_module, "_score_with_xgboost", lambda context, cfg: score
+    )
     segment = SegmentSettings(
         enabled=True,
         agent=AgentSettings(adversarial=AdversarialConfig(use_xgboost_model=True)),
