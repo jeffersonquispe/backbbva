@@ -16,3 +16,6 @@ select = [
     "BLE",             # blind except
     "DTZ",             # naive datetimes
 ]
+ignore = [
+    "UP038",  # deprecated upstream: isinstance(x, A | B) is slower than a tuple
+]

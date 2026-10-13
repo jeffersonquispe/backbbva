@@ -1,6 +1,6 @@
 {
   "ruff": {
-    "errors": 611,
+    "errors": 26,
     "version": "ruff 0.8.4"
   },
   "mypy": {
