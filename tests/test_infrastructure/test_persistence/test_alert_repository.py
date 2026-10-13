@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
+
 from src.domain.alerts.entities import (
     AlertMetricsSnapshot,
     AlertRecord,
@@ -14,7 +16,10 @@ from src.domain.alerts.entities import (
     AlertStatus,
     Mark,
 )
+from src.domain.alerts.exceptions import AlertPayloadTooLargeError
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
+    MAX_ALERT_PAYLOAD_BYTES,
+    DynamoAlertRepository,
     _from_item,
     _to_item,
     created_day_for,
@@ -88,3 +93,34 @@ def test_partial_or_unknown_snapshot_fields_fall_back_to_defaults() -> None:
     )
     assert snapshot_from_item(None) is None
     assert "segment" not in snapshot_to_item(AlertMetricsSnapshot())
+
+
+class RecordingTable:
+    def __init__(self) -> None:
+        self.items: list[dict] = []
+
+    def put_item(self, *, Item: dict) -> None:
+        self.items.append(Item)
+
+
+def test_create_rejects_payload_over_dynamodb_budget_before_writing() -> None:
+    repository = DynamoAlertRepository.__new__(DynamoAlertRepository)
+    repository._table = RecordingTable()
+    repository._timezone_name = "America/Bogota"
+    payload = {"data": "x" * MAX_ALERT_PAYLOAD_BYTES}
+
+    with pytest.raises(AlertPayloadTooLargeError):
+        repository.create(_alert(), raw_payload=payload)
+
+    assert repository._table.items == []
+
+
+def test_create_accepts_payload_within_dynamodb_budget() -> None:
+    repository = DynamoAlertRepository.__new__(DynamoAlertRepository)
+    repository._table = RecordingTable()
+    repository._timezone_name = "America/Bogota"
+    payload = {"eventId": "evt-1"}
+
+    repository.create(_alert(), raw_payload=payload)
+
+    assert len(repository._table.items) == 1

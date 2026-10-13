@@ -11,7 +11,9 @@ from src.domain.alerts.entities import (
 
 
 class AlertRepository(Protocol):
-    def create(self, alert: AlertRecord) -> AlertRecord: ...
+    def create(
+        self, alert: AlertRecord, *, raw_payload: dict[str, Any] | None = None
+    ) -> AlertRecord: ...
 
     def get(self, alert_id: UUID) -> AlertRecord | None: ...
 

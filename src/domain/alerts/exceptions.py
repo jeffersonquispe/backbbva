@@ -37,7 +37,7 @@ class AlertFieldTypeMismatchError(ValidationError):
 
 
 class AlertPayloadTooLargeError(ValidationError):
-    """An alert payload exceeds the configured application size limit."""
+    """An alert payload exceeds the configured storage limit."""
 
     def __init__(self, size_bytes: int, limit_bytes: int) -> None:
         self.size_bytes = size_bytes

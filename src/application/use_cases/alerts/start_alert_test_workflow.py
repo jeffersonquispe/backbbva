@@ -95,7 +95,8 @@ class StartAlertTestWorkflowUseCase:
                 created_at=now,
                 updated_at=now,
                 raw_payload_ref=raw_ref,
-            )
+            ),
+            raw_payload=input.payload,
         )
         # Before dispatch, so the arrival snapshot normally lands before the
         # worker's first event (a race is still safe: snapshot_version).

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
@@ -17,6 +18,7 @@ from src.domain.alerts.entities import (
     AlertStatus,
     Mark,
 )
+from src.domain.alerts.exceptions import AlertPayloadTooLargeError
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
@@ -39,6 +41,8 @@ _BATCH_GET_LIMIT = 100
 # DynamoMetricsRollupRepository.apply (one transaction with the rollup
 # deltas) - this repository only reads it, and update() never touches it.
 METRICS_ATTRIBUTE = "metrics"
+# DynamoDB caps an item at 400 KB. Leave room for keys and alert metadata.
+MAX_ALERT_PAYLOAD_BYTES = 380_000
 
 
 def created_day_for(created_at: datetime, timezone_name: str | None = None) -> str:
@@ -53,7 +57,13 @@ class DynamoAlertRepository:
         self._table = get_dynamodb_resource().Table(TABLE_NAME)
         self._timezone_name = timezone_name or genai_config.OPERATIONS_TIMEZONE
 
-    def create(self, alert: AlertRecord) -> AlertRecord:
+    def create(
+        self, alert: AlertRecord, *, raw_payload: dict[str, Any] | None = None
+    ) -> AlertRecord:
+        if raw_payload is not None:
+            payload_size = len(json.dumps(raw_payload, default=str).encode("utf-8"))
+            if payload_size > MAX_ALERT_PAYLOAD_BYTES:
+                raise AlertPayloadTooLargeError(payload_size, MAX_ALERT_PAYLOAD_BYTES)
         self._table.put_item(Item=_to_item(alert, self._timezone_name))
         return alert
 
