@@ -287,7 +287,10 @@ class TierSwitchingSettings:
         self._change_at = change_at
         self._before = OperationalSettings()
         self._after = OperationalSettings(
-            amount_tiers=[AmountTier(c, l, lo, hi) for c, l, lo, hi in TIERS_V1],
+            amount_tiers=[
+                AmountTier(code, label, lower, upper)
+                for code, label, lower, upper in TIERS_V1
+            ],
         )
 
     def get(self):
@@ -645,7 +648,7 @@ def run_worker(
                     else:
                         _with_retry(lambda: writer.execute(event.input), tally)
                     counts[event.tag] += 1
-            except Exception as exc:  # keep the run (and its tally) going
+            except Exception as exc:  # noqa: BLE001 - keep the run and tally going
                 counts["failed_alerts"] += 1
                 counts[f"error:{type(exc).__name__}"] += 1
         print(f"[worker] {day_iso} done: {counts['alerts']} alerts so far", flush=True)

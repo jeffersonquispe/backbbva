@@ -16,7 +16,18 @@ from src.application.use_cases.alert_schema.approve_schema import (
     SelfApprovalError,
 )
 from src.infrastructure.entrypoint.api.authorization import require_permission
-from src.infrastructure.entrypoint.api.factories.alert_schema_factory import *
+from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
+    get_alert_schema_presence_report_repository,
+    get_approve_alert_schema_use_case,
+    get_create_alert_schema_suggestion_use_case,
+    get_get_active_alert_schema_use_case,
+    get_get_alert_schema_version_use_case,
+    get_list_alert_schema_suggestions_use_case,
+    get_list_alert_schema_versions_use_case,
+    get_propose_alert_schema_use_case,
+    get_reject_alert_schema_use_case,
+    get_save_alert_schema_draft_use_case,
+)
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas import (
     AlertSchemaPresenceResponse,

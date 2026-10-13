@@ -48,7 +48,7 @@ def score_row(bundle: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
             }
             for i in top_idx
         ]
-    except Exception:
+    except Exception:  # noqa: BLE001 - explanation failure must not fail scoring
         top_features = []
 
     return {

@@ -229,4 +229,4 @@ def test_from_after_to_raises():
 
 def test_naive_datetimes_raise():
     with pytest.raises(ValueError):
-        plan(datetime(2026, 9, 1), bog(2026, 9, 2), NOW, BOG)
+        plan(datetime(2026, 9, 1), bog(2026, 9, 2), NOW, BOG)  # noqa: DTZ001

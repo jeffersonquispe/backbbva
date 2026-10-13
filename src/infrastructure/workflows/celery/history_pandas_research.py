@@ -100,7 +100,7 @@ class HistoryPandasResearchAgent:
                 findings=findings,
                 trace=trace,
             )
-        except Exception as exc:  # failure must not fail the alert workflow
+        except Exception as exc:  # noqa: BLE001 - research failure must not fail workflow
             return ResearchResult(
                 source=ResearchSource.HISTORY_PANDAS,
                 status=ResearchStatus.FAILED,

@@ -154,7 +154,7 @@ def test_changing_amount_tiers_records_history() -> None:
         UpdateOperationalSettingsInput(settings=replace(first, agent_enabled=False))
     )
 
-    third = use_case.execute(
+    use_case.execute(
         UpdateOperationalSettingsInput(settings=replace(second, amount_tiers=[]))
     )
 

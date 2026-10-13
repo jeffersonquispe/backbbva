@@ -57,7 +57,7 @@ class CreateAsyncOperationUseCase:
         saved = self._repository.create(operation)
         try:
             execution_ref = self._executor.dispatch(saved)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - persist any dispatch failure
             failed = self._repository.update(
                 saved.id,
                 status=AsyncOperationStatus.FAILED,

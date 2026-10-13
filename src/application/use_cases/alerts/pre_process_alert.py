@@ -369,7 +369,7 @@ def _with_retry(fn: Callable[[], T], attempts: int = MAX_FETCH_ATTEMPTS) -> T:
     for attempt in range(1, attempts + 1):
         try:
             return fn()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - retry any transient adapter failure
             last_error = exc
             if attempt < attempts:
                 time.sleep(0.05 * attempt)

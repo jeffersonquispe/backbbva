@@ -300,7 +300,7 @@ def _periods(
     result: list[TechnicalPeriod] = []
     for read in reads:
         key = (read.level.value, read.period)
-        s, l, r, e = (
+        step_measures, llm_measures, research_measures, evaluation_measures = (
             steps.get(key, {}),
             llm.get(key, {}),
             research.get(key, {}),
@@ -315,16 +315,16 @@ def _periods(
                 hours=list(read.hours),
                 partial=read.partial,
                 maturation=read.maturation.value,
-                step_executions=_int(s.get(m.COUNT, 0)),
-                step_failed=_int(s.get(m.FAILED_COUNT, 0)),
-                llm_calls=_int(l.get(m.COUNT, 0)),
-                llm_errors=_int(l.get(m.ERROR_COUNT, 0)),
-                input_tokens=_int(l.get(m.INPUT_TOKENS, 0)),
-                output_tokens=_int(l.get(m.OUTPUT_TOKENS, 0)),
-                research_calls=_int(r.get(m.COUNT, 0)),
-                evaluated=_int(e.get(m.COUNT, 0)),
-                hallucinations=_int(e.get(m.HALLUCINATION_COUNT, 0)),
-                data_use_correct=_int(e.get(m.DATA_USE_CORRECT_COUNT, 0)),
+                step_executions=_int(step_measures.get(m.COUNT, 0)),
+                step_failed=_int(step_measures.get(m.FAILED_COUNT, 0)),
+                llm_calls=_int(llm_measures.get(m.COUNT, 0)),
+                llm_errors=_int(llm_measures.get(m.ERROR_COUNT, 0)),
+                input_tokens=_int(llm_measures.get(m.INPUT_TOKENS, 0)),
+                output_tokens=_int(llm_measures.get(m.OUTPUT_TOKENS, 0)),
+                research_calls=_int(research_measures.get(m.COUNT, 0)),
+                evaluated=_int(evaluation_measures.get(m.COUNT, 0)),
+                hallucinations=_int(evaluation_measures.get(m.HALLUCINATION_COUNT, 0)),
+                data_use_correct=_int(evaluation_measures.get(m.DATA_USE_CORRECT_COUNT, 0)),
             )
         )
     return result

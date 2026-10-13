@@ -1004,7 +1004,7 @@ def _resolve_configuration(context: dict[str, Any]):
         return config
     try:
         return repo.get_active()
-    except Exception:
+    except Exception:  # noqa: BLE001 - optional configuration enrichment is fail-safe
         return None
 
 
@@ -1026,7 +1026,7 @@ def _resolve_segment(context: dict[str, Any]) -> dict[str, Any]:
             segments=config.segments,
             roles=pre_process.roles,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 - optional segment enrichment is fail-safe
         context["segment_code"] = None
     return context
 

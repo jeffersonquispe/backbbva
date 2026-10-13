@@ -141,7 +141,7 @@ def test_update_rejects_editing_a_running_scenario() -> None:
 def test_list_filters_by_status() -> None:
     repo = InMemorySimulationScenarioRepository()
     create = CreateSimulationScenarioUseCase(repo)
-    draft = create.execute(_create_input(name="draft-one"))
+    create.execute(_create_input(name="draft-one"))
     running = create.execute(_create_input(name="running-one"))
     repo.update(running.id, status=ScenarioStatus.RUNNING)
 

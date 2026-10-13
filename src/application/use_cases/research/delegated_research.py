@@ -80,7 +80,7 @@ class VectorStoreResearchAgent:
             return ResearchResult(
                 ResearchSource.VECTOR_STORE, ResearchStatus.EXECUTED, findings, trace
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - convert retriever failures to result
             return ResearchResult(
                 ResearchSource.VECTOR_STORE, ResearchStatus.FAILED, error=str(exc)
             )

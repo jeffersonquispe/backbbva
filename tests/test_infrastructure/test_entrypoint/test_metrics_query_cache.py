@@ -168,7 +168,10 @@ def test_naive_datetimes_go_straight_to_the_use_case() -> None:
     inner, cache, cached = _cached(FakeMonotonic())
 
     cached.execute(
-        MetricsQueryInput(from_=datetime(2026, 9, 1), to=datetime(2026, 9, 2))
+        MetricsQueryInput(  # noqa: DTZ001 - verifies naive values bypass the cache
+            from_=datetime(2026, 9, 1),  # noqa: DTZ001
+            to=datetime(2026, 9, 2),  # noqa: DTZ001
+        )
     )
 
     assert len(cache) == 0 and len(inner.calls) == 1
