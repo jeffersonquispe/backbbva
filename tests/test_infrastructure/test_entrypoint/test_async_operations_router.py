@@ -130,3 +130,30 @@ def test_reconcile_async_operations_returns_summary() -> None:
     assert body["operations"][0]["previous_status"] == "RUNNING"
     assert body["operations"][0]["current_status"] == "SUCCEEDED"
     assert body["operations"][0]["execution_state"] == "SUCCEEDED"
+
+
+def test_create_async_operation_returns_422_for_unsupported_type() -> None:
+    from src.application.use_cases.async_operations.create_async_operation import (
+        UnsupportedAsyncOperationTypeError,
+    )
+    from src.infrastructure.entrypoint.api.factories.async_operation_factory import (
+        get_create_async_operation_use_case,
+    )
+
+    class RejectingUseCase:
+        def execute(self, input):
+            raise UnsupportedAsyncOperationTypeError(input.operation_type)
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_create_async_operation_use_case] = (
+        lambda: RejectingUseCase()
+    )
+
+    response = TestClient(app).post(
+        "/async-operations",
+        json={"operation_type": "fraud.massive-review", "payload": {}},
+    )
+
+    assert response.status_code == 422
+    assert "fraud.massive-review" in response.json()["detail"]

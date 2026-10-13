@@ -15,18 +15,39 @@ from src.application.ports.async_operation_port import (
 )
 
 
+# operation_type values the generic ``POST /async-operations`` path can run.
+# Empty on purpose: every real operation (datasets, models, workflows) creates
+# its own record and dispatches its own task. Register a handler for a type in
+# the worker's ``run_async_operation`` and add it here before accepting it.
+GENERIC_OPERATION_TYPES: frozenset[str] = frozenset()
+
+
+class UnsupportedAsyncOperationTypeError(Exception):
+    def __init__(self, operation_type: str) -> None:
+        super().__init__(f"Unsupported async operation type: {operation_type}")
+        self.operation_type = operation_type
+
+
 class CreateAsyncOperationUseCase:
     def __init__(
         self,
         repository: AsyncOperationRepository,
         executor: AsyncExecutor,
+        supported_operation_types: frozenset[str] | None = None,
     ) -> None:
+        """``supported_operation_types=None`` accepts any type (no gate)."""
         self._repository = repository
         self._executor = executor
+        self._supported = supported_operation_types
 
     def execute(
         self, input: CreateAsyncOperationInput
     ) -> AsyncOperationOutput:
+        if (
+            self._supported is not None
+            and input.operation_type not in self._supported
+        ):
+            raise UnsupportedAsyncOperationTypeError(input.operation_type)
         now = datetime.now(timezone.utc)
         operation = AsyncOperationRecord(
             id=uuid.uuid4(),

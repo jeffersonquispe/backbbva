@@ -21,6 +21,9 @@ from src.application.dtos.execute_alert_action_dtos import (
     ExecuteAlertActionInput,
 )
 from src.application.dtos.dataset_dtos import FraudMarkingAnalysisInput
+from src.application.use_cases.async_operations.create_async_operation import (
+    GENERIC_OPERATION_TYPES,
+)
 from src.infrastructure.entrypoint.worker.celery.celery_app import app
 from src.domain.configurations.exceptions import ConfigurationNotFoundError
 from src.infrastructure.workflows.celery.alert_review_workflow import (
@@ -59,22 +62,23 @@ def run_async_operation(operation_id: str) -> dict[str, str]:
     repository = get_async_operation_repository()
     operation_uuid = UUID(operation_id)
 
-    operation = repository.update(
-        operation_uuid,
-        status=AsyncOperationStatus.RUNNING,
-    )
+    operation = repository.get(operation_uuid)
     if operation is None:
         return {"status": "not_found", "operation_id": operation_id}
 
-    repository.update(
-        operation_uuid,
-        status=AsyncOperationStatus.SUCCEEDED,
-        result={
-            "message": "Async operation executed by celery worker",
-            "operation_type": operation.operation_type,
-        },
+    # No generic handlers are registered yet (GENERIC_OPERATION_TYPES is
+    # empty): never report SUCCEEDED for work that wasn't done. Real
+    # operation types dispatch their own tasks; see the use case's note.
+    if operation.operation_type not in GENERIC_OPERATION_TYPES:
+        error = f"Unsupported async operation type: {operation.operation_type}"
+        repository.update(
+            operation_uuid, status=AsyncOperationStatus.FAILED, error=error
+        )
+        return {"status": "failed", "operation_id": operation_id, "error": error}
+
+    raise NotImplementedError(
+        f"No handler registered for async operation type {operation.operation_type}"
     )
-    return {"status": "ok", "operation_id": operation_id}
 
 
 @app.task(name="async_operations.reconcile")

@@ -13,6 +13,7 @@ from src.application.ports.async_execution_inspector_port import (
 )
 from src.application.ports.async_operation_port import AsyncOperationRecord
 from src.application.use_cases.async_operations.create_async_operation import (
+    GENERIC_OPERATION_TYPES,
     CreateAsyncOperationUseCase,
 )
 from src.application.use_cases.async_operations.get_async_operation import (
@@ -90,6 +91,7 @@ def get_create_async_operation_use_case() -> CreateAsyncOperationUseCase:
     return CreateAsyncOperationUseCase(
         repository=get_async_operation_repository(),
         executor=get_async_executor(),
+        supported_operation_types=GENERIC_OPERATION_TYPES,
     )
 
 

@@ -117,3 +117,46 @@ def test_create_async_operation_marks_failed_when_dispatch_fails() -> None:
     assert output.status == AsyncOperationStatus.FAILED
     assert output.error == "broker unavailable"
     assert repository.get(output.id).status == AsyncOperationStatus.FAILED
+
+
+def test_create_async_operation_rejects_unsupported_type_without_side_effects() -> None:
+    import pytest
+
+    from src.application.use_cases.async_operations.create_async_operation import (
+        UnsupportedAsyncOperationTypeError,
+    )
+
+    class CountingExecutor(SuccessfulExecutor):
+        calls = 0
+
+        def dispatch(self, operation):
+            CountingExecutor.calls += 1
+            return super().dispatch(operation)
+
+    repository = InMemoryAsyncOperationRepository()
+    use_case = CreateAsyncOperationUseCase(
+        repository, CountingExecutor(), supported_operation_types=frozenset()
+    )
+
+    with pytest.raises(UnsupportedAsyncOperationTypeError):
+        use_case.execute(
+            CreateAsyncOperationInput(operation_type="fraud.massive-review", payload={})
+        )
+
+    assert repository.operations == {}
+    assert CountingExecutor.calls == 0
+
+
+def test_create_async_operation_accepts_registered_type() -> None:
+    repository = InMemoryAsyncOperationRepository()
+    use_case = CreateAsyncOperationUseCase(
+        repository,
+        SuccessfulExecutor(),
+        supported_operation_types=frozenset({"fraud.massive-review"}),
+    )
+
+    output = use_case.execute(
+        CreateAsyncOperationInput(operation_type="fraud.massive-review", payload={})
+    )
+
+    assert output.status == AsyncOperationStatus.DISPATCHED

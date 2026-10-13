@@ -14,6 +14,7 @@ from src.application.dtos.async_reconciliation_dtos import (
 )
 from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.use_cases.async_operations.create_async_operation import (
+    UnsupportedAsyncOperationTypeError,
     CreateAsyncOperationUseCase,
 )
 from src.application.use_cases.async_operations.get_async_operation import (
@@ -63,13 +64,16 @@ def create_async_operation(
         Depends(get_create_async_operation_use_case),
     ],
 ):
-    return use_case.execute(
-        CreateAsyncOperationInput(
-            operation_type=request.operation_type,
-            payload=request.payload,
-            created_by=request.created_by,
+    try:
+        return use_case.execute(
+            CreateAsyncOperationInput(
+                operation_type=request.operation_type,
+                payload=request.payload,
+                created_by=request.created_by,
+            )
         )
-    )
+    except UnsupportedAsyncOperationTypeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("", response_model=list[AsyncOperationResponse])
