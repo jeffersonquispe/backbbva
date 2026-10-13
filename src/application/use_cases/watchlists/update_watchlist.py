@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from src.application.errors import NotFoundError
 from src.application.ports.watchlist_port import Watchlist, WatchlistRepository
 
 
-class WatchlistNotFoundError(Exception):
+class WatchlistNotFoundError(NotFoundError):
     pass
 
 

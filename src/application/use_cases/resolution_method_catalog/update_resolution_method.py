@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.application.errors import NotFoundError
 from src.application.ports.resolution_method_catalog_port import (
     ResolutionMethod,
     ResolutionMethodCatalogRepository,
@@ -9,7 +10,7 @@ from src.domain.configurations.entities import (
 )
 
 
-class ResolutionMethodNotFoundError(Exception):
+class ResolutionMethodNotFoundError(NotFoundError):
     pass
 
 

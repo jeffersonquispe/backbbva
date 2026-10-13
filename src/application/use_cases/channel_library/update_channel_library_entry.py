@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from src.application.errors import NotFoundError
 from src.application.ports.channel_library_port import (
     ChannelLibraryEntry,
     ChannelLibraryRepository,
 )
 
 
-class ChannelLibraryEntryNotFoundError(Exception):
+class ChannelLibraryEntryNotFoundError(NotFoundError):
     pass
 
 

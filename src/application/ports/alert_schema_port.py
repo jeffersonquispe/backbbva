@@ -5,6 +5,8 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Protocol
 
+from src.application.errors import ValidationError
+
 
 class AlertSchemaStatus(StrEnum):
     DRAFT = "draft"
@@ -29,7 +31,7 @@ class AlertSchemaDataSource(StrEnum):
     ARIA = "aria"
 
 
-class AlertSchemaValidationError(ValueError):
+class AlertSchemaValidationError(ValidationError):
     pass
 
 

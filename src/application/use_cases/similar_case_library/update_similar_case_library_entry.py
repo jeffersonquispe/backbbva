@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.application.errors import NotFoundError
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.similar_case_library_port import (
@@ -8,7 +9,7 @@ from src.application.ports.similar_case_library_port import (
 )
 
 
-class SimilarCaseLibraryEntryNotFoundError(Exception):
+class SimilarCaseLibraryEntryNotFoundError(NotFoundError):
     pass
 
 

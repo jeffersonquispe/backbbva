@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from src.application.errors import ConflictError, ForbiddenError, NotFoundError
 from src.application.ports.local_auth_port import (
     ROLE_PERMISSIONS,
     LocalRole,
@@ -13,15 +14,15 @@ from src.application.ports.local_auth_port import (
 from src.application.ports.revoked_token_port import RevokedTokenRepository
 
 
-class InvalidCredentialsError(Exception):
+class InvalidCredentialsError(ForbiddenError):
     pass
 
 
-class DuplicateEmailError(Exception):
+class DuplicateEmailError(ConflictError):
     pass
 
 
-class LocalUserNotFoundError(Exception):
+class LocalUserNotFoundError(NotFoundError):
     pass
 
 

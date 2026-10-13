@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from typing import Any
 
+from src.application.errors import ValidationError
 from src.application.use_cases.datasets.field_extraction import get_nested_value
 
 # The 3 ground-truth values a dataset row's "marcacion_final" column can
@@ -20,7 +21,7 @@ MARCACION_CLASSES = ("no-risk", "risk-suspected", "risk")
 TIPO_FIELD = "tipo"
 
 
-class InsufficientSampleDataError(Exception):
+class InsufficientSampleDataError(ValidationError):
     """A requested class target exceeds how many rows of that class exist
     in the dataset - raised instead of silently returning fewer rows than
     asked for, since a caller building an evaluation sample needs to know

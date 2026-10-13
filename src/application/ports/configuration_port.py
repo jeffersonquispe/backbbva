@@ -8,6 +8,8 @@ from src.domain.configurations.entities import (
 
 
 class ConfigurationRepository(Protocol):
+    """Persistence contract for versioned configurations."""
+
     def create(self, config: ConfigurationRecord) -> ConfigurationRecord: ...
 
     def mark_tested(self, configuration_id: str, version: int) -> None: ...

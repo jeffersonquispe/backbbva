@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.application.errors import ValidationError
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
     FraudKnowledgeSearchPort,
@@ -11,7 +12,7 @@ from src.application.ports.vector_store_instance_port import (
 )
 
 
-class VectorStoreNotPromotedError(ValueError):
+class VectorStoreNotPromotedError(ValidationError):
     pass
 
 

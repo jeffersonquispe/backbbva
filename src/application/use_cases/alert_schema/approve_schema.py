@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from src.application.dtos.alert_schema_dtos import ApproveAlertSchemaInput
+from src.application.errors import ForbiddenError, ValidationError
 from src.application.ports.alert_schema_port import (
     AlertSchemaRepository,
     AlertSchemaStatus,
@@ -8,11 +9,11 @@ from src.application.ports.alert_schema_port import (
 )
 
 
-class SelfApprovalError(PermissionError):
+class SelfApprovalError(ForbiddenError):
     pass
 
 
-class ImpactAcknowledgementRequired(ValueError):
+class ImpactAcknowledgementRequired(ValidationError):
     pass
 
 

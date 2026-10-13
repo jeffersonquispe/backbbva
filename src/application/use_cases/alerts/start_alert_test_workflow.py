@@ -45,13 +45,8 @@ logger = logging.getLogger(__name__)
 
 WORKFLOW_NAME = "massive_fraud_alert_review"
 
-# DynamoDB hard-caps a single item at 400KB (409,600 bytes), covering
-# attribute names + values together. Checked against a rough
-# json.dumps(payload) byte count - not exact DynamoDB encoding, but close
-# enough to fail fast with a clear error instead of a raw ValidationException
-# out of put_item. The margin below 409,600 covers AlertRecord's other
-# fields (id, event_id, event_type, status, timestamps, ...), which are
-# small and roughly constant per alert.
+# Maximum serialized event size accepted by this use case. Keep headroom for
+# application metadata added when the alert is recorded.
 MAX_ALERT_PAYLOAD_BYTES = 380_000
 
 

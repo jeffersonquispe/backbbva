@@ -1,4 +1,5 @@
 from src.application.dtos.alert_schema_dtos import SaveAlertSchemaDraftInput
+from src.application.errors import ConflictError
 from src.application.ports.alert_schema_port import (
     AlertSchemaRepository,
     AlertSchemaVersion,
@@ -6,7 +7,7 @@ from src.application.ports.alert_schema_port import (
 )
 
 
-class SchemaVersionConflictError(ValueError):
+class SchemaVersionConflictError(ConflictError):
     pass
 
 

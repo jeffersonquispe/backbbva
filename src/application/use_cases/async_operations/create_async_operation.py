@@ -7,6 +7,7 @@ from src.application.dtos.async_operation_dtos import (
     AsyncOperationOutput,
     CreateAsyncOperationInput,
 )
+from src.application.errors import ValidationError
 from src.application.ports.async_executor_port import AsyncExecutor
 from src.application.ports.async_operation_port import (
     AsyncOperationRecord,
@@ -21,7 +22,7 @@ from src.application.ports.async_operation_port import (
 GENERIC_OPERATION_TYPES: frozenset[str] = frozenset()
 
 
-class UnsupportedAsyncOperationTypeError(Exception):
+class UnsupportedAsyncOperationTypeError(ValidationError):
     def __init__(self, operation_type: str) -> None:
         super().__init__(f"Unsupported async operation type: {operation_type}")
         self.operation_type = operation_type

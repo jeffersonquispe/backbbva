@@ -39,10 +39,8 @@ class AnalystReviewAlertOutput:
     modus_operandi_id: str | None = None
     modus_operandi_title: str | None = None
     playbook: ModusOperandiPlaybook | None = None
-    # channel -> {"available": int, "status": str, "total": int | None}, no
-    # datetimes - this DTO gets dataclasses.asdict()'d straight into a
-    # DynamoDB step record and into a Celery task's JSON args, both of
-    # which reject raw datetime values.
+    # channel -> {"available": int, "status": str, "total": int | None}.
+    # Primitive values keep this output straightforward to serialize.
     operations_capacity: dict[str, dict[str, object]] = field(default_factory=dict)
     input_tokens: int = 0
     output_tokens: int = 0

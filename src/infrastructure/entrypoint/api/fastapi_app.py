@@ -3,8 +3,16 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
+from src.application.errors import (
+    ConflictError,
+    DomainException,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.initialization.cors import (
     configure_cors,
@@ -114,6 +122,7 @@ def create_app() -> FastAPI:
         version=genai_config.COMPONENT_VERSION,
         lifespan=lifespan,
     )
+    _register_error_handlers(app)
     configure_cors(app)
     app.include_router(health_router)
     app.include_router(auth_router, prefix=genai_config.API_V0_STR)
@@ -220,6 +229,40 @@ def create_app() -> FastAPI:
         prefix=genai_config.API_V0_STR,
     )
     return app
+
+
+def _register_error_handlers(app: FastAPI) -> None:
+    """Translate business errors to stable HTTP responses in one place."""
+
+    @app.exception_handler(ValidationError)
+    async def validation_error_handler(
+        request: Request, exc: ValidationError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(NotFoundError)
+    async def not_found_error_handler(
+        request: Request, exc: NotFoundError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+    @app.exception_handler(ConflictError)
+    async def conflict_error_handler(
+        request: Request, exc: ConflictError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    @app.exception_handler(ForbiddenError)
+    async def forbidden_error_handler(
+        request: Request, exc: ForbiddenError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+    @app.exception_handler(DomainException)
+    async def domain_error_handler(
+        request: Request, exc: DomainException
+    ) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
 app = create_app()

@@ -8,6 +8,7 @@ from src.application.dtos.configuration_dtos import (
     ConfigurationPreviewOutput,
     CreateConfigurationInput,
 )
+from src.application.errors import NotFoundError
 from src.application.ports.configuration_port import (
     ConfigurationRepository,
 )
@@ -19,7 +20,7 @@ from src.domain.configurations.entities import (
 )
 
 
-class ConfigurationBaseNotFoundError(Exception):
+class ConfigurationBaseNotFoundError(NotFoundError):
     pass
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.application.errors import NotFoundError
 from src.application.ports.marcacion_catalog_port import (
     MarcacionCatalogRepository,
     MarcacionCategory,
@@ -7,7 +8,7 @@ from src.application.ports.marcacion_catalog_port import (
 )
 
 
-class MarcacionCategoryNotFoundError(Exception):
+class MarcacionCategoryNotFoundError(NotFoundError):
     pass
 
 

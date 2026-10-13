@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+from src.domain import (
+    ConflictError,
+    DomainException,
+    ValidationError,
+)
 
-class MandatoryAlertDataMissingError(Exception):
+
+class MandatoryAlertDataMissingError(ValidationError):
     def __init__(self, missing_fields: list[str]) -> None:
         self.missing_fields = missing_fields
         super().__init__(
@@ -9,7 +15,7 @@ class MandatoryAlertDataMissingError(Exception):
         )
 
 
-class NoActiveAlertSchemaError(Exception):
+class NoActiveAlertSchemaError(DomainException):
     """The alert cannot be processed without an approved schema version."""
 
     def __init__(self) -> None:
@@ -19,7 +25,7 @@ class NoActiveAlertSchemaError(Exception):
         )
 
 
-class AlertFieldTypeMismatchError(Exception):
+class AlertFieldTypeMismatchError(ValidationError):
     def __init__(self, field: str, expected: str, value: object) -> None:
         self.field = field
         self.expected = expected
@@ -30,30 +36,25 @@ class AlertFieldTypeMismatchError(Exception):
         )
 
 
-class AlertPayloadTooLargeError(Exception):
-    """Raised before an alert payload reaches DynamoDB, which hard-caps a
-    single item at 400KB. Datasets with large embedded fields (e.g. a
-    customer's full transaction history as JSON in one CSV column - see
-    csv_dataset_repository.py) can produce rows that would otherwise fail
-    deep inside put_item with an opaque ValidationException."""
+class AlertPayloadTooLargeError(ValidationError):
+    """An alert payload exceeds the configured application size limit."""
 
     def __init__(self, size_bytes: int, limit_bytes: int) -> None:
         self.size_bytes = size_bytes
         self.limit_bytes = limit_bytes
         super().__init__(
             f"Alert payload is {size_bytes:,} bytes, over the "
-            f"{limit_bytes:,}-byte limit (DynamoDB's item size cap, minus "
-            "headroom for the alert's other fields)."
+            f"{limit_bytes:,}-byte limit."
         )
 
 
-class AlertNotFoundError(Exception):
+class AlertNotFoundError(DomainException):
     def __init__(self, alert_id: str) -> None:
         self.alert_id = alert_id
         super().__init__(f"Alert not found: {alert_id}")
 
 
-class AlertNotInAnalystQueueError(Exception):
+class AlertNotInAnalystQueueError(ConflictError):
     """Only ESCALATED alerts can be taken/resolved by a human analyst."""
 
     def __init__(self, alert_id: str, status: str) -> None:
@@ -64,7 +65,7 @@ class AlertNotInAnalystQueueError(Exception):
         )
 
 
-class AnalystBusyError(Exception):
+class AnalystBusyError(ConflictError):
     """An analyst holds at most one alert at a time - any other alert opens
     read-only until they resolve or release the one they have."""
 
@@ -77,7 +78,7 @@ class AnalystBusyError(Exception):
         )
 
 
-class AlertAlreadyTakenError(Exception):
+class AlertAlreadyTakenError(ConflictError):
     def __init__(self, alert_id: str) -> None:
         self.alert_id = alert_id
         super().__init__(
@@ -85,7 +86,7 @@ class AlertAlreadyTakenError(Exception):
         )
 
 
-class NoAnalystCapacityError(Exception):
+class NoAnalystCapacityError(ConflictError):
     """Every analyst the staffing matrix plans for this hour is busy (or
     analysts are switched off)."""
 
@@ -93,7 +94,7 @@ class NoAnalystCapacityError(Exception):
         super().__init__("No analyst capacity available right now.")
 
 
-class AlertNotHeldByAnalystError(Exception):
+class AlertNotHeldByAnalystError(ConflictError):
     def __init__(self, alert_id: str) -> None:
         self.alert_id = alert_id
         super().__init__(
@@ -102,7 +103,7 @@ class AlertNotHeldByAnalystError(Exception):
         )
 
 
-class NoActiveVoicebotCallError(Exception):
+class NoActiveVoicebotCallError(ConflictError):
     def __init__(self, alert_id: str) -> None:
         self.alert_id = alert_id
         super().__init__(
@@ -111,7 +112,7 @@ class NoActiveVoicebotCallError(Exception):
         )
 
 
-class SnapshotVersionConflictError(Exception):
+class SnapshotVersionConflictError(ConflictError):
     """The alert's metrics snapshot changed between read and write (another
     event won the race) - re-read and recompute the delta. Raised by
     MetricsRollupRepository.apply; RecordAlertMetricsEvent retries on it."""
@@ -125,7 +126,7 @@ class SnapshotVersionConflictError(Exception):
         )
 
 
-class InvalidFraudLabelError(ValueError):
+class InvalidFraudLabelError(ValidationError):
     """A fraud-team review may only set fraud_label to fraud or no_fraud
     (pending is the absence of a decision, never a review outcome)."""
 
@@ -136,7 +137,7 @@ class InvalidFraudLabelError(ValueError):
         )
 
 
-class AdversarialFeedbackLimitExceededError(Exception):
+class AdversarialFeedbackLimitExceededError(DomainException):
     """Raised when an adversarial review step keeps rejecting its paired
     primary step (classification, or detector) past the workflow's/
     segment's allowed feedback loop-backs, so the alert must escalate to a

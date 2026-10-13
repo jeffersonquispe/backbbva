@@ -24,6 +24,7 @@ from src.application.dtos.alert_history_dtos import (
     ListAlertHistoryInput,
     ListAlertHistoryOutput,
 )
+from src.application.errors import ValidationError
 from src.application.ports.alert_port import (
     AlertRepository,
 )
@@ -48,7 +49,7 @@ MAX_EXAMINED_PER_PAGE = 5000
 _CHUNK = 200
 
 
-class InvalidHistoryCursorError(ValueError):
+class InvalidHistoryCursorError(ValidationError):
     pass
 
 

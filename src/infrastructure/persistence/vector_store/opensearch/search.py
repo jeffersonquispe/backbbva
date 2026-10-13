@@ -17,6 +17,12 @@ from src.infrastructure.persistence.vector_store.opensearch.repository import (
     document_from_source,
 )
 
+_SEARCH_PIPELINE_IDS = {
+    SearchPipeline.EMBEDDING_HEAVY: "fraud_knowledge_hybrid_80_20",
+    SearchPipeline.BALANCED: "fraud_knowledge_hybrid_50_50",
+    SearchPipeline.KEYWORD_HEAVY: "fraud_knowledge_hybrid_20_80",
+}
+
 
 class OpenSearchFraudKnowledgeSearchAdapter(FraudKnowledgeSearchPort):
     def __init__(
@@ -84,7 +90,7 @@ class OpenSearchFraudKnowledgeSearchAdapter(FraudKnowledgeSearchPort):
         response = self._client.search(
             index=FRAUD_KNOWLEDGE_INDEX,
             body=body,
-            params={"search_pipeline": pipeline.value},
+            params={"search_pipeline": _SEARCH_PIPELINE_IDS[pipeline]},
         )
         return [
             FraudKnowledgeSearchResult(

@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
+from src.application.errors import ConflictError
 from src.application.ports.configuration_port import (
     ConfigurationRepository,
 )
@@ -13,7 +14,7 @@ from src.domain.configurations.entities import (
 )
 
 
-class ConfigurationVersionConflictError(Exception):
+class ConfigurationVersionConflictError(ConflictError):
     pass
 
 

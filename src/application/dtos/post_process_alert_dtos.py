@@ -27,7 +27,6 @@ class PostProcessAlertOutput:
     status: str  # "success"
     resolution_path: str
     total_duration_seconds: float
-    # ISO 8601, not datetime: this DTO gets dataclasses.asdict()'d
-    # straight into a DynamoDB step record, which rejects raw datetimes.
+    # ISO 8601 keeps the API/workflow output representation portable.
     closed_at: str
     documentation: str = ""

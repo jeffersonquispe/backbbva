@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from src.application.errors import NotFoundError
 from src.application.ports.variable_catalog_port import (
     VariableCatalogRepository,
     VariableEntry,
 )
 
 
-class VariableNotFoundError(Exception):
+class VariableNotFoundError(NotFoundError):
     pass
 
 

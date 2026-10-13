@@ -6,6 +6,8 @@ from datetime import date
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 from src.application.dtos.run_alert_review_workflow_dtos import (
     RunAlertReviewWorkflowOutput,
 )
@@ -209,3 +211,26 @@ def test_analyze_alert_schema_presence_task(monkeypatch):
     fake = RecordingUseCase(None)
     monkeypatch.setattr(factories, "get_analyze_alert_schema_presence_use_case", lambda: fake)
     assert tasks.analyze_alert_schema_presence.run() is None
+def test_alert_review_task_retries_transient_errors(monkeypatch):
+    class FailingUseCase:
+        def execute(self, *args, **kwargs):
+            raise RuntimeError("transient")
+
+    _factory(monkeypatch, tasks, "get_run_alert_review_workflow_use_case", FailingUseCase())
+    with pytest.raises(RuntimeError, match="transient"):
+        tasks.run_alert_review_workflow.run(str(uuid4()))
+    assert tasks.run_alert_review_workflow.max_retries == tasks._ALERT_REVIEW_MAX_RETRIES
+    assert Exception in tasks.run_alert_review_workflow.autoretry_for
+
+
+def test_alert_review_task_does_not_retry_terminal_domain_errors(monkeypatch):
+    from src.domain.alerts.exceptions import AdversarialFeedbackLimitExceededError
+
+    class TerminalUseCase:
+        def execute(self, *args, **kwargs):
+            raise AdversarialFeedbackLimitExceededError("stop")
+
+    _factory(monkeypatch, tasks, "get_run_alert_review_workflow_use_case", TerminalUseCase())
+    with pytest.raises(AdversarialFeedbackLimitExceededError):
+        tasks.run_alert_review_workflow.run(str(uuid4()))
+    assert AdversarialFeedbackLimitExceededError in tasks.run_alert_review_workflow.dont_autoretry_for

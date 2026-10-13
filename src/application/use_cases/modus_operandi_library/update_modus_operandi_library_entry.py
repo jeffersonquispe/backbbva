@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.application.errors import NotFoundError, ValidationError
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.modus_operandi_library_port import (
     FALLBACK_RESOLUTION_TAGS,
@@ -14,11 +15,11 @@ from src.application.use_cases.modus_operandi_library.create_modus_operandi_libr
 )
 
 
-class ModusOperandiLibraryEntryNotFoundError(Exception):
+class ModusOperandiLibraryEntryNotFoundError(NotFoundError):
     pass
 
 
-class InvalidModusOperandiPlaybookError(ValueError):
+class InvalidModusOperandiPlaybookError(ValidationError):
     pass
 
 

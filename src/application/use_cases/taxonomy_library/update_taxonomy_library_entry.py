@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.application.errors import NotFoundError
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.taxonomy_library_port import (
@@ -11,7 +12,7 @@ from src.application.use_cases.taxonomy_library.create_taxonomy_library_entry im
 )
 
 
-class TaxonomyLibraryEntryNotFoundError(Exception):
+class TaxonomyLibraryEntryNotFoundError(NotFoundError):
     pass
 
 

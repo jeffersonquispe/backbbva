@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.application.errors import ConflictError, NotFoundError
 from src.application.ports.configuration_port import (
     ConfigurationRepository,
 )
@@ -9,11 +10,11 @@ from src.domain.configurations.entities import (
 )
 
 
-class ConfigurationNotFoundError(Exception):
+class ConfigurationNotFoundError(NotFoundError):
     pass
 
 
-class ConfigurationNotTestedError(Exception):
+class ConfigurationNotTestedError(ConflictError):
     pass
 
 

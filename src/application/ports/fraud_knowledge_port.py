@@ -93,11 +93,11 @@ FraudKnowledgeDocument = (
 
 
 class SearchPipeline(StrEnum):
-    """Value doubles as the OpenSearch search_pipeline id."""
+    """Search relevance profile; adapters map it to backend-specific ids."""
 
-    EMBEDDING_HEAVY = "fraud_knowledge_hybrid_80_20"  # 0.8 embedding / 0.2 keyword
-    BALANCED = "fraud_knowledge_hybrid_50_50"  # 0.5 embedding / 0.5 keyword
-    KEYWORD_HEAVY = "fraud_knowledge_hybrid_20_80"  # 0.2 embedding / 0.8 keyword
+    EMBEDDING_HEAVY = "embedding_heavy"
+    BALANCED = "balanced"
+    KEYWORD_HEAVY = "keyword_heavy"
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,18 @@
 class DomainException(Exception):
-    def __init__(self, message):
-        super().__init__(message)
+    """Base for expected business errors shared across application layers."""
 
-    def __str__(self):
-        return f"{self.args[0]}"
+
+class ValidationError(DomainException, ValueError):
+    """Invalid business input."""
+
+
+class NotFoundError(DomainException):
+    """Requested business resource does not exist."""
+
+
+class ConflictError(DomainException):
+    """Requested operation conflicts with current business state."""
+
+
+class ForbiddenError(DomainException):
+    """Business operation is forbidden."""

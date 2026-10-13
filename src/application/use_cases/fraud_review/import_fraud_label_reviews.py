@@ -14,6 +14,7 @@ import io
 from uuid import UUID
 
 from src.application.dtos.fraud_review_dtos import ReviewFraudLabelInput
+from src.application.errors import ValidationError
 from src.application.ports.fraud_label_review_import_port import (
     FraudLabelReviewImportResult,
     FraudLabelReviewImportStatus,
@@ -31,7 +32,7 @@ REQUIRED_COLUMNS = ("alert_id", "fraud_label")
 MAX_ROWS = 50_000
 
 
-class InvalidFraudLabelReviewFileError(ValueError):
+class InvalidFraudLabelReviewFileError(ValidationError):
     pass
 
 

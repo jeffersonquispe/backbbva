@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from src.application.errors import ConflictError
 from src.application.ports.vector_store_instance_port import (
     VectorStoreInstance,
     VectorStoreInstanceAsset,
@@ -9,7 +10,7 @@ from src.application.ports.vector_store_instance_port import (
 )
 
 
-class DuplicateVectorStoreInstanceNameError(ValueError):
+class DuplicateVectorStoreInstanceNameError(ConflictError):
     pass
 
 

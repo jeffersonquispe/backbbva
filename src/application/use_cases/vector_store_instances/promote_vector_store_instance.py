@@ -4,6 +4,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import UUID
 
+from src.application.errors import ValidationError
 from src.application.ports.flag_library_port import FlagLibraryRepository
 from src.application.ports.fraud_knowledge_port import DocumentType
 from src.application.ports.fraud_knowledge_repository_port import (
@@ -52,7 +53,7 @@ from src.domain.configurations.entities import (
 )
 
 
-class EmptyVectorStoreInstanceError(ValueError):
+class EmptyVectorStoreInstanceError(ValidationError):
     pass
 
 

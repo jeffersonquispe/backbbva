@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from src.domain import DomainException
 
-class ConfigurationNotFoundError(Exception):
+
+class ConfigurationNotFoundError(DomainException):
     """Raised when a test run explicitly pins a ConfigurationRef
     (configuration_id [+ version]) that doesn't resolve to a stored
     ConfigurationRecord. Deliberately fails loud here, unlike the

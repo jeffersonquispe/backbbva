@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 
+from src.application.errors import NotFoundError
 from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
     VectorStoreInstance,
@@ -11,7 +12,7 @@ from src.application.ports.vector_store_instance_port import (
 )
 
 
-class VectorStoreInstanceNotFoundError(ValueError):
+class VectorStoreInstanceNotFoundError(NotFoundError):
     pass
 
 
