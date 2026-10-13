@@ -73,8 +73,8 @@ for the template.
   — worker-only, not shared with the API's `entrypoint/api/factories/` (the
   two run as separate poetry projects, see below). Same rules as the API:
   `@lru_cache` singleton functions for stateless adapters, plain functions
-  returning a fresh use case per call. `alert_review_workflow.py` (the
-  workflow runner) and `entrypoint/worker/celery/tasks.py` consume them; neither
+  returning a fresh use case per call. The `review_*_steps.py` step
+  executors and `entrypoint/worker/celery/tasks.py` consume them; neither
   may construct adapters or use cases inline (enforced by
   `tests/test_architecture/`, run `make test-architecture`).
   This is also why `monitoring/` and `llm/` factories live directly under
@@ -231,14 +231,18 @@ Design: `docs/OBSERVABILITY_STRATEGY.md`; tasks/decisions:
   re-declare its fields. Dataclass inheritance works too but every
   `AlertRecord` subclass field needs a default (its last 3 fields already
   have defaults, Python forbids non-default fields after that in the MRO).
-- The 7 `LINEAR_STEPS` (`pre_process`, `profiling`, `classification`,
-  `adversarial`, `analyst`, `executor`, `post_process`) are **still
-  placeholder logic** inline in
-  `infrastructure/workflows/celery/alert_review_workflow.py`, passed a raw
-  `context: dict[str, Any]` between steps. Migrating each into a real
-  `application/use_cases/alerts/<step>.py` use case (composing
-  `LLMUnitOfWorkFactory` + `MonitoringPort`) is planned but **not done** —
-  don't assume it exists.
+- Workflow orchestration lives in
+  `application/use_cases/alerts/run_alert_review_workflow.py`
+  (`RunAlertReviewWorkflowUseCase`: step order, status transitions,
+  adversarial feedback limits, escalation, terminal outcomes; pure helpers
+  in `alert_review_policy.py`, incl. `LINEAR_STEPS`). Each step's body is
+  an `AlertReviewStepExecutor` port; the worker adapter is
+  `infrastructure/workflows/celery/review_step_executor.py` over
+  `review_{intake,agent,action}_steps.py`, built by
+  `task_factories.get_run_alert_review_workflow_use_case()`. Steps are still
+  functions passed a raw `context: dict[str, Any]` — typed run state and
+  per-step `application/use_cases/alerts/<step>.py` use cases are **not
+  done**; don't assume they exist.
 - `application/ports/audit_port.py` (`AuditLogRepository`) is an unrelated,
   older concept — a flat per-tool-call audit log CRUD repo. Don't confuse it
   with `monitoring_port.py` (the span/CoT/dependency tracker built this

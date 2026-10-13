@@ -66,30 +66,43 @@ concrete edit. Check off in place; don't renumber.
 
 ### CA-002 — Move fraud-review workflow policy into application layer
 
-File: `src/infrastructure/workflows/celery/alert_review_workflow.py` (705 lines).
+File: `src/infrastructure/workflows/celery/alert_review_workflow.py` (705 lines)
+— *removed 2026-10-13; see "CA-002 status" below.*
+
+**CA-002 status (2026-10-13):** orchestration moved to
+`application/use_cases/alerts/run_alert_review_workflow.py`
+(`RunAlertReviewWorkflowUseCase`) with pure policy in
+`alert_review_policy.py`, step bodies behind the `AlertReviewStepExecutor`
+port (`CeleryWorkerStepExecutor` + `review_{intake,agent,action}_steps.py`),
+`AdversarialFeedbackLimitExceededError` in `src/domain/alerts/exceptions.py`,
+wired by `task_factories.get_run_alert_review_workflow_use_case()`.
+**Open:** typed `WorkflowRunState` replacing the `context` dict, and
+`tests/test_application/.../test_run_alert_review_workflow.py` with
+in-memory fakes (the existing end-to-end tests still live under
+`tests/test_infrastructure/test_workflows/` and run the real step wiring).
 
 - [x] Read `LINEAR_STEPS` tuple and `class AlertReviewWorkflowRunner`
       fully before implementation planning (verified 2026-10-13; the file
       is now 1568 lines). This remains the highest-risk file in the backlog.
-- [ ] Create `src/application/use_cases/alerts/run_alert_review_workflow.py`
+- [x] Create `src/application/use_cases/alerts/run_alert_review_workflow.py`
       with `RunAlertReviewWorkflowUseCase`. Constructor takes ports for:
       alert repo, workflow execution repo, each of the 7 step
       use-cases/executors, escalation dispatcher
       (`self._escalation = get_analyst_escalation_dispatcher()` at line 96
       — replace the factory call with constructor injection), status
       reporting.
-- [ ] Move the retry/escalation policy at lines ~139-215
+- [x] Move the retry/escalation policy at lines ~139-215
       (`for step_name in LINEAR_STEPS` loop, `_escalate_to_analyst` at
       line 215) into the new use case as plain methods — no Celery
       imports.
-- [ ] Move the adversarial feedback-loop policy: `_effective_max_feedback_iterations`
+- [x] Move the adversarial feedback-loop policy: `_effective_max_feedback_iterations`
       (line 509), `_needs_classification_feedback` (line 689), and the
       while-loop at lines 311-344 that increments `context["feedback_iterations"]`
       and raises when `AdversarialFeedbackLimitExceededError` (line 346)
       — this exception currently lives in infrastructure, move its
       definition to `src/application/use_cases/alerts/run_alert_review_workflow.py`
       or a new `src/application/errors.py` per CA-007.
-- [ ] Move each step runner (`_run_pre_process` line 363,
+- [x] Move each step runner (`_run_pre_process` line 363,
       `_run_profiling` line 420, `_run_classification` line 518,
       `_run_adversarial` line 548, `_run_analyst` line 577,
       `_run_executor` line 595, `_run_post_process` line 633) into the
@@ -102,7 +115,7 @@ File: `src/infrastructure/workflows/celery/alert_review_workflow.py` (705 lines)
       in `src/application/dtos/` or promote to
       `src/domain/alerts/` if CA-005 lands first for this bounded
       context.
-- [ ] After the move, `alert_review_workflow.py` (staying under
+- [x] After the move, `alert_review_workflow.py` (staying under
       `infrastructure/workflows/celery/`) should shrink to: Celery task
       decorator, deserialize input, call
       `RunAlertReviewWorkflowUseCase.execute(...)`, serialize output,
@@ -124,7 +137,7 @@ factories: `src/infrastructure/workflows/celery/factories.py`.
       `get_async_operation_repository()` (verified 2026-10-13). Its behavior
       is tracked separately in `AUDIT_FINDINGS.md`; this does not complete
       the larger CA-003 task.
-- [ ] Lines 98-99: `ReconcileAsyncOperationsUseCase(repository=DynamoAsyncOperationRepository(), ...)`
+- [x] Lines 98-99: `ReconcileAsyncOperationsUseCase(repository=DynamoAsyncOperationRepository(), ...)`
       → add `get_reconcile_async_operations_use_case()` to
       `src/infrastructure/workflows/celery/factories.py` (check —
       `async_operation_factory.py` line 108 already has
@@ -132,23 +145,24 @@ factories: `src/infrastructure/workflows/celery/factories.py`.
       factory under `entrypoint/api/factories/`, do NOT import it into
       the worker per CLAUDE.md — duplicate a worker-owned version in
       `workflows/celery/factories.py` instead).
-- [ ] Line 166: `EscalateAlertToAnalystUseCase(...)` inline → add
+- [x] Line 166: `EscalateAlertToAnalystUseCase(...)` inline → add
       `get_escalate_alert_to_analyst_use_case()` to worker factories.
-- [ ] Line 194: `DocumentAnalystDecisionUseCase(...)` inline → add
+- [x] Line 194: `DocumentAnalystDecisionUseCase(...)` inline → add
       `get_document_analyst_decision_use_case()` to worker factories.
-- [ ] Line 222: `ExecuteAlertActionUseCase(...)` inline → add
+- [x] Line 222: `ExecuteAlertActionUseCase(...)` inline → add
       `get_execute_alert_action_use_case()` to worker factories.
-- [ ] Lines 245-248: `AnalyzeDatasetUseCase(dataset_repository=MinioCsvDatasetRepository(get_dataset_object_storage()), sample_repository=DynamoDatasetSampleRepository(), summary_repository=DynamoDatasetSummaryRepository())`
+- [x] Lines 245-248: `AnalyzeDatasetUseCase(dataset_repository=MinioCsvDatasetRepository(get_dataset_object_storage()), sample_repository=DynamoDatasetSampleRepository(), summary_repository=DynamoDatasetSummaryRepository())`
       inline → add `get_analyze_dataset_use_case()` to worker factories,
       cache the object-storage client the same way
       `get_dataset_object_storage()` already does.
-- [ ] After all of the above, `tasks.py` should contain: `@app.task`
+- [x] After all of the above, `tasks.py` should contain: `@app.task`
       decorators, deserialization of task args, one factory call, one
       use-case `.execute(...)` call, serialization of result, retry
       logic. No `Dynamo*(`, `Minio*(`, or `*UseCase(` constructor calls
       left in the file — verify with:
       `grep -n "Dynamo\|Minio\|UseCase(" src/infrastructure/entrypoint/worker/celery/tasks.py`
-      (should only match imports, not calls).
+      (should only match imports, not calls). *(verified 2026-10-13: no
+      inline constructors left; all go through `task_factories.py`)*
 - [ ] Add one focused test per task handler under
       `tests/test_infrastructure/test_worker/` using an injected fake
       use case (per CLAUDE.md testing convention — hand-written
@@ -280,7 +294,7 @@ entities with contracts.
       `dataset_sampling.py`, `update_tag.py` — confirm each still
       defines its own exception class with
       `grep -n "^class.*Error" src/application/use_cases/**/*.py`.
-- [ ] `AdversarialFeedbackLimitExceededError` — currently in
+- [x] `AdversarialFeedbackLimitExceededError` — currently in
       `alert_review_workflow.py` line 346 (see CA-002 task above, this
       is the same move, don't do it twice).
 - [ ] Add centralized FastAPI exception handlers in
@@ -391,11 +405,12 @@ Files confirmed still oversized:
 since the backlog was written; re-read fully before splitting, don't
 trust old line-range citations here at all.
 
-- [ ] Split `schemas.py` by API capability into
+- [x] Split `schemas.py` by API capability into
       `src/infrastructure/entrypoint/api/schemas/` package: e.g.
       `configurations.py`, `alerts.py`, `datasets.py`, `test_runs.py`,
       etc. — mirror the router filenames under
-      `entrypoint/api/routers/` for 1:1 naming.
+      `entrypoint/api/routers/` for 1:1 naming. *(done 2026-10-12, see
+      "Large-file split" below)*
 - [ ] Extract request/domain/response mapping functions out of
       `configurations_router.py` into a new
       `src/infrastructure/entrypoint/api/mappers/configurations_mapper.py`
@@ -439,8 +454,8 @@ trust old line-range citations here at all.
       `task_factories.py` (task-level wiring).
 - [x] `alert_review_workflow.py` (1857) -> 1459 lines + `step_context.py`,
       `history_research.py`, `xgboost_score.py`, `executor_text.py`.
-- [ ] **Still large**: `alert_review_workflow.py` (runner class + the
-      `_run_*` step functions) and `configuration.py` (538, pydantic
+- [x] `alert_review_workflow.py` removed by CA-002 (use case + 4 step modules).
+- [ ] **Still large**: `configuration.py` (538, pydantic
       schemas). Splitting the `_run_*` functions further means moving the
       `get_*` call sites tests monkeypatch on `workflow_module`
       (`get_alert_repository`, `get_configuration_repository`,

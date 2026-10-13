@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
 import src.infrastructure.workflows.celery.history_research as history_research_module
+import src.infrastructure.workflows.celery.review_agent_steps as workflow_module
 from src.application.dtos.adversarial_review_alert_dtos import (
     AdversarialReviewAlertOutput,
 )

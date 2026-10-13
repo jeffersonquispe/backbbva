@@ -14,8 +14,11 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
-import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
 import src.infrastructure.workflows.celery.factories as factories_module
+import src.infrastructure.workflows.celery.review_action_steps as action_steps_module
+import src.infrastructure.workflows.celery.review_agent_steps as agent_steps_module
+import src.infrastructure.workflows.celery.review_intake_steps as intake_steps_module
+import src.infrastructure.workflows.celery.task_factories as task_factories_module
 from src.application.dtos.alert_metrics_dtos import AlertMetricsEventType
 from src.application.ports.alert_action_dispatcher_port import (
     AlertActionDispatcher,
@@ -88,9 +91,52 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
 from src.infrastructure.monitoring.opentelemetry.monitoring import (
     OpenTelemetryMonitoring,
 )
-from src.infrastructure.workflows.celery.alert_review_workflow import (
-    AlertReviewWorkflowRunner,
+from src.infrastructure.workflows.celery.review_step_executor import (
+    CeleryWorkerStepExecutor,
 )
+from src.infrastructure.workflows.celery.task_factories import (
+    get_run_alert_review_workflow_use_case,
+)
+
+
+class _WorkflowWiring:
+    """Patch target for the worker's workflow wiring.
+
+    The workflow use case is built in ``task_factories`` and its steps
+    resolve their collaborators in the ``review_*_steps`` modules, each of
+    which imports the ``get_*`` factories into its own namespace. Setting a
+    name here patches every one of those modules that has it.
+    """
+
+    _modules = (
+        task_factories_module,
+        intake_steps_module,
+        agent_steps_module,
+        action_steps_module,
+    )
+
+    def __getattr__(self, name: str):
+        for module in self._modules:
+            if hasattr(module, name):
+                return getattr(module, name)
+        raise AttributeError(name)
+
+    def __setattr__(self, name: str, value) -> None:
+        owners = [m for m in self._modules if hasattr(m, name)]
+        if not owners:
+            raise AttributeError(name)
+        for module in owners:
+            setattr(module, name, value)
+
+
+workflow_module = _WorkflowWiring()
+
+
+def _run_workflow(workflow_id, **kwargs) -> dict:
+    return dataclasses.asdict(
+        get_run_alert_review_workflow_use_case().execute(workflow_id, **kwargs)
+    )
+
 
 # Same mandatory-field shape as tests/test_application/test_use_cases/
 # test_pre_process_alert.py's VALID_PAYLOAD - non-card channel, every
@@ -734,6 +780,7 @@ def in_memory_monitoring(monkeypatch):
     # (e.g. _run_full_pipeline) simply override this one.
     monitoring, exporter = _build_in_memory_monitoring()
     monkeypatch.setattr(factories_module, "get_monitoring", lambda: monitoring)
+    monkeypatch.setattr(workflow_module, "get_monitoring", lambda: monitoring)
     return monitoring, exporter
 
 
@@ -811,6 +858,7 @@ def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
         factories_module, "get_llm_unit_of_work_factory", lambda: llm_factory
     )
     monkeypatch.setattr(factories_module, "get_monitoring", lambda: monitoring)
+    monkeypatch.setattr(workflow_module, "get_monitoring", lambda: monitoring)
 
     alert_id = uuid.uuid4()
     async_operation_id = uuid.uuid4()
@@ -865,7 +913,7 @@ def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
         )
     )
 
-    result = AlertReviewWorkflowRunner().run(workflow_id)
+    result = _run_workflow(workflow_id)
     return dict(
         result=result,
         alert_id=alert_id,
@@ -1058,8 +1106,10 @@ def test_agent_off_skips_simulator_and_production_alerts(monkeypatch, caplog, or
         {"alert_payload": SYNTHETIC_ALERT_PAYLOAD, "origin": origin.value},
     )
 
-    with caplog.at_level("WARNING", logger=workflow_module.__name__):
-        result = AlertReviewWorkflowRunner().run(workflow_id)
+    with caplog.at_level(
+        "WARNING", logger="src.application.use_cases.alerts.run_alert_review_workflow"
+    ):
+        result = _run_workflow(workflow_id)
 
     assert result == {"status": "skipped", "workflow_execution_id": str(workflow_id)}
     workflow = workflows.get(workflow_id)
@@ -1104,9 +1154,9 @@ def test_agent_off_still_processes_manual_and_test_run_alerts(monkeypatch, origi
     )
     _, _, workflow_id = _seed_pending_workflow(alerts, operations, workflows, input)
     monkeypatch.setattr(
-        workflow_module,
-        "_execute_placeholder_step",
-        lambda step_name, context: (_ for _ in ()).throw(RuntimeError("reached")),
+        CeleryWorkerStepExecutor,
+        "execute",
+        lambda self, step_name, context: (_ for _ in ()).throw(RuntimeError("reached")),
     )
     monkeypatch.setattr(
         workflow_module,
@@ -1115,7 +1165,7 @@ def test_agent_off_still_processes_manual_and_test_run_alerts(monkeypatch, origi
     )
 
     with pytest.raises(RuntimeError, match="reached"):
-        AlertReviewWorkflowRunner().run(workflow_id)
+        _run_workflow(workflow_id)
 
     assert steps.list_by_workflow(workflow_id)[0].step_name == "pre_process"
 
@@ -1202,6 +1252,7 @@ def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(
         factories_module, "get_llm_unit_of_work_factory", lambda: llm_factory
     )
     monkeypatch.setattr(factories_module, "get_monitoring", lambda: monitoring)
+    monkeypatch.setattr(workflow_module, "get_monitoring", lambda: monitoring)
 
     alert_id = uuid.uuid4()
     async_operation_id = uuid.uuid4()
@@ -1256,7 +1307,7 @@ def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(
         )
     )
 
-    result = AlertReviewWorkflowRunner().run(workflow_id)
+    result = _run_workflow(workflow_id)
 
     assert result == {"status": "ok", "workflow_execution_id": str(workflow_id)}
 
@@ -1401,6 +1452,7 @@ def test_alert_review_workflow_skips_to_pass_when_detector_finds_no_fraud(monkey
         factories_module, "get_llm_unit_of_work_factory", lambda: llm_factory
     )
     monkeypatch.setattr(factories_module, "get_monitoring", lambda: monitoring)
+    monkeypatch.setattr(workflow_module, "get_monitoring", lambda: monitoring)
 
     alert_id = uuid.uuid4()
     async_operation_id = uuid.uuid4()
@@ -1450,7 +1502,7 @@ def test_alert_review_workflow_skips_to_pass_when_detector_finds_no_fraud(monkey
         )
     )
 
-    result = AlertReviewWorkflowRunner().run(workflow_id)
+    result = _run_workflow(workflow_id)
 
     assert result == {"status": "ok", "workflow_execution_id": str(workflow_id)}
 
@@ -1540,7 +1592,7 @@ def test_metrics_event_on_skip(monkeypatch, metrics_events):
         {"alert_payload": SYNTHETIC_ALERT_PAYLOAD, "origin": "simulator"},
     )
 
-    AlertReviewWorkflowRunner().run(workflow_id)
+    _run_workflow(workflow_id)
 
     assert _metrics_summary(metrics_events) == [
         (AlertMetricsEventType.WORKFLOW_FINISHED, AlertStatus.SKIPPED, None)
@@ -1573,7 +1625,7 @@ def test_metrics_events_on_failure_then_escalation(monkeypatch, metrics_events):
     )
 
     with pytest.raises(Exception):
-        AlertReviewWorkflowRunner().run(workflow_id)
+        _run_workflow(workflow_id)
 
     assert _metrics_summary(metrics_events) == [
         (AlertMetricsEventType.WORKFLOW_FINISHED, AlertStatus.FAILED, None),
@@ -1667,7 +1719,7 @@ def test_step_metrics_recorded_on_failure(monkeypatch, step_metrics):
     )
 
     with pytest.raises(Exception):
-        AlertReviewWorkflowRunner().run(workflow_id)
+        _run_workflow(workflow_id)
 
     assert [i.workflow_execution_id for i in step_metrics.inputs] == [workflow_id]
 
@@ -1904,7 +1956,7 @@ def test_workflow_duration_records_failed_step_and_escalated_run(
     )
 
     with pytest.raises(Exception):
-        AlertReviewWorkflowRunner().run(workflow_id)
+        _run_workflow(workflow_id)
 
     assert [(step, outcome) for step, outcome, _ in monitoring.workflow_durations] == [
         ("pre_process", "FAILED"),
@@ -1942,7 +1994,7 @@ def test_skipped_run_records_its_duration_as_skipped(monkeypatch, in_memory_moni
         {"alert_payload": SYNTHETIC_ALERT_PAYLOAD, "origin": "simulator"},
     )
 
-    AlertReviewWorkflowRunner().run(workflow_id)
+    _run_workflow(workflow_id)
 
     assert [(step, outcome) for step, outcome, _ in monitoring.workflow_durations] == [
         (WORKFLOW_TOTAL_STEP, "SKIPPED")

@@ -227,7 +227,10 @@ def test_routers_do_not_build_persistence_adapters() -> None:
 
 _WIRING_FILES = (
     "src/infrastructure/entrypoint/worker/celery/tasks.py",
-    "src/infrastructure/workflows/celery/alert_review_workflow.py",
+    "src/infrastructure/workflows/celery/review_action_steps.py",
+    "src/infrastructure/workflows/celery/review_agent_steps.py",
+    "src/infrastructure/workflows/celery/review_intake_steps.py",
+    "src/infrastructure/workflows/celery/review_step_executor.py",
 )
 _WIRING_PREFIXES = (
     "Dynamo",

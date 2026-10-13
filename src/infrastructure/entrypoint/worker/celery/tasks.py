@@ -26,12 +26,9 @@ from src.application.ports.async_operation_port import AsyncOperationStatus
 from src.application.use_cases.async_operations.create_async_operation import (
     GENERIC_OPERATION_TYPES,
 )
+from src.domain.alerts.exceptions import AdversarialFeedbackLimitExceededError
 from src.domain.configurations.exceptions import ConfigurationNotFoundError
 from src.infrastructure.entrypoint.worker.celery.celery_app import app
-from src.infrastructure.workflows.celery.alert_review_workflow import (
-    AdversarialFeedbackLimitExceededError,
-    AlertReviewWorkflowRunner,
-)
 from src.infrastructure.workflows.celery.factories import (
     get_async_operation_repository,
     get_evaluate_alert_reasoning_use_case,
@@ -50,6 +47,7 @@ from src.infrastructure.workflows.celery.task_factories import (
     get_execute_alert_action_use_case,
     get_preview_features_use_case,
     get_reconcile_async_operations_use_case,
+    get_run_alert_review_workflow_use_case,
 )
 
 
@@ -144,9 +142,10 @@ def run_alert_review_workflow(self, workflow_execution_id: str) -> dict:
     # won't appear on retry, so autoretry would just burn 3 attempts for
     # the same failure.
     is_final_attempt = self.request.retries >= _ALERT_REVIEW_MAX_RETRIES
-    return AlertReviewWorkflowRunner().run(
+    output = get_run_alert_review_workflow_use_case().execute(
         UUID(workflow_execution_id), is_final_attempt=is_final_attempt
     )
+    return asdict(output)
 
 
 @app.task(

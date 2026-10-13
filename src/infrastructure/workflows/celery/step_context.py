@@ -6,7 +6,6 @@ from uuid import UUID
 
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.ports.configuration_port import SegmentSettings
-from src.application.ports.workflow_port import WorkflowExecutionRecord
 from src.infrastructure.workflows.celery.factories import (
     get_enrich_profiling_fields_use_case,
 )
@@ -67,33 +66,6 @@ def _variables_pool(
         segment.agent.profiling.field_enrichment, current, history
     )
     return {**current, **enrichment_values}
-
-
-def _active_segment(context: dict[str, Any]) -> SegmentSettings | None:
-    config = context.get("active_configuration")
-    code = context.get("segment_code")
-    if config is None or code is None:
-        return None
-    segment = config.segments.get(code)
-    return segment if segment is not None and segment.enabled else None
-
-
-def _effective_max_feedback_iterations(
-    workflow: WorkflowExecutionRecord, context: dict[str, Any]
-) -> int:
-    segment = _active_segment(context)
-    if segment is not None:
-        return segment.agent.adversarial.max_cycles
-    return workflow.max_feedback_iterations
-
-
-def _effective_max_detector_feedback_iterations(
-    workflow: WorkflowExecutionRecord, context: dict[str, Any]
-) -> int:
-    segment = _active_segment(context)
-    if segment is not None:
-        return segment.agent.detector_adversarial.max_cycles
-    return workflow.max_feedback_iterations
 
 
 def _rubric_prompt_context(context: dict[str, Any]) -> str:

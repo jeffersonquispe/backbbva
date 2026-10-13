@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
 
-import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
 import src.infrastructure.workflows.celery.history_research as history_research_module
+import src.infrastructure.workflows.celery.review_agent_steps as workflow_module
+import src.infrastructure.workflows.celery.review_intake_steps as intake_module
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
@@ -125,7 +125,7 @@ def _rubric() -> Rubric:
 def test_rubrics_score_additively_per_matched_condition() -> None:
     segment = SegmentSettings(enabled=True, agent=AgentSettings(rubrics=[_rubric()]))
 
-    result = workflow_module._run_rubrics(_context(segment))
+    result = intake_module._run_rubrics(_context(segment))
 
     # amount > 3000 matches, device == iphone doesn't - partial credit, not
     # the old all-conditions-or-nothing gate.
@@ -152,7 +152,7 @@ def test_detector_prompt_receives_rubric_scores(monkeypatch) -> None:
         ),
     )
     context = _context(segment)
-    context["rubrics"] = workflow_module._run_rubrics(context)
+    context["rubrics"] = intake_module._run_rubrics(context)
 
     workflow_module._run_detector(context)
 
@@ -220,31 +220,20 @@ def test_xgboost_uncertainty_band_lets_the_llm_decide_with_separate_evidence(
     assert output.model_output["prediction"] == "unknown"
 
 
-@dataclass
-class _Model:
-    id: Any
-    tag: str
-    storage_ref: str | None
-
-
-class InMemoryModelRepository:
-    def __init__(self, model: _Model | None) -> None:
-        self._model = model
-
-    def get(self, model_id):
-        return self._model if self._model and self._model.id == model_id else None
-
-    def get_active(self):
-        return self._model
+class InMemoryUntrainedModelScoringPort:
+    def score_alert(self, alert_id: str, model_id: str | None = None) -> dict:
+        return {"error": "no active, trained model"}
 
 
 def test_xgboost_falls_back_to_llm_when_model_is_not_trained(monkeypatch) -> None:
     calls, _ = _patched(monkeypatch)
-    model_id = uuid4()
+    model_id = "00000000-0000-0000-0000-000000000002"
+    from src.infrastructure.workflows.celery import task_factories
+
     monkeypatch.setattr(
-        workflow_module,
-        "get_model_repository",
-        lambda: InMemoryModelRepository(_Model(model_id, "v1", storage_ref=None)),
+        task_factories,
+        "get_model_scoring_port",
+        lambda: InMemoryUntrainedModelScoringPort(),
     )
     segment = SegmentSettings(
         enabled=True,

@@ -134,3 +134,10 @@ class InvalidFraudLabelError(ValueError):
         super().__init__(
             f"Invalid fraud_label {value!r}: expected 'fraud' or 'no_fraud'."
         )
+
+
+class AdversarialFeedbackLimitExceededError(Exception):
+    """Raised when an adversarial review step keeps rejecting its paired
+    primary step (classification, or detector) past the workflow's/
+    segment's allowed feedback loop-backs, so the alert must escalate to a
+    human analyst instead of looping forever."""

@@ -25,7 +25,7 @@ from src.application.use_cases.alerts.classify_alert import _alert_context
 from src.application.use_cases.test_runs.get_test_run import (
     _canonical_evaluation_labels,
 )
-from src.infrastructure.workflows.celery.alert_review_workflow import _alert_payload
+from src.infrastructure.workflows.celery.step_context import _alert_payload
 
 LABEL_VALUE = "label-must-not-be-prompted"
 

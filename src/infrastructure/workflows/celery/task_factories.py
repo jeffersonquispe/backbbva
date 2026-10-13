@@ -8,6 +8,7 @@ from src.application.ports.configuration_port import (
     VectorStoreResearchConfig,
 )
 from src.application.ports.research_port import HistoryResearchPlanner
+from src.application.ports.model_scoring_port import ModelScoringPort
 from src.application.use_cases.alerts.document_analyst_decision import (
     DocumentAnalystDecisionUseCase,
 )
@@ -20,6 +21,9 @@ from src.application.use_cases.alerts.execute_alert_action import (
 from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
 from src.application.use_cases.alerts.resolve_alert_segment import (
     ResolveAlertSegmentUseCase,
+)
+from src.application.use_cases.alerts.run_alert_review_workflow import (
+    RunAlertReviewWorkflowUseCase,
 )
 from src.application.use_cases.async_operations.reconcile_async_operations import (
     ReconcileAsyncOperationsUseCase,
@@ -42,6 +46,9 @@ from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
     MockAlertChannelActionAdapter,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.entrypoint.worker.mcp_model_scoring_client import (
+    MCPModelScoringClient,
+)
 from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sample_repository import (
@@ -60,18 +67,35 @@ from src.infrastructure.queues.celery.inspector import CeleryAsyncExecutionInspe
 from src.infrastructure.workflows.celery.factories import (
     get_alert_object_storage,
     get_alert_repository,
+    get_alert_schema_repository,
+    get_analyst_decision_documenter,
+    get_analyst_escalation_dispatcher,
     get_aric_alert_port,
     get_async_operation_repository,
+    get_discard_alert_use_case,
+    get_operational_settings_repository,
+    get_reasoning_evaluation_dispatcher,
+    get_record_alert_metrics_event_use_case,
+    get_record_workflow_step_metrics_use_case,
     get_search_fraud_knowledge_use_case,
     get_test_run_repository,
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
+    llm_step_models,
 )
 from src.infrastructure.workflows.celery.research_adapters import (
     WorkflowVectorStoreRetriever,
 )
+from src.infrastructure.workflows.queued.queued_status_reporter import (
+    QueuedWorkflowStatusReporter,
+)
 
 # --- task-level wiring: everything entrypoint/worker/celery/tasks.py runs ---
+
+
+@lru_cache
+def get_model_scoring_port() -> ModelScoringPort:
+    return MCPModelScoringClient()
 
 
 @lru_cache
@@ -167,7 +191,7 @@ def get_analyze_fraud_marking_use_case() -> AnalyzeFraudMarkingUseCase:
     )
 
 
-# --- alert review workflow collaborators (AlertReviewWorkflowRunner) ---
+# --- alert review workflow collaborators (RunAlertReviewWorkflowUseCase) ---
 
 
 def get_raw_alert_payload_loader() -> RawAlertPayloadLoader:
@@ -230,3 +254,34 @@ def get_preview_features_use_case():
     )
 
     return PreviewFeaturesUseCase()
+
+
+def get_run_alert_review_workflow_use_case() -> RunAlertReviewWorkflowUseCase:
+    # Lazy: the step modules import this module's factories at load time.
+    from src.infrastructure.workflows.celery.review_step_executor import (
+        CeleryWorkerStepExecutor,
+    )
+
+    workflows = get_workflow_execution_repository()
+    steps = get_workflow_step_execution_repository()
+    return RunAlertReviewWorkflowUseCase(
+        alerts=get_alert_repository(),
+        operations=get_async_operation_repository(),
+        workflows=workflows,
+        steps=steps,
+        step_executor=CeleryWorkerStepExecutor(),
+        # One reporter (and its writer thread) per run, never shared.
+        status_reporter_factory=lambda: QueuedWorkflowStatusReporter(workflows, steps),
+        escalation=get_analyst_escalation_dispatcher(),
+        documenter=get_analyst_decision_documenter(),
+        reasoning_evaluation=get_reasoning_evaluation_dispatcher(),
+        operational_settings=get_operational_settings_repository(),
+        monitoring=get_monitoring(),
+        discard_alert=get_discard_alert_use_case(),
+        record_metrics_event=get_record_alert_metrics_event_use_case(),
+        record_step_metrics=get_record_workflow_step_metrics_use_case(),
+        step_models=llm_step_models,
+        raw_payload_loader_factory=get_raw_alert_payload_loader,
+        alert_schemas_factory=get_alert_schema_repository,
+        alert_object_storage_factory=get_alert_object_storage,
+    )

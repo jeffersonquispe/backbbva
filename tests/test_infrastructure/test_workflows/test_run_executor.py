@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
+import src.infrastructure.workflows.celery.review_action_steps as workflow_module
 from src.application.dtos.analyst_review_alert_dtos import AnalystReviewAlertOutput
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.generate_agent_text_dtos import GenerateAgentTextOutput

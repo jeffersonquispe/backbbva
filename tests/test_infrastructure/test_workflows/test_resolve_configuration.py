@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
+import src.infrastructure.workflows.celery.review_intake_steps as workflow_module
 from src.application.ports.configuration_port import (
     ConfigurationRecord,
     GeneralSettings,

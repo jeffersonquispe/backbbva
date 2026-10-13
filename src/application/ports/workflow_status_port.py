@@ -39,3 +39,7 @@ class WorkflowStatusReporter(ABC):
 
     @abstractmethod
     def flush(self, timeout: float | None = None) -> None: ...
+
+    def stop(self) -> None:
+        """Release any background resources; a no-op for synchronous reporters."""
+        return None
