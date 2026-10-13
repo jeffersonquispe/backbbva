@@ -263,7 +263,14 @@ entities with contracts.
 
 ### CA-006 — Remove persistence/queue details from application contracts
 
-- [ ] `src/application/use_cases/alerts/start_alert_test_workflow.py`
+*Status 2026-10-13 (`577468e`): `SearchPipeline` is now a neutral relevance
+profile mapped in `opensearch/search.py`; DTO/port comments no longer cite
+DynamoDB/Celery; `AlertPayloadTooLargeError` message is storage-neutral.
+Closed (uncommitted, staged): `MAX_ALERT_PAYLOAD_BYTES` and the size check
+moved into `DynamoAlertRepository` (`dynamodb/repositories/alert_repository.py`),
+which raises `AlertPayloadTooLargeError`.*
+
+- [x] `src/application/use_cases/alerts/start_alert_test_workflow.py`
       lines 32-39: `MAX_ALERT_PAYLOAD_BYTES = 380_000` with a comment
       explicitly citing "DynamoDB hard-caps a single item at 400KB".
       Move the constant + comment to
@@ -277,7 +284,7 @@ entities with contracts.
       and line 25) — reword to be storage-neutral ("exceeds the
       configured storage limit"), keep the exception type, just drop the
       vendor name from the message.
-- [ ] `src/application/ports/fraud_knowledge_port.py` line 83:
+- [x] `src/application/ports/fraud_knowledge_port.py` line 83:
       docstring says `"""Value doubles as the OpenSearch search_pipeline id."""`
       and line 108 passes `pipeline: SearchPipeline` — introduce a
       technology-neutral enum (e.g. `SearchStrategy`) in the port/domain,
@@ -285,23 +292,32 @@ entities with contracts.
       `src/infrastructure/persistence/database/opensearch/` (or wherever
       the OpenSearch adapter for this port lives — locate with
       `grep -rln "fraud_knowledge_port" src/infrastructure/`).
-- [ ] `src/application/ports/configuration_port.py`: re-check for
+- [x] `src/application/ports/configuration_port.py`: re-check for
       DynamoDB round-trip shaping (backlog cited old line 306-309; file
       is now 557 lines, re-grep:
       `grep -n "dynamo\|Dynamo\|item.size\|400.*KB\|409" src/application/ports/configuration_port.py`
       before editing).
-- [ ] Re-check `analyst_review_alert_dtos.py` and
+- [x] Re-check `analyst_review_alert_dtos.py` and
       `post_process_alert_dtos.py` (old refs: lines 34-37 and 22-23) for
       DynamoDB/Celery-shaped fields; move any serialization-specific
       shaping into infrastructure mappers.
 
 ### CA-007 — Normalize error ownership
 
-- [ ] `src/domain/__init__.py` line 1: confirm `DomainException` base
+*Status 2026-10-13 (`577468e`): categories `ValidationError`/`NotFoundError`/
+`ConflictError`/`ForbiddenError` under `DomainException` (`src/domain/__init__.py`),
+re-exported plus `RetryableError` in `src/application/errors.py`; every domain
+and use-case error inherits a category (except `FeatureRecipeProblem(ValueError)`
+in `models/feature_engineering.py`); handlers in `fastapi_app.py`; tests in
+`test_application_error_handlers.py` and Celery retry classification in
+`test_worker_celery_tasks.py`. **Open:** 25 `except ValueError` remain in
+routers (e.g. `test_runs_router.py:78`, `alert_schema_router.py`).*
+
+- [x] `src/domain/__init__.py` line 1: confirm `DomainException` base
       class exists; check whether `src/domain/alerts/exceptions.py` and
       `src/domain/configurations/exceptions.py` actually inherit from it
       or from bare `Exception` — fix inheritance if not.
-- [ ] Move use-case-local error classes out of individual modules into
+- [x] Move use-case-local error classes out of individual modules into
       a shared `src/application/errors.py` with explicit categories
       (e.g. `NotFoundError`, `ConflictError`, `ValidationError`,
       `OrchestrationError`). Known offenders to re-grep (backlog refs
@@ -312,14 +328,14 @@ entities with contracts.
 - [x] `AdversarialFeedbackLimitExceededError` — currently in
       `alert_review_workflow.py` line 346 (see CA-002 task above, this
       is the same move, don't do it twice).
-- [ ] Add centralized FastAPI exception handlers in
+- [x] Add centralized FastAPI exception handlers in
       `src/infrastructure/entrypoint/api/fastapi_app.py` for each new
       application error category (`@app.exception_handler(...)`).
 - [ ] `tests/test_infrastructure/test_entrypoint/test_runs_router.py`
       line ~68 (re-grep, backlog line may have shifted) — replace broad
       `except ValueError:` in the router with catches of the new typed
       application errors.
-- [ ] Add HTTP-mapping tests covering retryable / validation / not-found
+- [x] Add HTTP-mapping tests covering retryable / validation / not-found
       / conflict / unexpected error → correct status code, and a
       matching Celery-retry-classification test in the worker entrypoint.
 
@@ -329,32 +345,37 @@ entities with contracts.
 
 ### CA-008 — Keep factories limited to composition
 
+*Closed 2026-10-13 (`8b10b44`): `Deferred*` classes live in
+`queues/celery/deferred_executor.py`; factories return port types (0
+`-> Dynamo…` left) and reuse `get_async_operation_repository()`. Doc-comment
+item skipped: CLAUDE.md already states the `@lru_cache` convention.*
+
 File: `src/infrastructure/entrypoint/api/factories/alert_factory.py`.
 
-- [ ] Line 25: `class DeferredWorkflowExecutor(WorkflowExecutor):` defined
+- [x] Line 25: `class DeferredWorkflowExecutor(WorkflowExecutor):` defined
       inline in the factory → move to
       `src/infrastructure/workflows/celery/deferred_executor.py` (or
       similar adapter module alongside the real executor), import it
       into the factory.
-- [ ] Line 60: `async_operation_repository=DynamoAsyncOperationRepository()`
+- [x] Line 60: `async_operation_repository=DynamoAsyncOperationRepository()`
       inside `get_start_alert_test_workflow_use_case()` bypasses the
       existing `get_async_operation_repository()` singleton factory in
       `async_operation_factory.py` line 55 — replace with a call to that
       factory function.
-- [ ] `src/infrastructure/entrypoint/api/factories/async_operation_factory.py`:
-  - [ ] Line 36: `class DeferredAsyncExecutor(AsyncExecutor):` → move to
+- [x] `src/infrastructure/entrypoint/api/factories/async_operation_factory.py`:
+  - [x] Line 36: `class DeferredAsyncExecutor(AsyncExecutor):` → move to
         an adapter module under
         `src/infrastructure/queues/celery/` (or wherever the real
         `AsyncExecutor` implementation lives).
-  - [ ] Line 43: `class DeferredAsyncExecutionInspector(AsyncExecutionInspector):`
+  - [x] Line 43: `class DeferredAsyncExecutionInspector(AsyncExecutionInspector):`
         → same move, co-locate with the real inspector adapter.
-- [ ] Grep for concrete-type return annotations on factory functions
+- [x] Grep for concrete-type return annotations on factory functions
       (`-> Dynamo\w+` instead of `-> \w+Repository`/`-> \w+Port`) across
       `src/infrastructure/entrypoint/api/factories/` and
       `src/infrastructure/workflows/celery/factories.py`; change to the
       port/ABC type unless a caller genuinely needs a concrete-only
       method.
-- [ ] Add a short doc comment (one line, top of
+- [x] Add a short doc comment (one line, top of
       `src/infrastructure/entrypoint/api/factories/__init__.py` or a
       `factories/README` only if truly needed) stating the one caching
       convention: `@lru_cache` for stateless singletons, fresh instance
@@ -366,11 +387,15 @@ File: `src/infrastructure/entrypoint/api/factories/alert_factory.py`.
 - [x] Deleted `application/dtos/{audit,auth,session}_dtos.py` and
       `application/ports/{auth,session}_port.py` *(2026-10-12; zero
       consumers re-verified, user approved; `audit_port.py` kept)*
-- [ ] `src/persistence/database/dynamodb/manager.py` line ~135 (re-grep,
-      confirm still creates an audit table): decide whether to keep
-      table creation gated behind the same decision as `audit_port.py`
-      above — don't remove the table without the same sign-off.
-- [ ] `fraud_knowledge_factory.py` composes list/search/related/ingest/
+- [x] Keep `audit_log` and make it the durable audit sink *(decision and
+      implementation 2026-10-13)*. The shared collector captures successful
+      DynamoDB/S3 writes, local CSV mutations, OpenSearch document changes,
+      and Celery task lifecycle; authenticated actor, worker, correlation,
+      and parent task context flow across API/worker boundaries. Reads and
+      request/response payloads are excluded. The cross-backend mutation
+      and audit append are synchronous but not atomic; strict atomicity needs
+      backend-specific outbox/transaction work.
+- [x] `fraud_knowledge_factory.py` composes list/search/related/ingest/
       update/delete use cases but `fastapi_app.py` (confirmed: routers
       registered are async_operations, alerts, analyst_capacity,
       configurations, datasets, flag_library, health,
@@ -378,14 +403,12 @@ File: `src/infrastructure/entrypoint/api/factories/alert_factory.py`.
       resolution_method_catalog, channel_library,
       similar_case_library, tag_catalog, taxonomy_library, test_runs —
       **no fraud-knowledge router**) registers none of them. Confirm
-      with the user whether fraud-knowledge is meant to stay
-      configuration-internal (called only from
-      `activate_configuration.py`) or needs a public router — this
-      determines whether CA-009's fix here is "wire it" or "document
-      it as internal-only", both are valid, just needs a decision.
-- [ ] Once decisions land, update CLAUDE.md's architecture notes to
-      match (it already flags the stale `audit_port.py` reference —
-      fix that pointer once the decision is made).
+      with the user: **decision 2026-10-13 — fraud-knowledge is internal
+      to the worker and API, with no dedicated public router/API**. Its
+      use cases are composed for internal flows; no public router is
+      required.
+- [x] Update CLAUDE.md's architecture notes for the fraud-knowledge
+      decision and remove stale references to the deleted `audit_port.py`.
 
 ---
 
@@ -393,24 +416,35 @@ File: `src/infrastructure/entrypoint/api/factories/alert_factory.py`.
 
 ### CA-011 — Inject time/identity generation
 
-- [ ] Grep current call sites (backlog list may be incomplete/shifted):
+*Closed 2026-10-13 (uncommitted): `Clock`/`IdGenerator` ports; system adapters
+in `src/infrastructure/core/runtime/` (not `infrastructure/time|identity`);
+all 67 use cases taking `clock`/`id_generator` receive them from API/worker
+factories; 0 direct `datetime.now`/`uuid4` left in `use_cases/`
+(`application/runtime_defaults.py` keeps a fallback for direct construction).
+No test monkeypatches stdlib time/uuid; fixed fakes in `test_configurations.py`.*
+
+- [x] Grep current call sites (backlog list may be incomplete/shifted):
       `grep -rln "datetime.now()\|datetime.utcnow()\|uuid4()" src/application/use_cases/`
-- [ ] Add `src/application/ports/clock_port.py` (`Clock` ABC, one method
+- [x] Add `src/application/ports/clock_port.py` (`Clock` ABC, one method
       `now() -> datetime`) and `src/application/ports/id_generator_port.py`
       (`IdGenerator` ABC, one method `new_id() -> str`) — only for the
       **state-creating** use cases the grep above surfaces where replay/
       idempotency matters (async-operation creation, alert-workflow
       start, configuration creation, dataset upload/analysis, test-run
       start, tag creation — per backlog); skip read-only use cases.
-- [ ] System adapters: `src/infrastructure/time/system_clock.py`
+- [x] System adapters: `src/infrastructure/time/system_clock.py`
       (`datetime.now(timezone.utc)`),
       `src/infrastructure/identity/uuid_generator.py` (`uuid.uuid4()`).
-- [ ] Wire both into API factories and worker factories per the
+- [x] Wire both into API factories and worker factories per the
       existing `@lru_cache` singleton convention.
-- [ ] Rewrite affected use-case tests to assert exact injected
+- [x] Rewrite affected use-case tests to assert exact injected
       timestamp/id instead of monkeypatching stdlib.
 
 ### CA-012 — Reduce entrypoint mapping concentration
+
+*Closed in `1f0a7ad`: `entrypoint/api/configuration_mapper.py` (466 lines);
+`configurations_router.py` 621 → 171 lines; round-trip test in
+`test_configuration_mapper.py`.*
 
 Files confirmed still oversized:
 `src/infrastructure/entrypoint/api/routers/configurations_router.py`
@@ -426,16 +460,16 @@ trust old line-range citations here at all.
       etc. — mirror the router filenames under
       `entrypoint/api/routers/` for 1:1 naming. *(done 2026-10-12, see
       "Large-file split" below)*
-- [ ] Extract request/domain/response mapping functions out of
+- [x] Extract request/domain/response mapping functions out of
       `configurations_router.py` into a new
       `src/infrastructure/entrypoint/api/mappers/configurations_mapper.py`
       (or `.../routers/configurations_mapper.py`, match whatever pattern
       other routers already use, grep first:
       `find src/infrastructure/entrypoint/api -iname "*mapper*"`).
-- [ ] Router file after extraction: HTTP input handling, `Depends()`
+- [x] Router file after extraction: HTTP input handling, `Depends()`
       use-case invocation, calling mapper functions, response/error
       selection — no inline nested-dict-building mapping logic left.
-- [ ] Add mapper round-trip tests (domain → schema → domain) covering
+- [x] Add mapper round-trip tests (domain → schema → domain) covering
       nested configuration structures, under
       `tests/test_infrastructure/test_entrypoint/`.
 
