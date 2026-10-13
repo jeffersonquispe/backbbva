@@ -9,12 +9,17 @@ from src.application.dtos.alert_schema_dtos import (
     CreateAlertSchemaSuggestionInput,
     SaveAlertSchemaDraftInput,
 )
-from src.application.ports.alert_schema_port import AlertSchemaField
+from src.application.errors import NotFoundError
+from src.application.ports.alert_schema_port import (
+    AlertSchemaField,
+    AlertSchemaValidationError,
+)
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.use_cases.alert_schema.approve_schema import (
     ImpactAcknowledgementRequired,
     SelfApprovalError,
 )
+from src.domain import ConflictError
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
     get_alert_schema_presence_report_repository,
@@ -98,7 +103,7 @@ def save_schema_draft(
                 request.based_on_version,
             )
         )
-    except ValueError as exc:
+    except (AlertSchemaValidationError, ConflictError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _response(schema)
 
@@ -115,9 +120,9 @@ def propose_schema_version(
         return _response(
             get_propose_alert_schema_use_case().execute(version, str(user.id))
         )
-    except LookupError as exc:
+    except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
+    except ConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
@@ -141,13 +146,13 @@ def approve_schema_version(
                 )
             )
         )
-    except LookupError as exc:
+    except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SelfApprovalError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ImpactAcknowledgementRequired as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except ValueError as exc:
+    except ConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
@@ -161,9 +166,9 @@ def reject_schema_version(
 ):
     try:
         return _response(get_reject_alert_schema_use_case().execute(version))
-    except LookupError as exc:
+    except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
+    except ConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 

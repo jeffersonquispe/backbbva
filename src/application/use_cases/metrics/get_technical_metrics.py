@@ -60,7 +60,7 @@ def normalize_technical_filters(
     filters: dict[str, list[str]] | None,
 ) -> dict[str, list[str]]:
     """Alert filters as metrics_filters.normalize_filters, plus step_name /
-    model. Raises ValueError for any other name."""
+    model. Raises ValidationError for any other name."""
     filters = dict(filters or {})
     extra = {
         name: filters.pop(name) for name in TECHNICAL_EXTRA_FILTERS if name in filters
@@ -85,7 +85,7 @@ class GetTechnicalMetrics:
         self._clock = resolve_clock(clock)
 
     def execute(self, input: MetricsQueryInput) -> TechnicalMetricsOutput:
-        """Raises ValueError for a naive/inverted range or an unknown filter."""
+        """Raises ValidationError for an invalid range or unknown filter."""
         now = self._clock.now()
         to = input.to or now
         from_ = input.from_ or (to - DEFAULT_RANGE)

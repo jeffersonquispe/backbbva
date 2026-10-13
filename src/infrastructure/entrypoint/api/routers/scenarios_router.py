@@ -10,6 +10,7 @@ from src.application.dtos.simulation_dtos import (
     SeedSimulationFromDatasetInput,
     UpdateSimulationScenarioInput,
 )
+from src.application.errors import ConflictError, NotFoundError, ValidationError
 from src.application.ports.simulation_scenario_port import (
     FieldGenerator,
     RateInterval,
@@ -165,7 +166,7 @@ def create_scenario(
                 created_by=request.created_by,
             )
         )
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _to_response(scenario)
 
@@ -184,7 +185,7 @@ def seed_from_dataset(
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
         name: FieldGeneratorSchema(
@@ -250,9 +251,9 @@ def update_scenario(
                 target_dataset_name=request.target_dataset_name,
             )
         )
-    except LookupError as exc:
+    except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
+    except (ValidationError, ConflictError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _to_response(scenario)
 
@@ -267,7 +268,7 @@ def delete_scenario(
 ):
     try:
         use_case.execute(scenario_id)
-    except ValueError as exc:
+    except ConflictError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -278,9 +279,9 @@ def start_scenario(
 ):
     try:
         scenario = use_case.execute(scenario_id)
-    except LookupError as exc:
+    except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
+    except ConflictError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _to_response(scenario)
 
@@ -292,7 +293,7 @@ def pause_scenario(
 ):
     try:
         scenario = use_case.execute(scenario_id)
-    except LookupError as exc:
+    except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _to_response(scenario)
 
@@ -304,7 +305,7 @@ def stop_scenario(
 ):
     try:
         scenario = use_case.execute(scenario_id)
-    except LookupError as exc:
+    except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _to_response(scenario)
 
@@ -318,7 +319,7 @@ def get_scenario_status(
 ):
     try:
         output = use_case.execute(scenario_id)
-    except LookupError as exc:
+    except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return SimulationStatusResponse(
         scenario_id=output.scenario_id,
@@ -347,5 +348,5 @@ def preview_scenario(
         return generate_batch_use_case.generate_preview(
             scenario.field_specs, count, seed=None
         )
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -6,6 +6,7 @@ from src.application.dtos.alert_dtos import (
     CurateAlertToDatasetInput,
     CurateAlertToDatasetOutput,
 )
+from src.application.errors import NotFoundError, ValidationError
 from src.application.ports.alert_port import (
     AlertRepository,
 )
@@ -67,7 +68,7 @@ class CurateAlertToDatasetUseCase:
     def execute(self, input: CurateAlertToDatasetInput) -> CurateAlertToDatasetOutput:
         alert = self._alerts.get(input.alert_id)
         if alert is None:
-            raise LookupError(f"Alert '{input.alert_id}' not found")
+            raise NotFoundError(f"Alert '{input.alert_id}' not found")
 
         configuration_id, version = self._resolve_configuration(input, alert)
 
@@ -128,7 +129,7 @@ class CurateAlertToDatasetUseCase:
                 ):
                     return ref["configuration_id"], ref["version"]
 
-        raise ValueError(
+        raise ValidationError(
             "No se pudo determinar la configuración automáticamente; "
             "selecciónala manualmente."
         )
@@ -136,7 +137,7 @@ class CurateAlertToDatasetUseCase:
 
 def _build_row(alert: AlertRecord) -> dict[str, Any]:
     if alert.schema_version is None:
-        raise ValueError("La alerta no tiene schema_version canónica")
+        raise ValidationError("La alerta no tiene schema_version canónica")
 
     # Convention for E8 rows: input and labels share one flat dataset row;
     # label keys are their schema `field` names and must remain distinct from

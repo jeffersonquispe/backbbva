@@ -9,6 +9,7 @@ from src.application.dtos.simulation_dtos import (
     CreateSimulationScenarioInput,
     UpdateSimulationScenarioInput,
 )
+from src.application.errors import ConflictError, ValidationError
 from src.application.ports.simulation_scenario_port import (
     FieldGenerator,
     GeneratorKind,
@@ -112,7 +113,7 @@ def test_create_requires_target_dataset_name_for_dataset_output_mode() -> None:
     repo = InMemorySimulationScenarioRepository()
     use_case = CreateSimulationScenarioUseCase(repo)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         use_case.execute(_create_input(target_dataset_name=None))
 
 
@@ -132,7 +133,7 @@ def test_update_rejects_editing_a_running_scenario() -> None:
     repo.update(scenario.id, status=ScenarioStatus.RUNNING)
     use_case = UpdateSimulationScenarioUseCase(repo)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ConflictError):
         use_case.execute(
             UpdateSimulationScenarioInput(scenario_id=scenario.id, name="renamed")
         )
@@ -157,7 +158,7 @@ def test_delete_rejects_a_running_scenario() -> None:
     scenario = CreateSimulationScenarioUseCase(repo).execute(_create_input())
     repo.update(scenario.id, status=ScenarioStatus.RUNNING)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ConflictError):
         DeleteSimulationScenarioUseCase(repo).execute(scenario.id)
 
 
@@ -185,7 +186,7 @@ def test_start_rejects_a_completed_scenario() -> None:
     scenario = CreateSimulationScenarioUseCase(repo).execute(_create_input())
     repo.update(scenario.id, status=ScenarioStatus.COMPLETED)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ConflictError):
         StartSimulationUseCase(repo, dispatcher).execute(scenario.id)
 
 
@@ -207,7 +208,7 @@ def test_stop_is_terminal() -> None:
     stopped = StopSimulationUseCase(repo).execute(scenario.id)
     assert stopped.status == ScenarioStatus.COMPLETED
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ConflictError):
         StartSimulationUseCase(repo, dispatcher).execute(scenario.id)
 
 

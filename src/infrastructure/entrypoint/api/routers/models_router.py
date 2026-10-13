@@ -28,6 +28,7 @@ from src.application.use_cases.models.list_models import ListModelsUseCase
 from src.application.use_cases.models.start_model_training import (
     StartModelTrainingUseCase,
 )
+from src.domain import ConflictError, ValidationError
 from src.domain.models.exceptions import ModelNotFoundError
 from src.infrastructure.entrypoint.api.factories.model_factory import (
     get_activate_model_use_case,
@@ -144,7 +145,7 @@ def preview_features(
         return FeaturePreviewQueuedResponse(task_id=task.id)
     except FeatureRecipeProblem as exc:
         raise HTTPException(status_code=422, detail=exc.detail) from exc
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
@@ -182,7 +183,7 @@ def create_feature_template(
 ):
     try:
         return use_case.create(request.name, request.description, request.configuration)
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
@@ -233,7 +234,7 @@ def train_model(
         return use_case.execute(model_id)
     except ModelNotFoundError:
         raise HTTPException(status_code=404, detail="Model not found")
-    except ValueError as exc:
+    except ConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
 

@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from src.application.ports.clock_port import Clock
-from src.application.ports.id_generator_port import IdGenerator
-from src.application.runtime_defaults import DEFAULT_CLOCK, DEFAULT_ID_GENERATOR, resolve_clock
-
-
-
-from datetime import datetime, timezone
-import uuid
-
 from src.application.dtos.dataset_dtos import UploadDatasetInput, UploadDatasetOutput
+from src.application.errors import ValidationError
+from src.application.ports.async_operation_port import (
+    AsyncOperationRecord,
+    AsyncOperationRepository,
+    AsyncOperationStatus,
+)
+from src.application.ports.clock_port import Clock
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
@@ -19,10 +17,10 @@ from src.application.ports.dataset_analysis_port import (
     DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
-from src.application.ports.async_operation_port import (
-    AsyncOperationRecord,
-    AsyncOperationRepository,
-    AsyncOperationStatus,
+from src.application.ports.id_generator_port import IdGenerator
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
 )
 
 
@@ -54,7 +52,7 @@ class UploadDatasetUseCase:
         elif input.content is not None:
             self._datasets.create_from_csv_bytes(input.name, input.content)
         else:
-            raise ValueError("Either file or content is required")
+            raise ValidationError("Either file or content is required")
         now = self._clock.now()
         self._summaries.upsert(
             DatasetSummaryRecord(

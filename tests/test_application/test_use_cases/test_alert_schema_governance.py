@@ -4,6 +4,7 @@ from src.application.dtos.alert_schema_dtos import (
     ApproveAlertSchemaInput,
     CreateAlertSchemaSuggestionInput,
 )
+from src.application.errors import ConflictError
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -121,7 +122,7 @@ def test_approval_rejects_stale_proposal():
         2, AlertSchemaStatus.PROPOSED, proposed_by="other", based_on_version=1
     )
     repository = InMemorySchemaRepository([active, proposed])
-    with pytest.raises(ValueError, match="stale"):
+    with pytest.raises(ConflictError, match="stale"):
         ApproveAlertSchemaUseCase(repository).execute(
             ApproveAlertSchemaInput(2, "approver")
         )
@@ -165,5 +166,5 @@ def test_reject_only_applies_to_proposed_versions():
     rejected = RejectAlertSchemaUseCase(repository).execute(2)
 
     assert rejected.status == AlertSchemaStatus.REJECTED
-    with pytest.raises(ValueError, match="proposed"):
+    with pytest.raises(ConflictError, match="proposed"):
         RejectAlertSchemaUseCase(repository).execute(2)

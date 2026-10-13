@@ -11,6 +11,7 @@ from src.application.use_cases.metrics.get_live_alert_funnel import GetLiveAlert
 from src.application.use_cases.metrics.get_metrics_overview import GetMetricsOverview
 from src.application.use_cases.metrics.get_technical_metrics import GetTechnicalMetrics
 from src.application.use_cases.metrics.get_version_events import GetVersionEvents
+from src.domain import ValidationError
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.metrics_factory import (
     get_agent_metrics_use_case,
@@ -49,7 +50,7 @@ def get_metrics_overview(
 ):
     try:
         output = use_case.execute(_input(params))
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return MetricsOverviewResponse.model_validate(asdict(output))
 
@@ -65,7 +66,7 @@ def get_agent_metrics(
 ):
     try:
         output = use_case.execute(_input(params))
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return AgentMetricsResponse.model_validate(asdict(output))
 
@@ -92,7 +93,7 @@ def get_technical_metrics(
 ):
     try:
         output = use_case.execute(_input(params))
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TechnicalMetricsResponse.model_validate(asdict(output))
 
@@ -124,5 +125,5 @@ def get_version_events(
             VersionEventResponse.model_validate(asdict(event))
             for event in use_case.execute(params.from_, params.to)
         ]
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

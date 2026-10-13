@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from src.application.errors import ConflictError, NotFoundError
 from src.application.ports.clock_port import Clock
 from src.application.ports.simulation_dispatcher_port import SimulationDispatcher
 from src.application.ports.simulation_scenario_port import (
@@ -31,11 +32,11 @@ class StartSimulationUseCase:
     def execute(self, scenario_id: UUID) -> SimulationScenarioRecord:
         scenario = self._scenarios.get(scenario_id)
         if scenario is None:
-            raise LookupError(f"Scenario {scenario_id} not found")
+            raise NotFoundError(f"Scenario {scenario_id} not found")
         if scenario.status == ScenarioStatus.RUNNING:
             return scenario
         if scenario.status == ScenarioStatus.COMPLETED:
-            raise ValueError("Cannot restart a COMPLETED scenario - create a new one")
+            raise ConflictError("Cannot restart a COMPLETED scenario - create a new one")
 
         updated = self._scenarios.update(
             scenario_id,

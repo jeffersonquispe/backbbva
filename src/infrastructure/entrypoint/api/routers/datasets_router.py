@@ -21,6 +21,7 @@ from src.application.dtos.dataset_dtos import (
     GetDatasetRowsInput,
     UploadDatasetInput,
 )
+from src.application.errors import ValidationError
 from src.application.use_cases.datasets.analyze_dataset_on_demand import (
     AnalyzeDatasetOnDemandUseCase,
 )
@@ -286,7 +287,7 @@ def extract_dataset(
                 target_name=request.target_name,
             )
         )
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

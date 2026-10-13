@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from src.application.errors import NotFoundError, ValidationError
 from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
     VectorStoreInstanceAsset,
@@ -53,7 +54,7 @@ class KnowledgeGraphService:
 
         if asset_type == KnowledgeAssetType.TAXONOMY:
             if self._taxonomies.get(asset_id) is None:
-                raise ValueError(f"taxonomy {asset_id} does not exist")
+                raise NotFoundError(f"taxonomy {asset_id} does not exist")
             add(asset_type, asset_id, "manual")
             for mo in self._modus_operandi.list():
                 if mo.taxonomy_library_id == asset_id:
@@ -61,7 +62,7 @@ class KnowledgeGraphService:
         elif asset_type == KnowledgeAssetType.MODUS_OPERANDI:
             mo = self._modus_operandi.get(asset_id)
             if mo is None:
-                raise ValueError(f"modus_operandi {asset_id} does not exist")
+                raise NotFoundError(f"modus_operandi {asset_id} does not exist")
             # A modus operandi belongs to exactly one taxonomy - promotion
             # (IngestModusOperandiUseCase) hard-requires that parent to
             # already be indexed, so attaching a MO directly must also pull
@@ -79,18 +80,18 @@ class KnowledgeGraphService:
         ):
             flag = self._flags.get(asset_id)
             if flag is None:
-                raise ValueError(f"flag {asset_id} does not exist")
+                raise NotFoundError(f"flag {asset_id} does not exist")
             expected = (
                 KnowledgeAssetType.RED_FLAG
                 if flag.flag_type.value == "red"
                 else KnowledgeAssetType.YELLOW_FLAG
             )
             if asset_type != expected:
-                raise ValueError("flag type does not match asset")
+                raise ValidationError("flag type does not match asset")
             add(asset_type, asset_id, "manual")
         elif asset_type == KnowledgeAssetType.SIMILAR_CASE:
             if self._similar_cases.get(asset_id) is None:
-                raise ValueError(f"similar_case {asset_id} does not exist")
+                raise NotFoundError(f"similar_case {asset_id} does not exist")
             add(asset_type, asset_id, "manual")
         return result
 

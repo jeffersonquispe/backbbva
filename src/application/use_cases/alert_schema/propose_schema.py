@@ -1,3 +1,4 @@
+from src.application.errors import ConflictError, NotFoundError
 from src.application.ports.alert_schema_port import (
     AlertSchemaRepository,
     AlertSchemaStatus,
@@ -21,9 +22,9 @@ class ProposeAlertSchemaUseCase:
     def execute(self, version: int, user_id: str) -> AlertSchemaVersion:
         schema = self._repository.get(version)
         if schema is None:
-            raise LookupError("Alert schema version not found")
+            raise NotFoundError("Alert schema version not found")
         if schema.status != AlertSchemaStatus.DRAFT:
-            raise ValueError("Only drafts can be proposed")
+            raise ConflictError("Only drafts can be proposed")
         active = self._repository.get_active()
         comparison = compare_schema(schema, active)
         impact = self._impact_analyzer(comparison)

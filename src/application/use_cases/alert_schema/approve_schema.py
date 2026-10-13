@@ -1,5 +1,10 @@
 from src.application.dtos.alert_schema_dtos import ApproveAlertSchemaInput
-from src.application.errors import ForbiddenError, ValidationError
+from src.application.errors import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from src.application.ports.alert_schema_port import (
     AlertSchemaRepository,
     AlertSchemaStatus,
@@ -27,14 +32,14 @@ class ApproveAlertSchemaUseCase:
     def execute(self, input: ApproveAlertSchemaInput) -> AlertSchemaVersion:
         schema = self._repository.get(input.version)
         if schema is None:
-            raise LookupError("Alert schema version not found")
+            raise NotFoundError("Alert schema version not found")
         if schema.status != AlertSchemaStatus.PROPOSED:
-            raise ValueError("Only proposed schemas can be approved")
+            raise ConflictError("Only proposed schemas can be approved")
         if schema.proposed_by == input.approver_id:
             raise SelfApprovalError("A user cannot approve their own proposal")
         active = self._repository.get_active()
         if active is not None and schema.based_on_version != active.version:
-            raise ValueError("Schema proposal is based on a stale version")
+                raise ConflictError("Schema proposal is based on a stale version")
         if schema.impact and not input.impact_acknowledged:
             raise ImpactAcknowledgementRequired("Impact acknowledgement is required")
         approved = AlertSchemaVersion(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.application.dtos.simulation_dtos import CreateSimulationScenarioInput
+from src.application.errors import ValidationError
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaFieldType,
@@ -37,7 +38,7 @@ class CreateSimulationScenarioUseCase:
 
     def execute(self, input: CreateSimulationScenarioInput) -> SimulationScenarioRecord:
         if input.output_mode == OutputMode.DATASET and not input.target_dataset_name:
-            raise ValueError(
+            raise ValidationError(
                 "target_dataset_name is required when output_mode is DATASET"
             )
 
@@ -45,10 +46,10 @@ class CreateSimulationScenarioUseCase:
         field_specs = input.field_specs
         if field_specs is None:
             if self._schema_repository is None:
-                raise ValueError("field_specs is required when no schema is configured")
+                raise ValidationError("field_specs is required when no schema is configured")
             schema = self._schema_repository.get_active()
             if schema is None:
-                raise ValueError("No active alert schema is available")
+                raise ValidationError("No active alert schema is available")
             field_specs = {
                 field.field_ds_loc: _default_generator(field.type)
                 for field in schema.fields
@@ -58,7 +59,7 @@ class CreateSimulationScenarioUseCase:
                 and field.field_ds_loc
             }
         if not field_specs:
-            raise ValueError("The active schema has no ARIC fields for simulation")
+            raise ValidationError("The active schema has no ARIC fields for simulation")
 
         return self._scenarios.create(
             SimulationScenarioRecord(

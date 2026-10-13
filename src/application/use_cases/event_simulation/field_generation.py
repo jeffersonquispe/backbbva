@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 
+from src.application.errors import ValidationError
 from src.application.ports.simulation_scenario_port import (
     FieldGenerator,
     GeneratorKind,
@@ -31,7 +32,7 @@ def draw_structured_value(generator: FieldGenerator, rng: random.Random):
     if generator.kind == GeneratorKind.CATEGORICAL:
         weights = generator.weights or {}
         if not weights:
-            raise ValueError("CATEGORICAL generator requires non-empty weights")
+            raise ValidationError("CATEGORICAL generator requires non-empty weights")
         values = list(weights.keys())
         return rng.choices(values, weights=list(weights.values()), k=1)[0]
 
@@ -51,7 +52,7 @@ def draw_structured_value(generator: FieldGenerator, rng: random.Random):
         # the small lambdas an event-count field realistically needs.
         return _draw_poisson(params["lambda"], rng)
 
-    raise ValueError(f"Not a structured generator kind: {generator.kind}")
+    raise ValidationError(f"Not a structured generator kind: {generator.kind}")
 
 
 _KNUTH_LAMBDA_CUTOFF = 30.0  # e^-lambda underflows to exactly 0.0 well past

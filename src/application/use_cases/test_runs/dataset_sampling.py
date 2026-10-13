@@ -97,12 +97,12 @@ def _resolve_proportions(
 
     unknown = set(distribution) - set(MARCACION_CLASSES)
     if unknown:
-        raise ValueError(
+        raise ValidationError(
             f"Unknown marcación class(es) in distribution: {sorted(unknown)}"
         )
     total_pct = sum(distribution.values())
     if abs(total_pct - 1.0) > 1e-6:
-        raise ValueError(f"distribution percentages must sum to 1.0, got {total_pct}")
+        raise ValidationError(f"distribution percentages must sum to 1.0, got {total_pct}")
     return {cls: distribution.get(cls, 0.0) for cls in MARCACION_CLASSES}
 
 
@@ -147,7 +147,7 @@ def sample_percentage(
     percentage must be in (0, 100]; anything else raises ValueError.
     """
     if not (0 < percentage <= 100):
-        raise ValueError(f"percentage must be in (0, 100], got {percentage}")
+        raise ValidationError(f"percentage must be in (0, 100], got {percentage}")
 
     count = round(len(rows) * percentage / 100)
     count = min(count, len(rows))  # defensive: guard against float rounding overshoot

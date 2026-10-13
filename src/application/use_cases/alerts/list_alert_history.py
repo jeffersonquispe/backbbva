@@ -119,9 +119,9 @@ class ListAlertHistory:
         from_ = input.from_ or (to - DEFAULT_RANGE)
         for name, value in (("from", from_), ("to", to)):
             if value.tzinfo is None:
-                raise ValueError(f"{name} must be timezone-aware")
+                raise ValidationError(f"{name} must be timezone-aware")
         if from_ > to:
-            raise ValueError("from must be <= to")
+            raise ValidationError("from must be <= to")
         filters = normalize_filters(input.filters)
         limit = max(1, min(input.limit, MAX_LIMIT))
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from src.application.dtos.model_dtos import StartModelTrainingOutput
+from src.application.errors import ConflictError
 from src.application.ports.async_operation_port import (
     AsyncOperationRecord,
     AsyncOperationRepository,
@@ -47,7 +48,7 @@ class StartModelTrainingUseCase:
         # An active model is the one serving (ModelRepository.get_active) -
         # never retrain it in place, whatever its status says.
         if model.active or model.status != ModelStatus.DRAFT:
-            raise ValueError(
+            raise ConflictError(
                 "El modelo solo puede entrenarse una vez; crea un nuevo modelo para volver a entrenar"
             )
 

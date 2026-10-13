@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-from src.application.ports.clock_port import Clock
-from src.application.runtime_defaults import DEFAULT_CLOCK, resolve_clock
-
-
-
-from datetime import datetime, timezone
-
 from src.application.dtos.dataset_dtos import ExtractDatasetInput, ExtractDatasetOutput
+from src.application.errors import ValidationError
+from src.application.ports.clock_port import Clock
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
@@ -18,6 +13,7 @@ from src.application.ports.dataset_analysis_port import (
     DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.datasets.field_extraction import discover_fields
 from src.application.use_cases.test_runs.dataset_sampling import (
     filter_rows,
@@ -54,7 +50,7 @@ class ExtractDatasetUseCase:
         sampled = sample_percentage(filtered, input.percentage)
 
         if not sampled:
-            raise ValueError(
+            raise ValidationError(
                 f"No rows matched the given filters across {input.source_names}"
             )
 

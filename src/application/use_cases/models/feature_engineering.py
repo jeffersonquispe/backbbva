@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 
+from src.application.errors import ValidationError
 from src.application.ports.clock_port import Clock
 from src.application.ports.feature_template_port import (
     FeatureTemplate,
@@ -20,7 +21,7 @@ from src.domain.models.feature_recipe import (
 )
 
 
-class FeatureRecipeProblem(ValueError):
+class FeatureRecipeProblem(ValidationError):
     """A validation problem that can point the editor to one recipe."""
 
     def __init__(self, message: str, recipe: dict):
@@ -75,11 +76,11 @@ class PreviewFeaturesUseCase:
                     except ValueError as recipe_exc:
                         if str(recipe_exc) == str(exc):
                             raise FeatureRecipeProblem(str(exc), recipe) from exc
-            raise
+            raise ValidationError(str(exc)) from exc
         if not 1 <= len(rows) <= 100:
-            raise ValueError("La vista previa requiere entre 1 y 100 filas")
+            raise ValidationError("La vista previa requiere entre 1 y 100 filas")
         if len(json.dumps(rows, ensure_ascii=False)) > 2_000_000:
-            raise ValueError("La muestra supera el límite de 2 MB")
+            raise ValidationError("La muestra supera el límite de 2 MB")
         return definition
 
     def execute(
@@ -112,12 +113,15 @@ class FeatureTemplatesUseCase:
         self, name: str, description: str, configuration: dict
     ) -> FeatureTemplate:
         if not name.strip() or len(name) > 120 or len(description) > 2000:
-            raise ValueError(
+            raise ValidationError(
                 "Indica un nombre de hasta 120 caracteres y una descripción de hasta 2000"
             )
-        definition = validate_feature_definition(configuration)
+        try:
+            definition = validate_feature_definition(configuration)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
         if len(json.dumps(definition, ensure_ascii=False)) > 200_000:
-            raise ValueError("La configuración supera el límite de 200 KB")
+            raise ValidationError("La configuración supera el límite de 200 KB")
         return self._repository.create(
             FeatureTemplate(
                 id=str(self._id_generator.new_id()),

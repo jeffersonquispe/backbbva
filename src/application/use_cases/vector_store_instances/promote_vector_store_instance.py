@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from uuid import UUID
 
-from src.application.errors import ValidationError
+from src.application.errors import NotFoundError, ValidationError
 from src.application.ports.clock_port import Clock
 from src.application.ports.flag_library_port import FlagLibraryRepository
 from src.application.ports.fraud_knowledge_port import DocumentType
@@ -119,7 +119,7 @@ class PromoteVectorStoreInstanceUseCase:
                 continue
             entry = self._taxonomies.get(asset.asset_id)
             if entry is None:
-                raise ValueError(
+                raise NotFoundError(
                     f"taxonomy library entry {asset.asset_id} no longer exists"
                 )
             created = self._ingest_taxonomia.execute(
@@ -142,12 +142,12 @@ class PromoteVectorStoreInstanceUseCase:
                 continue
             entry = self._modus_operandi.get(asset.asset_id)
             if entry is None:
-                raise ValueError(
+                raise NotFoundError(
                     f"modus operandi library entry {asset.asset_id} no longer exists"
                 )
             taxonomia_id = taxonomia_os_id.get(entry.taxonomy_library_id)
             if taxonomia_id is None:
-                raise ValueError(
+                raise ValidationError(
                     f"modus operandi {entry.id!r}'s taxonomy {entry.taxonomy_library_id!r} "
                     "is not included in this vector store instance"
                 )
@@ -175,7 +175,7 @@ class PromoteVectorStoreInstanceUseCase:
                 continue
             entry = self._flags.get(asset.asset_id)
             if entry is None:
-                raise ValueError(
+                raise NotFoundError(
                     f"flag library entry {asset.asset_id} no longer exists"
                 )
             # A flag can be attached standalone, without its parent modus
@@ -206,7 +206,7 @@ class PromoteVectorStoreInstanceUseCase:
                 continue
             entry = self._similar_cases.get(asset.asset_id)
             if entry is None:
-                raise ValueError(
+                raise NotFoundError(
                     f"similar case library entry {asset.asset_id} no longer exists"
                 )
             modus_operandi_id = modus_operandi_os_id.get(
@@ -214,7 +214,7 @@ class PromoteVectorStoreInstanceUseCase:
             )
             taxonomia_id = taxonomia_os_id.get(entry.taxonomy_library_id)
             if modus_operandi_id is None or taxonomia_id is None:
-                raise ValueError(
+                raise ValidationError(
                     f"similar case {entry.id!r}'s modus operandi {entry.modus_operandi_library_id!r} "
                     "and/or taxonomy are not included in this vector store instance"
                 )

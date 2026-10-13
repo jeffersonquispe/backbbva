@@ -6,6 +6,7 @@ from src.application.dtos.simulation_dtos import (
     GenerateEventBatchInput,
     GenerateEventBatchOutput,
 )
+from src.application.errors import ValidationError
 from src.application.ports.dataset_reader_gateway_port import DatasetReaderGateway
 from src.application.ports.llm_unit_of_work_port import (
     LLMMessage,
@@ -99,12 +100,12 @@ class GenerateEventBatchUseCase:
                     row, field_name, self._recreate_seed_field(generator, row, rng)
                 )
             else:
-                raise ValueError(f"Unknown generator kind: {generator.kind}")
+                raise ValidationError(f"Unknown generator kind: {generator.kind}")
         return row
 
     def _generate_llm_text(self, generator: FieldGenerator, row: dict) -> str:
         if self._llm_factory is None or self._monitoring is None:
-            raise ValueError(
+            raise ValidationError(
                 "TEMPLATE_LLM field requires an LLMUnitOfWorkFactory + MonitoringPort"
             )
         prompt = substitute_variables(generator.user_prompt_template or "", row)
@@ -114,13 +115,13 @@ class GenerateEventBatchUseCase:
         self, generator: FieldGenerator, row: dict, rng: random.Random
     ) -> str | None:
         if self._llm_factory is None or self._monitoring is None:
-            raise ValueError(
+            raise ValidationError(
                 "SEED_RECREATION field requires an LLMUnitOfWorkFactory + MonitoringPort"
             )
         if self._dataset_reader is None:
-            raise ValueError("SEED_RECREATION field requires a DatasetReaderGateway")
+            raise ValidationError("SEED_RECREATION field requires a DatasetReaderGateway")
         if not generator.seed_dataset_name or not generator.seed_field:
-            raise ValueError(
+            raise ValidationError(
                 "SEED_RECREATION field requires seed_dataset_name and seed_field"
             )
         seed_row = self._dataset_reader.sample_row(generator.seed_dataset_name, rng)

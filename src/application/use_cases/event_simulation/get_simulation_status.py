@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from src.application.dtos.simulation_dtos import SimulationStatusOutput
+from src.application.errors import NotFoundError
 from src.application.ports.simulation_scenario_port import SimulationScenarioRepository
 
 
@@ -13,7 +14,7 @@ class GetSimulationStatusUseCase:
     def execute(self, scenario_id: UUID) -> SimulationStatusOutput:
         scenario = self._scenarios.get(scenario_id)
         if scenario is None:
-            raise LookupError(f"Scenario {scenario_id} not found")
+            raise NotFoundError(f"Scenario {scenario_id} not found")
         return SimulationStatusOutput(
             scenario_id=scenario.id,
             status=scenario.status,

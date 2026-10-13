@@ -4,6 +4,7 @@ import dataclasses
 
 from src.application.dtos.alert_dtos import StartAlertWorkflowInput
 from src.application.dtos.test_run_dtos import StartTestRunInput, StartTestRunOutput
+from src.application.errors import NotFoundError, ValidationError
 from src.application.ports.alert_port import (
     AlertRepository,
 )
@@ -80,7 +81,7 @@ class StartTestRunUseCase:
     def execute(self, input: StartTestRunInput) -> StartTestRunOutput:
         rows = self._datasets.get_rows(input.dataset_name)
         if input.sample_distribution is not None and input.sample_size is None:
-            raise ValueError("sample_distribution requires sample_size")
+            raise ValidationError("sample_distribution requires sample_size")
         if input.sample_size is not None:
             rows = sample_rows(
                 rows, size=input.sample_size, distribution=input.sample_distribution
@@ -93,7 +94,7 @@ class StartTestRunUseCase:
                 else self._configurations.get_active()
             )
             if config is None and ref is not None:
-                raise ValueError("Configuration version not found")
+                raise NotFoundError("Configuration version not found")
             if config is not None:
                 self._configurations.mark_tested(
                     config.configuration_id, config.version
@@ -107,7 +108,7 @@ class StartTestRunUseCase:
                 )
         if input.config.schema_version is not None and self._schemas is not None:
             if self._schemas.get(input.config.schema_version) is None:
-                raise ValueError("Alert schema version not found")
+                raise NotFoundError("Alert schema version not found")
         now = self._clock.now()
         test_run = self._test_runs.create(
             TestRunRecord(

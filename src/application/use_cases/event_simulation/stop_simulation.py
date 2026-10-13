@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from src.application.errors import NotFoundError
 from src.application.ports.simulation_scenario_port import (
     ScenarioStatus,
     SimulationScenarioRecord,
@@ -20,7 +21,7 @@ class StopSimulationUseCase:
     def execute(self, scenario_id: UUID) -> SimulationScenarioRecord:
         scenario = self._scenarios.get(scenario_id)
         if scenario is None:
-            raise LookupError(f"Scenario {scenario_id} not found")
+            raise NotFoundError(f"Scenario {scenario_id} not found")
         if scenario.status == ScenarioStatus.COMPLETED:
             return scenario
         updated = self._scenarios.update(scenario_id, status=ScenarioStatus.COMPLETED)

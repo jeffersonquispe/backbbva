@@ -20,6 +20,7 @@ from src.application.dtos.alert_history_dtos import (
     ListAlertHistoryInput,
 )
 from src.application.dtos.fraud_review_dtos import ReviewFraudLabelInput
+from src.application.errors import NotFoundError, ValidationError
 from src.application.ports.fraud_label_review_port import (
     FraudLabelReview,
     FraudLabelReviewChannel,
@@ -219,11 +220,11 @@ def curate_alert_to_dataset(
                 version=request.version,
             )
         )
-    except LookupError as exc:
+    except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -302,7 +303,7 @@ def list_alert_history(
         )
     except InvalidHistoryCursorError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return AlertHistoryPageResponse(
         items=[_history_item(item) for item in output.items],

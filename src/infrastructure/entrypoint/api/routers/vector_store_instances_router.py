@@ -6,6 +6,7 @@ from typing import Annotated
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from src.application.errors import NotFoundError, ValidationError
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
@@ -155,9 +156,13 @@ def promote_instance(
         return _instance_schema(use_case.execute(instance_id, actor=user.name))
     except VectorStoreInstanceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except EmptyVectorStoreInstanceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except ValueError as exc:
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
@@ -185,7 +190,7 @@ def preview_add_instance_document(
         impacts = _graph().preview_add(
             instance_id, request.asset_type, request.asset_id
         )
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {
         "instance_id": instance_id,
@@ -219,7 +224,7 @@ def add_instance_document(
         )
     except VectorStoreInstanceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
+    except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ClientError as exc:
         if (

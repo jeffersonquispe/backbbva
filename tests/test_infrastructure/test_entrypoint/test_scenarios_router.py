@@ -11,6 +11,7 @@ from src.application.dtos.simulation_dtos import (
     SimulationStatusOutput,
     UpdateSimulationScenarioInput,
 )
+from src.application.errors import ConflictError, NotFoundError, ValidationError
 from src.application.ports.simulation_scenario_port import (
     FieldGenerator,
     GeneratorKind,
@@ -180,11 +181,11 @@ def test_create_scenario_returns_201_with_body() -> None:
     assert body["field_specs"]["channel"]["kind"] == "CONSTANT"
 
 
-def test_create_scenario_maps_value_error_to_400() -> None:
+def test_create_scenario_maps_validation_error_to_400() -> None:
     response = _client(
         {
             get_create_simulation_scenario_use_case: lambda: FakeCreateUseCase(
-                ValueError("target_dataset_name is required")
+                ValidationError("target_dataset_name is required")
             )
         }
     ).post("/scenarios", json=_CREATE_PAYLOAD)
@@ -218,11 +219,11 @@ def test_list_scenarios_returns_all_results() -> None:
     assert names == {"a", "b"}
 
 
-def test_update_scenario_maps_lookup_error_to_404() -> None:
+def test_update_scenario_maps_not_found_to_404() -> None:
     response = _client(
         {
             get_update_simulation_scenario_use_case: lambda: FakeUpdateUseCase(
-                LookupError("not found")
+                NotFoundError("not found")
             )
         }
     ).put(f"/scenarios/{uuid4()}", json={"name": "renamed"})
@@ -230,11 +231,11 @@ def test_update_scenario_maps_lookup_error_to_404() -> None:
     assert response.status_code == 404
 
 
-def test_update_scenario_maps_value_error_to_400() -> None:
+def test_update_scenario_maps_conflict_to_400() -> None:
     response = _client(
         {
             get_update_simulation_scenario_use_case: lambda: FakeUpdateUseCase(
-                ValueError("Cannot edit a RUNNING scenario")
+                ConflictError("Cannot edit a RUNNING scenario")
             )
         }
     ).put(f"/scenarios/{uuid4()}", json={"name": "renamed"})
@@ -253,11 +254,11 @@ def test_delete_scenario_returns_204() -> None:
     assert fake.deleted == scenario_id
 
 
-def test_delete_scenario_maps_value_error_to_400() -> None:
+def test_delete_scenario_maps_conflict_to_400() -> None:
     response = _client(
         {
             get_delete_simulation_scenario_use_case: lambda: FakeDeleteUseCase(
-                ValueError("Cannot delete a RUNNING scenario")
+                ConflictError("Cannot delete a RUNNING scenario")
             )
         }
     ).delete(f"/scenarios/{uuid4()}")
@@ -281,11 +282,11 @@ def test_start_pause_stop_return_updated_scenario() -> None:
         assert response.json()["status"] == "RUNNING"
 
 
-def test_start_scenario_maps_lookup_error_to_404() -> None:
+def test_start_scenario_maps_not_found_to_404() -> None:
     response = _client(
         {
             get_start_simulation_use_case: lambda: FakeLifecycleUseCase(
-                LookupError("not found")
+                NotFoundError("not found")
             )
         }
     ).post(f"/scenarios/{uuid4()}/start")

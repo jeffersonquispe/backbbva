@@ -50,6 +50,7 @@ from datetime import date, datetime, timedelta, tzinfo
 from enum import Enum
 from zoneinfo import ZoneInfo
 
+from src.application.errors import ValidationError
 from src.application.ports.metrics_rollup_port import (
     DAY_LEVEL_RETENTION_DAYS,
     RollupLevel,
@@ -104,9 +105,9 @@ def plan(
     """
     for name, value in (("from_", from_), ("to", to), ("now", now)):
         if value.tzinfo is None or value.utcoffset() is None:
-            raise ValueError(f"{name} must be timezone-aware")
+            raise ValidationError(f"{name} must be timezone-aware")
     if from_ > to:
-        raise ValueError("from_ must be <= to")
+        raise ValidationError("from_ must be <= to")
     zone = ZoneInfo(tz) if isinstance(tz, str) else tz
 
     today = now.astimezone(zone).date()

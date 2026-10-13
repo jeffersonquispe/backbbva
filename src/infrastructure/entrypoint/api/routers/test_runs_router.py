@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.application.dtos.test_run_dtos import DeleteTestRunsInput, StartTestRunInput
+from src.application.errors import NotFoundError, ValidationError
 from src.application.ports.test_run_port import TestRunConfig
 from src.application.use_cases.test_runs.dataset_sampling import (
     InsufficientSampleDataError,
@@ -75,7 +76,9 @@ def start_test_run(
                 sample_distribution=request.sample_distribution,
             )
         )
-    except (ValueError, InsufficientSampleDataError, AlertPayloadTooLargeError) as exc:
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValidationError, InsufficientSampleDataError, AlertPayloadTooLargeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

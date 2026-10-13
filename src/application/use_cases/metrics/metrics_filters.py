@@ -5,6 +5,7 @@ missing - so "segment=unknown" selects alerts with no segment)."""
 
 from __future__ import annotations
 
+from src.application.errors import ValidationError
 from src.application.use_cases.metrics.alert_rollup_contribution import (
     alert_dimensions,
 )
@@ -28,7 +29,7 @@ def normalize_filters(filters: dict[str, list[str]] | None) -> dict[str, list[st
     normalized: dict[str, list[str]] = {}
     for name, values in (filters or {}).items():
         if name not in FILTER_DIMENSIONS:
-            raise ValueError(f"Unknown metrics filter: {name}")
+            raise ValidationError(f"Unknown metrics filter: {name}")
         kept = [str(v).strip() for v in values or [] if str(v).strip()]
         if kept:
             normalized[name] = kept
