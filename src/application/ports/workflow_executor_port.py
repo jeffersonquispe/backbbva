@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 
 from src.application.ports.workflow_port import WorkflowExecutionRecord
@@ -11,7 +12,7 @@ class WorkflowExecutionRef:
     external_id: str | None = None
 
 
-class WorkflowExecutor:
+class WorkflowExecutor(ABC):
     def start(
         self,
         workflow: WorkflowExecutionRecord,

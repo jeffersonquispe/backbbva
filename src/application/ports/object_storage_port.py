@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 from typing import BinaryIO
 
@@ -11,7 +12,7 @@ class ObjectStorageRef:
     uri: str
 
 
-class ObjectStoragePort:
+class ObjectStoragePort(ABC):
     def put_text(
         self,
         key: str,

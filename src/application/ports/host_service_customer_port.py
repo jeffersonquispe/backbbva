@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 
 
@@ -14,6 +15,6 @@ class HostCustomerProfile:
     address: str | None = None
 
 
-class HostServiceCustomerProfilePort:
+class HostServiceCustomerProfilePort(ABC):
     def fetch_customer_profile(self, customer_id: str) -> HostCustomerProfile:
         raise NotImplementedError

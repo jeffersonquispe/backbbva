@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -38,7 +39,7 @@ class FraudLabelReviewImportResult:
     error: str | None = None
 
 
-class FraudLabelReviewImportDispatcher:
+class FraudLabelReviewImportDispatcher(ABC):
     """Kicks off the async bulk CSV review (rows alert_id,fraud_label,note).
     Same shape as analyst_capacity_import_port.py: one-shot job whose
     per-row report only needs to reach the uploader once, so Celery's own
@@ -51,7 +52,7 @@ class FraudLabelReviewImportDispatcher:
         raise NotImplementedError
 
 
-class FraudLabelReviewImportStatusReader:
+class FraudLabelReviewImportStatusReader(ABC):
     """Reads back a dispatched import's status/report by task id. Adapter:
     infrastructure/queues/celery/fraud_label_review_import_status_reader.py."""
 

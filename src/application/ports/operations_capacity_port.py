@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -23,7 +24,7 @@ class OperationsCapacityRecord:
     updated_at: datetime
 
 
-class OperationsCapacityPort:
+class OperationsCapacityPort(ABC):
     """Current staffing/channel capacity snapshot used by the analyst
     decision step and the executor. One operational record, not per-channel
     lookups - the analyst agent needs the full picture (analysts, voicebot,

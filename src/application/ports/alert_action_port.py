@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -10,7 +11,7 @@ class AlertActionResult:
     detail: str
 
 
-class AlertChannelActionPort:
+class AlertChannelActionPort(ABC):
     """Executes the channel action the analyst decided on. Each method is
     one branch of the executor step's block/bidi/voicebot case - "pass" is
     a no-op that never reaches this port, and "scale_to_analyst" goes

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -10,7 +11,7 @@ class AnalystEscalationRef:
     external_id: str | None = None
 
 
-class AnalystEscalationDispatcher:
+class AnalystEscalationDispatcher(ABC):
     def dispatch(
         self,
         alert_id: UUID,

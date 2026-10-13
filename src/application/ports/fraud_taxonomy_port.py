@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 
 
@@ -11,6 +12,6 @@ class SimilarFraudTaxonomy:
     similarity_score: float
 
 
-class FraudTaxonomyPort:
+class FraudTaxonomyPort(ABC):
     def find_similar(self, query: str, top_k: int = 5) -> list[SimilarFraudTaxonomy]:
         raise NotImplementedError

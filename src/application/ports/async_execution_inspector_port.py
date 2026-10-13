@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -21,7 +22,7 @@ class AsyncExecutionSnapshot:
     result: dict | None = None
 
 
-class AsyncExecutionInspector:
+class AsyncExecutionInspector(ABC):
     def inspect(
         self,
         operation: AsyncOperationRecord,

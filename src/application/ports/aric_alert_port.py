@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 
 
@@ -15,7 +16,7 @@ class AricAlertSignals:
     screen_broadcast: bool | None = None
 
 
-class AricAlertPort:
+class AricAlertPort(ABC):
     def fetch_signals(
         self,
         event_id: str,

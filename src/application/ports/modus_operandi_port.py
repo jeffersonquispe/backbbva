@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 
 
@@ -10,6 +11,6 @@ class SimilarModusOperandi:
     similarity_score: float
 
 
-class ModusOperandiPort:
+class ModusOperandiPort(ABC):
     def find_similar(self, query: str, top_k: int = 5) -> list[SimilarModusOperandi]:
         raise NotImplementedError

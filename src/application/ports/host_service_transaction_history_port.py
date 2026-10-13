@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 
 
@@ -17,7 +18,7 @@ class TransactionHistoryEntry:
     counterparty: str | None = None
 
 
-class HostServiceTransactionHistoryPort:
+class HostServiceTransactionHistoryPort(ABC):
     def fetch_transaction_history(
         self,
         customer_id: str,

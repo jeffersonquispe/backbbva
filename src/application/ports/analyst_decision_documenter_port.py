@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -11,7 +12,7 @@ class DocumentationDispatchRef:
     external_id: str | None = None
 
 
-class AnalystDecisionDocumenter:
+class AnalystDecisionDocumenter(ABC):
     """Fire-and-forget dispatch: hands the pipeline's step data off to run
     concurrently with the workflow, rather than blocking it. `steps` is the
     already-computed per-step output data (pre_process, profiling,

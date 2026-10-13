@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -20,7 +21,7 @@ class AnalystCapacityImportResult:
     error: str | None = None
 
 
-class AnalystCapacityImportDispatcher:
+class AnalystCapacityImportDispatcher(ABC):
     """Kicks off async parsing of an uploaded analyst-capacity workbook.
     Unlike datasets (dataset_analysis_port.py's DatasetAnalysisDispatcher +
     a DynamoDB summary table for polling), this import is small and
@@ -38,7 +39,7 @@ class AnalystCapacityImportDispatcher:
         raise NotImplementedError
 
 
-class AnalystCapacityImportStatusReader:
+class AnalystCapacityImportStatusReader(ABC):
     """Reads back a dispatched import's status/result by task id. Adapter:
     infrastructure/queues/celery/analyst_capacity_import_status_reader.py.
     """
