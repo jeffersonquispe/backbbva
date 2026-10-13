@@ -129,6 +129,24 @@ like `libgomp1`, CMD, ports) must be mirrored in the other.
   it's a different project and not the one that runs when you `pytest` from
   repo root).
 
+## Before you call a change done — always run these
+
+1. `make lint` — ruff + mypy against `.lint-baseline.json`; fails only if the
+   error count **grows**. If you fixed errors, run `make lint-baseline` to
+   lower the baseline and commit it. Never commit a baseline that went *up*:
+   fix the new errors instead (`lint-baseline` rewrites whatever the current
+   count is, so check the diff of `.lint-baseline.json` first).
+2. `make test-architecture` — AST fitness tests in `tests/test_architecture/`
+   (import boundaries, worker wiring, service dependencies, composition smoke,
+   and `test_conventions.py`: port shapes, `@lru_cache` on adapter factories,
+   orphan `Config` fields, fake naming + test-tree mirror, Dockerfile
+   local/OKD parity, shared worker/MCP deps). Ratcheted: a new violation
+   fails, a resolved one must be deleted from its `KNOWN_VIOLATIONS`.
+3. `GENAI_ENVIRONMENT=test pytest` for the code you touched.
+
+Jenkins runs 1 and 2 as the `Lint` and `Architecture` stages (see
+`Jenkinsfile`); a red stage blocks the build.
+
 ## Directory hygiene — check before creating
 
 This codebase has accumulated duplicate/dead scaffolding before (a

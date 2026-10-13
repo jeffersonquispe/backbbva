@@ -260,6 +260,34 @@ pipeline {
                 }
             }
         }
+        stage('Architecture') {
+            when {
+                expression {
+                    return env.JOB_RUN == 'Build & Push Docker Image'
+                }
+            }
+            steps {
+                script {
+                    trackStage('Architecture') {
+                        // AST fitness tests (tests/test_architecture/, see
+                        // Makefile `test-architecture`). They import the API
+                        // app and the worker factories, so the API project's
+                        // dependencies must be installed.
+                        withEnvArtifactoryCredentials {
+                            container('python-311') {
+                                sh '''
+                                    make download-poetry
+                                    poetry -C deploy/requirements install --no-root --no-interaction
+                                    . "$(poetry -C deploy/requirements env info --path)/bin/activate"
+                                    pip install --quiet pytest
+                                    make test-architecture
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+        }
         stage("Code Test") {
             when {
                 expression {
