@@ -116,7 +116,7 @@ as they're resolved.
 
 One gap worth tracking, not a violation:
 
-- [ ] **`get_llm_unit_of_work_factory()` and `get_monitoring()` are wired
+- [x] **`get_llm_unit_of_work_factory()` and `get_monitoring()` are wired
   nowhere.** Both factories are correctly implemented under
   `infrastructure/llm/langchain/__init__.py` and
   `infrastructure/monitoring/opentelemetry/__init__.py`, but no router, use
@@ -129,14 +129,18 @@ One gap worth tracking, not a violation:
   (or into `entrypoint/api/factories/` if exposed via API first).
   **Rechecked 2026-08-09: still unfixed**, zero callers of either factory
   besides their own `__init__.py` definitions.
+  **Resolved (verified 2026-10-12):** ~35 callers - `workflows/celery/factories.py`,
+  `simulator/celery/factories.py` and five API factories.
 
 ## 3. Inconsistencies / weak spots
 
-- [ ] **`infrastructure/workflows/celery/alert_review_workflow.py`** —
+- [x] **`infrastructure/workflows/celery/alert_review_workflow.py`** —
   confirmed still placeholder, matches CLAUDE.md. `_execute_placeholder_step()`
   returns hardcoded stub dicts for all 7 `LINEAR_STEPS`. No change since
   CLAUDE.md was written.
   **Rechecked 2026-08-09: still unfixed.**
+  **Resolved (verified 2026-10-12):** `_execute_placeholder_step` is now only a
+  dispatcher to real `_run_*` steps backed by use cases via factories.
 
 - [ ] **`infrastructure/entrypoint/worker/celery/tasks.py:run_async_operation`**
   (path moved from `infrastructure/queues/celery/tasks.py` by

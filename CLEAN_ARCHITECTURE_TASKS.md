@@ -16,34 +16,34 @@ concrete edit. Check off in place; don't renumber.
 
 ### CA-001 — Remove LangChain from domain layer
 
-- [ ] Decide: is `AbstractPersistenceUnitOfWork`
+- [x] Decide: is `AbstractPersistenceUnitOfWork`
       (`src/domain/persistence/__init__.py`) used anywhere? Re-run:
       `grep -rn "AbstractPersistenceUnitOfWork\|domain.persistence" src/ tests/`
       (backlog found zero consumers — confirm still zero).
-  - [ ] If still unused: `rm -r src/domain/persistence/`.
-  - [ ] If it turns out to be used: move the file to
+  - [x] If still unused: `rm -r src/domain/persistence/`. *(done 2026-10-12, `1477d44`; zero consumers confirmed)*
+  - [x] ~~If it turns out to be used:~~ *(n/a - was unused)* move the file to
         `src/infrastructure/persistence/langchain/unit_of_work.py`
         (or similar existing LangChain adapter dir), keep the LangChain
         imports there, and define a project-owned port in
         `src/application/ports/` if application code needs to call it.
-- [ ] After deletion, verify:
+- [x] After deletion, verify: *(`test_domain_is_framework_free` now enforces this)*
       `python -c "import src.domain"` and every submodule import cleanly
       without `langchain`/`langchain_core` installed (or grep confirm no
       import remains): `grep -rn "^import\|^from" src/domain/ | grep -v "^src/domain.*: *from __future__\|from typing\|import abc\|import enum\|import dataclasses\|import uuid\|from datetime"`.
 
 ### CA-010 — Architecture fitness tests (do this right after CA-001, before other CA work, so nothing regresses)
 
-- [ ] Add `import-linter` (or hand-rolled AST test) to
+- [x] Add `import-linter` (or hand-rolled AST test) to *(hand-rolled AST test chosen; no new dependency)*
       `deploy/requirements/pyproject.toml` dev deps.
-- [ ] New test file `tests/test_architecture/test_import_boundaries.py`:
-  - [ ] Rule 1: no file under `src/domain/` imports anything outside
+- [x] New test file `tests/test_architecture/test_import_boundaries.py`: *(`90e2d85`; ratcheted `KNOWN_VIOLATIONS` baseline, `make test-architecture`)*
+  - [x] Rule 1: no file under `src/domain/` imports anything outside
         stdlib + `src.domain.*`.
-  - [ ] Rule 2: no file under `src/application/` imports `src.infrastructure`.
+  - [x] Rule 2: no file under `src/application/` imports `src.infrastructure`.
   - [ ] Rule 3: no file outside `src/infrastructure/entrypoint/worker/`
         imports `src.infrastructure.entrypoint.worker.*` (this rule will
         fail today — see CA-004 — leave it added-but-`xfail` until CA-004
         lands, then flip to enforced).
-  - [ ] Rule 4: `src/domain` and `src/application` contain no
+  - [x] Rule 4: `src/domain` and `src/application` contain no
         `fastapi`, `boto3`, `celery`, `opensearch`, `langchain`,
         `pydantic`, or `opentelemetry` imports (drop the `pydantic`
         exemption only after confirming — grep first,
@@ -55,7 +55,7 @@ concrete edit. Check off in place; don't renumber.
   - [ ] For each task in `src/infrastructure/entrypoint/worker/celery/tasks.py`,
         assert the module imports without raising (catches broken inline
         composition).
-- [ ] Wire this test file to run first in CI (before slower integration
+- [ ] Wire this test file to run first in CI *(partial: `make test-architecture` exists; `Jenkinsfile` not wired yet)* (before slower integration
       tests) — check `.gitlab-ci.yml` / `Makefile` test target ordering,
       add a fast `make test-architecture` target if none exists.
 
