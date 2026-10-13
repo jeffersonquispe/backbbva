@@ -25,6 +25,9 @@ from src.application.use_cases.datasets.extract_dataset import ExtractDatasetUse
 from src.application.use_cases.datasets.get_alert_field_mapping import (
     GetAlertFieldMappingUseCase,
 )
+from src.application.use_cases.datasets.delete_alert_field_mapping import (
+    DeleteAlertFieldMappingUseCase,
+)
 from src.application.use_cases.datasets.get_dataset_rows import GetDatasetRowsUseCase
 from src.application.use_cases.datasets.get_dataset_summary import (
     GetDatasetSummaryUseCase,
@@ -178,6 +181,10 @@ def get_alert_field_mapping_repository() -> AlertFieldMappingRepository:
 
 def get_get_alert_field_mapping_use_case() -> GetAlertFieldMappingUseCase:
     return GetAlertFieldMappingUseCase(get_alert_field_mapping_repository())
+
+
+def get_delete_alert_field_mapping_use_case() -> DeleteAlertFieldMappingUseCase:
+    return DeleteAlertFieldMappingUseCase(get_alert_field_mapping_repository())
 
 
 def get_save_alert_field_mapping_use_case() -> SaveAlertFieldMappingUseCase:

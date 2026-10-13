@@ -179,7 +179,7 @@ class EvaluateAlertReasoning:
         if not steps:
             return None
         evidence = {
-            "alert_payload": (workflow.input or {}).get("alert_payload") or alert.payload,
+            "alert_input": alert.input,
             **{name: latest[name].output for name in EVIDENCE_STEPS if name in latest},
         }
         evidence_text = _bounded(evidence, MAX_EVIDENCE_CHARS)

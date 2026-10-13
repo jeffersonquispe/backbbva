@@ -71,7 +71,7 @@ def test_page_by_created_day_is_newest_first_and_resumes_before_a_timestamp(tabl
     base = datetime(2031, 1, 15, 12, 0, tzinfo=timezone.utc)  # 07:00 Bogota
     alerts = [
         AlertRecord(
-            id=uuid.uuid4(), event_id=f"evt-{i}", event_type="payment", payload={},
+            id=uuid.uuid4(), event_id=f"evt-{i}", event_type="payment", input={},
             status=AlertStatus.CLOSED, created_at=base + timedelta(minutes=i),
             updated_at=base + timedelta(minutes=i),
         )

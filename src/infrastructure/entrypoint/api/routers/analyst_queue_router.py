@@ -215,7 +215,15 @@ def _queue_item_response(
         status=alert.status.value,
         customer_id=alert.customer_id,
         created_at=alert.created_at,
-        payload=alert.payload,
+        schema_version=alert.schema_version,
+        configuration_ref=(
+            {"configuration_id": alert.configuration_id, "version": alert.configuration_version}
+            if alert.configuration_id is not None else None
+        ),
+        input=alert.input,
+        labels=alert.labels,
+        history_prev_alerta=alert.history_prev_alerta,
+        agent_output=alert.agent_output,
         reservation=(
             _reservation_response(item.reservation, users)
             if item.reservation is not None

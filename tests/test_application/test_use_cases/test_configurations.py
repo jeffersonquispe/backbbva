@@ -123,6 +123,11 @@ def _with_active(
         test=config.test,
         created_at=config.created_at,
         updated_at=datetime.now(timezone.utc),
+        activated_at=(
+            datetime.now(timezone.utc)
+            if active and not config.activated_at
+            else config.activated_at
+        ),
         created_by=config.created_by,
         segments=config.segments,
     )
@@ -360,6 +365,7 @@ def test_activate_enforces_single_active_invariant_across_activations() -> None:
 
     activated_v1 = activate.execute(v1.configuration_id, 1)
     assert activated_v1.active is True
+    assert activated_v1.activated_at is not None
     assert get_active.execute().version == 1
 
     activated_v2 = activate.execute(v2.configuration_id, 2)
@@ -367,6 +373,7 @@ def test_activate_enforces_single_active_invariant_across_activations() -> None:
     active = get_active.execute()
     assert active is not None
     assert active.version == 2
+    assert active.activated_at is not None
     # Activating v2 must flip v1 back to inactive - exactly one active
     # configuration at any time, across the whole table.
     assert repo.get(v1.configuration_id, 1).active is False

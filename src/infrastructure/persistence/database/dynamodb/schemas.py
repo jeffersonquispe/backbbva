@@ -283,16 +283,18 @@ DATASET_SUMMARIES_TABLE = {
 }
 
 
-# 1:1 with a dataset - how an alert's payload fields translate into that
-# dataset's columns when curating an alert into it (curate_alert_to_dataset).
+# Historical export mappings: each save is retained for the schema version it
+# was made for; curation itself reads the alert canonical shape directly.
 ALERT_FIELD_MAPPINGS_TABLE = {
     "TableName": "alert_field_mappings",
     "BillingMode": "PAY_PER_REQUEST",
     "KeySchema": [
         {"AttributeName": "dataset_name", "KeyType": "HASH"},
+        {"AttributeName": "saved_at", "KeyType": "RANGE"},
     ],
     "AttributeDefinitions": [
         {"AttributeName": "dataset_name", "AttributeType": "S"},
+        {"AttributeName": "saved_at", "AttributeType": "S"},
     ],
 }
 
@@ -406,6 +408,27 @@ CONFIGURATION_DEPLOY_REQUESTS_TABLE = {
     "BillingMode": "PAY_PER_REQUEST",
     "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
     "AttributeDefinitions": [{"AttributeName": "id", "AttributeType": "S"}],
+}
+
+ALERT_SCHEMA_VERSIONS_TABLE = {
+    "TableName": "alert_schema_versions",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "version", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "version", "AttributeType": "N"}],
+}
+
+ALERT_SCHEMA_SUGGESTIONS_TABLE = {
+    "TableName": "alert_schema_suggestions",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "id", "AttributeType": "S"}],
+}
+
+ALERT_SCHEMA_PRESENCE_REPORTS_TABLE = {
+    "TableName": "alert_schema_presence_reports",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "report_day", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "report_day", "AttributeType": "S"}],
 }
 
 

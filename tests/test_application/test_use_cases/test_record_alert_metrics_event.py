@@ -23,6 +23,12 @@ from src.application.ports.alert_port import (
     AlertStatus,
     Mark,
 )
+from src.application.ports.alert_schema_port import (
+    AlertSchemaField,
+    AlertSchemaFieldType,
+    AlertSchemaDataSource,
+    AlertSchemaVersion,
+)
 from src.application.ports.configuration_port import ConfigurationRef
 from src.application.ports.metrics_rollup_port import (
     AlertSnapshotGuard,
@@ -150,16 +156,37 @@ class InMemoryOperationalSettingsRepository:
         return self.settings
 
 
+class InMemoryAlertSchemaRepository:
+    def get(self, version: int):
+        fields = [
+            AlertSchemaField("channel", AlertSchemaDataSource.ARIC, "channel", type=AlertSchemaFieldType.STRING),
+            AlertSchemaField("entrypoint", AlertSchemaDataSource.ARIC, "entrypoint", type=AlertSchemaFieldType.STRING),
+            AlertSchemaField("amount", AlertSchemaDataSource.ARIC, "amount", type=AlertSchemaFieldType.NUMBER),
+        ]
+        return AlertSchemaVersion(
+            version=version,
+            fields=fields,
+            field_roles={"channel": "channel", "entrypoint": "entrypoint", "amount": "amount"},
+        )
+
+
 def _alert(alerts: InMemoryAlertRepository, payload=PAYLOAD) -> AlertRecord:
+    channel = payload.get("channel")
+    entrypoint = payload.get("entrypoint") or payload.get("integrationpoint") or payload.get("integrationPoint")
+    amount = payload.get("amount")
+    if isinstance(amount, dict):
+        amount = amount.get("baseValue")
+    amount = payload.get("amount_value", amount)
     return alerts.create(
         AlertRecord(
             id=uuid4(),
             event_id="evt-1",
             event_type="payment",
-            payload=payload,
             status=AlertStatus.PROCESSING,
             created_at=CREATED_AT,
             updated_at=CREATED_AT,
+            schema_version=1,
+            input={"channel": channel, "entrypoint": entrypoint, "amount": amount},
         )
     )
 
@@ -168,13 +195,14 @@ def _setup(tiers=TIERS, tier_version=3):
     alerts = InMemoryAlertRepository()
     rollups = InMemoryMetricsRollupRepository(alerts)
     settings = InMemoryOperationalSettingsRepository(
-        OperationalSettings(amount_tiers=list(tiers), amount_tier_set_version=tier_version)
+        OperationalSettings(amount_tiers=list(tiers))
     )
     recorder = RecordAlertMetricsEvent(
         alert_repository=alerts,
         rollup_repository=rollups,
         settings_repository=settings,
         timezone_name=TZ,
+        schema_repository=InMemoryAlertSchemaRepository(),
         clock=lambda: NOW,
     )
     return alerts, rollups, settings, recorder
@@ -187,7 +215,7 @@ def _event(alert_id, event_type, **fields) -> RecordAlertMetricsEventInput:
 # --- writer -----------------------------------------------------------------------
 
 
-def test_created_freezes_payload_dimensions_and_current_amount_tier() -> None:
+def test_created_freezes_canonical_dimensions_and_current_amount_tier() -> None:
     alerts, rollups, settings, recorder = _setup()
     alert = _alert(alerts)
 
@@ -197,7 +225,7 @@ def test_created_freezes_payload_dimensions_and_current_amount_tier() -> None:
 
     assert snapshot == alerts.get(alert.id).metrics
     assert (snapshot.channel, snapshot.subchannel, snapshot.amount) == ("WEB", "PSE", 2_500_000)
-    assert (snapshot.amount_tier, snapshot.amount_tier_set_version) == ("mid", 3)
+    assert (snapshot.amount_tier, snapshot.schema_version) == ("mid", 1)
     assert (snapshot.origin, snapshot.configuration_id) == ("simulator", "cfg-1")
     assert snapshot.mark == Mark.PENDING and snapshot.fraud_label == Mark.PENDING
     assert snapshot.snapshot_version == 1
@@ -205,9 +233,9 @@ def test_created_freezes_payload_dimensions_and_current_amount_tier() -> None:
     assert rollups.total("count", level=RollupLevel.YEAR) == 1
 
     # Tier changes later never reclassify this alert.
-    settings.settings = OperationalSettings(amount_tiers=[], amount_tier_set_version=4)
+    settings.settings = OperationalSettings(amount_tiers=[])
     after = recorder.execute(_event(alert.id, AlertMetricsEventType.PRE_PROCESSED, segment="s1"))
-    assert (after.amount_tier, after.amount_tier_set_version) == ("mid", 3)
+    assert after.amount_tier == "mid"
 
 
 def test_flat_csv_payload_aliases_and_no_tiers_classify_unknown() -> None:
@@ -425,7 +453,7 @@ def test_alert_creation_records_created_event_with_origin_and_pinned_config() ->
     snapshot = alerts.get(output.alert_id).metrics
     assert snapshot.origin == "test_run"
     assert snapshot.configuration_id == "cfg-7"
-    assert snapshot.amount_tier == "mid"
+    assert snapshot.amount_tier == "unknown"
     assert rollups.total("count", origin="test_run") == 1
 
 

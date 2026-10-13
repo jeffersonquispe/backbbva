@@ -69,21 +69,18 @@ def test_valid_tiers_are_saved_with_server_side_version() -> None:
         json={
             "settings": {
                 "amount_tiers": [_tier("low", 0, 1000), _tier("high", 1000, None)],
-                "amount_tier_set_version": 42,
             }
         },
     )
     assert response.status_code == 200
     body = response.json()
     assert [t["code"] for t in body["amount_tiers"]] == ["low", "high"]
-    assert body["amount_tier_set_version"] == 1
 
 
 def test_request_without_amount_tiers_keeps_current_ones() -> None:
     current = replace(
         OperationalSettings(),
         amount_tiers=[AmountTier("all", "all", 0, None)],
-        amount_tier_set_version=3,
     )
     repository = InMemoryOperationalSettingsRepository(current)
     response = _client(repository).put(
@@ -91,4 +88,3 @@ def test_request_without_amount_tiers_keeps_current_ones() -> None:
     )
     assert response.status_code == 200
     assert response.json()["amount_tiers"][0]["code"] == "all"
-    assert repository.settings.amount_tier_set_version == 3

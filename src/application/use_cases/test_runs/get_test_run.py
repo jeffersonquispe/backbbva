@@ -3,6 +3,8 @@ from __future__ import annotations
 from uuid import UUID
 
 from src.application.dtos.test_run_dtos import TestCaseSummary, TestRunDetail
+from src.application.ports.alert_port import AlertRepository
+from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.test_run_port import TestRunRepository, TestRunStatus
 from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
@@ -20,6 +22,10 @@ from src.application.use_cases.test_runs.duration_stats import (
     workflow_duration,
 )
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
+from src.application.use_cases.test_runs.dataset_sampling import (
+    MARCACION_FIELD,
+    TIPO_FIELD,
+)
 
 _FAILED = {WorkflowStatus.FAILED}
 _RUNNING = {WorkflowStatus.RUNNING, WorkflowStatus.DISPATCHED}
@@ -47,10 +53,14 @@ class GetTestRunUseCase:
         test_run_repository: TestRunRepository,
         workflow_repository: WorkflowExecutionRepository,
         step_repository: WorkflowStepExecutionRepository,
+        alert_repository: AlertRepository | None = None,
+        schema_repository: AlertSchemaRepository | None = None,
     ) -> None:
         self._test_runs = test_run_repository
         self._workflows = workflow_repository
         self._steps = step_repository
+        self._alerts = alert_repository
+        self._schemas = schema_repository
 
     def execute(self, test_run_id: UUID) -> TestRunDetail | None:
         test_run = self._test_runs.get(test_run_id)
@@ -86,7 +96,17 @@ class GetTestRunUseCase:
             output_tokens += step_output
 
             output = _final_classification_output(steps)
-            if output is not None:
+            labels = _canonical_evaluation_labels(
+                w.alert_id, self._alerts, self._schemas
+            )
+            if labels is not None and output is not None:
+                is_fraud = output.get("is_fraud")
+                analyst_cases.append((labels.get(MARCACION_FIELD), is_fraud))
+                ground_truth_cases.append((labels.get(TIPO_FIELD), is_fraud))
+            elif labels is None and output is not None:
+                # Kept only for direct callers that have not wired the
+                # canonical alert/schema ports. Production wiring always
+                # takes the branch above.
                 is_fraud = output.get("is_fraud")
                 analyst_cases.append((output.get("expected_classification"), is_fraud))
                 ground_truth_cases.append((output.get("ground_truth_tipo"), is_fraud))
@@ -139,3 +159,24 @@ def _final_classification_output(
     if not classification_steps:
         return None
     return max(classification_steps, key=lambda s: s.attempt).output
+
+
+def _canonical_evaluation_labels(
+    alert_id: UUID,
+    alerts: AlertRepository | None,
+    schemas: AlertSchemaRepository | None,
+) -> dict[str, object] | None:
+    if alerts is None or schemas is None:
+        return None
+    alert = alerts.get(alert_id)
+    if alert is None or alert.schema_version is None:
+        return {}
+    schema = schemas.get(alert.schema_version)
+    if schema is None:
+        return {}
+    label_fields = {field.field for field in schema.fields if field.is_label}
+    return {
+        field: value
+        for field, value in alert.labels.items()
+        if field in label_fields
+    }

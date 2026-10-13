@@ -29,14 +29,6 @@ class UpdateOperationalSettingsUseCase:
             proposed = dataclasses.replace(proposed, amount_tiers=current.amount_tiers)
         # Raises InvalidAmountTiersError (-> 422 at the router).
         validate_amount_tiers(proposed.amount_tiers)
-        proposed = dataclasses.replace(
-            proposed,
-            amount_tier_set_version=(
-                current.amount_tier_set_version + 1
-                if list(proposed.amount_tiers) != list(current.amount_tiers)
-                else current.amount_tier_set_version
-            ),
-        )
         changes = _diff(asdict(current), asdict(proposed))
         change = OperationalSettingsChange(
             id=str(uuid.uuid4()),

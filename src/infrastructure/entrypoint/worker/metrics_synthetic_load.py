@@ -20,9 +20,8 @@ event's time:
 
 Alerts and rollups are written with the real Dynamo repositories, so the
 transactions, item sizes and capacity units are the real ones. The amount
-tier set is held by an in-memory settings repository: no tiers (version 0)
-until --tier-change-day days into the run, then three tiers (version 1) -
-the range queries that cross that day get `amount_tier_set_changed`.
+tier sets are held by an in-memory settings repository and can change during
+the run; each alert keeps the tier classified at arrival.
 
 There is no table prefix in this repo (table names are constants), so point
 it at a THROWAWAY DynamoDB Local (the Make target defaults to port 8012),
@@ -246,7 +245,6 @@ class TierSwitchingSettings:
         self._before = OperationalSettings()
         self._after = OperationalSettings(
             amount_tiers=[AmountTier(c, l, lo, hi) for c, l, lo, hi in TIERS_V1],
-            amount_tier_set_version=1,
         )
 
     def get(self):
@@ -362,7 +360,7 @@ def plan_alert(rng: random.Random, created_at: datetime, now: datetime, tech: bo
     }
     alert = AlertRecord(
         id=alert_id, event_id=f"syn-{alert_id.hex[:12]}", event_type="payment",
-        payload=payload, status=AlertStatus.RECEIVED, created_at=created_at,
+        input=payload, status=AlertStatus.RECEIVED, created_at=created_at,
         updated_at=created_at, customer_id=None,
     )
     # Configuration switched one third of the way through the 90 days.

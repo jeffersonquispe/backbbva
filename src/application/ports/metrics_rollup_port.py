@@ -44,7 +44,7 @@ ALERT_DIMENSIONS: tuple[str, ...] = (
     "channel",
     "subchannel",
     "amount_tier",
-    "amount_tier_set_version",
+    "schema_version",
     "status",
     "configuration_id",
     "resolution_method",

@@ -18,7 +18,7 @@ class InMemoryAlertFieldMappingRepository(AlertFieldMappingRepository):
     def get(self, dataset_name: str) -> AlertFieldMapping | None:
         return self._records.get(dataset_name)
 
-    def upsert(self, mapping: AlertFieldMapping) -> AlertFieldMapping:
+    def save(self, mapping: AlertFieldMapping) -> AlertFieldMapping:
         self._records[mapping.dataset_name] = mapping
         return mapping
 
@@ -43,6 +43,7 @@ def test_get_alert_field_mapping_returns_existing_mapping_as_is() -> None:
         {
             "ds": AlertFieldMapping(
                 dataset_name="ds",
+                schema_version=4,
                 mappings={"eventId": "eventid"},
                 updated_at=updated_at,
             )
@@ -53,5 +54,6 @@ def test_get_alert_field_mapping_returns_existing_mapping_as_is() -> None:
     output = use_case.execute("ds")
 
     assert output.dataset_name == "ds"
+    assert output.schema_version == 4
     assert output.mappings == {"eventId": "eventid"}
     assert output.updated_at == updated_at

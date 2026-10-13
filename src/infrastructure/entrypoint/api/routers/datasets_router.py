@@ -30,6 +30,9 @@ from src.application.use_cases.datasets.extract_dataset import ExtractDatasetUse
 from src.application.use_cases.datasets.get_alert_field_mapping import (
     GetAlertFieldMappingUseCase,
 )
+from src.application.use_cases.datasets.delete_alert_field_mapping import (
+    DeleteAlertFieldMappingUseCase,
+)
 from src.application.use_cases.datasets.get_dataset_rows import GetDatasetRowsUseCase
 from src.application.use_cases.datasets.get_dataset_summary import (
     GetDatasetSummaryUseCase,
@@ -50,6 +53,7 @@ from src.infrastructure.entrypoint.api.factories.dataset_factory import (
     get_delete_dataset_use_case,
     get_extract_dataset_use_case,
     get_get_alert_field_mapping_use_case,
+    get_delete_alert_field_mapping_use_case,
     get_get_dataset_rows_use_case,
     get_get_dataset_summary_use_case,
     get_get_dataset_template_use_case,
@@ -57,6 +61,7 @@ from src.infrastructure.entrypoint.api.factories.dataset_factory import (
     get_save_alert_field_mapping_use_case,
     get_upload_dataset_use_case,
 )
+from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.schemas import (
     AlertFieldMappingResponse,
     AppendDatasetRowsRequest,
@@ -224,9 +229,12 @@ def delete_dataset(
     # Never make a browser request wait for object-storage and DynamoDB
     # cleanup.  This is especially important for datasets created before
     # sample retention was bounded.
-    from src.infrastructure.entrypoint.worker.celery.tasks import delete_dataset_task
+    # Send by registered task name so the API does not import the complete
+    # worker task module (and its optional research dependencies) just to
+    # enqueue a dataset deletion.
+    from src.infrastructure.entrypoint.worker.celery.celery_app import app as celery_app
 
-    delete_dataset_task.delay(name, str(operation_id))
+    celery_app.send_task("datasets.delete", args=[name, str(operation_id)])
     return DeleteDatasetResponse(
         name=name, deleted=False, async_operation_id=operation_id
     )
@@ -363,6 +371,7 @@ def get_alert_field_mapping(
 @router.put(
     "/datasets/{name}/alert-field-mapping",
     response_model=AlertFieldMappingResponse,
+    dependencies=[Depends(require_permission("alert_schema"))],
 )
 def save_alert_field_mapping(
     name: str,
@@ -372,5 +381,24 @@ def save_alert_field_mapping(
     ],
 ):
     return use_case.execute(
-        SaveAlertFieldMappingInput(dataset_name=name, mappings=request.mappings)
+        SaveAlertFieldMappingInput(
+            dataset_name=name,
+            schema_version=request.schema_version,
+            mappings=request.mappings,
+        )
     )
+
+
+@router.delete(
+    "/datasets/{name}/alert-field-mapping",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_permission("alert_schema"))],
+)
+def delete_alert_field_mapping(
+    name: str,
+    use_case: Annotated[
+        DeleteAlertFieldMappingUseCase,
+        Depends(get_delete_alert_field_mapping_use_case),
+    ],
+):
+    use_case.execute(name)

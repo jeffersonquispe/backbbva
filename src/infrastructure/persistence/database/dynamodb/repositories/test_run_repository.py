@@ -81,6 +81,7 @@ def _to_item(run: TestRunRecord) -> dict[str, Any]:
             if run.config.configuration_ref is not None
             else None
         ),
+        "schema_version": run.config.schema_version,
         "status": run.status.value,
         "total": run.total,
         "created_at": run.created_at.isoformat(),
@@ -115,6 +116,7 @@ def _from_item(item: dict[str, Any]) -> TestRunRecord:
                 if configuration_ref is not None
                 else None
             ),
+            schema_version=(int(item["schema_version"]) if item.get("schema_version") is not None else None),
         ),
         status=TestRunStatus(item["status"]),
         total=int(item.get("total") or 0),

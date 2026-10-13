@@ -17,9 +17,14 @@ class CreateSimulationScenarioInput:
     name: str
     output_mode: OutputMode
     rate_schedule: list[RateInterval]
-    field_specs: dict[str, FieldGenerator]
+    field_specs: dict[str, FieldGenerator] | None = None
     target_dataset_name: str | None = None
     created_by: str | None = None
+
+
+@dataclass
+class SeedSimulationFromDatasetInput:
+    dataset_name: str
 
 
 @dataclass

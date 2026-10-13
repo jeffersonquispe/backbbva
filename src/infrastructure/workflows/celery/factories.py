@@ -33,6 +33,15 @@ from src.application.use_cases.alerts.post_process_alert import (
 from src.application.use_cases.alerts.pre_process_alert import (
     PreProcessAlertUseCase,
 )
+from src.application.use_cases.alert_schema.analyze_presence import AnalyzeAlertSchemaPresenceUseCase
+from src.application.ports.alert_schema_port import AlertSchemaRepository
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import (
+    DynamoAlertSchemaRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_presence_repository import (
+    DynamoAlertSchemaPresenceReportRepository,
+)
+from src.infrastructure.persistence.object_storage.minio import get_object_storage
 from src.application.use_cases.alerts.profile_alert import ProfileAlertUseCase
 from src.application.use_cases.alerts.profile_alert_deterministic import (
     DeterministicProfileAlertUseCase,
@@ -125,6 +134,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.model_reposit
     DynamoModelRepository,
 )
 from src.infrastructure.persistence.object_storage.minio import get_model_object_storage
+from src.infrastructure.persistence.object_storage.minio import get_object_storage
 from src.infrastructure.persistence.vector_store.opensearch.client import (
     get_opensearch_client,
 )
@@ -163,6 +173,22 @@ from src.application.use_cases.metrics.record_workflow_step_metrics import (
 @lru_cache
 def get_alert_repository() -> DynamoAlertRepository:
     return DynamoAlertRepository()
+
+
+@lru_cache
+def get_alert_schema_repository() -> AlertSchemaRepository:
+    return DynamoAlertSchemaRepository()
+
+
+@lru_cache
+def get_alert_schema_presence_report_repository() -> DynamoAlertSchemaPresenceReportRepository:
+    return DynamoAlertSchemaPresenceReportRepository()
+
+
+def get_analyze_alert_schema_presence_use_case() -> AnalyzeAlertSchemaPresenceUseCase:
+    return AnalyzeAlertSchemaPresenceUseCase(
+        get_alert_repository(), get_alert_schema_repository(), get_alert_schema_presence_report_repository(), get_object_storage()
+    )
 
 
 @lru_cache
@@ -238,6 +264,11 @@ def get_model_repository() -> DynamoModelRepository:
 @lru_cache
 def get_model_storage():
     return get_model_object_storage()
+
+
+@lru_cache
+def get_alert_object_storage():
+    return get_object_storage()
 
 
 @lru_cache
@@ -368,6 +399,7 @@ def get_pre_process_alert_use_case(
         host_customer_profile_port=get_host_customer_profile_port(),
         host_transaction_history_port=get_host_transaction_history_port(),
         host_personal_data_changes_port=get_host_personal_data_changes_port(),
+        schema_repository=get_alert_schema_repository(),
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
@@ -542,6 +574,7 @@ def get_record_alert_metrics_event_use_case() -> RecordAlertMetricsEvent:
         alert_repository=get_alert_repository(),
         rollup_repository=get_metrics_rollup_repository(),
         settings_repository=get_operational_settings_repository(),
+        schema_repository=DynamoAlertSchemaRepository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
         monitoring=get_monitoring(),
     )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -7,10 +8,6 @@ from uuid import UUID, uuid4
 import pytest
 
 from src.application.dtos.alert_dtos import CurateAlertToDatasetInput
-from src.application.ports.alert_field_mapping_port import (
-    AlertFieldMapping,
-    AlertFieldMappingRepository,
-)
 from src.application.ports.alert_port import AlertRecord, AlertRepository, AlertStatus
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
@@ -107,21 +104,6 @@ class RecordingDatasetAnalysisDispatcher(DatasetAnalysisDispatcher):
         self.dispatched.append(dataset_name)
 
 
-class InMemoryAlertFieldMappingRepository(AlertFieldMappingRepository):
-    def __init__(self, mappings: dict[str, AlertFieldMapping] | None = None) -> None:
-        self._by_dataset = mappings or {}
-
-    def get(self, dataset_name: str) -> AlertFieldMapping | None:
-        return self._by_dataset.get(dataset_name)
-
-    def upsert(self, mapping: AlertFieldMapping) -> AlertFieldMapping:
-        self._by_dataset[mapping.dataset_name] = mapping
-        return mapping
-
-    def delete(self, dataset_name: str) -> None:
-        self._by_dataset.pop(dataset_name, None)
-
-
 class InMemoryFeedbackRepository(FeedbackRepository):
     def __init__(self) -> None:
         self.created: list[FeedbackRecord] = []
@@ -157,17 +139,24 @@ class InMemoryWorkflowExecutionRepository(WorkflowExecutionRepository):
         return self._by_id.get(workflow_id)
 
 
-def _alert(payload: dict[str, Any], workflow_execution_id: UUID | None = None) -> AlertRecord:
+def _alert(
+    payload: dict[str, Any],
+    workflow_execution_id: UUID | None = None,
+    *,
+    labels: dict[str, Any] | None = None,
+) -> AlertRecord:
     now = datetime.now(timezone.utc)
     return AlertRecord(
         id=uuid4(),
         event_id="evt-1",
         event_type="transaction",
-        payload=payload,
         status=AlertStatus.CLOSED,
         created_at=now,
         updated_at=now,
         workflow_execution_id=workflow_execution_id,
+        schema_version=1,
+        input=payload,
+        labels=labels or {},
     )
 
 
@@ -196,7 +185,6 @@ def _make_use_case(
     datasets: FakeDatasetRepository,
     summaries: InMemoryDatasetSummaryRepository | None = None,
     dispatcher: RecordingDatasetAnalysisDispatcher | None = None,
-    mappings: InMemoryAlertFieldMappingRepository | None = None,
     feedback: InMemoryFeedbackRepository | None = None,
     executions: InMemoryWorkflowExecutionRepository | None = None,
 ) -> tuple[CurateAlertToDatasetUseCase, InMemoryFeedbackRepository]:
@@ -206,14 +194,13 @@ def _make_use_case(
         dataset_repository=datasets,
         summary_repository=summaries or InMemoryDatasetSummaryRepository(),
         dispatcher=dispatcher or RecordingDatasetAnalysisDispatcher(),
-        mapping_repository=mappings or InMemoryAlertFieldMappingRepository(),
         feedback_repository=feedback,
         workflow_execution_repository=executions or InMemoryWorkflowExecutionRepository(),
     )
     return use_case, feedback
 
 
-def test_curate_appends_alert_payload_as_a_row_with_manual_configuration() -> None:
+def test_curate_appends_canonical_input_labels_and_schema_version() -> None:
     alert = _alert({"eventId": "e-1", "object": {"triggeredRules": "RULE_A"}})
     alerts = InMemoryAlertRepository({alert.id: alert})
     datasets = FakeDatasetRepository(new_total=6)
@@ -235,7 +222,16 @@ def test_curate_appends_alert_payload_as_a_row_with_manual_configuration() -> No
     assert output.configuration_id == "cfg-1"
     assert output.version == 3
     assert datasets.append_calls == [
-        ("training_set", [{"eventId": "e-1", "object": {"triggeredRules": "RULE_A"}}])
+        (
+            "training_set",
+            [
+                {
+                    "eventId": "e-1",
+                    "object": {"triggeredRules": "RULE_A"},
+                    "schema_version": 1,
+                }
+            ],
+        )
     ]
 
     assert len(feedback.created) == 1
@@ -248,28 +244,20 @@ def test_curate_appends_alert_payload_as_a_row_with_manual_configuration() -> No
     assert saved.justification == "Reviewed manually, clearly a training-worthy case."
 
 
-def test_curate_applies_alert_field_mapping_on_top_of_pass_through() -> None:
-    alert = _alert({"eventId": "e-1", "object": {"triggeredRules": "RULE_A"}, "channel": "GL"})
+def test_curate_keeps_labels_as_distinct_schema_field_columns() -> None:
+    alert = _alert(
+        {"eventId": "e-1", "channel": "GL"},
+        labels={"fraud_label": "fraud"},
+    )
     alerts = InMemoryAlertRepository({alert.id: alert})
     datasets = FakeDatasetRepository(new_total=1)
-    mappings = InMemoryAlertFieldMappingRepository(
-        {
-            "training_set": AlertFieldMapping(
-                dataset_name="training_set",
-                mappings={
-                    "eventId": "eventid",
-                    "object.triggeredRules": "triggered_rules",
-                },
-            )
-        }
-    )
-    use_case, _ = _make_use_case(alerts=alerts, datasets=datasets, mappings=mappings)
+    use_case, _ = _make_use_case(alerts=alerts, datasets=datasets)
 
     use_case.execute(
         CurateAlertToDatasetInput(
             alert_id=alert.id,
             dataset_name="training_set",
-            justification="Mapped fields should populate the right columns.",
+            justification="Canonical labels should populate separate columns.",
             configuration_id="cfg-1",
             version=1,
         )
@@ -278,13 +266,10 @@ def test_curate_applies_alert_field_mapping_on_top_of_pass_through() -> None:
     [(name, rows)] = datasets.append_calls
     assert name == "training_set"
     row = rows[0]
-    # Mapped columns added...
-    assert row["eventid"] == "e-1"
-    assert row["triggered_rules"] == "RULE_A"
-    # ...and original pass-through fields (channel has no mapping entry)
-    # still present.
+    assert row["fraud_label"] == "fraud"
     assert row["channel"] == "GL"
     assert row["eventId"] == "e-1"
+    assert row["schema_version"] == 1
 
 
 def test_curate_auto_detects_configuration_from_workflow_execution() -> None:
@@ -309,6 +294,34 @@ def test_curate_auto_detects_configuration_from_workflow_execution() -> None:
     assert output.version == 7
     assert feedback.created[0].configuration_id == "cfg-auto"
     assert feedback.created[0].version == 7
+
+
+def test_curate_auto_detects_configuration_stored_on_the_alert() -> None:
+    # A production alert: no configuration_ref on its execution, but the
+    # workflow stored the configuration it resolved on the alert itself.
+    execution_id = uuid4()
+    alert = dataclasses.replace(
+        _alert({"eventId": "e-1"}, workflow_execution_id=execution_id),
+        configuration_id="cfg-active",
+        configuration_version=3,
+    )
+    alerts = InMemoryAlertRepository({alert.id: alert})
+    datasets = FakeDatasetRepository()
+    executions = InMemoryWorkflowExecutionRepository(
+        {execution_id: _execution(execution_id, None)}
+    )
+    use_case, feedback = _make_use_case(alerts=alerts, datasets=datasets, executions=executions)
+
+    output = use_case.execute(
+        CurateAlertToDatasetInput(
+            alert_id=alert.id,
+            dataset_name="training_set",
+            justification="Production alert, configuration stored on it.",
+        )
+    )
+
+    assert (output.configuration_id, output.version) == ("cfg-active", 3)
+    assert (feedback.created[0].configuration_id, feedback.created[0].version) == ("cfg-active", 3)
 
 
 def test_curate_raises_value_error_when_configuration_cannot_be_determined() -> None:

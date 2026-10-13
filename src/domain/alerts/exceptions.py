@@ -10,6 +10,27 @@ class MandatoryAlertDataMissingError(Exception):
         )
 
 
+class NoActiveAlertSchemaError(Exception):
+    """The alert cannot be processed without an approved schema version."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "No active alert schema is configured; the alert was escalated "
+            "to an analyst because it cannot be safely pre-processed."
+        )
+
+
+class AlertFieldTypeMismatchError(Exception):
+    def __init__(self, field: str, expected: str, value: object) -> None:
+        self.field = field
+        self.expected = expected
+        self.value = value
+        super().__init__(
+            f"Alert field {field!r} has an invalid type: expected {expected}, "
+            f"got {type(value).__name__}."
+        )
+
+
 class AlertPayloadTooLargeError(Exception):
     """Raised before an alert payload reaches DynamoDB, which hard-caps a
     single item at 400KB. Datasets with large embedded fields (e.g. a

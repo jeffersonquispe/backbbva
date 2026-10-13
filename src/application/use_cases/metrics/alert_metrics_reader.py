@@ -96,12 +96,10 @@ def read_alert_rollups(
             read = periods.get(row.key.period)
             if read is not None:
                 rows.append(PlannedRow(read=read, row=row))
-    versions = sorted(
-        {r.dimension("amount_tier_set_version") for r in rows if r.total(COUNT) != 0}
-    )
+    versions = sorted({r.dimension("schema_version") for r in rows if r.total(COUNT) != 0})
     return AlertRollupRead(
         range=MetricsRange(
-            from_=from_, to=to, timezone=timezone_name, amount_tier_set_versions=versions
+            from_=from_, to=to, timezone=timezone_name, schema_versions=versions
         ),
         reads=reads,
         rows=rows,
@@ -278,11 +276,11 @@ def warnings(read: AlertRollupRead) -> list[MetricsWarning]:
                 periods=partial,
             )
         )
-    versions = read.range.amount_tier_set_versions
+    versions = read.range.schema_versions
     if len(versions) > 1:
         result.append(
             MetricsWarning(
-                code="amount_tier_set_changed",
+                code="schema_changed",
                 message=(
                     "The range spans more than one amount-tier set (versions "
                     + ", ".join(versions)

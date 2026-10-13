@@ -71,12 +71,8 @@ class OperationalSettings:
     # Ranges an alert's amount is classified into when it arrives (frozen on
     # its metrics snapshot). Empty = every amount is "unknown". Must be a
     # contiguous, non-overlapping cover of 0 -> inf when non-empty
-    # (validate_amount_tiers). amount_tier_set_version is owned by
-    # UpdateOperationalSettingsUseCase: +1 on every change of amount_tiers,
-    # client-sent values are ignored; old sets stay readable in the settings
-    # history (each change records the previous and new list).
+    # (validate_amount_tiers).
     amount_tiers: list[AmountTier] = field(default_factory=list)
-    amount_tier_set_version: int = 0
 
     # Share (0..1) of alerts whose finished review is sent to the LLM-judge
     # (EvaluateAlertReasoning, the /monitor "Alucinaciones" / "Uso correcto

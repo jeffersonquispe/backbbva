@@ -96,7 +96,7 @@ class GetTechnicalMetrics:
         evaluations = rows[MetricsDataType.EVALUATION]
         versions = sorted(
             {
-                row.key.dimension("amount_tier_set_version") or UNKNOWN_DIMENSION
+                row.key.dimension("schema_version") or UNKNOWN_DIMENSION
                 for typed in rows.values()
                 for row, _ in typed
             }
@@ -106,7 +106,7 @@ class GetTechnicalMetrics:
                 from_=from_,
                 to=to,
                 timezone=self._timezone_name,
-                amount_tier_set_versions=versions,
+                schema_versions=versions,
             ),
             periods=_periods(reads, rows),
             warnings=_warnings(reads, versions),
@@ -338,7 +338,7 @@ def _warnings(reads: list[PlannedRead], versions: list[str]) -> list[MetricsWarn
     if len(versions) > 1:
         result.append(
             MetricsWarning(
-                code="amount_tier_set_changed",
+                code="schema_changed",
                 message=(
                     "The range spans more than one amount-tier set (versions "
                     + ", ".join(versions)

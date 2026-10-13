@@ -50,10 +50,10 @@ def _alert(created_at: datetime, channel: str = "WEB", metrics: bool = True) -> 
         id=uuid4(),
         event_id="e",
         event_type="payment",
-        payload={"channel": channel, "amount": {"baseValue": 10}},
         status=AlertStatus.CLOSED,
         created_at=created_at,
         updated_at=created_at,
+        input={"channel": channel, "entrypoint": "PSE", "amount": 10},
         metrics=(
             AlertMetricsSnapshot(
                 channel=channel,

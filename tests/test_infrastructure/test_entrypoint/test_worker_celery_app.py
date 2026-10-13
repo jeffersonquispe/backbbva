@@ -16,6 +16,7 @@ def test_periodic_schedule_reconciles_async_operations() -> None:
 
     reconcile_rollups = schedule.pop("reconcile-alert-rollups")
     schedule.pop("record-operational-state")
+    presence = schedule.pop("analyze-alert-schema-presence")
     assert schedule == {
         "reconcile-async-operations": {
             "task": "async_operations.reconcile",
@@ -28,6 +29,8 @@ def test_periodic_schedule_reconciles_async_operations() -> None:
         },
     }
     assert reconcile_rollups["task"] == "metrics.reconcile_alert_rollups"
+    assert presence["task"] == "alert_schema.analyze_presence"
+    assert presence["schedule"].hour == {2} and presence["schedule"].minute == {30}
 
 
 def test_alert_rollup_reconciliation_runs_daily_at_2am_operations_time() -> None:

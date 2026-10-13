@@ -14,31 +14,39 @@ from src.application.use_cases.datasets.save_alert_field_mapping import (
 
 class InMemoryAlertFieldMappingRepository(AlertFieldMappingRepository):
     def __init__(self, records: dict[str, AlertFieldMapping] | None = None) -> None:
-        self._records = records if records is not None else {}
+        self._history = list(records.values()) if records is not None else []
 
     def get(self, dataset_name: str) -> AlertFieldMapping | None:
-        return self._records.get(dataset_name)
+        records = [record for record in self._history if record.dataset_name == dataset_name]
+        return max(
+            records,
+            key=lambda record: (
+                record.updated_at.timestamp() if record.updated_at else float("-inf")
+            ),
+        ) if records else None
 
-    def upsert(self, mapping: AlertFieldMapping) -> AlertFieldMapping:
-        self._records[mapping.dataset_name] = mapping
+    def save(self, mapping: AlertFieldMapping) -> AlertFieldMapping:
+        self._history.append(mapping)
         return mapping
 
     def delete(self, dataset_name: str) -> None:
-        self._records.pop(dataset_name, None)
+        self._history = [record for record in self._history if record.dataset_name != dataset_name]
 
 
-def test_save_alert_field_mapping_upserts_and_returns_saved_shape() -> None:
+def test_save_alert_field_mapping_records_schema_version() -> None:
     repo = InMemoryAlertFieldMappingRepository()
     use_case = SaveAlertFieldMappingUseCase(repo)
 
     output = use_case.execute(
         SaveAlertFieldMappingInput(
             dataset_name="ds",
+            schema_version=4,
             mappings={"eventId": "eventid"},
         )
     )
 
     assert output.dataset_name == "ds"
+    assert output.schema_version == 4
     assert output.mappings == {"eventId": "eventid"}
     assert output.updated_at is not None
     assert output.updated_at.tzinfo is not None
@@ -46,7 +54,9 @@ def test_save_alert_field_mapping_upserts_and_returns_saved_shape() -> None:
     stored = repo.get("ds")
     assert stored is not None
     assert stored.mappings == {"eventId": "eventid"}
+    assert stored.schema_version == 4
     assert stored.updated_at == output.updated_at
+    assert len(repo._history) == 1
 
 
 def test_save_alert_field_mapping_with_empty_mappings_clears_existing() -> None:
@@ -55,6 +65,7 @@ def test_save_alert_field_mapping_with_empty_mappings_clears_existing() -> None:
         {
             "ds": AlertFieldMapping(
                 dataset_name="ds",
+                schema_version=3,
                 mappings={"eventId": "eventid"},
                 updated_at=existing_updated_at,
             )
@@ -63,7 +74,7 @@ def test_save_alert_field_mapping_with_empty_mappings_clears_existing() -> None:
     use_case = SaveAlertFieldMappingUseCase(repo)
 
     output = use_case.execute(
-        SaveAlertFieldMappingInput(dataset_name="ds", mappings={})
+        SaveAlertFieldMappingInput(dataset_name="ds", schema_version=4, mappings={})
     )
 
     assert output.mappings == {}
@@ -72,3 +83,14 @@ def test_save_alert_field_mapping_with_empty_mappings_clears_existing() -> None:
     assert stored is not None
     assert stored.mappings == {}
     assert stored.updated_at != existing_updated_at
+
+
+def test_save_alert_field_mapping_keeps_history_for_each_schema_version() -> None:
+    repo = InMemoryAlertFieldMappingRepository()
+    use_case = SaveAlertFieldMappingUseCase(repo)
+
+    use_case.execute(SaveAlertFieldMappingInput("ds", 3, {"eventId": "old_id"}))
+    use_case.execute(SaveAlertFieldMappingInput("ds", 4, {"eventId": "new_id"}))
+
+    assert len(repo._history) == 2
+    assert repo.get("ds").schema_version == 4

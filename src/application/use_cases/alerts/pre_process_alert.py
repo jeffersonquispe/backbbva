@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import time
+from datetime import datetime
 from typing import Any, Callable, TypeVar
 from uuid import UUID
 
@@ -11,6 +13,13 @@ from src.application.dtos.pre_process_dtos import (
     PreProcessAlertOutput,
 )
 from src.application.ports.aric_alert_port import AricAlertPort, AricAlertSignals
+from src.application.ports.alert_schema_port import (
+    AlertSchemaDataSource,
+    AlertSchemaField,
+    AlertSchemaFieldType,
+    AlertSchemaRepository,
+    AlertSchemaVersion,
+)
 from src.application.ports.host_service_customer_port import (
     HostServiceCustomerProfilePort,
 )
@@ -26,10 +35,17 @@ from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
 )
-from src.domain.alerts.exceptions import MandatoryAlertDataMissingError
+from src.domain.alerts.exceptions import (
+    AlertFieldTypeMismatchError,
+    MandatoryAlertDataMissingError,
+    NoActiveAlertSchemaError,
+)
 
 MAX_FETCH_ATTEMPTS = 3
 
+# Schema-driven extraction. Dotted paths are owned by AlertSchemaField rows;
+# this module intentionally has no field catalogue.
+'''
 # Dotted-path candidates per mandatory data point (tried in order, first
 # non-empty wins). Paths that traverse a list take its first element -
 # good enough for the single-alert-object case this covers today; alerts
@@ -45,7 +61,7 @@ MAX_FETCH_ATTEMPTS = 3
 # doesn't have (no session id, no merchant info, no entry mode, ...) were
 # demoted to _OPTIONAL_FIELD_PATHS below - captured when present, never
 # block pre_process when absent.
-_MANDATORY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
+_LEGACY_MANDATORY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
     "rules": ("object.triggeredRules", "triggered_rules"),
     "event_time": ("eventTime", "fecha_transaccion"),
     "event_type": ("eventType", "eventtype"),
@@ -58,7 +74,7 @@ _MANDATORY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
 }
 
 # Card-only data points: mandatory, but only for card transactions.
-_CARD_ONLY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
+_LEGACY_CARD_ONLY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
     "card_bin": ("cardBIN",),
     "authorization_phase": ("authorizationPhase",),
 }
@@ -72,7 +88,7 @@ _CARD_ONLY_FIELD_PATHS: dict[str, tuple[str, ...]] = {
 # deviceid at all (checked directly against Muestra_total_ARIA.csv) - a
 # structural absence for non-digital channels, not sporadic missing
 # data, so it doesn't belong with fields whose absence should escalate.
-_OPTIONAL_FIELD_PATHS: dict[str, tuple[str, ...]] = {
+_LEGACY_OPTIONAL_FIELD_PATHS: dict[str, tuple[str, ...]] = {
     "reason_code": ("msgReason",),
     "biocatch_score": ("biocatch.score", "biocatch_score"),
     "model_score": ("model.score", "Model_score", "model_score"),
@@ -115,7 +131,7 @@ _OPTIONAL_FIELD_PATHS: dict[str, tuple[str, ...]] = {
 # into profiling and classification. The raw payload remains persisted for
 # test-run evaluation (marcacion_final and tipo are threaded separately by the
 # workflow).
-_OUTCOME_ONLY_FIELDS = frozenset(
+_LEGACY_OUTCOME_ONLY_FIELDS = frozenset(
     {
         "reviewstatus_first",
         "marcacion_final",
@@ -127,7 +143,7 @@ _OUTCOME_ONLY_FIELDS = frozenset(
     }
 )
 
-_PAYLOAD_ARIC_SIGNAL_PATHS: dict[str, tuple[str, ...]] = {
+_LEGACY_PAYLOAD_ARIC_SIGNAL_PATHS: dict[str, tuple[str, ...]] = {
     "is_mobile_rat": ("biocatch.isMobileRat", "biocatch_isMobileRat"),
     "is_emulator_rat": ("biocatch.isEmulator", "biocatch_isEmulator"),
     "is_rat": ("biocatch.isRat", "biocatch_isRat"),
@@ -140,6 +156,7 @@ _PAYLOAD_ARIC_SIGNAL_PATHS: dict[str, tuple[str, ...]] = {
         "biocatch_screenBroadcast",
     ),
 }
+'''
 
 T = TypeVar("T")
 
@@ -163,42 +180,6 @@ def _first_present(payload: dict[str, Any], paths: tuple[str, ...]) -> Any:
     return None
 
 
-def _is_card_transaction(payload: dict[str, Any]) -> bool:
-    channel = str(_get_path(payload, "channel") or "").lower()
-    return "card" in channel or _get_path(payload, "cardId") is not None
-
-
-def _extract_mandatory_fields(
-    payload: dict[str, Any],
-) -> tuple[dict[str, Any], list[str]]:
-    field_paths = dict(_MANDATORY_FIELD_PATHS)
-    if _is_card_transaction(payload):
-        field_paths.update(_CARD_ONLY_FIELD_PATHS)
-
-    extracted: dict[str, Any] = {}
-    missing: list[str] = []
-    for name, paths in field_paths.items():
-        value = _first_present(payload, paths)
-        if value is None:
-            missing.append(name)
-        else:
-            extracted[name] = value
-    return extracted, missing
-
-
-def _extract_optional_fields(payload: dict[str, Any]) -> dict[str, Any]:
-    model_input_payload = {
-        key: value
-        for key, value in payload.items()
-        if key not in _OUTCOME_ONLY_FIELDS
-    }
-    return {
-        name: value
-        for name, paths in _OPTIONAL_FIELD_PATHS.items()
-        if (value := _first_present(model_input_payload, paths)) is not None
-    }
-
-
 def _to_bool(value: Any) -> bool | None:
     if isinstance(value, bool):
         return value
@@ -213,18 +194,112 @@ def _to_bool(value: Any) -> bool | None:
     return None
 
 
+def _extract_value(source: Any, location: str) -> Any:
+    value = source
+    for part in location.split(".") if location else ():
+        if isinstance(value, list):
+            value = value[0] if value else None
+        if value is None:
+            return None
+        value = value.get(part) if isinstance(value, dict) else getattr(value, part, None)
+    return value
+
+
+def _present(value: Any) -> bool:
+    return value not in (None, "", [])
+
+
+def _valid_type(value: Any, expected: AlertSchemaFieldType) -> bool:
+    if expected == AlertSchemaFieldType.STRING:
+        return isinstance(value, str)
+    if expected == AlertSchemaFieldType.NUMBER:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected == AlertSchemaFieldType.BOOL:
+        return isinstance(value, bool)
+    if expected in {AlertSchemaFieldType.DATE, AlertSchemaFieldType.DATETIME}:
+        return isinstance(value, (str, datetime))
+    return expected == AlertSchemaFieldType.LIST and isinstance(value, list)
+
+
+def _coerce_schema_value(value: Any, expected: AlertSchemaFieldType) -> Any:
+    """Normalize scalar values read from CSV-backed datasets."""
+    if expected == AlertSchemaFieldType.NUMBER and isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return value
+    return value
+
+
+def _extract_fields(
+    fields: list[AlertSchemaField], sources: dict[AlertSchemaDataSource, Any]
+) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+    values: dict[str, Any] = {}
+    by_id: dict[str, Any] = {}
+    missing: list[str] = []
+    selected_fields: set[str] = set()
+    for field in fields:
+        if field.field in selected_fields:
+            continue
+        source = sources.get(field.data_source)
+        value = _extract_value(source, field.field_ds_loc)
+        if not _present(value):
+            continue
+        value = _coerce_schema_value(value, field.type)
+        if not _valid_type(value, field.type):
+            raise AlertFieldTypeMismatchError(field.field, field.type.value, value)
+        selected_fields.add(field.field)
+        for candidate in fields:
+            if candidate.field == field.field:
+                by_id[candidate.id] = value
+        values[field.field] = value
+    mandatory_names = {field.field for field in fields if field.is_mandatory}
+    missing.extend(name for name in mandatory_names if name not in values)
+    return values, by_id, missing
+
+
+def _schema_values(
+    schema: AlertSchemaVersion, sources: dict[AlertSchemaDataSource, Any]
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[str]]:
+    input_fields = [
+        f for f in schema.fields if f.is_alert and not f.is_label and not f.is_history
+    ]
+    label_fields = [f for f in schema.fields if f.is_label]
+    input_values, by_id, missing = _extract_fields(input_fields, sources)
+    labels, _, _ = _extract_fields(label_fields, sources)
+    for role, field_id in schema.field_roles.items():
+        if field_id not in by_id:
+            missing.append(role)
+    roles = {
+        role: by_id[field_id]
+        for role, field_id in schema.field_roles.items()
+        if field_id in by_id
+    }
+    return input_values, labels, roles, sorted(set(missing))
+
+
+def _history_values(
+    schema: AlertSchemaVersion, entries: list[TransactionHistoryEntry]
+) -> list[dict[str, Any]]:
+    history_fields = [f for f in schema.fields if f.is_history and not f.is_label]
+    result: list[dict[str, Any]] = []
+    for entry in entries:
+        source = dataclasses.asdict(entry)
+        values, _, _ = _extract_fields(
+            history_fields,
+            {
+                AlertSchemaDataSource.ARIC: source,
+                AlertSchemaDataSource.HOST: source,
+            },
+        )
+        result.append(values)
+    return result
+
+
 def _merge_aric_signals(
     payload: dict[str, Any], fetched: AricAlertSignals
 ) -> AricAlertSignals:
-    values: dict[str, bool | None] = {}
-    for name, paths in _PAYLOAD_ARIC_SIGNAL_PATHS.items():
-        payload_value = _to_bool(_first_present(payload, paths))
-        values[name] = (
-            payload_value
-            if payload_value is not None
-            else getattr(fetched, name)
-        )
-    return AricAlertSignals(**values)
+    return fetched
 
 
 def _transaction_history_from_payload(
@@ -314,6 +389,7 @@ class PreProcessAlertUseCase:
         host_customer_profile_port: HostServiceCustomerProfilePort,
         host_transaction_history_port: HostServiceTransactionHistoryPort,
         host_personal_data_changes_port: HostServicePersonalDataChangesPort,
+        schema_repository: AlertSchemaRepository | None = None,
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
@@ -322,6 +398,7 @@ class PreProcessAlertUseCase:
         self._host_customer = host_customer_profile_port
         self._host_tx_history = host_transaction_history_port
         self._host_data_changes = host_personal_data_changes_port
+        self._schema_repository = schema_repository
         self._status_reporter = status_reporter
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
@@ -340,15 +417,20 @@ class PreProcessAlertUseCase:
         )
 
     def execute(self, input: PreProcessAlertInput) -> PreProcessAlertOutput:
-        mandatory_fields, missing = _extract_mandatory_fields(input.payload)
+        schema = input.schema or (
+            self._schema_repository.get_active() if self._schema_repository else None
+        )
+        if schema is None:
+            raise NoActiveAlertSchemaError()
+        aric_input, labels, roles, missing = _schema_values(
+            schema, {AlertSchemaDataSource.ARIC: input.payload}
+        )
         if missing:
             raise MandatoryAlertDataMissingError(missing)
-        optional_fields = _extract_optional_fields(input.payload)
-
-        customer_id = str(mandatory_fields["customer_id"])
-        account_id = optional_fields.get("account_id")
-        session_id = optional_fields.get("session_id")
-        event_id = str(mandatory_fields["event_id"])
+        customer_id = str(roles["customer_id"])
+        account_id = roles.get("account_id")
+        session_id = roles.get("session_id")
+        event_id = str(roles["event_id"])
 
         self._report_progress("fetching_aric_signals")
         fetched_aric_signals = _with_retry(
@@ -369,6 +451,7 @@ class PreProcessAlertUseCase:
                     customer_id, account_id
                 )
             )
+        history = _history_values(schema, transaction_history)
         self._report_progress("fetching_personal_data_changes")
         personal_data_changes = _with_retry(
             lambda: self._host_data_changes.fetch_personal_data_changes(
@@ -376,17 +459,34 @@ class PreProcessAlertUseCase:
             )
         )
 
+        host_sources = {
+            AlertSchemaDataSource.ARIC: input.payload,
+            AlertSchemaDataSource.HOST: {
+                "customer_profile": customer_profile,
+                "personal_data_changes": personal_data_changes,
+            },
+        }
+        host_input, host_labels, host_roles, missing = _schema_values(schema, host_sources)
+        aric_input.update(host_input)
+        labels.update(host_labels)
+        roles.update(host_roles)
+        if missing:
+            raise MandatoryAlertDataMissingError(missing)
+
         note = (
-            f"pre_process: validated {len(mandatory_fields)} mandatory "
-            f"field(s), {len(optional_fields)} optional field(s) present; "
+            f"pre_process: validated schema version {schema.version}, "
+            f"{len(aric_input)} input field(s), {len(labels)} label(s); "
             "fetched ARIC signals, host customer profile, "
             f"{len(transaction_history)} transaction history record(s), "
             f"{len(personal_data_changes)} personal data change record(s)."
         )
 
         return PreProcessAlertOutput(
-            mandatory_fields=mandatory_fields,
-            optional_fields=optional_fields,
+            schema_version=schema.version,
+            input=aric_input,
+            labels=labels,
+            history=history,
+            roles=roles,
             enrichment={
                 "aric_signals": aric_signals,
                 "customer_profile": customer_profile,
@@ -394,4 +494,14 @@ class PreProcessAlertUseCase:
                 "personal_data_changes": personal_data_changes,
             },
             pre_process_note=note,
+            mandatory_fields={
+                field.field: aric_input[field.field]
+                for field in schema.fields
+                if field.is_mandatory and field.field in aric_input
+            },
+            optional_fields={
+                # Compatibility view for old workflow-step readers; the
+                # schema-shaped input above is the authoritative contract.
+                **aric_input,
+            },
         )

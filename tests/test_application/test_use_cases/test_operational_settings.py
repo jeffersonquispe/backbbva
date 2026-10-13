@@ -130,10 +130,10 @@ _TIERS = [
 
 def test_amount_tiers_default_to_empty() -> None:
     settings = OperationalSettings()
-    assert settings.amount_tiers == [] and settings.amount_tier_set_version == 0
+    assert settings.amount_tiers == []
 
 
-def test_changing_amount_tiers_bumps_version_and_records_history() -> None:
+def test_changing_amount_tiers_records_history() -> None:
     repository = InMemoryOperationalSettingsRepository()
     use_case = UpdateOperationalSettingsUseCase(repository)
 
@@ -142,24 +142,21 @@ def test_changing_amount_tiers_bumps_version_and_records_history() -> None:
             settings=replace(OperationalSettings(), amount_tiers=_TIERS)
         )
     )
-    assert first.amount_tier_set_version == 1
     paths = {c.path for c in repository.history[-1].changes}
-    assert {"amount_tiers", "amount_tier_set_version"} <= paths
+    assert {"amount_tiers"} <= paths
     tiers_change = next(c for c in repository.history[-1].changes if c.path == "amount_tiers")
     assert tiers_change.previous == [] and tiers_change.new[0]["code"] == "low"
 
-    # Unrelated change: version stays, even if the client sends another one.
+    # Unrelated change does not alter the tier list.
     second = use_case.execute(
         UpdateOperationalSettingsInput(
-            settings=replace(first, agent_enabled=False, amount_tier_set_version=99)
+        settings=replace(first, agent_enabled=False)
         )
     )
-    assert second.amount_tier_set_version == 1
 
     third = use_case.execute(
         UpdateOperationalSettingsInput(settings=replace(second, amount_tiers=[]))
     )
-    assert third.amount_tier_set_version == 2
 
 
 def test_invalid_amount_tiers_are_rejected_and_nothing_is_saved() -> None:
@@ -180,7 +177,7 @@ def test_invalid_amount_tiers_are_rejected_and_nothing_is_saved() -> None:
 
 def test_preserve_amount_tiers_keeps_current_set() -> None:
     repository = InMemoryOperationalSettingsRepository(
-        replace(OperationalSettings(), amount_tiers=_TIERS, amount_tier_set_version=4)
+        replace(OperationalSettings(), amount_tiers=_TIERS)
     )
     updated = UpdateOperationalSettingsUseCase(repository).execute(
         UpdateOperationalSettingsInput(
@@ -189,4 +186,3 @@ def test_preserve_amount_tiers_keeps_current_set() -> None:
         )
     )
     assert updated.amount_tiers == _TIERS
-    assert updated.amount_tier_set_version == 4

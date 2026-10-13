@@ -97,7 +97,12 @@ def test_owner_item_round_trips_through_to_item_and_from_item() -> None:
     # name/description/active/timestamps, exercised here; every extracted
     # section has its own round-trip test below.
     record = _base_record(
-        active=True, description="desc", created_by="carlos", ever_activated=True, ever_tested=True
+        active=True,
+        description="desc",
+        created_by="carlos",
+        ever_activated=True,
+        ever_tested=True,
+        activated_at=datetime(2026, 10, 9, tzinfo=timezone.utc),
     )
 
     restored = _from_item(_to_item(record))
@@ -109,6 +114,7 @@ def test_owner_item_round_trips_through_to_item_and_from_item() -> None:
     assert restored.active is True
     assert restored.ever_activated is True
     assert restored.ever_tested is True
+    assert restored.activated_at == record.activated_at
     assert restored.created_by == "carlos"
     assert restored.general == GeneralSettings()
     assert restored.infra == InfraSettings()

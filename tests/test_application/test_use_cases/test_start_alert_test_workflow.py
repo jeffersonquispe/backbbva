@@ -52,7 +52,7 @@ class InMemoryAlertRepository:
             id=alert.id,
             event_id=alert.event_id,
             event_type=alert.event_type,
-            payload=alert.payload,
+            input=alert.input,
             status=changes.get("status") or alert.status,
             customer_id=alert.customer_id,
             async_operation_id=changes.get("async_operation_id")

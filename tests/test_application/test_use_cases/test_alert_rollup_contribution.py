@@ -33,7 +33,7 @@ def _snapshot(**overrides) -> AlertMetricsSnapshot:
         subchannel="PSE",
         amount=1500.0,
         amount_tier="low",
-        amount_tier_set_version=1,
+        schema_version=1,
         configuration_id="default",
         status=AlertStatus.CLOSED,
         snapshot_version=1,

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime, timezone
+import hashlib
+import json
 from typing import Annotated, Any, Literal
 from uuid import UUID
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
@@ -60,9 +64,13 @@ from src.infrastructure.entrypoint.api.metrics_query_params import (
     metrics_query_params,
 )
 from src.infrastructure.entrypoint.api.factories.alert_factory import (
+    get_alert_repository,
     get_curate_alert_to_dataset_use_case,
     get_start_alert_test_workflow_use_case,
 )
+from src.infrastructure.entrypoint.api.factories.alert_schema_factory import get_alert_schema_repository
+from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
+from src.infrastructure.persistence.object_storage.minio import get_object_storage
 from src.infrastructure.entrypoint.api.schemas import (
     AlertHistoryItemSchema,
     AlertHistoryPageResponse,
@@ -76,6 +84,57 @@ from src.infrastructure.entrypoint.api.schemas import (
 )
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
+
+
+def _sensitive_value(value: Any, strategy: str) -> str:
+    text = str(value)
+    if strategy == "anonymize":
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    return "*" * max(len(text) - 4, 4) + text[-4:]
+
+
+def _apply_raw_sensitivity(payload: Any, path: str, strategy: str) -> None:
+    """Redact one schema location, taking the first item through a list.
+
+    ARIC locations can contain arrays (the schema contract says the first
+    element is the selected value). Mutate only the copied payload returned by
+    this endpoint; the object-storage source remains unchanged.
+    """
+    current = payload
+    parts = [part for part in path.split(".") if part]
+    if not parts:
+        return
+    for part in parts[:-1]:
+        if isinstance(current, list):
+            current = current[0] if current else None
+        if not isinstance(current, dict) or part not in current:
+            return
+        current = current[part]
+    if isinstance(current, list):
+        current = current[0] if current else None
+    if isinstance(current, dict) and parts[-1] in current:
+        current[parts[-1]] = _sensitive_value(current[parts[-1]], strategy)
+
+
+@router.get("/{alert_id}/raw", dependencies=[Depends(require_permission("alert_schema"))])
+def get_raw_alert(alert_id: UUID, user=Depends(get_current_user)):
+    alert = get_alert_repository().get(alert_id)
+    if alert is None or alert.raw_payload_ref is None:
+        raise HTTPException(status_code=404, detail="Alert raw payload not found")
+    storage = get_object_storage()
+    payload = json.loads(storage.get_bytes(alert.raw_payload_ref.key))
+    schema = get_alert_schema_repository().get(alert.schema_version) if alert.schema_version is not None else None
+    for field in schema.fields if schema else []:
+        if (field.data_source.value != "aric" or not field.is_sensible
+                or not field.sensitivity_strategy or not field.field_ds_loc):
+            continue
+        _apply_raw_sensitivity(payload, field.field_ds_loc, field.sensitivity_strategy)
+    storage.put_text(
+        f"alerts/{alert_id}/audit/raw-access/{uuid.uuid4()}.json",
+        json.dumps({"alert_id": str(alert_id), "user_id": str(user.id), "accessed_at": datetime.now(timezone.utc).isoformat()}),
+        "application/json",
+    )
+    return payload
 
 
 class AlertTestRequest(BaseModel):
@@ -172,7 +231,7 @@ def _history_item(item: AlertHistoryItem) -> AlertHistoryItemSchema:
         subchannel=m.subchannel,
         amount=m.amount,
         amount_tier=m.amount_tier,
-        amount_tier_set_version=m.amount_tier_set_version,
+        schema_version=m.schema_version,
         configuration_id=m.configuration_id,
         resolution_method=m.resolution_method.value if m.resolution_method else None,
         mark=m.mark.value,

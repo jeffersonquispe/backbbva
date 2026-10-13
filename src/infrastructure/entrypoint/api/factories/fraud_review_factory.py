@@ -29,6 +29,9 @@ from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.fraud_label_review_repository import (
     DynamoFraudLabelReviewRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import (
+    DynamoAlertSchemaRepository,
+)
 
 
 @lru_cache
@@ -58,6 +61,7 @@ def get_fraud_label_review_import_status_reader() -> FraudLabelReviewImportStatu
 def get_list_alert_history_use_case() -> ListAlertHistory:
     return ListAlertHistory(
         alert_repository=get_alert_repository(),
+        schema_repository=DynamoAlertSchemaRepository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
     )
 

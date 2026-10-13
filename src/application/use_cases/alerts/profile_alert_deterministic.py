@@ -123,10 +123,12 @@ def _narrate_transaction(
     mandatory: dict[str, Any],
     aric_signals: Any,
     customer_id: str | None,
+    roles: dict[str, Any] | None = None,
 ) -> str:
-    amount = mandatory.get("amount")
-    channel = mandatory.get("channel")
-    integration_point = mandatory.get("integration_point")
+    roles = roles or {}
+    amount = roles.get("amount")
+    channel = roles.get("channel")
+    integration_point = roles.get("entrypoint")
     merchant = mandatory.get("merchant_name") or mandatory.get("merchant_id")
     rules = mandatory.get("rules")
     counterparty = mandatory.get("counterparty")
@@ -281,7 +283,8 @@ class DeterministicProfileAlertUseCase:
         # its absence blocks pre_process) - merge both so e.g. device_id
         # or user_agent still show up here even though neither is
         # mandatory.
-        fields = {**pre_process.optional_fields, **pre_process.mandatory_fields}
+        fields = pre_process.input
+        roles = pre_process.roles
         enrichment = pre_process.enrichment
         transaction_history = enrichment.get("transaction_history") or []
 
@@ -289,20 +292,21 @@ class DeterministicProfileAlertUseCase:
         user_profile = _narrate_user(
             customer_profile=enrichment.get("customer_profile"),
             personal_data_changes=enrichment.get("personal_data_changes") or [],
-            mandatory=fields,
+            mandatory={**fields, "device_id": fields.get("device_id"), "ip_channel": fields.get("ip_channel")},
         )
 
         self._report_progress("transaction_profile")
         transaction_profile = _narrate_transaction(
             mandatory=fields,
             aric_signals=enrichment.get("aric_signals"),
-            customer_id=fields.get("customer_id"),
+            customer_id=roles.get("customer_id"),
+            roles=roles,
         )
 
         self._report_progress("transactional_profile")
         transactional_profile = _narrate_transactional(
             transaction_history=transaction_history,
-            current_amount=_to_float(fields.get("amount")),
+            current_amount=_to_float(roles.get("amount")),
             fields=fields,
         )
 

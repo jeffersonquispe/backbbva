@@ -273,19 +273,6 @@ class DeterministicRule(RuleCondition):
 
 
 @dataclass
-class AlertParserField:
-    id: str = ""
-    source_field: str = ""
-    alias: str = ""
-    type: str = "string"
-
-
-@dataclass
-class AlertParserConfig:
-    fields: list[AlertParserField] = field(default_factory=list)
-
-
-@dataclass
 class Rubric:
     id: str = ""
     name: str = ""
@@ -507,7 +494,6 @@ class ExecutorConfig:
 
 @dataclass
 class AgentSettings:
-    parser: AlertParserConfig = field(default_factory=AlertParserConfig)
     deterministic: DeterministicConfig = field(default_factory=DeterministicConfig)
     profiling: ProfilingConfig = field(default_factory=ProfilingConfig)
     rubrics: list[Rubric] = field(default_factory=list)
@@ -623,6 +609,7 @@ class ConfigurationRecord:
     test: TestSettings
     created_at: datetime
     updated_at: datetime
+    activated_at: datetime | None = None
     created_by: str | None = None
     # Sticky flag, set once by ConfigurationRepository.activate and never
     # cleared - distinct from `active` (which flips back off once another
@@ -666,6 +653,9 @@ class ConfigurationRepository(Protocol):
         ...
 
     def list_versions(self, configuration_id: str) -> list[ConfigurationRecord]:
+        ...
+
+    def list_all_versions(self) -> list[ConfigurationRecord]:
         ...
 
     def activate(self, configuration_id: str, version: int) -> ConfigurationRecord:

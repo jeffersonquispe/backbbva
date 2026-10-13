@@ -34,6 +34,10 @@ def periodic_schedule(
             "task": "metrics.reconcile_alert_rollups",
             "schedule": crontab(hour=2, minute=0),
         },
+        "analyze-alert-schema-presence": {
+            "task": "alert_schema.analyze_presence",
+            "schedule": crontab(hour=2, minute=30),
+        },
         # T3/T5 operational gauges (agent on/off, operating hours, analyst
         # queue, capacity) - also the "dead man's switch" heartbeat. A stale
         # sample is useless, so a tick not picked up within its own

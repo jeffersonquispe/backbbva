@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import StrEnum
 from typing import Any, Protocol
@@ -71,7 +71,7 @@ class AlertMetricsSnapshot:
     amount: float | None = None
     # Frozen when the alert arrives - see domain/alerts/amount_tiers.py.
     amount_tier: str = "unknown"
-    amount_tier_set_version: int | None = None
+    schema_version: int | None = None
     configuration_id: str | None = None
     resolution_method: AlertResolutionMethod | None = None
     mark: Mark = Mark.PENDING
@@ -90,13 +90,24 @@ class AlertRecord:
     id: UUID
     event_id: str
     event_type: str
-    payload: dict[str, Any]
     status: AlertStatus
     created_at: datetime
     updated_at: datetime
+    raw_payload_ref: Any | None = None
+    schema_version: int | None = None
+    input: dict[str, Any] = field(default_factory=dict)
+    labels: dict[str, Any] = field(default_factory=dict)
+    history_prev_alerta: list[dict[str, Any]] = field(default_factory=list)
+    agent_output: dict[str, Any] = field(default_factory=dict)
+    agent_output_ref: Any | None = None
     customer_id: str | None = None
     async_operation_id: UUID | None = None
     workflow_execution_id: UUID | None = None
+    # The exact configuration the workflow resolved for this alert (the
+    # active one, or a test run's pinned configuration_ref), set right after
+    # pre_process. None until then, or when no configuration was active.
+    configuration_id: str | None = None
+    configuration_version: int | None = None
     # None for alerts no metrics event has touched yet (incl. every alert
     # created before the metrics snapshot existed).
     metrics: AlertMetricsSnapshot | None = None
@@ -116,6 +127,14 @@ class AlertRepository(Protocol):
         status: AlertStatus | None = None,
         async_operation_id: UUID | None = None,
         workflow_execution_id: UUID | None = None,
+        configuration_id: str | None = None,
+        configuration_version: int | None = None,
+        schema_version: int | None = None,
+        input: dict[str, Any] | None = None,
+        labels: dict[str, Any] | None = None,
+        history_prev_alerta: list[dict[str, Any]] | None = None,
+        agent_output: dict[str, Any] | None = None,
+        agent_output_ref: Any | None = None,
     ) -> AlertRecord | None:
         ...
 

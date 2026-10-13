@@ -20,6 +20,7 @@ from src.application.ports.test_run_port import (
     TestRunRecord,
     TestRunStatus,
 )
+from src.application.ports.alert_schema_port import AlertSchemaVersion
 from src.application.ports.workflow_executor_port import (
     WorkflowExecutionRef,
     WorkflowExecutor,
@@ -47,7 +48,7 @@ class InMemoryAlertRepository:
             id=alert.id,
             event_id=alert.event_id,
             event_type=alert.event_type,
-            payload=alert.payload,
+            input=alert.input,
             status=changes.get("status") or alert.status,
             customer_id=alert.customer_id,
             async_operation_id=changes.get("async_operation_id")
@@ -356,7 +357,7 @@ def test_start_test_run_with_sample_size_mirrors_natural_distribution() -> None:
 
     assert output.dispatched_count == 20
     dispatched = workflows.list_by_test_run(output.test_run_id)
-    marcaciones = Counter(w.input["alert_payload"]["marcacion_final"] for w in dispatched)
+    marcaciones = Counter(w.input["test_labels"]["marcacion_final"] for w in dispatched)
     # 80/15/5 % of 100 source rows -> 16/3/1 of a 20-row sample.
     assert marcaciones == {"no-risk": 16, "risk-suspected": 3, "risk": 1}
 
@@ -380,7 +381,7 @@ def test_start_test_run_with_explicit_distribution_overrides_natural_shape() -> 
 
     assert output.dispatched_count == 10
     dispatched = workflows.list_by_test_run(output.test_run_id)
-    marcaciones = Counter(w.input["alert_payload"]["marcacion_final"] for w in dispatched)
+    marcaciones = Counter(w.input["test_labels"]["marcacion_final"] for w in dispatched)
     assert marcaciones == {"no-risk": 4, "risk-suspected": 3, "risk": 3}
 
 
@@ -417,6 +418,33 @@ def test_start_test_run_rejects_distribution_without_sample_size() -> None:
                 sample_distribution={"no-risk": 1.0},
             )
         )
+
+
+class InMemoryAlertSchemaRepository:
+    def __init__(self, versions: list[AlertSchemaVersion]) -> None:
+        self.versions = {version.version: version for version in versions}
+
+    def get(self, version: int) -> AlertSchemaVersion | None:
+        return self.versions.get(version)
+
+
+def test_start_test_run_pins_draft_schema_version_on_each_workflow() -> None:
+    use_case, _, workflows = _use_case({"sample": [{"eventId": "e-1"}]})
+    use_case._schemas = InMemoryAlertSchemaRepository([
+        AlertSchemaVersion(version=7),
+    ])
+
+    output = use_case.execute(
+        StartTestRunInput(
+            name="schema candidate",
+            dataset_name="sample",
+            config=TestRunConfig(schema_version=7),
+        )
+    )
+
+    workflow = workflows.list_by_test_run(output.test_run_id)[0]
+    assert workflow.input["schema_version"] == 7
+    assert use_case._test_runs.get(output.test_run_id).config.schema_version == 7
 
 
 @pytest.mark.parametrize("explicit", [True, False])

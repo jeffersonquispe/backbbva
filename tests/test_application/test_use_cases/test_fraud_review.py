@@ -127,7 +127,7 @@ def _setup():
 def _decided_alert(alerts, recorder, action: str) -> AlertRecord:
     alert = alerts.create(
         AlertRecord(
-            id=uuid4(), event_id="e", event_type="payment", payload={"channel": "WEB"},
+            id=uuid4(), event_id="e", event_type="payment", input={"channel": "WEB"},
             status=AlertStatus.CLOSED, created_at=CREATED_AT, updated_at=CREATED_AT,
         )
     )

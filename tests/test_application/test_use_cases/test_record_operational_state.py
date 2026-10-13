@@ -85,7 +85,7 @@ class RecordingMonitoring(MonitoringPort):
 def _alert(status: AlertStatus, age_minutes: float) -> AlertRecord:
     created = NOW - timedelta(minutes=age_minutes)
     return AlertRecord(
-        id=uuid4(), event_id="e", event_type="payment", payload={},
+        id=uuid4(), event_id="e", event_type="payment", input={},
         status=status, created_at=created, updated_at=created,
     )
 

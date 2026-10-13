@@ -7,6 +7,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.application.dtos.analyst_queue_dtos import AnalystQueueItem
+from src.application.ports.alert_port import AlertRecord, AlertStatus
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
@@ -23,6 +25,7 @@ from src.infrastructure.entrypoint.api.factories.local_auth_factory import (
 )
 from src.infrastructure.entrypoint.api.factories.operations_factory import (
     get_complete_voicebot_call_use_case,
+    get_list_analyst_queue_use_case,
     get_take_escalated_alert_use_case,
 )
 from src.infrastructure.entrypoint.api.routers.analyst_queue_router import (
@@ -183,3 +186,47 @@ def test_voicebot_callback_for_an_unknown_call_is_404(monkeypatch) -> None:
     ).post("/voicebot/callbacks", json={"alert_id": alert_id, "outcome": "late"})
 
     assert response.status_code == 404
+
+
+class ScriptedListUseCase:
+    def __init__(self, items: list[AnalystQueueItem]) -> None:
+        self.items = items
+
+    def execute(self):
+        return self.items
+
+
+def test_queue_lists_the_canonical_alert_and_never_the_raw_payload() -> None:
+    user = _user(LocalRole.FRAUD_ANALYST)
+    alert = AlertRecord(
+        id=uuid4(),
+        event_id="evt-1",
+        event_type="transfer",
+        status=AlertStatus.ESCALATED,
+        created_at=NOW,
+        updated_at=NOW,
+        raw_payload_ref={"bucket": "aria", "key": "alerts/evt-1.json"},
+        schema_version=2,
+        input={"amount": 5400000, "channel": "digital"},
+        labels={"tipo": "ato"},
+        history_prev_alerta=[{"amount": 1000}],
+        agent_output={"fraud_classification": "ato"},
+        configuration_id="cfg",
+        configuration_version=7,
+    )
+    client = _client(user)
+    client.app.dependency_overrides[get_list_analyst_queue_use_case] = lambda: ScriptedListUseCase(
+        [AnalystQueueItem(alert=alert)]
+    )
+
+    response = client.get("/analyst-queue")
+
+    assert response.status_code == 200
+    (body,) = response.json()
+    assert body["schema_version"] == 2
+    assert body["configuration_ref"] == {"configuration_id": "cfg", "version": 7}
+    assert body["input"] == {"amount": 5400000, "channel": "digital"}
+    assert body["labels"] == {"tipo": "ato"}
+    assert body["history_prev_alerta"] == [{"amount": 1000}]
+    assert body["agent_output"] == {"fraud_classification": "ato"}
+    assert "payload" not in body and "raw_payload_ref" not in body

@@ -10,12 +10,14 @@ from src.application.use_cases.metrics.get_agent_metrics import GetAgentMetrics
 from src.application.use_cases.metrics.get_live_alert_funnel import GetLiveAlertFunnel
 from src.application.use_cases.metrics.get_metrics_overview import GetMetricsOverview
 from src.application.use_cases.metrics.get_technical_metrics import GetTechnicalMetrics
+from src.application.use_cases.metrics.get_version_events import GetVersionEvents
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.metrics_factory import (
     get_agent_metrics_use_case,
     get_live_alert_funnel_use_case,
     get_metrics_overview_use_case,
     get_technical_metrics_use_case,
+    get_version_events_use_case,
 )
 from src.infrastructure.entrypoint.api.metrics_query_params import (
     MetricsQueryParams,
@@ -26,6 +28,7 @@ from src.infrastructure.entrypoint.api.schemas import (
     LiveAlertFunnelResponse,
     MetricsOverviewResponse,
     TechnicalMetricsResponse,
+    VersionEventResponse,
 )
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -105,3 +108,18 @@ def get_live_alert_funnel(
     """"Tiempo real" funnel: alerts in each live state right now (not a
     range - reads the status index, not the rollups)."""
     return LiveAlertFunnelResponse.model_validate(asdict(use_case.execute()))
+
+
+@router.get(
+    "/version-events",
+    response_model=list[VersionEventResponse],
+    dependencies=[Depends(require_permission("dashboard"))],
+)
+def get_version_events(
+    params: Annotated[MetricsQueryParams, Depends(metrics_query_params)],
+    use_case: Annotated[GetVersionEvents, Depends(get_version_events_use_case)],
+):
+    try:
+        return [VersionEventResponse.model_validate(asdict(event)) for event in use_case.execute(params.from_, params.to)]
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

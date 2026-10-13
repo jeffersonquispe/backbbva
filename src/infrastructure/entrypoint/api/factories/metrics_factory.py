@@ -13,9 +13,19 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
 from src.application.use_cases.metrics.get_technical_metrics import (
     GetTechnicalMetrics,
 )
+from src.application.use_cases.metrics.get_version_events import GetVersionEvents
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.factories.alert_factory import (
     get_alert_repository,
+)
+from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
+    get_alert_schema_repository,
+)
+from src.infrastructure.entrypoint.api.factories.configuration_factory import (
+    get_configuration_repository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import (
+    DynamoAlertSchemaRepository,
 )
 from src.infrastructure.entrypoint.api.factories.operational_settings_factory import (
     get_operational_settings_repository,
@@ -40,6 +50,7 @@ def get_record_alert_metrics_event_use_case() -> RecordAlertMetricsEvent:
         alert_repository=get_alert_repository(),
         rollup_repository=get_metrics_rollup_repository(),
         settings_repository=get_operational_settings_repository(),
+        schema_repository=DynamoAlertSchemaRepository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
         monitoring=get_monitoring(),
     )
@@ -90,4 +101,11 @@ def get_technical_metrics_use_case() -> CachedMetricsQuery:
             timezone_name=genai_config.OPERATIONS_TIMEZONE,
         ),
         get_metrics_query_cache(),
+    )
+
+
+def get_version_events_use_case() -> GetVersionEvents:
+    return GetVersionEvents(
+        schema_repository=get_alert_schema_repository(),
+        configuration_repository=get_configuration_repository(),
     )

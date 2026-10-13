@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from dataclasses import asdict
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
@@ -552,3 +553,25 @@ def record_operational_state() -> dict:
 
     snapshot = get_record_operational_state_use_case().execute()
     return asdict(snapshot)
+
+
+@app.task(name="alert_schema.analyze_presence")
+def analyze_alert_schema_presence() -> dict | None:
+    from src.infrastructure.workflows.celery.factories import (
+        get_analyze_alert_schema_presence_use_case,
+    )
+
+    report = get_analyze_alert_schema_presence_use_case().execute()
+    if report is None:
+        return None
+    return _json_safe(asdict(report))
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    return value

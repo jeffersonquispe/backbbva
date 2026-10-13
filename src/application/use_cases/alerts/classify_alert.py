@@ -128,8 +128,9 @@ def _serializable(value: Any) -> Any:
 def _alert_context(input: ClassifyAlertInput) -> dict[str, Any]:
     pre_process = input.pre_process
     return {
-        "mandatory_fields": pre_process.mandatory_fields,
-        "optional_fields": pre_process.optional_fields,
+        "input": pre_process.input,
+        "history": pre_process.history,
+        "roles": pre_process.roles,
         "enrichment": {
             key: _serializable(value) for key, value in pre_process.enrichment.items()
         },
@@ -334,7 +335,11 @@ class ClassifyAlertUseCase:
 
     def _execute(self, input: ClassifyAlertInput) -> ClassifyAlertOutput:
         if self._watchlist_compare_field:
-            fields = {**input.pre_process.mandatory_fields, **input.pre_process.optional_fields}
+            fields = {
+                **input.pre_process.input,
+                **input.pre_process.mandatory_fields,
+                **input.pre_process.optional_fields,
+            }
             value = fields.get(self._watchlist_compare_field)
             self._watchlist_value = str(value) if value is not None else None
 

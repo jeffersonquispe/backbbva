@@ -127,7 +127,7 @@ def _random_alert(rng: random.Random):
         subchannel=rng.choice(SUBCHANNELS),
         amount=amount,
         amount_tier=rng.choice(TIERS),
-        amount_tier_set_version=version,
+        schema_version=version,
         configuration_id=rng.choice(CONFIGS),
         resolution_method=method,
         mark=mark,
@@ -359,10 +359,10 @@ def test_endpoint_numbers_equal_a_direct_recomputation_from_the_snapshots(seed: 
             assert period["maturation"] == read.maturation.value
             assert period["partial"] == read.partial
 
-        versions = sorted({_dim(s.amount_tier_set_version) for _, s in selected})
-        assert body["range"]["amount_tier_set_versions"] == versions
+        versions = sorted({_dim(s.schema_version) for _, s in selected})
+        assert body["range"]["schema_versions"] == versions
         codes = {w["code"] for w in body["warnings"]}
-        assert ("amount_tier_set_changed" in codes) == (len(versions) > 1)
+        assert ("schema_changed" in codes) == (len(versions) > 1)
         assert ("partial_period" in codes) == any(r.partial for r in reads)
 
         agent = client.get("/api/v0/metrics/agent", params=_params(from_, to, filters))

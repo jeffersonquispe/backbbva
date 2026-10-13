@@ -11,8 +11,6 @@ from boto3.dynamodb.conditions import Attr, Key
 from src.application.ports.configuration_port import (
     AdversarialConfig,
     AgentSettings,
-    AlertParserConfig,
-    AlertParserField,
     AnalystConfig,
     ClassificationConfig,
     ConfigurationRecord,
@@ -240,6 +238,9 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         )
         return [self._hydrate(item) for item in response.get("Items", [])]
 
+    def list_all_versions(self) -> list[ConfigurationRecord]:
+        return self._scan_all()
+
     def activate(self, configuration_id: str, version: int) -> ConfigurationRecord:
         # ponytail: two sequential update_item calls, not a
         # transact_write_items - no other repository in this codebase uses
@@ -254,7 +255,13 @@ class DynamoConfigurationRepository(ConfigurationRepository):
             self._set_active(
                 current_active.configuration_id, current_active.version, False
             )
-        self._set_active(configuration_id, version, True, ever_activated=True)
+        self._set_active(
+            configuration_id,
+            version,
+            True,
+            ever_activated=True,
+            activated_at=datetime.now(timezone.utc),
+        )
         activated = self.get(configuration_id, version)
         assert activated is not None
         return activated
@@ -266,6 +273,7 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         active: bool,
         *,
         ever_activated: bool = False,
+        activated_at: datetime | None = None,
     ) -> None:
         expression = "SET active = :active, updated_at = :updated_at"
         values: dict[str, Any] = {
@@ -277,6 +285,9 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         if ever_activated:
             expression += ", ever_activated = :ever_activated"
             values[":ever_activated"] = True
+        if activated_at is not None:
+            expression += ", activated_at = :activated_at"
+            values[":activated_at"] = activated_at.isoformat()
         self._table.update_item(
             Key={"configuration_id": configuration_id, "version": version},
             UpdateExpression=expression,
@@ -539,6 +550,7 @@ def _to_item(config: ConfigurationRecord) -> dict[str, Any]:
         "ever_tested": config.ever_tested,
         "created_at": config.created_at.isoformat(),
         "updated_at": config.updated_at.isoformat(),
+        "activated_at": config.activated_at.isoformat() if config.activated_at else None,
         "created_by": config.created_by,
     }
 
@@ -585,6 +597,11 @@ def _from_item(item: dict[str, Any]) -> ConfigurationRecord:
         test=TestSettings(),
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
+        activated_at=(
+            datetime.fromisoformat(item["activated_at"])
+            if item.get("activated_at")
+            else None
+        ),
         created_by=item.get("created_by"),
     )
 
@@ -826,7 +843,6 @@ def _agent_from_item(agent_item: dict[str, Any]) -> AgentSettings:
     # DynamoConfigurationRepository._hydrate) - default to [] here, the
     # caller fills them in after querying.
     return AgentSettings(
-        parser=AlertParserConfig(fields=[AlertParserField(**from_dynamodb(field)) for field in agent_item.get("parser", {}).get("fields") or []]),
         deterministic=_deterministic_from_item(agent_item.get("deterministic") or {}),
         profiling=_profiling_from_item(agent_item.get("profiling") or {}),
         rubrics=[

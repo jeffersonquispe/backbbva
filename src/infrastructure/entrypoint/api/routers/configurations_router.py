@@ -7,8 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
 from src.application.ports.configuration_port import (
     AdversarialConfig,
-    AlertParserConfig,
-    AlertParserField,
     AgentSettings,
     AnalystConfig,
     ClassificationConfig,
@@ -80,8 +78,6 @@ from src.infrastructure.entrypoint.api.factories.configuration_factory import (
 from src.infrastructure.entrypoint.api.schemas import (
     AdversarialConfigSchema,
     AgentSettingsSchema,
-    AlertParserConfigSchema,
-    AlertParserFieldSchema,
     AnalystConfigSchema,
     ClassificationConfigSchema,
     ConfigurationChangeResponse,
@@ -380,7 +376,6 @@ def _executor_to_schema(executor: ExecutorConfig) -> ExecutorConfigSchema:
 
 def _agent_to_schema(agent: AgentSettings) -> AgentSettingsSchema:
     return AgentSettingsSchema(
-        parser=AlertParserConfigSchema(fields=[AlertParserFieldSchema(**field.__dict__) for field in agent.parser.fields]),
         deterministic=DeterministicConfigSchema(
             alert_filter=agent.deterministic.alert_filter,
             field_enrichment=agent.deterministic.field_enrichment,
@@ -519,7 +514,6 @@ def _executor_from_schema(schema: ExecutorConfigSchema) -> ExecutorConfig:
 
 def _agent_from_schema(schema: AgentSettingsSchema) -> AgentSettings:
     return AgentSettings(
-        parser=AlertParserConfig(fields=[AlertParserField(**field.model_dump()) for field in schema.parser.fields]),
         deterministic=DeterministicConfig(
             alert_filter=schema.deterministic.alert_filter,
             field_enrichment=schema.deterministic.field_enrichment,

@@ -85,11 +85,11 @@ class GenerateEventBatchUseCase:
         row: dict = {}
         for field_name, generator in field_specs.items():
             if generator.kind in STRUCTURED_KINDS:
-                row[field_name] = draw_structured_value(generator, rng)
+                _set_payload_value(row, field_name, draw_structured_value(generator, rng))
             elif generator.kind == GeneratorKind.TEMPLATE_LLM:
-                row[field_name] = self._generate_llm_text(generator, row)
+                _set_payload_value(row, field_name, self._generate_llm_text(generator, row))
             elif generator.kind == GeneratorKind.SEED_RECREATION:
-                row[field_name] = self._recreate_seed_field(generator, row, rng)
+                _set_payload_value(row, field_name, self._recreate_seed_field(generator, row, rng))
             else:
                 raise ValueError(f"Unknown generator kind: {generator.kind}")
         return row
@@ -138,3 +138,15 @@ class GenerateEventBatchUseCase:
             ]
         )
         return result.content
+
+
+def _set_payload_value(row: dict, location: str, value) -> None:
+    """Use schema locations as dotted payload paths; flat names stay flat."""
+    if "." not in location:
+        row[location] = value
+        return
+    current = row
+    parts = location.split(".")
+    for part in parts[:-1]:
+        current = current.setdefault(part, {})
+    current[parts[-1]] = value

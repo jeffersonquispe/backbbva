@@ -28,11 +28,13 @@ from src.application.ports.alert_port import (
     AlertRecord,
     AlertRepository,
 )
+from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.use_cases.metrics.metrics_filters import (
     normalize_filters,
     snapshot_matches,
 )
 from src.application.use_cases.metrics.record_alert_metrics_event import (
+    canonical_role_values,
     payload_dimensions,
 )
 
@@ -68,13 +70,21 @@ def decode_cursor(cursor: str) -> tuple[date, datetime | None]:
     return day, before
 
 
-def history_snapshot(alert: AlertRecord) -> tuple[AlertMetricsSnapshot, bool]:
+def history_snapshot(
+    alert: AlertRecord, schemas: AlertSchemaRepository | None = None
+) -> tuple[AlertMetricsSnapshot, bool]:
     if alert.metrics is not None:
         return alert.metrics, True
-    channel, subchannel, amount = payload_dimensions(alert.payload or {})
+    roles = (
+        canonical_role_values(alert, schemas)
+        if schemas is not None and alert.schema_version is not None
+        else {role: alert.input.get(role) for role in ("channel", "entrypoint", "amount")}
+    )
+    channel, subchannel, amount = payload_dimensions(roles)
     return (
         AlertMetricsSnapshot(
-            channel=channel, subchannel=subchannel, amount=amount, status=alert.status
+            channel=channel, subchannel=subchannel, amount=amount,
+            schema_version=alert.schema_version, status=alert.status
         ),
         False,
     )
@@ -85,9 +95,11 @@ class ListAlertHistory:
         self,
         alert_repository: AlertRepository,
         timezone_name: str,
+        schema_repository: AlertSchemaRepository | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     ) -> None:
         self._alerts = alert_repository
+        self._schemas = schema_repository
         self._zone: tzinfo = ZoneInfo(timezone_name)
         self._clock = clock
 
@@ -126,7 +138,7 @@ class ListAlertHistory:
                     examined += 1
                     if alert.created_at < from_:
                         break
-                    snapshot, has_snapshot = history_snapshot(alert)
+                    snapshot, has_snapshot = history_snapshot(alert, self._schemas)
                     if snapshot_matches(snapshot, filters):
                         items.append(AlertHistoryItem(alert, snapshot, has_snapshot))
                         if len(items) == limit:

@@ -206,10 +206,11 @@ def _alert(alerts, created_at: datetime, status=AlertStatus.CLOSED, **kwargs) ->
             id=uuid4(),
             event_id=f"evt-{uuid4()}",
             event_type="payment",
-            payload=PAYLOAD,
             status=status,
             created_at=created_at,
             updated_at=created_at,
+            schema_version=1,
+            input={"channel": "WEB", "entrypoint": "PSE", "amount": 10},
             workflow_execution_id=uuid4(),
             **kwargs,
         )
@@ -330,7 +331,7 @@ def test_backfill_skipped_and_unknown_history(env):
 def test_lifecycle_events_are_ordered_and_timestamped():
     created = at(DAY, 10)
     alert = AlertRecord(
-        id=uuid4(), event_id="e", event_type="t", payload={}, status=AlertStatus.CLOSED,
+        id=uuid4(), event_id="e", event_type="t", input={}, status=AlertStatus.CLOSED,
         created_at=created, updated_at=created,
     )
     facts = AlertLifecycleFacts(

@@ -41,36 +41,43 @@ from src.application.ports.monitoring_port import (
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
 )
-from src.application.use_cases.alerts.pre_process_alert import (
-    _MANDATORY_FIELD_PATHS,
-    _OPTIONAL_FIELD_PATHS,
-    _first_present,
-)
+from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.use_cases.metrics.alert_mark_mapping import (
     analyst_resolution,
     voicebot_outcome_mark,
     workflow_resolution,
 )
 from src.application.use_cases.metrics.alert_rollup_contribution import diff
-from src.domain.alerts.amount_tiers import parse_amount, classify_amount
+from src.domain.alerts.amount_tiers import classify_amount
 from src.domain.alerts.exceptions import SnapshotVersionConflictError
 
 MAX_ATTEMPTS = 3
 
 
-def payload_dimensions(payload: dict[str, Any]) -> tuple[str | None, str | None, float | None]:
-    """(channel, subchannel, amount) from an alert payload - same aliases
-    pre_process uses (decision D3): channel <- channel; subchannel <-
-    integrationPoint / integrationpoint; amount <- amount.baseValue /
-    amount_value."""
-    channel = _first_present(payload, _MANDATORY_FIELD_PATHS["channel"])
-    subchannel = _first_present(payload, _MANDATORY_FIELD_PATHS["integration_point"])
-    amount = parse_amount(_first_present(payload, _OPTIONAL_FIELD_PATHS["amount"]))
+def payload_dimensions(roles: dict[str, Any]) -> tuple[str | None, str | None, float | None]:
+    """Return dimensions from the canonical role values."""
+    channel = roles.get("channel")
+    subchannel = roles.get("entrypoint")
+    amount = float(roles["amount"]) if roles.get("amount") is not None else None
     return (
         str(channel) if channel is not None else None,
         str(subchannel) if subchannel is not None else None,
         amount,
     )
+
+
+def canonical_role_values(alert: AlertRecord, schemas: AlertSchemaRepository) -> dict[str, Any]:
+    if alert.schema_version is None:
+        raise ValueError("Metrics require the alert's processed schema version")
+    schema = schemas.get(alert.schema_version)
+    if schema is None:
+        raise ValueError(f"Schema version {alert.schema_version} not found")
+    fields = {field.id: field for field in schema.fields}
+    return {
+        role: alert.input.get(fields[field_id].field)
+        for role, field_id in schema.field_roles.items()
+        if field_id in fields
+    }
 
 
 class RecordAlertMetricsEvent:
@@ -80,12 +87,14 @@ class RecordAlertMetricsEvent:
         rollup_repository: MetricsRollupRepository,
         settings_repository: OperationalSettingsRepository,
         timezone_name: str,
+        schema_repository: AlertSchemaRepository | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         monitoring: MonitoringPort | None = None,
     ) -> None:
         self._alerts = alert_repository
         self._rollups = rollup_repository
         self._settings = settings_repository
+        self._schemas = schema_repository
         self._timezone_name = timezone_name
         self._clock = clock
         # T2: emits the dedicated "alert.mark_set" span. Optional so the
@@ -246,17 +255,21 @@ class RecordAlertMetricsEvent:
         raise ValueError(f"Unsupported metrics event: {event}")
 
     def _arrival_snapshot(self, alert: AlertRecord) -> AlertMetricsSnapshot:
-        """Payload-derived fields plus the amount tier frozen with the
-        CURRENT tier set - used for the first event an alert ever records
-        (normally CREATED; any event self-heals an alert that missed it)."""
-        channel, subchannel, amount = payload_dimensions(alert.payload or {})
+        """Build the first snapshot from the alert's canonical input."""
+        roles = (
+            canonical_role_values(alert, self._schemas)
+            if self._schemas is not None and alert.schema_version is not None
+            else {role: alert.input.get(role) for role in ("channel", "entrypoint", "amount")}
+        )
+        dimensions = payload_dimensions(roles)
+        channel, subchannel, amount = dimensions
         settings = self._settings.get()
         return AlertMetricsSnapshot(
             channel=channel,
             subchannel=subchannel,
             amount=amount,
             amount_tier=classify_amount(amount, settings.amount_tiers),
-            amount_tier_set_version=settings.amount_tier_set_version,
+            schema_version=alert.schema_version,
             status=alert.status,
         )
 

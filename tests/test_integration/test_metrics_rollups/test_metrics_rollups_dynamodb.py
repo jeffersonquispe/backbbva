@@ -61,7 +61,7 @@ class StaticSettings:
     def get(self) -> OperationalSettings:
         return OperationalSettings(
             amount_tiers=[AmountTier("low", "low", 0, 1000), AmountTier("high", "high", 1000, None)],
-            amount_tier_set_version=1,
+            schema_version=1,
         )
 
 
@@ -101,7 +101,7 @@ def _alert(alerts: DynamoAlertRepository, created_at: datetime, cleanup) -> Aler
             id=uuid.uuid4(),
             event_id=f"itest-{uuid.uuid4()}",
             event_type="payment",
-            payload=PAYLOAD,
+            input=PAYLOAD,
             status=AlertStatus.PROCESSING,
             created_at=created_at,
             updated_at=created_at,

@@ -11,6 +11,7 @@ from src.application.ports.alert_port import AlertRepository
 from src.application.ports.async_operation_port import AsyncOperationRepository
 from src.application.ports.dataset_port import DatasetRepository
 from src.application.ports.configuration_port import ConfigurationRepository, ConfigurationRef
+from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.test_run_port import (
     TestRunRecord,
     TestRunRepository,
@@ -18,6 +19,7 @@ from src.application.ports.test_run_port import (
 )
 from src.application.ports.workflow_executor_port import WorkflowExecutor
 from src.application.ports.workflow_port import WorkflowExecutionRepository
+from src.application.ports.object_storage_port import ObjectStoragePort
 from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
 )
@@ -38,8 +40,11 @@ class StartTestRunUseCase:
         workflow_executor: WorkflowExecutor,
         configuration_repository: ConfigurationRepository | None = None,
         metrics_recorder: RecordAlertMetricsEvent | None = None,
+        schema_repository: AlertSchemaRepository | None = None,
+        object_storage: ObjectStoragePort | None = None,
     ) -> None:
         self._configurations = configuration_repository
+        self._schemas = schema_repository
         self._datasets = dataset_repository
         self._test_runs = test_run_repository
         # Reused as-is, not re-derived: this already builds the exact
@@ -52,6 +57,7 @@ class StartTestRunUseCase:
             workflow_repository=workflow_repository,
             workflow_executor=workflow_executor,
             metrics_recorder=metrics_recorder,
+            object_storage=object_storage,
         )
 
     def execute(self, input: StartTestRunInput) -> StartTestRunOutput:
@@ -72,6 +78,9 @@ class StartTestRunUseCase:
                 input.config = dataclasses.replace(input.config, configuration_ref=ConfigurationRef(
                     configuration_id=config.configuration_id, version=config.version,
                 ))
+        if input.config.schema_version is not None and self._schemas is not None:
+            if self._schemas.get(input.config.schema_version) is None:
+                raise ValueError("Alert schema version not found")
         now = datetime.now(timezone.utc)
         test_run = self._test_runs.create(
             TestRunRecord(
@@ -100,6 +109,7 @@ class StartTestRunUseCase:
                     config_overrides=config_overrides,
                     max_feedback_iterations=input.config.max_feedback_iterations,
                     configuration_ref=input.config.configuration_ref,
+                    schema_version=input.config.schema_version,
                     origin=AlertOrigin.TEST_RUN,
                 )
             )

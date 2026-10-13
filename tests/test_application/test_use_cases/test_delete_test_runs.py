@@ -183,7 +183,7 @@ def _case(test_run_id: UUID) -> tuple[
         id=alert_id,
         event_id="e-1",
         event_type="test",
-        payload={},
+        input={},
         status=AlertStatus.CLOSED,
         created_at=now,
         updated_at=now,

@@ -15,7 +15,6 @@ from src.application.use_cases.alerts.start_alert_test_workflow import (
 )
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.factories.dataset_factory import (
-    get_alert_field_mapping_repository,
     get_dataset_analysis_dispatcher,
     get_dataset_repository,
     get_dataset_summary_repository,
@@ -32,6 +31,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.feedback_repo
 from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
     DynamoWorkflowExecutionRepository,
 )
+from src.infrastructure.persistence.object_storage.minio import get_object_storage
 
 
 class DeferredWorkflowExecutor(WorkflowExecutor):
@@ -78,6 +78,7 @@ def get_start_alert_test_workflow_use_case() -> StartAlertTestWorkflowUseCase:
         workflow_repository=get_workflow_execution_repository(),
         workflow_executor=get_workflow_executor(),
         metrics_recorder=get_record_alert_metrics_event_use_case(),
+        object_storage=get_object_storage(),
     )
 
 
@@ -92,7 +93,6 @@ def get_curate_alert_to_dataset_use_case() -> CurateAlertToDatasetUseCase:
         dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
-        mapping_repository=get_alert_field_mapping_repository(),
         feedback_repository=get_feedback_repository(),
         workflow_execution_repository=get_workflow_execution_repository(),
     )

@@ -23,9 +23,8 @@ class MetricsRange:
     from_: datetime
     to: datetime
     timezone: str
-    # Distinct amount_tier_set_version values among the alerts read
-    # ("unknown" = no tier set when the alert arrived).
-    amount_tier_set_versions: list[str] = field(default_factory=list)
+    # Distinct schema versions among the alerts read.
+    schema_versions: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -51,7 +50,7 @@ class MetricsPeriod:
 
 @dataclass
 class MetricsWarning:
-    # partial_period | amount_tier_set_changed | fraud_label_maturing
+    # partial_period | schema_changed | fraud_label_maturing
     code: str
     message: str
     periods: list[str] = field(default_factory=list)

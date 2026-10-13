@@ -134,8 +134,9 @@ class ProfileAlertUseCase:
             for key, value in pre_process.enrichment.items()
         }
         base_data = {
-            "mandatory_fields": pre_process.mandatory_fields,
-            "optional_fields": pre_process.optional_fields,
+            "input": pre_process.input,
+            "history": pre_process.history,
+            "roles": pre_process.roles,
         }
         user_data = {
             **base_data,

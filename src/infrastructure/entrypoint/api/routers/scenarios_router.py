@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.application.dtos.simulation_dtos import (
     CreateSimulationScenarioInput,
+    SeedSimulationFromDatasetInput,
     UpdateSimulationScenarioInput,
 )
 from src.application.ports.simulation_scenario_port import (
@@ -41,6 +42,9 @@ from src.application.use_cases.event_simulation.start_simulation import (
 from src.application.use_cases.event_simulation.stop_simulation import (
     StopSimulationUseCase,
 )
+from src.application.use_cases.event_simulation.seed_simulation_from_dataset import (
+    SeedSimulationFromDatasetUseCase,
+)
 from src.application.use_cases.event_simulation.update_simulation_scenario import (
     UpdateSimulationScenarioUseCase,
 )
@@ -55,6 +59,7 @@ from src.infrastructure.entrypoint.api.factories.simulation_scenario_factory imp
     get_start_simulation_use_case,
     get_stop_simulation_use_case,
     get_update_simulation_scenario_use_case,
+    get_seed_simulation_from_dataset_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
     CreateSimulationScenarioRequest,
@@ -63,6 +68,7 @@ from src.infrastructure.entrypoint.api.schemas import (
     SimulationScenarioResponse,
     SimulationStatusResponse,
     UpdateSimulationScenarioRequest,
+    SeedSimulationFromDatasetRequest,
 )
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
@@ -151,7 +157,7 @@ def create_scenario(
                 field_specs={
                     name: _to_field_generator(spec)
                     for name, spec in request.field_specs.items()
-                },
+                } if request.field_specs is not None else None,
                 target_dataset_name=request.target_dataset_name,
                 created_by=request.created_by,
             )
@@ -159,6 +165,32 @@ def create_scenario(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _to_response(scenario)
+
+
+@router.post("/seed-from-dataset", response_model=dict[str, FieldGeneratorSchema])
+def seed_from_dataset(
+    request: SeedSimulationFromDatasetRequest,
+    use_case: Annotated[
+        SeedSimulationFromDatasetUseCase, Depends(get_seed_simulation_from_dataset_use_case)
+    ],
+):
+    try:
+        field_specs = use_case.execute(
+            SeedSimulationFromDatasetInput(dataset_name=request.dataset_name)
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        name: FieldGeneratorSchema(
+            kind=generator.kind,
+            value=generator.value,
+            weights=generator.weights,
+            params=generator.params,
+        )
+        for name, generator in field_specs.items()
+    }
 
 
 @router.get("", response_model=list[SimulationScenarioResponse])

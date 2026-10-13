@@ -44,6 +44,11 @@ from src.application.ports.watchlist_port import WatchlistType
 from src.application.ports.tag_catalog_port import TagCategory
 from src.application.ports.test_run_port import TestRunStatus
 from src.application.ports.workflow_port import WorkflowStatus, WorkflowStepStatus
+from src.application.ports.alert_schema_port import (
+    AlertSchemaDataSource,
+    AlertSchemaFieldType,
+    AlertSchemaStatus,
+)
 from src.application.ports.vector_store_instance_port import KnowledgeAssetType
 
 
@@ -51,6 +56,96 @@ class CreateAsyncOperationRequest(BaseModel):
     operation_type: str = Field(..., min_length=1, max_length=120)
     payload: dict[str, Any] = Field(default_factory=dict)
     created_by: str | None = Field(default=None, max_length=120)
+
+
+class AlertSchemaFieldSchema(BaseModel):
+    id: str
+    data_source: AlertSchemaDataSource
+    field: str
+    field_name: str = ""
+    field_ds_loc: str = ""
+    type: AlertSchemaFieldType = AlertSchemaFieldType.STRING
+    is_alert: bool = True
+    is_mandatory: bool = False
+    is_history: bool = False
+    is_core: bool = False
+    is_label: bool = False
+    is_sensible: bool = False
+    sensitivity_strategy: str | None = None
+    group: str = ""
+    description: str = ""
+    use_locale: bool = False
+    locale_type: str | None = None
+
+
+class CreateAlertSchemaDraft(BaseModel):
+    version: int | None = Field(default=None, ge=1)
+    fields: list[AlertSchemaFieldSchema] = Field(default_factory=list)
+    field_roles: dict[str, str] = Field(default_factory=dict)
+    based_on_version: int | None = Field(default=None, ge=1)
+
+
+class AlertSchemaVersionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    version: int
+    status: AlertSchemaStatus
+    fields: list[AlertSchemaFieldSchema]
+    field_roles: dict[str, str]
+    proposed_by: str | None
+    proposed_at: datetime | None
+    approved_by: str | None
+    approved_at: datetime | None
+    impact_acknowledged: bool
+    based_on_version: int | None
+    comparison: dict[str, Any] = Field(default_factory=dict)
+    impact: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ApproveAlertSchemaRequest(BaseModel):
+    impact_acknowledged: bool = False
+
+
+class CreateAlertSchemaSuggestionRequest(BaseModel):
+    alert_id: str
+    field: str
+    location: str
+    comment: str
+
+
+class AlertSchemaSuggestionResponse(BaseModel):
+    id: str
+    alert_id: str
+    field: str
+    location: str
+    comment: str
+    created_by: str
+    created_at: datetime
+
+
+class AlertSchemaPresenceFieldResponse(BaseModel):
+    field_id: str
+    field: str
+    location: str
+    present_count: int
+    last_seen: datetime | None
+    trend: dict[str, Any]
+    example: str | None
+    distribution: dict[str, Any] | None
+
+
+class AlertSchemaUnknownLocationResponse(BaseModel):
+    location: str
+    frequency: int
+
+
+class AlertSchemaPresenceResponse(BaseModel):
+    report_day: date
+    generated_at: datetime
+    schema_version: int
+    alert_count: int
+    fields: list[AlertSchemaPresenceFieldResponse]
+    unknown_locations: list[AlertSchemaUnknownLocationResponse]
 
 
 class UpdateAsyncOperationRequest(BaseModel):
@@ -63,7 +158,12 @@ class AsyncOperationResponse(BaseModel):
     id: UUID
     operation_type: str
     status: AsyncOperationStatus
-    payload: dict[str, Any]
+    schema_version: int | None = None
+    configuration_ref: dict[str, Any] | None = None
+    input: dict[str, Any] = Field(default_factory=dict)
+    labels: dict[str, Any] = Field(default_factory=dict)
+    history_prev_alerta: list[dict[str, Any]] = Field(default_factory=list)
+    agent_output: dict[str, Any] = Field(default_factory=dict)
     result: dict[str, Any] | None
     error: str | None
     created_at: datetime
@@ -120,6 +220,7 @@ class TestRunConfigRequest(BaseModel):
     # multiple test runs each target a different configuration
     # concurrently without touching the global active flag.
     configuration_ref: ConfigurationRefRequest | None = None
+    schema_version: int | None = Field(default=None, ge=1)
 
 
 class StartTestRunRequest(BaseModel):
@@ -229,6 +330,9 @@ class TestCaseDetailResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     steps: list[WorkflowStepResponse]
+    schema_comparison: dict[str, Any] | None = None
+    schema_version: int | None = None
+    configuration_ref: dict[str, Any] | None = None
 
 
 class DeleteTestRunsRequest(BaseModel):
@@ -351,11 +455,13 @@ class CurateAlertToDatasetResponse(BaseModel):
 
 class AlertFieldMappingResponse(BaseModel):
     dataset_name: str
+    schema_version: int | None
     mappings: dict[str, str]
     updated_at: datetime | None
 
 
 class SaveAlertFieldMappingRequest(BaseModel):
+    schema_version: int
     mappings: dict[str, str]
 
 
@@ -703,17 +809,6 @@ class DeterministicRuleSchema(RuleConditionSchema):
     aric_action: Literal["soft_block", "hard_block"] = "soft_block"
 
 
-class AlertParserFieldSchema(BaseModel):
-    id: str = ""
-    source_field: str = ""
-    alias: str = ""
-    type: Literal["string", "number", "boolean", "date", "datetime"] = "string"
-
-
-class AlertParserConfigSchema(BaseModel):
-    fields: list[AlertParserFieldSchema] = Field(default_factory=list)
-
-
 class RubricSchema(BaseModel):
     id: str = ""
     name: str = ""
@@ -859,7 +954,6 @@ class ExecutorConfigSchema(BaseModel):
 
 
 class AgentSettingsSchema(BaseModel):
-    parser: AlertParserConfigSchema = Field(default_factory=AlertParserConfigSchema)
     deterministic: DeterministicConfigSchema = Field(default_factory=DeterministicConfigSchema)
     profiling: ProfilingConfigSchema = Field(default_factory=ProfilingConfigSchema)
     rubrics: list[RubricSchema] = Field(default_factory=list)
@@ -1063,9 +1157,6 @@ class OperationalSettingsSchema(BaseModel):
     # contiguous, non-overlapping and cover 0 -> inf (else 422). Response:
     # always the full current list.
     amount_tiers: list[AmountTierSchema] | None = None
-    # Read-only: bumped server-side on every amount_tiers change, ignored
-    # on requests.
-    amount_tier_set_version: int = 0
     # Share (0..1) of finished alerts sent to the reasoning LLM-judge;
     # 0 disables it.
     reasoning_evaluation_sample_rate: float = Field(default=0.05, ge=0, le=1)
@@ -1471,7 +1562,7 @@ class CreateSimulationScenarioRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     output_mode: OutputMode
     rate_schedule: list[RateIntervalSchema] = Field(..., min_length=1)
-    field_specs: dict[str, FieldGeneratorSchema] = Field(..., min_length=1)
+    field_specs: dict[str, FieldGeneratorSchema] | None = Field(default=None, min_length=1)
     target_dataset_name: str | None = None
     created_by: str | None = None
 
@@ -1506,6 +1597,10 @@ class SimulationStatusResponse(BaseModel):
     events_emitted: int
     last_tick_offset_seconds: int
     error: str | None
+
+
+class SeedSimulationFromDatasetRequest(BaseModel):
+    dataset_name: str = Field(..., min_length=1)
 
 
 # --- Operations: live capacity, analyst queue, voicebot callback ---------
@@ -1547,7 +1642,14 @@ class AnalystQueueAlertResponse(BaseModel):
     status: str
     customer_id: str | None
     created_at: datetime
-    payload: dict[str, Any]
+    # The canonical alert (docs/ALERT_SCHEMA_GOVERNANCE.md §3); the raw
+    # payload is only served by GET /alerts/{id}/raw.
+    schema_version: int | None = None
+    configuration_ref: dict[str, Any] | None = None
+    input: dict[str, Any] = Field(default_factory=dict)
+    labels: dict[str, Any] = Field(default_factory=dict)
+    history_prev_alerta: list[dict[str, Any]] = Field(default_factory=list)
+    agent_output: dict[str, Any] = Field(default_factory=dict)
     reservation: ResourceReservationResponse | None = None
 
 
@@ -1592,7 +1694,7 @@ class MetricsRangeSchema(BaseModel):
     from_: datetime = Field(alias="from")
     to: datetime
     timezone: str
-    amount_tier_set_versions: list[str] = Field(default_factory=list)
+    schema_versions: list[str] = Field(default_factory=list)
 
 
 class MetricsPeriodSchema(BaseModel):
@@ -1612,7 +1714,7 @@ class MetricsPeriodSchema(BaseModel):
 
 
 class MetricsWarningSchema(BaseModel):
-    code: Literal["partial_period", "amount_tier_set_changed", "fraud_label_maturing"]
+    code: Literal["partial_period", "schema_changed", "fraud_label_maturing"]
     message: str
     periods: list[str] = Field(default_factory=list)
 
@@ -1819,7 +1921,7 @@ class AlertHistoryItemSchema(BaseModel):
     created_at: datetime
     updated_at: datetime
     # False = no metrics event touched this alert yet; the fields below are
-    # then derived from its payload (mark/fraud_label "pending").
+    # then derived from canonical input (mark/fraud_label "pending").
     has_snapshot: bool
     origin: str | None
     segment: str | None
@@ -1827,7 +1929,7 @@ class AlertHistoryItemSchema(BaseModel):
     subchannel: str | None
     amount: float | None
     amount_tier: str
-    amount_tier_set_version: int | None
+    schema_version: int | None
     configuration_id: str | None
     resolution_method: Literal["aria", "analyst", "voicebot", "bidi"] | None
     mark: Literal["fraud", "no_fraud", "pending"]
@@ -1899,3 +2001,11 @@ class LiveAlertFunnelResponse(BaseModel):
     escalated: int
     voicebot_in_call: int
     measured_at: datetime
+
+
+class VersionEventResponse(BaseModel):
+    kind: Literal["schema", "configuration"]
+    label: str
+    version: int
+    configuration_id: str | None = None
+    at: datetime

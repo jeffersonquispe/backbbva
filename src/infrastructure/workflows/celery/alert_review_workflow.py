@@ -53,6 +53,7 @@ from src.application.dtos.profile_alert_dtos import (
 from src.application.dtos.research_dtos import ResearchRequest, ResearchSource
 from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.application.ports.alert_port import AlertOrigin, AlertStatus
+from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
 from src.application.ports.monitoring_port import (
     ATTR_ALERT_ID,
     ATTR_WORKFLOW_ATTEMPT,
@@ -110,6 +111,8 @@ from src.infrastructure.workflows.celery.factories import (
     get_route_alert_resolution_use_case,
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
+    get_alert_object_storage,
+    get_alert_schema_repository,
 )
 from src.domain.alerts.rule_conditions import evaluate_condition
 from src.domain.alerts.transaction_history_selection import (
@@ -119,10 +122,6 @@ from src.domain.alerts.transaction_history_selection import (
 from src.application.use_cases.alerts.agent_gate import agent_off_skip_reason
 from src.application.use_cases.alerts.resolve_alert_segment import (
     ResolveAlertSegmentUseCase,
-)
-from src.application.use_cases.test_runs.dataset_sampling import (
-    MARCACION_FIELD,
-    TIPO_FIELD,
 )
 from src.domain.configurations.exceptions import ConfigurationNotFoundError
 from src.domain.models.prompt_template import substitute_variables
@@ -175,6 +174,7 @@ class AlertReviewWorkflowRunner:
         # from its metrics snapshot - refreshed after every metrics event and
         # copied onto each step span.
         self._dimensions: dict[str, str] = {}
+        self._raw_payloads: RawAlertPayloadLoader | None = None
 
     def run(
         self,
@@ -228,6 +228,7 @@ class AlertReviewWorkflowRunner:
         workflow: WorkflowExecutionRecord,
         is_final_attempt: bool,
     ) -> dict[str, Any]:
+        alert = self._alerts.get(workflow.alert_id)
         origin = AlertOrigin((workflow.input or {}).get("origin") or "manual")
         skip_reason = agent_off_skip_reason(
             origin, get_operational_settings_repository().get()
@@ -260,6 +261,7 @@ class AlertReviewWorkflowRunner:
             "detector_attempt": 1,
             "workflow_started_at": workflow.created_at.isoformat(),
             "status_reporter": self._status,
+            "raw_payload": self._load_raw_payload(alert),
         }
 
         try:
@@ -280,16 +282,25 @@ class AlertReviewWorkflowRunner:
                     continue
                 context = self._run_step(workflow, step_name, context)
                 if step_name == "pre_process":
+                    self._persist_schema_comparison(workflow, context)
                     context = _resolve_segment(context)
                     config = context.get("active_configuration")
+                    if config is not None:
+                        self._alerts.update(
+                            workflow.alert_id,
+                            configuration_id=config.configuration_id,
+                            configuration_version=config.version,
+                        )
                     self._record_metrics(
                         workflow,
                         AlertMetricsEventType.PRE_PROCESSED,
+                        roles=context["pre_process"].roles,
                         segment=context.get("segment_code"),
                         configuration_id=(
                             config.configuration_id if config is not None else None
                         ),
                     )
+                    self._persist_pre_process(workflow, context)
                 if step_name == "profiling":
                     # Rubrics are part of profiling context, rather than a
                     # public workflow stage.  This preserves the workflow
@@ -638,6 +649,7 @@ class AlertReviewWorkflowRunner:
                 )
             )
             context[step_name] = output
+            self._persist_agent_step(workflow, context, step_name, db_output)
             self._finish_step_span(
                 step_span, step_name, WorkflowStepStatus.SUCCEEDED, step_started
             )
@@ -667,6 +679,64 @@ class AlertReviewWorkflowRunner:
             )
             self._status.flush()
             raise
+
+    def _persist_pre_process(self, workflow, context: dict[str, Any]) -> None:
+        result: PreProcessAlertOutput = context["pre_process"]
+        config = context.get("active_configuration")
+        self._alerts.update(
+            workflow.alert_id,
+            schema_version=result.schema_version,
+            input=result.input,
+            labels=result.labels,
+            history_prev_alerta=result.history,
+            configuration_id=config.configuration_id if config is not None else None,
+            configuration_version=config.version if config is not None else None,
+        )
+
+    def _persist_schema_comparison(self, workflow, context: dict[str, Any]) -> None:
+        comparison = context.get("schema_comparison")
+        if comparison is not None:
+            self._workflows.update(workflow.id, schema_comparison=comparison)
+
+    def _persist_agent_step(
+        self, workflow, context: dict[str, Any], step_name: str, db_output: Any
+    ) -> None:
+        alert = self._alerts.get(workflow.alert_id)
+        if alert is None or alert.raw_payload_ref is None:
+            return
+        schema = get_alert_schema_repository().get_active()
+        if schema is None:
+            return
+        summary = dict(alert.agent_output)
+        for field in schema.fields:
+            if field.data_source.value != "aria" or not field.field_ds_loc:
+                continue
+            value = _relative_value(db_output, field.field_ds_loc)
+            if value is not None:
+                summary[field.field] = value
+        current = context.setdefault("agent_outputs", {})
+        current[step_name] = db_output
+        ref = get_alert_object_storage().put_text(
+            f"alerts/{workflow.alert_id}/agent-output.json",
+            json.dumps(current, ensure_ascii=False, default=str),
+            "application/json",
+        )
+        self._alerts.update(
+            workflow.alert_id,
+            agent_output=summary,
+            agent_output_ref=ref,
+        )
+
+    def _load_raw_payload(self, alert) -> dict[str, Any]:
+        if alert is None:
+            return {}
+        if alert.raw_payload_ref is None:
+            # Hand-written workflow fixtures use canonical input directly;
+            # persisted alerts always have raw_payload_ref.
+            return alert.input
+        if self._raw_payloads is None:
+            self._raw_payloads = RawAlertPayloadLoader(get_alert_object_storage())
+        return self._raw_payloads.load(alert)
 
     def _finish_step_span(
         self,
@@ -785,19 +855,68 @@ def _step_reporting_ids(context: dict[str, Any]) -> tuple[UUID | None, UUID | No
 
 
 def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
-    payload = (context.get("input") or {}).get("alert_payload") or {}
+    workflow_input = context.get("input") or {}
+    payload = (
+        workflow_input["alert_payload"]
+        if "alert_payload" in workflow_input
+        else context.get("raw_payload")
+    ) or {}
     workflow_execution_id, step_id = _step_reporting_ids(context)
     use_case = get_pre_process_alert_use_case(
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
     )
-    return use_case.execute(
+    candidate_version = workflow_input.get("schema_version")
+    candidate_schema = (
+        get_alert_schema_repository().get(int(candidate_version))
+        if candidate_version is not None
+        else None
+    )
+    candidate = use_case.execute(
         PreProcessAlertInput(
             alert_id=UUID(context["alert_id"]),
             payload=payload,
+            schema=candidate_schema,
         )
     )
+    if workflow_input.get("origin") != AlertOrigin.TEST_RUN.value:
+        return candidate
+    # With no pin the candidate was already produced from the active schema;
+    # avoid a second repository read and preserve the single pre-process pass.
+    active_schema = (
+        get_alert_schema_repository().get_active()
+        if candidate_version is not None
+        else None
+    )
+    if candidate_version is None or (
+        active_schema is not None and active_schema.version == candidate.schema_version
+    ):
+        active = candidate
+    else:
+        active = get_pre_process_alert_use_case(
+            status_reporter=None, workflow_execution_id=None, step_id=None
+        ).execute(
+            PreProcessAlertInput(
+                alert_id=UUID(context["alert_id"]),
+                payload=payload,
+                schema=active_schema,
+            )
+        )
+    context["schema_comparison"] = {
+        "active": _pre_process_comparison_value(active),
+        "candidate": _pre_process_comparison_value(candidate),
+    }
+    return candidate
+
+
+def _pre_process_comparison_value(result: PreProcessAlertOutput) -> dict[str, Any]:
+    return {
+        "schema_version": result.schema_version,
+        "input": result.input,
+        "labels": result.labels,
+        "history_prev_alerta": result.history,
+    }
 
 
 def _run_deterministic(context: dict[str, Any]) -> DeterministicRuleMatch:
@@ -806,7 +925,7 @@ def _run_deterministic(context: dict[str, Any]) -> DeterministicRuleMatch:
         return DeterministicRuleMatch(matched=False)
     deterministic_cfg = segment.agent.deterministic
     pre_process: PreProcessAlertOutput = context["pre_process"]
-    fields = {**pre_process.mandatory_fields, **pre_process.optional_fields}
+    fields = pre_process.input
     return get_evaluate_deterministic_rules_use_case().execute(
         deterministic_cfg.rules, fields, alert_filter=deterministic_cfg.alert_filter
     )
@@ -889,7 +1008,7 @@ def _variables_pool(context: dict[str, Any], segment: SegmentSettings) -> dict[s
     # context: aric_signals/customer_profile/transaction_history/
     # personal_data_changes, consumed as-is by profile/classify/adversarial).
     pre_process: PreProcessAlertOutput = context["pre_process"]
-    current = {**pre_process.mandatory_fields, **pre_process.optional_fields}
+    current = pre_process.input
     history = [
         dataclasses.asdict(entry)
         for entry in pre_process.enrichment.get("transaction_history", [])
@@ -975,8 +1094,9 @@ def _resolve_segment(context: dict[str, Any]) -> dict[str, Any]:
     try:
         pre_process: PreProcessAlertOutput = context["pre_process"]
         context["segment_code"] = ResolveAlertSegmentUseCase().execute(
-            mandatory_fields=pre_process.mandatory_fields,
+            input_fields=pre_process.input,
             segments=config.segments,
+            roles=pre_process.roles,
         )
     except Exception:
         context["segment_code"] = None
@@ -1077,13 +1197,13 @@ def _run_classify_step(
             segment_kwargs["output_labels"] = cfg.output_labels
         if cfg.max_thought_iterations:
             segment_kwargs["max_iterations"] = cfg.max_thought_iterations
-    alert_payload = _alert_payload(context)
+    evaluation_labels = _evaluation_labels(context)
     step_input = ClassifyAlertInput(
         alert_id=UUID(context["alert_id"]),
         pre_process=context["pre_process"],
         profile=context["profiling"],
-        expected_classification=alert_payload.get(MARCACION_FIELD),
-        ground_truth_tipo=alert_payload.get(TIPO_FIELD),
+        expected_classification=evaluation_labels.get("marcacion_final"),
+        ground_truth_tipo=evaluation_labels.get("tipo"),
     )
 
     def run(kwargs: dict[str, Any]) -> ClassifyAlertOutput:
@@ -1244,11 +1364,11 @@ def _history_research(
         columns=[],
         window_days=settings.window_days,
         max_transactions=settings.max_history_rows,
-        reference_time=parse_event_time(pre_process.mandatory_fields.get("event_time")),
+        reference_time=parse_event_time(pre_process.roles.get("event_time")),
     )
     agent = TimeBoundedResearchAgent(
         HistoryPandasResearchAgent(
-            HeuristicHistoryResearchPlanner(pre_process.mandatory_fields.get("amount")),
+            HeuristicHistoryResearchPlanner(pre_process.roles.get("amount")),
             settings,
             history_provider=lambda _request: selected,
         ),
@@ -1431,7 +1551,20 @@ def _score_with_xgboost(
 
 
 def _alert_payload(context: dict[str, Any]) -> dict[str, Any]:
-    return (context.get("input") or {}).get("alert_payload") or {}
+    # The raw payload may contain test-run labels. Detector model features
+    # follow the same canonical input contract as every other agent step.
+    pre_process: PreProcessAlertOutput | None = context.get("pre_process")
+    return pre_process.input if pre_process is not None else {}
+
+
+def _evaluation_labels(context: dict[str, Any]) -> dict[str, Any]:
+    pre_process: PreProcessAlertOutput | None = context.get("pre_process")
+    if pre_process is None:
+        return {}
+    # PreProcessAlertUseCase built this mapping by walking the active schema's
+    # is_label fields. It is already the canonical, schema-shaped evaluation
+    # view; never recover labels from the raw workflow payload here.
+    return dict(pre_process.labels)
 
 
 def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
@@ -1685,6 +1818,20 @@ def _execute_placeholder_step(
     if step_name == "post_process":
         return _run_post_process(context)
     raise ValueError(f"Unsupported workflow step: {step_name}")
+
+
+def _relative_value(output: Any, location: str) -> Any:
+    value = output
+    for part in location.split("."):
+        if isinstance(value, list):
+            value = value[0] if value else None
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            value = value.get(part)
+        else:
+            value = getattr(value, part, None)
+    return value
 
 
 _DOCUMENTED_STEPS = (

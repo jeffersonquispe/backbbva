@@ -34,6 +34,12 @@ from src.application.use_cases.event_simulation.start_simulation import (
 from src.application.use_cases.event_simulation.stop_simulation import (
     StopSimulationUseCase,
 )
+from src.application.use_cases.event_simulation.seed_simulation_from_dataset import (
+    SeedSimulationFromDatasetUseCase,
+)
+from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
+    get_alert_schema_repository,
+)
 from src.application.use_cases.event_simulation.update_simulation_scenario import (
     UpdateSimulationScenarioUseCase,
 )
@@ -116,7 +122,16 @@ def get_dataset_reader_gateway() -> DatasetReaderGateway:
 
 
 def get_create_simulation_scenario_use_case() -> CreateSimulationScenarioUseCase:
-    return CreateSimulationScenarioUseCase(get_simulation_scenario_repository())
+    return CreateSimulationScenarioUseCase(
+        get_simulation_scenario_repository(),
+        get_alert_schema_repository(),
+    )
+
+
+def get_seed_simulation_from_dataset_use_case() -> SeedSimulationFromDatasetUseCase:
+    return SeedSimulationFromDatasetUseCase(
+        get_dataset_repository(), get_alert_schema_repository()
+    )
 
 
 def get_update_simulation_scenario_use_case() -> UpdateSimulationScenarioUseCase:

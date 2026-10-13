@@ -62,6 +62,7 @@ class DynamoWorkflowExecutionRepository(WorkflowExecutionRepository):
         finished_at: datetime | None = None,
         execution_backend: str | None = None,
         external_id: str | None = None,
+        schema_comparison: dict[str, Any] | None = None,
     ) -> WorkflowExecutionRecord | None:
         current = self.get(workflow_id)
         if current is None:
@@ -91,6 +92,7 @@ class DynamoWorkflowExecutionRepository(WorkflowExecutionRepository):
             execution_backend=execution_backend or current.execution_backend,
             external_id=external_id or current.external_id,
             test_run_id=current.test_run_id,
+            schema_comparison=schema_comparison if schema_comparison is not None else current.schema_comparison,
         )
         self._table.put_item(Item=_workflow_to_item(updated))
         return updated
@@ -214,6 +216,7 @@ def _workflow_to_item(workflow: WorkflowExecutionRecord) -> dict[str, Any]:
         ),
         "execution_backend": workflow.execution_backend,
         "external_id": workflow.external_id,
+        "schema_comparison": to_dynamodb(workflow.schema_comparison),
     }
     # Omitted (not written as NULL) when unset, so the TestRunIdx GSI stays
     # sparse - only test-run-linked workflows should appear in it.
@@ -244,6 +247,7 @@ def _workflow_from_item(item: dict[str, Any]) -> WorkflowExecutionRecord:
         test_run_id=(
             UUID(item["test_run_id"]) if item.get("test_run_id") else None
         ),
+        schema_comparison=from_dynamodb(item.get("schema_comparison")),
     )
 
 

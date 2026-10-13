@@ -27,6 +27,7 @@ class StartAlertWorkflowInput:
     # (ConfigurationRepository.get_active()). See _resolve_segment in
     # alert_review_workflow.py.
     configuration_ref: ConfigurationRef | None = None
+    schema_version: int | None = None
     origin: AlertOrigin = AlertOrigin.MANUAL
 
 

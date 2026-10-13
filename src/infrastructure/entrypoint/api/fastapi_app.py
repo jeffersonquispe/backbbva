@@ -91,6 +91,12 @@ from src.infrastructure.entrypoint.api.routers.watchlists_router import (
 from src.infrastructure.entrypoint.api.routers.auth_router import (
     router as auth_router,
 )
+from src.infrastructure.entrypoint.api.routers.alert_schema_router import (
+    router as alert_schema_router,
+)
+from src.infrastructure.entrypoint.api.routers.e2e_router import (
+    router as e2e_router,
+)
 
 
 @asynccontextmanager
@@ -109,6 +115,8 @@ def create_app() -> FastAPI:
     configure_cors(app)
     app.include_router(health_router)
     app.include_router(auth_router, prefix=genai_config.API_V0_STR)
+    app.include_router(alert_schema_router, prefix=genai_config.API_V0_STR)
+    app.include_router(e2e_router, prefix=genai_config.API_V0_STR)
     app.include_router(
         async_operations_router,
         prefix=genai_config.API_V0_STR,

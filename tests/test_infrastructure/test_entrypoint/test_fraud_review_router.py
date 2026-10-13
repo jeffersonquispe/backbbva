@@ -79,11 +79,11 @@ class RecordingListHistory:
     def execute(self, input):
         self.inputs.append(input)
         alert = AlertRecord(
-            id=KNOWN, event_id="evt", event_type="payment", payload={}, status=AlertStatus.CLOSED,
+            id=KNOWN, event_id="evt", event_type="payment", input={}, status=AlertStatus.CLOSED,
             created_at=NOW, updated_at=NOW, customer_id="c-1",
         )
         snapshot = AlertMetricsSnapshot(
-            channel="WEB", amount=12.5, amount_tier="low", amount_tier_set_version=2,
+            channel="WEB", amount=12.5, amount_tier="low", schema_version=2,
             resolution_method=AlertResolutionMethod.ANALYST, mark=Mark.FRAUD,
             fraud_label=Mark.NO_FRAUD, marked_at=NOW, fraud_reviewed_at=NOW,
             fraud_review_count=2, resolution_time_seconds=180.0, status=AlertStatus.CLOSED,
@@ -186,7 +186,7 @@ def test_history_passes_filters_and_returns_snapshot_fields() -> None:
     assert item["alert_id"] == str(KNOWN)
     assert (item["mark"], item["fraud_label"], item["fraud_review_count"]) == ("fraud", "no_fraud", 2)
     assert item["resolution_method"] == "analyst" and item["has_snapshot"] is True
-    assert {"marked_at", "fraud_reviewed_at", "amount_tier", "amount_tier_set_version"} <= set(item)
+    assert {"marked_at", "fraud_reviewed_at", "amount_tier", "schema_version"} <= set(item)
 
 
 def test_bulk_csv_dispatches_and_reports_per_row() -> None:

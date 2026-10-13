@@ -160,7 +160,7 @@ def _step(workflow_id, name, output, *, offset=0, status=WorkflowStepStatus.SUCC
 
 def _world(steps_for=None, answer=VERDICT):
     alert = AlertRecord(
-        id=uuid4(), event_id="e", event_type="t", payload={"amount": {"baseValue": 1500}},
+        id=uuid4(), event_id="e", event_type="t", input={"amount": {"baseValue": 1500}},
         status=AlertStatus.CLOSED, created_at=CREATED, updated_at=CREATED,
         metrics=AlertMetricsSnapshot(channel="WEB", status=AlertStatus.CLOSED),
     )

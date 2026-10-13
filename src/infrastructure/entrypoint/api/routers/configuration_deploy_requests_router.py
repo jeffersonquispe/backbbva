@@ -83,7 +83,7 @@ def create_deploy_request(
         current_version=current.version if current else None,
         title=request.title.strip(), message=request.message.strip(),
         changes=preview["changes"],
-        requested_by=user.name, requested_at=datetime.now(timezone.utc),
+        requested_by=user.name, requested_by_id=str(user.id), requested_at=datetime.now(timezone.utc),
     )
     return _response(_repository().create(deploy_request))
 
@@ -106,6 +106,8 @@ def approve_deploy_request(
         raise HTTPException(status_code=404, detail="Deploy request not found")
     if deploy_request.status != "pending":
         raise HTTPException(status_code=409, detail="Deploy request has already been processed")
+    if deploy_request.requested_by_id is not None and deploy_request.requested_by_id == str(user.id):
+        raise HTTPException(status_code=403, detail="A user cannot approve their own deploy request")
     try:
         get_activate_configuration_use_case().execute(deploy_request.target_configuration_id, deploy_request.target_version)
     except ConfigurationNotFoundError as exc:
@@ -113,7 +115,7 @@ def approve_deploy_request(
     except ConfigurationNotTestedError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
-        approved = requests.approve(request_id, user.name, datetime.now(timezone.utc))
+        approved = requests.approve(request_id, user.name, datetime.now(timezone.utc), str(user.id))
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
             raise HTTPException(status_code=409, detail="Deploy request has already been processed") from exc

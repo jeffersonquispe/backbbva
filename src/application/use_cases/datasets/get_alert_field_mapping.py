@@ -18,6 +18,7 @@ class GetAlertFieldMappingUseCase:
             )
         return GetAlertFieldMappingOutput(
             dataset_name=mapping.dataset_name,
+            schema_version=mapping.schema_version,
             mappings=mapping.mappings,
             updated_at=mapping.updated_at,
         )

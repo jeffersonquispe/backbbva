@@ -30,12 +30,12 @@ class DynamoConfigurationDeployRequestRepository:
         item = self._table.get_item(Key={"id": request_id}).get("Item")
         return _from_item(item) if item else None
 
-    def approve(self, request_id: str, approved_by: str, approved_at: datetime) -> ConfigurationDeployRequest:
+    def approve(self, request_id: str, approved_by: str, approved_at: datetime, approved_by_id: str | None = None) -> ConfigurationDeployRequest:
         self._table.update_item(
             Key={"id": request_id},
-            UpdateExpression="SET #status = :approved, approved_by = :approved_by, approved_at = :approved_at",
+            UpdateExpression="SET #status = :approved, approved_by = :approved_by, approved_by_id = :approved_by_id, approved_at = :approved_at",
             ExpressionAttributeNames={"#status": "status"},
-            ExpressionAttributeValues=to_dynamodb({":approved": "approved", ":approved_by": approved_by, ":approved_at": approved_at.isoformat()}),
+            ExpressionAttributeValues=to_dynamodb({":approved": "approved", ":approved_by": approved_by, ":approved_by_id": approved_by_id, ":approved_at": approved_at.isoformat()}),
             ConditionExpression="attribute_exists(id) AND #status = :pending",
         )
         result = self.get(request_id)
@@ -48,9 +48,9 @@ def _to_item(request: ConfigurationDeployRequest) -> dict:
         "id": request.id, "target_configuration_id": request.target_configuration_id,
         "target_version": request.target_version, "current_configuration_id": request.current_configuration_id,
         "current_version": request.current_version, "title": request.title, "message": request.message,
-        "changes": request.changes, "requested_by": request.requested_by,
+        "changes": request.changes, "requested_by": request.requested_by, "requested_by_id": request.requested_by_id,
         "requested_at": request.requested_at.isoformat(), "status": request.status,
-        "approved_by": request.approved_by,
+        "approved_by": request.approved_by, "approved_by_id": request.approved_by_id,
         "approved_at": request.approved_at.isoformat() if request.approved_at else None,
     }
 
@@ -60,7 +60,7 @@ def _from_item(item: dict) -> ConfigurationDeployRequest:
     return ConfigurationDeployRequest(
         id=value["id"], target_configuration_id=value["target_configuration_id"], target_version=int(value["target_version"]),
         current_configuration_id=value.get("current_configuration_id"), current_version=int(value["current_version"]) if value.get("current_version") is not None else None,
-        title=value["title"], message=value["message"], changes=value.get("changes", []), requested_by=value["requested_by"],
+        title=value["title"], message=value["message"], changes=value.get("changes", []), requested_by=value["requested_by"], requested_by_id=value.get("requested_by_id"),
         requested_at=datetime.fromisoformat(value["requested_at"]), status=value.get("status", "pending"),
-        approved_by=value.get("approved_by"), approved_at=datetime.fromisoformat(value["approved_at"]) if value.get("approved_at") else None,
+        approved_by=value.get("approved_by"), approved_by_id=value.get("approved_by_id"), approved_at=datetime.fromisoformat(value["approved_at"]) if value.get("approved_at") else None,
     )

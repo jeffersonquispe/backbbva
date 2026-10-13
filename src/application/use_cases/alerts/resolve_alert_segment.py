@@ -29,15 +29,20 @@ def _normalize_rules(rules: Any) -> list[str]:
     return []
 
 
-def _alert_values(mandatory_fields: dict[str, Any]) -> dict[TagCategory, list[str]]:
+def _alert_values(input_fields: dict[str, Any], roles: dict[str, Any] | None = None) -> dict[TagCategory, list[str]]:
+    roles = roles or {}
+    if not roles:
+        roles = {
+            role: input_fields[name]
+            for role, name in (("event_type", "event_type"), ("entrypoint", "integration_point"))
+            if name in input_fields
+        }
     values: dict[TagCategory, list[str]] = {}
-    if mandatory_fields.get("event_type"):
-        values[TagCategory.EVENT_TYPE] = [str(mandatory_fields["event_type"])]
-    if mandatory_fields.get("integration_point"):
-        values[TagCategory.INTEGRATION_POINT] = [
-            str(mandatory_fields["integration_point"])
-        ]
-    rules = _normalize_rules(mandatory_fields.get("rules"))
+    if roles.get("event_type"):
+        values[TagCategory.EVENT_TYPE] = [str(roles["event_type"])]
+    if roles.get("entrypoint"):
+        values[TagCategory.INTEGRATION_POINT] = [str(roles["entrypoint"])]
+    rules = _normalize_rules(input_fields.get("rules"))
     if rules:
         values[TagCategory.TRIGGERED_RULE] = rules
     return values
@@ -70,10 +75,11 @@ class ResolveAlertSegmentUseCase:
 
     def execute(
         self,
-        mandatory_fields: dict[str, Any],
+        input_fields: dict[str, Any],
         segments: dict[str, SegmentSettings],
+        roles: dict[str, Any] | None = None,
     ) -> str | None:
-        alert_values = _alert_values(mandatory_fields)
+        alert_values = _alert_values(input_fields, roles or {})
         ordered = sorted(segments.items(), key=lambda item: item[1].order)
         for code, segment in ordered:
             if not segment.enabled:

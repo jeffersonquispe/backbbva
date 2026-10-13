@@ -39,6 +39,7 @@ class TestRunConfig:
     # so multiple test runs can each target a different configuration
     # concurrently - see alert_review_workflow.py's _resolve_segment.
     configuration_ref: ConfigurationRef | None = None
+    schema_version: int | None = None
 
 
 @dataclass

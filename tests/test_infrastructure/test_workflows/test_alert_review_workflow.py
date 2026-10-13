@@ -22,6 +22,13 @@ from src.application.ports.alert_action_dispatcher_port import (
 )
 from src.application.dtos.alert_metrics_dtos import AlertMetricsEventType
 from src.application.ports.alert_port import AlertOrigin, AlertRecord, AlertStatus
+from src.application.ports.alert_schema_port import (
+    AlertSchemaDataSource,
+    AlertSchemaField,
+    AlertSchemaFieldType,
+    AlertSchemaStatus,
+    AlertSchemaVersion,
+)
 from src.application.ports.analyst_decision_documenter_port import (
     AnalystDecisionDocumenter,
     DocumentationDispatchRef,
@@ -144,6 +151,92 @@ class InMemoryAlertRepository:
         )
         self.alerts[alert_id] = updated
         return updated
+
+
+class InMemoryAlertSchemaRepository:
+    def __init__(self, active: AlertSchemaVersion) -> None:
+        self.active = active
+
+    def get_active(self) -> AlertSchemaVersion:
+        return self.active
+
+    def list_versions(self) -> list[AlertSchemaVersion]:
+        return [self.active]
+
+    def get(self, version: int) -> AlertSchemaVersion | None:
+        return self.active if version == self.active.version else None
+
+    def save_draft(self, schema: AlertSchemaVersion) -> AlertSchemaVersion:
+        self.active = schema
+        return schema
+
+    def update(self, schema: AlertSchemaVersion) -> AlertSchemaVersion:
+        self.active = schema
+        return schema
+
+
+def _schema_field(
+    field_id: str,
+    field: str,
+    field_ds_loc: str,
+    field_type: AlertSchemaFieldType,
+    *,
+    is_mandatory: bool = False,
+) -> AlertSchemaField:
+    return AlertSchemaField(
+        id=field_id,
+        data_source=AlertSchemaDataSource.ARIC,
+        field=field,
+        field_ds_loc=field_ds_loc,
+        type=field_type,
+        is_mandatory=is_mandatory,
+    )
+
+
+SYNTHETIC_ALERT_SCHEMA = AlertSchemaVersion(
+    version=1,
+    status=AlertSchemaStatus.ACTIVE,
+    fields=[
+        _schema_field("event-id", "event_id", "eventId", AlertSchemaFieldType.STRING, is_mandatory=True),
+        _schema_field("event-time", "event_time", "eventTime", AlertSchemaFieldType.DATETIME, is_mandatory=True),
+        _schema_field("event-type", "event_type", "eventType", AlertSchemaFieldType.STRING, is_mandatory=True),
+        _schema_field("channel", "channel", "channel", AlertSchemaFieldType.STRING, is_mandatory=True),
+        _schema_field("amount", "amount", "amount.baseValue", AlertSchemaFieldType.NUMBER, is_mandatory=True),
+        _schema_field("customer-id", "customer_id", "customerId", AlertSchemaFieldType.STRING, is_mandatory=True),
+        _schema_field("account-id", "account_id", "accountId", AlertSchemaFieldType.STRING),
+        _schema_field("session-id", "session_id", "session.sessionId", AlertSchemaFieldType.STRING),
+        _schema_field("rules", "rules", "object.triggeredRules", AlertSchemaFieldType.LIST, is_mandatory=True),
+        _schema_field("integration-point", "integration_point", "integrationPoint", AlertSchemaFieldType.STRING, is_mandatory=True),
+        _schema_field("ip-channel", "ip_channel", "device.ipAddress", AlertSchemaFieldType.STRING, is_mandatory=True),
+        _schema_field("client-code", "client_code", "customerClientCode", AlertSchemaFieldType.STRING, is_mandatory=True),
+        _schema_field("reason-code", "reason_code", "msgReason", AlertSchemaFieldType.STRING),
+        _schema_field("biocatch-score", "biocatch_score", "biocatch.score", AlertSchemaFieldType.NUMBER),
+        _schema_field("counterparty", "counterparty", "counterpartyName.fullName", AlertSchemaFieldType.STRING),
+        _schema_field("transaction-id", "transaction_id", "transactionId", AlertSchemaFieldType.STRING),
+        _schema_field("biocatch-muid", "biocatch_muid", "biocatch.muid", AlertSchemaFieldType.STRING),
+        _schema_field("tags", "tags", "object.tags", AlertSchemaFieldType.LIST),
+        _schema_field("triggered-models", "triggered_models", "object.triggeredModels", AlertSchemaFieldType.LIST),
+        _schema_field("device-id", "device_id", "_metadata.searchable.deviceId", AlertSchemaFieldType.STRING),
+        _schema_field("entry-mode", "entry_mode", "entryMode.terminalDataInputModeCapability", AlertSchemaFieldType.STRING),
+        _schema_field("merchant-id", "merchant_id", "merchantId", AlertSchemaFieldType.STRING),
+        _schema_field("merchant-name", "merchant_name", "merchantName", AlertSchemaFieldType.STRING),
+        _schema_field("description", "description", "serviceDescription", AlertSchemaFieldType.STRING),
+        _schema_field("response", "response", "msgStatus", AlertSchemaFieldType.STRING),
+        _schema_field("direction", "direction", "direction", AlertSchemaFieldType.STRING),
+        _schema_field("user-agent", "user_agent", "device.userAgentString", AlertSchemaFieldType.STRING),
+    ],
+    field_roles={
+        "event_id": "event-id",
+        "event_time": "event-time",
+        "event_type": "event-type",
+        "channel": "channel",
+        "entrypoint": "integration-point",
+        "amount": "amount",
+        "customer_id": "customer-id",
+        "account_id": "account-id",
+        "session_id": "session-id",
+    },
+)
 
 
 class InMemoryAsyncOperationRepository:
@@ -524,6 +617,13 @@ def in_memory_monitoring(monkeypatch):
     return monitoring, exporter
 
 
+@pytest.fixture(autouse=True)
+def in_memory_alert_schema_repository(monkeypatch):
+    repository = InMemoryAlertSchemaRepository(SYNTHETIC_ALERT_SCHEMA)
+    monkeypatch.setattr(factories_module, "get_alert_schema_repository", lambda: repository)
+    return repository
+
+
 def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
     now = datetime.now(timezone.utc)
 
@@ -599,10 +699,15 @@ def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
             id=alert_id,
             event_id=SYNTHETIC_ALERT_PAYLOAD["eventId"],
             event_type=SYNTHETIC_ALERT_PAYLOAD["eventType"],
-            payload=SYNTHETIC_ALERT_PAYLOAD,
             status=AlertStatus.PROCESSING,
             created_at=now,
             updated_at=now,
+            schema_version=1,
+            input={
+                "channel": "mobileApp",
+                "integration_point": "mobile",
+                "amount": SYNTHETIC_ALERT_PAYLOAD["amount"]["baseValue"],
+            },
             customer_id=SYNTHETIC_ALERT_PAYLOAD["customerId"],
             async_operation_id=async_operation_id,
             workflow_execution_id=workflow_id,
@@ -762,7 +867,6 @@ def _seed_pending_workflow(alerts, operations, workflows, input: dict[str, Any])
             id=alert_id,
             event_id="evt-1",
             event_type="paymentRT",
-            payload=SYNTHETIC_ALERT_PAYLOAD,
             status=AlertStatus.PROCESSING,
             created_at=now,
             updated_at=now,
@@ -972,10 +1076,15 @@ def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(
             id=alert_id,
             event_id=SYNTHETIC_ALERT_PAYLOAD["eventId"],
             event_type=SYNTHETIC_ALERT_PAYLOAD["eventType"],
-            payload=SYNTHETIC_ALERT_PAYLOAD,
             status=AlertStatus.PROCESSING,
             created_at=now,
             updated_at=now,
+            schema_version=1,
+            input={
+                "channel": "mobileApp",
+                "integration_point": "mobile",
+                "amount": SYNTHETIC_ALERT_PAYLOAD["amount"]["baseValue"],
+            },
             customer_id=SYNTHETIC_ALERT_PAYLOAD["customerId"],
             async_operation_id=async_operation_id,
             workflow_execution_id=workflow_id,
@@ -1033,6 +1142,9 @@ def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(
     finished_alert = alerts.get(alert_id)
     assert finished_alert is not None
     assert finished_alert.status == AlertStatus.CLOSED
+    # The configuration resolved after pre_process is stored on the alert.
+    assert finished_alert.configuration_id == "cfg-discard"
+    assert finished_alert.configuration_version == 1
 
     # Only pre_process and deterministic ran - everything from profiling
     # onward was skipped.
@@ -1162,7 +1274,7 @@ def test_alert_review_workflow_skips_to_pass_when_detector_finds_no_fraud(monkey
             id=alert_id,
             event_id=SYNTHETIC_ALERT_PAYLOAD["eventId"],
             event_type=SYNTHETIC_ALERT_PAYLOAD["eventType"],
-            payload=SYNTHETIC_ALERT_PAYLOAD,
+            input=SYNTHETIC_ALERT_PAYLOAD,
             status=AlertStatus.PROCESSING,
             created_at=now,
             updated_at=now,
@@ -1489,7 +1601,6 @@ def _real_metrics_events(monkeypatch):
                 AmountTier("low", "< 1M", 0, 1_000_000),
                 AmountTier("high", ">= 1M", 1_000_000, None),
             ],
-            amount_tier_set_version=1,
         )
     )
     monkeypatch.setattr(
@@ -1500,6 +1611,7 @@ def _real_metrics_events(monkeypatch):
             alert_repository=workflow_module.get_alert_repository(),
             rollup_repository=SnapshotWritingRollupRepository(),
             settings_repository=settings,
+            schema_repository=InMemoryAlertSchemaRepository(SYNTHETIC_ALERT_SCHEMA),
             timezone_name="America/Bogota",
         ),
     )
@@ -1536,7 +1648,7 @@ def test_workflow_and_step_spans_carry_dimensions_never_customer_or_amount(monke
     workflow_span = by_name["alert_review_workflow"]
     assert workflow_span.attributes["alert_id"] == str(run["alert_id"])
     assert workflow_span.attributes["aria.channel"] == "mobileApp"
-    assert workflow_span.attributes["aria.subchannel"] == "APP"
+    assert workflow_span.attributes["aria.subchannel"] == "mobile"
     assert workflow_span.attributes["aria.amount_tier"] == "high"
     assert workflow_span.attributes["aria.status"] == "CLOSED"
     assert workflow_span.attributes["aria.mark"] == "pending"  # bidi

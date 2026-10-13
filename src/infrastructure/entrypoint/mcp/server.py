@@ -22,7 +22,7 @@ mcp = FastMCP("aria-xgboost-scoring")
 def score_alert(alert_id: str) -> dict[str, Any]:
     """Scores one alert with the currently active XGBoost model. The caller
     (an agent) only ever passes the alert id - never the alert's own field
-    values - the tool fetches AlertRecord.payload itself and builds the
+    values - the tool fetches the canonical alert input itself and builds the
     feature row internally, so no agent prompt has to carry a long
     parameter list of raw alert fields."""
     bundle, model_id, tag = get_loaded_bundle()
@@ -33,7 +33,7 @@ def score_alert(alert_id: str) -> dict[str, Any]:
     if alert is None:
         return {"error": f"alert {alert_id} not found"}
 
-    result = score_row(bundle, alert.payload)
+    result = score_row(bundle, alert.input)
     result["model_id"] = model_id
     result["model_tag"] = tag
     return result

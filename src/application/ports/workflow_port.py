@@ -41,6 +41,7 @@ class WorkflowExecutionRecord:
     execution_backend: str | None = None
     external_id: str | None = None
     test_run_id: UUID | None = None
+    schema_comparison: dict[str, Any] | None = None
 
 
 @dataclass
@@ -81,6 +82,7 @@ class WorkflowExecutionRepository(Protocol):
         finished_at: datetime | None = None,
         execution_backend: str | None = None,
         external_id: str | None = None,
+        schema_comparison: dict[str, Any] | None = None,
     ) -> WorkflowExecutionRecord | None:
         ...
 

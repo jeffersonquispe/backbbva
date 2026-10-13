@@ -131,7 +131,6 @@ def _to_schema(settings: OperationalSettings) -> OperationalSettingsSchema:
             )
             for tier in settings.amount_tiers
         ],
-        amount_tier_set_version=settings.amount_tier_set_version,
         reasoning_evaluation_sample_rate=settings.reasoning_evaluation_sample_rate,
     )
 

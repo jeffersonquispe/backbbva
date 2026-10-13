@@ -51,3 +51,6 @@ class RecordAlertMetricsEventInput:
     outcome: str | None = None
     # FRAUD_REVIEWED
     fraud_label: Mark | None = None
+    # Canonical role values produced by pre_process. Labels and raw payload
+    # are deliberately not used for business dimensions.
+    roles: dict[str, object] | None = None

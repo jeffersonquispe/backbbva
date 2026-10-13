@@ -25,6 +25,8 @@ from src.application.ports.async_operation_port import (
     AsyncOperationStatus,
 )
 from src.application.ports.workflow_executor_port import WorkflowExecutor
+from src.application.ports.object_storage_port import ObjectStoragePort
+from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
 from src.application.ports.workflow_port import (
     WorkflowExecutionRecord,
     WorkflowExecutionRepository,
@@ -57,12 +59,16 @@ class StartAlertTestWorkflowUseCase:
         workflow_repository: WorkflowExecutionRepository,
         workflow_executor: WorkflowExecutor,
         metrics_recorder: RecordAlertMetricsEvent | None = None,
+        object_storage: ObjectStoragePort | None = None,
     ) -> None:
         self._alert_repository = alert_repository
         self._async_operation_repository = async_operation_repository
         self._workflow_repository = workflow_repository
         self._workflow_executor = workflow_executor
         self._metrics = metrics_recorder
+        self._raw_payloads = (
+            RawAlertPayloadLoader(object_storage) if object_storage is not None else None
+        )
 
     def execute(
         self,
@@ -72,16 +78,22 @@ class StartAlertTestWorkflowUseCase:
         if payload_size > MAX_ALERT_PAYLOAD_BYTES:
             raise AlertPayloadTooLargeError(payload_size, MAX_ALERT_PAYLOAD_BYTES)
         now = datetime.now(timezone.utc)
+        alert_id = uuid.uuid4()
+        raw_ref = (
+            self._raw_payloads.store(str(alert_id), input.payload)
+            if self._raw_payloads is not None
+            else None
+        )
         alert = self._alert_repository.create(
             AlertRecord(
-                id=uuid.uuid4(),
+                id=alert_id,
                 event_id=str(input.payload.get("eventId") or uuid.uuid4()),
                 event_type=str(input.payload.get("eventType") or "unknown"),
-                payload=input.payload,
                 status=AlertStatus.RECEIVED,
                 customer_id=_optional_str(input.payload.get("customerId")),
                 created_at=now,
                 updated_at=now,
+                raw_payload_ref=raw_ref,
             )
         )
         # Before dispatch, so the arrival snapshot normally lands before the
@@ -114,8 +126,14 @@ class StartAlertTestWorkflowUseCase:
                 workflow_name=WORKFLOW_NAME,
                 status=WorkflowStatus.PENDING,
                 input={
-                    "alert_payload": input.payload,
+                    "raw_payload_ref": dataclasses.asdict(raw_ref) if raw_ref else None,
+                    "test_labels": (
+                        {"marcacion_final": input.payload.get("marcacion_final")}
+                        if input.test_run_id is not None and "marcacion_final" in input.payload
+                        else {}
+                    ),
                     "config_overrides": input.config_overrides,
+                    "schema_version": input.schema_version,
                     "configuration_ref": (
                         dataclasses.asdict(input.configuration_ref)
                         if input.configuration_ref is not None

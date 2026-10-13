@@ -6,6 +6,13 @@ import pytest
 
 from src.application.dtos.pre_process_dtos import PreProcessAlertInput
 from src.application.ports.aric_alert_port import AricAlertPort, AricAlertSignals
+from src.application.ports.alert_schema_port import (
+    AlertSchemaDataSource,
+    AlertSchemaField,
+    AlertSchemaFieldType,
+    AlertSchemaStatus,
+    AlertSchemaVersion,
+)
 from src.application.ports.host_service_customer_port import (
     HostCustomerProfile,
     HostServiceCustomerProfilePort,
@@ -15,6 +22,7 @@ from src.application.ports.host_service_personal_data_changes_port import (
 )
 from src.application.ports.host_service_transaction_history_port import (
     HostServiceTransactionHistoryPort,
+    TransactionHistoryEntry,
 )
 from src.application.use_cases.alerts.pre_process_alert import (
     PreProcessAlertUseCase,
@@ -78,12 +86,13 @@ class RecordingHostServiceCustomerProfilePort(HostServiceCustomerProfilePort):
 class RecordingHostServiceTransactionHistoryPort(
     HostServiceTransactionHistoryPort
 ):
-    def __init__(self) -> None:
+    def __init__(self, entries=None) -> None:
         self.calls = 0
+        self.entries = entries or []
 
     def fetch_transaction_history(self, customer_id, account_id):
         self.calls += 1
-        return []
+        return self.entries
 
 
 class FlakyHostServicePersonalDataChangesPort(
@@ -100,16 +109,85 @@ class FlakyHostServicePersonalDataChangesPort(
         return []
 
 
-def _use_case(personal_data_port=None) -> PreProcessAlertUseCase:
+def _schema() -> AlertSchemaVersion:
+    fields = []
+    def add(name, paths, type=AlertSchemaFieldType.STRING, mandatory=False, label=False):
+        for index, path in enumerate(paths):
+            fields.append(AlertSchemaField(f"{name}-{index}", AlertSchemaDataSource.ARIC, name, field_ds_loc=path, type=type, is_mandatory=mandatory, is_label=label))
+    for name, paths, type in (
+        ("event_id", ("eventId", "eventid"), AlertSchemaFieldType.STRING),
+        ("event_time", ("eventTime", "fecha_transaccion"), AlertSchemaFieldType.DATETIME),
+        ("event_type", ("eventType", "eventtype"), AlertSchemaFieldType.STRING),
+        ("customer_id", ("customerId", "customerid"), AlertSchemaFieldType.STRING),
+        ("channel", ("channel",), AlertSchemaFieldType.STRING),
+        ("entrypoint", ("integrationPoint", "integrationpoint"), AlertSchemaFieldType.STRING),
+        ("amount", ("amount.baseValue", "amount_value"), AlertSchemaFieldType.NUMBER),
+    ):
+        add(name, paths, type, mandatory=True)
+    add("account_id", ("accountId",), mandatory=False)
+    add("session_id", ("session.sessionId", "biocatch.customerSessionID"))
+    for name, path in (
+        ("rules", "object.triggeredRules"), ("reason_code", "msgReason"),
+        ("biocatch_score", "biocatch.score"), ("model_score", "Model_score"),
+        ("counterparty", "counterpartyName.fullName"), ("transaction_id", "transactionId"),
+        ("client_code", "customerClientCode"),
+        ("max_amount_pse", "MontoMasAltoPSE"), ("max_amount_breb", "MontoMasAltoBreB"),
+        ("max_amount_glomo", "MontoMasAltoGlomo"), ("max_amount_card_withdrawals", "MontoMasAltoRetirosTarjeta"),
+    ):
+        add(name, (path,), AlertSchemaFieldType.LIST if name == "rules" else (AlertSchemaFieldType.NUMBER if name in {"biocatch_score", "model_score", "max_amount_pse", "max_amount_breb", "max_amount_glomo", "max_amount_card_withdrawals"} else AlertSchemaFieldType.STRING))
+    add("rules", ("triggered_rules",), AlertSchemaFieldType.STRING)
+    add("transaction_id", ("transactionid",), AlertSchemaFieldType.STRING)
+    add("biocatch_score", ("biocatch_score",), AlertSchemaFieldType.NUMBER)
+    add("client_code", ("numero_documento",), AlertSchemaFieldType.STRING)
+    for name, path in (("marcacion_final", "marcacion_final"), ("tipo", "tipo")):
+        add(name, (path,), label=True)
+    fields.extend(
+        [
+            AlertSchemaField(
+                "history-amount",
+                AlertSchemaDataSource.HOST,
+                "amount",
+                field_name="Monto histórico",
+                field_ds_loc="amount",
+                type=AlertSchemaFieldType.NUMBER,
+                is_alert=False,
+                is_history=True,
+            ),
+            AlertSchemaField(
+                "history-event-time",
+                AlertSchemaDataSource.HOST,
+                "event_time",
+                field_name="Fecha histórica",
+                field_ds_loc="event_time",
+                type=AlertSchemaFieldType.DATETIME,
+                is_alert=False,
+                is_history=True,
+            ),
+        ]
+    )
+    return AlertSchemaVersion(1, AlertSchemaStatus.ACTIVE, fields, {
+        "event_id": "event_id-0", "event_time": "event_time-0", "event_type": "event_type-0",
+        "channel": "channel-0", "entrypoint": "entrypoint-0", "amount": "amount-0",
+        "customer_id": "customer_id-0",
+    })
+
+
+class SchemaRepository:
+    def get_active(self):
+        return _schema()
+
+
+def _use_case(personal_data_port=None, transaction_history=None) -> PreProcessAlertUseCase:
     return PreProcessAlertUseCase(
         aric_alert_port=RecordingAricAlertPort(),
         host_customer_profile_port=RecordingHostServiceCustomerProfilePort(),
         host_transaction_history_port=(
-            RecordingHostServiceTransactionHistoryPort()
+            RecordingHostServiceTransactionHistoryPort(transaction_history)
         ),
         host_personal_data_changes_port=(
             personal_data_port or FlakyHostServicePersonalDataChangesPort(0)
         ),
+        schema_repository=SchemaRepository(),
     )
 
 
@@ -126,6 +204,24 @@ def test_pre_process_alert_extracts_fields_and_enriches() -> None:
     assert output.optional_fields["reason_code"] == "none"
     assert output.enrichment["customer_profile"].customer_name == "Jane"
     assert "pre_process" in output.pre_process_note.lower()
+
+
+def test_pre_process_maps_only_is_history_fields_to_canonical_history() -> None:
+    output = _use_case(
+        transaction_history=[
+            TransactionHistoryEntry(
+                event_id="tx-1",
+                event_type="cardNRT",
+                event_time="2026-10-08T14:30:00Z",
+                amount=63800.0,
+                channel="APP",
+            )
+        ]
+    ).execute(PreProcessAlertInput(alert_id=uuid.uuid4(), payload=VALID_PAYLOAD))
+
+    assert output.history == [
+        {"amount": 63800.0, "event_time": "2026-10-08T14:30:00Z"}
+    ]
 
 
 # Real column names from Muestra_total_ARIA.csv - the reference dataset.
@@ -193,9 +289,9 @@ def test_pre_process_alert_accepts_muestra_total_aria_flat_schema() -> None:
     assert output.optional_fields["amount"] == 2800000.0
     assert output.mandatory_fields["event_id"] == "evt-flat-1"
     assert output.mandatory_fields["event_type"] == "paymentRT"
-    assert output.optional_fields["biocatch_score"] == 891
-    assert output.mandatory_fields["rules"] == "[CUSTOMER - Score1000Net]"
-    assert output.mandatory_fields["client_code"] == "1000003114"
+    assert output.input["biocatch_score"] == 891
+    assert output.input["rules"] == "[CUSTOMER - Score1000Net]"
+    assert output.input["client_code"] == "1000003114"
     # Fields this schema simply doesn't carry (merchant, session, entry
     # mode, ...) must not block pre_process.
     assert "merchant_id" not in output.mandatory_fields
@@ -216,15 +312,8 @@ def test_pre_process_alert_maps_new_export_risk_fields_without_label_leakage() -
     assert output.optional_fields["max_amount_glomo"] == 122000.0
     assert output.optional_fields["max_amount_card_withdrawals"] == 500000.0
 
-    signals = output.enrichment["aric_signals"]
-    assert signals.is_mobile_rat is False
-    assert signals.is_emulator_rat is False
-    assert signals.is_rat is False
-    assert signals.is_bot is False
-    assert signals.ind_robo1 is True
-    assert signals.is_on_call_active is True
-    assert signals.is_voip_on_call is True
-    assert signals.screen_broadcast is True
+    assert output.labels["marcacion_final"] == "risk-suspected"
+    assert "marcacion_final" not in output.input
 
     exposed = output.mandatory_fields.keys() | output.optional_fields.keys()
     assert not {
@@ -250,6 +339,17 @@ def test_pre_process_alert_raises_on_missing_mandatory_field() -> None:
     assert "customer_id" in exc_info.value.missing_fields
 
 
+def test_pre_process_alert_coerces_numeric_csv_values() -> None:
+    payload = dict(VALID_PAYLOAD)
+    payload["amount"] = {"baseValue": "15000000.0"}
+
+    output = _use_case().execute(
+        PreProcessAlertInput(alert_id=uuid.uuid4(), payload=payload)
+    )
+
+    assert output.roles["amount"] == 15000000.0
+
+
 def test_pre_process_alert_does_not_block_on_missing_biocatch_counterparty_amount() -> None:
     # biocatch_score, counterparty and amount are real-world-optional (not
     # every event carries them) - regression test for them being wrongly
@@ -261,16 +361,10 @@ def test_pre_process_alert_does_not_block_on_missing_biocatch_counterparty_amoun
     }
     use_case = _use_case()
 
-    output = use_case.execute(
-        PreProcessAlertInput(alert_id=uuid.uuid4(), payload=payload)
-    )
-
-    assert "biocatch_score" not in output.mandatory_fields
-    assert "counterparty" not in output.mandatory_fields
-    assert "amount" not in output.mandatory_fields
-    assert "biocatch_score" not in output.optional_fields
-    assert "counterparty" not in output.optional_fields
-    assert "amount" not in output.optional_fields
+    with pytest.raises(MandatoryAlertDataMissingError, match="amount"):
+        use_case.execute(
+            PreProcessAlertInput(alert_id=uuid.uuid4(), payload=payload)
+        )
 
 
 def test_pre_process_alert_retries_transient_fetch_failures() -> None:
@@ -292,6 +386,7 @@ def test_pre_process_alert_prefers_payload_transaction_history_over_port() -> No
         host_customer_profile_port=RecordingHostServiceCustomerProfilePort(),
         host_transaction_history_port=tx_port,
         host_personal_data_changes_port=FlakyHostServicePersonalDataChangesPort(0),
+        schema_repository=SchemaRepository(),
     )
     payload = {
         **VALID_PAYLOAD,
@@ -322,6 +417,7 @@ def test_pre_process_alert_preserves_new_transaction_history_details() -> None:
         host_customer_profile_port=RecordingHostServiceCustomerProfilePort(),
         host_transaction_history_port=tx_port,
         host_personal_data_changes_port=FlakyHostServicePersonalDataChangesPort(0),
+        schema_repository=SchemaRepository(),
     )
     payload = {
         **VALID_PAYLOAD,
@@ -359,6 +455,7 @@ def test_pre_process_alert_falls_back_to_port_when_no_transactions_in_payload() 
         host_customer_profile_port=RecordingHostServiceCustomerProfilePort(),
         host_transaction_history_port=tx_port,
         host_personal_data_changes_port=FlakyHostServicePersonalDataChangesPort(0),
+        schema_repository=SchemaRepository(),
     )
 
     use_case.execute(

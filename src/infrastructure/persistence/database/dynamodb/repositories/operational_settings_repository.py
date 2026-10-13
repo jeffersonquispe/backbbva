@@ -164,7 +164,6 @@ def _from_item(item: dict[str, Any]) -> OperationalSettings:
             )
             for tier in item.get("amount_tiers") or []
         ],
-        amount_tier_set_version=int(item.get("amount_tier_set_version", 0)),
         reasoning_evaluation_sample_rate=float(
             item.get("reasoning_evaluation_sample_rate", 0.05)
         ),

@@ -20,8 +20,8 @@ ROLE_PERMISSIONS: dict[LocalRole, frozenset[str]] = {
     # fraud_review: correct an alert's fraud_label (POST /alerts/{id}/fraud-review
     # and the bulk CSV) - a bank business record: manager, plus
     # channel_manager, which by design holds every frontend permission.
-    LocalRole.MANAGER: frozenset({"dashboard", "in_progress", "fraud_history", "fraud_review", "monitor", "configuration"}),
-    LocalRole.RELEASE_MANAGER: frozenset({"dashboard", "in_progress", "fraud_history", "monitor", "configuration", "testing"}),
+    LocalRole.MANAGER: frozenset({"dashboard", "in_progress", "fraud_history", "fraud_review", "monitor", "configuration", "alert_schema"}),
+    LocalRole.RELEASE_MANAGER: frozenset({"dashboard", "in_progress", "fraud_history", "monitor", "configuration", "testing", "alert_schema"}),
     LocalRole.CHANNEL_MANAGER: frozenset({"dashboard", "in_progress", "fraud_history", "fraud_review", "monitor", "configuration", "testing", "library", "models"}),
     LocalRole.DATA_ANALYST: frozenset({"monitor", "library", "testing", "models"}),
     LocalRole.FRAUD_ANALYST: frozenset({"in_progress"}),
@@ -45,3 +45,5 @@ class LocalUserRepository(Protocol):
     def get_by_email(self, email: str) -> LocalUser | None: ...
     def get_by_id(self, user_id: UUID) -> LocalUser | None: ...
     def create(self, user: LocalUser) -> LocalUser: ...
+    def update(self, user: LocalUser) -> LocalUser: ...
+    def list(self) -> list[LocalUser]: ...

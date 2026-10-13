@@ -20,7 +20,7 @@ class ListAlertHistoryInput:
 @dataclass
 class AlertHistoryItem:
     alert: AlertRecord
-    # The stored snapshot, or one derived from the payload for alerts no
+    # The stored snapshot, or one derived from canonical input for alerts no
     # metrics event has touched yet (has_snapshot = False).
     metrics: AlertMetricsSnapshot
     has_snapshot: bool

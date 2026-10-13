@@ -81,12 +81,12 @@ def _record_alert(rollups, alerts, steps, *, created_at, channel, tier_version=1
         id=uuid4(),
         event_id="e",
         event_type="t",
-        payload={},
+            input={},
         status=AlertStatus.CLOSED,
         created_at=created_at,
         updated_at=created_at,
         metrics=AlertMetricsSnapshot(
-            channel=channel, status=AlertStatus.CLOSED, amount_tier_set_version=tier_version
+            channel=channel, status=AlertStatus.CLOSED, schema_version=tier_version
         ),
     )
     alerts.alerts[alert.id] = alert
@@ -158,8 +158,8 @@ def test_totals_groups_and_profile(seeded) -> None:
     assert hours[8].input_tokens == 100
     assert [p.period for p in out.periods] == ["2026-09-30", "2026-10-01"]
     assert out.periods[1].hallucinations == 1
-    assert {w.code for w in out.warnings} == {"amount_tier_set_changed"}
-    assert out.range.amount_tier_set_versions == ["1", "2"]
+    assert {w.code for w in out.warnings} == {"schema_changed"}
+    assert out.range.schema_versions == ["1", "2"]
 
 
 def test_filters(seeded) -> None:

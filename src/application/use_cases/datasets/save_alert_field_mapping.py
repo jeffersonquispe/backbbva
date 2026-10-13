@@ -18,15 +18,17 @@ class SaveAlertFieldMappingUseCase:
 
     def execute(self, input: SaveAlertFieldMappingInput) -> SaveAlertFieldMappingOutput:
         now = datetime.now(timezone.utc)
-        self._mappings.upsert(
+        self._mappings.save(
             AlertFieldMapping(
                 dataset_name=input.dataset_name,
+                schema_version=input.schema_version,
                 mappings=input.mappings,
                 updated_at=now,
             )
         )
         return SaveAlertFieldMappingOutput(
             dataset_name=input.dataset_name,
+            schema_version=input.schema_version,
             mappings=input.mappings,
             updated_at=now,
         )

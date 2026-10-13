@@ -69,6 +69,7 @@ def start_test_run(
                         if request.config.configuration_ref is not None
                         else None
                     ),
+                    schema_version=request.config.schema_version,
                 ),
                 sample_size=request.sample_size,
                 sample_distribution=request.sample_distribution,
@@ -147,4 +148,7 @@ def get_test_case_detail(
             )
             for step in steps
         ],
+        schema_comparison=workflow.schema_comparison,
+        schema_version=(workflow.input or {}).get("schema_version"),
+        configuration_ref=(workflow.input or {}).get("configuration_ref"),
     )
