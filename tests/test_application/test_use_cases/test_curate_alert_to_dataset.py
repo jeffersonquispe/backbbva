@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from src.application.dtos.alert_dtos import CurateAlertToDatasetInput
+from src.application.errors import NotFoundError
 from src.application.ports.alert_port import (
     AlertRepository,
 )
@@ -374,12 +375,12 @@ def test_curate_raises_value_error_when_configuration_cannot_be_determined() -> 
     assert feedback.created == []
 
 
-def test_curate_raises_lookup_error_when_alert_missing() -> None:
+def test_curate_raises_not_found_error_when_alert_missing() -> None:
     alerts = InMemoryAlertRepository()
     datasets = FakeDatasetRepository()
     use_case, feedback = _make_use_case(alerts=alerts, datasets=datasets)
 
-    with pytest.raises(LookupError):
+    with pytest.raises(NotFoundError):
         use_case.execute(
             CurateAlertToDatasetInput(
                 alert_id=uuid4(),

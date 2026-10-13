@@ -187,6 +187,11 @@ amount on a span or metric attribute** (a test in
 `test_alert_review_workflow.py` enforces it); metric attributes stay
 low-cardinality. Runbook: `docs/OBSERVABILITY_RUNBOOK.md`.
 
+Audit logging uses the `AuditPort` contract in
+`application/ports/audit_port.py`; HTTP requests and persisted object mutations
+are recorded through the infrastructure audit adapters. Keep audit transport
+and storage details out of application use cases.
+
 ## Business metrics — snapshot + rollups (DynamoDB, not telemetry)
 
 Design: `docs/OBSERVABILITY_STRATEGY.md`; tasks/decisions:

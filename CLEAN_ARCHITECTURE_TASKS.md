@@ -307,11 +307,13 @@ which raises `AlertPayloadTooLargeError`.*
 *Status 2026-10-13 (`577468e`): categories `ValidationError`/`NotFoundError`/
 `ConflictError`/`ForbiddenError` under `DomainException` (`src/domain/__init__.py`),
 re-exported plus `RetryableError` in `src/application/errors.py`; every domain
-and use-case error inherits a category (except `FeatureRecipeProblem(ValueError)`
-in `models/feature_engineering.py`); handlers in `fastapi_app.py`; tests in
+and use-case error inherits a category; handlers in `fastapi_app.py`; tests in
 `test_application_error_handlers.py` and Celery retry classification in
-`test_worker_celery_tasks.py`. **Open:** 25 `except ValueError` remain in
-routers (e.g. `test_runs_router.py:78`, `alert_schema_router.py`).*
+`test_worker_celery_tasks.py`. Router `except ValueError` replaced by typed
+errors in `dcabfa9` (25 → 2; the 2 left are non-application parses: JWT decode
+in `auth_router.py` and `UUID()` in `analyst_queue_router.py`);
+`FeatureRecipeProblem` is now a `ValidationError`. Tests updated to expect
+`NotFoundError` and `ConflictError` in the affected use cases.*
 
 - [x] `src/domain/__init__.py` line 1: confirm `DomainException` base
       class exists; check whether `src/domain/alerts/exceptions.py` and
@@ -331,7 +333,7 @@ routers (e.g. `test_runs_router.py:78`, `alert_schema_router.py`).*
 - [x] Add centralized FastAPI exception handlers in
       `src/infrastructure/entrypoint/api/fastapi_app.py` for each new
       application error category (`@app.exception_handler(...)`).
-- [ ] `tests/test_infrastructure/test_entrypoint/test_runs_router.py`
+- [x] `tests/test_infrastructure/test_entrypoint/test_runs_router.py`
       line ~68 (re-grep, backlog line may have shifted) — replace broad
       `except ValueError:` in the router with catches of the new typed
       application errors.
@@ -504,7 +506,9 @@ trust old line-range citations here at all.
 - [x] `alert_review_workflow.py` (1857) -> 1459 lines + `step_context.py`,
       `history_research.py`, `xgboost_score.py`, `executor_text.py`.
 - [x] `alert_review_workflow.py` removed by CA-002 (use case + 4 step modules).
-- [ ] **Still large**: `configuration.py` (538, pydantic
+- [x] `configuration.py` split in `41e77cc` (105 lines + `configuration_agent.py`,
+      `_catalog.py`, `_lifecycle.py`, `_settings.py`). Original note:
+      **Still large**: `configuration.py` (538, pydantic
       schemas). Splitting the `_run_*` functions further means moving the
       `get_*` call sites tests monkeypatch on `workflow_module`
       (`get_alert_repository`, `get_configuration_repository`,

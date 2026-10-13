@@ -1893,7 +1893,7 @@ def test_workflow_and_step_spans_carry_dimensions_never_customer_or_amount(monke
     workflow_span = by_name["alert_review_workflow"]
     assert workflow_span.attributes["alert_id"] == str(run["alert_id"])
     assert workflow_span.attributes["aria.channel"] == "mobileApp"
-    assert workflow_span.attributes["aria.subchannel"] == "mobile"
+    assert workflow_span.attributes["aria.subchannel"] == "APP"
     assert workflow_span.attributes["aria.amount_tier"] == "high"
     assert workflow_span.attributes["aria.status"] == "CLOSED"
     assert workflow_span.attributes["aria.mark"] == "pending"  # bidi

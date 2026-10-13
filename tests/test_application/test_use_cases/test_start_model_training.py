@@ -6,6 +6,7 @@ from uuid import UUID
 
 import pytest
 
+from src.application.errors import ConflictError
 from src.application.ports.async_operation_port import (
     AsyncOperationRecord,
     AsyncOperationStatus,
@@ -140,7 +141,7 @@ def test_start_model_training_raises_when_already_trained_or_training() -> None:
     use_case = StartModelTrainingUseCase(
         models, InMemoryAsyncOperationRepository(), RecordingModelTrainingDispatcher()
     )
-    with pytest.raises(ValueError, match="solo puede entrenarse una vez"):
+    with pytest.raises(ConflictError, match="solo puede entrenarse una vez"):
         use_case.execute(model.id)
 
 
@@ -163,7 +164,7 @@ def test_failed_dispatch_cannot_be_retried():
         next(iter(operations.operations.values())).status == AsyncOperationStatus.FAILED
     )
     dispatcher.dispatch = lambda *args: None
-    with pytest.raises(ValueError, match="solo puede entrenarse una vez"):
+    with pytest.raises(ConflictError, match="solo puede entrenarse una vez"):
         use_case.execute(model.id)
 
 
@@ -172,7 +173,7 @@ def test_active_model_cannot_be_retrained():
     model = _draft_model()
     model.active = True
     models.create(model)
-    with pytest.raises(ValueError, match="solo puede entrenarse una vez"):
+    with pytest.raises(ConflictError, match="solo puede entrenarse una vez"):
         StartModelTrainingUseCase(
             models,
             InMemoryAsyncOperationRepository(),
