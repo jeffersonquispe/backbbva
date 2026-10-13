@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
+import src.infrastructure.workflows.celery.history_research as history_research_module
 from src.application.dtos.adversarial_review_alert_dtos import (
     AdversarialReviewAlertOutput,
 )
@@ -178,7 +179,7 @@ def test_run_adversarial_runs_history_analysis_when_it_challenges(monkeypatch) -
         fake_get_adversarial_review_alert_use_case,
     )
     monkeypatch.setattr(
-        workflow_module,
+        history_research_module,
         "_history_research",
         lambda context, cfg, reasoning: [{"source": "history_pandas", "reasoning": reasoning}],
     )

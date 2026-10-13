@@ -7,82 +7,27 @@ import time
 import uuid
 from functools import lru_cache
 from datetime import datetime, timezone
-from collections.abc import Callable
 from typing import Any
 from uuid import UUID
-
-from src.application.dtos.alert_metrics_dtos import (
-    AlertMetricsEventType,
-    RecordAlertMetricsEventInput,
-)
-from src.application.dtos.technical_metrics_dtos import (
-    RecordWorkflowStepMetricsInput,
-)
-from src.application.use_cases.metrics.evaluate_alert_reasoning import (
-    is_sampled_for_evaluation,
-)
-from src.application.dtos.adversarial_review_alert_dtos import (
-    AdversarialReviewAlertInput,
-    AdversarialReviewAlertOutput,
-)
-from src.application.dtos.analyst_review_alert_dtos import (
-    AnalystReviewAlertInput,
-    AnalystReviewAlertOutput,
-)
-from src.application.dtos.classify_alert_dtos import (
-    ClassifyAlertInput,
-    ClassifyAlertOutput,
-)
+from src.application.dtos.alert_metrics_dtos import AlertMetricsEventType, RecordAlertMetricsEventInput
+from src.application.dtos.technical_metrics_dtos import RecordWorkflowStepMetricsInput
+from src.application.use_cases.metrics.evaluate_alert_reasoning import is_sampled_for_evaluation
+from src.application.dtos.adversarial_review_alert_dtos import AdversarialReviewAlertInput, AdversarialReviewAlertOutput
+from src.application.dtos.analyst_review_alert_dtos import AnalystReviewAlertInput, AnalystReviewAlertOutput
+from src.application.dtos.classify_alert_dtos import ClassifyAlertInput, ClassifyAlertOutput
 from src.application.dtos.discard_alert_dtos import DiscardAlertInput
-from src.application.dtos.evaluate_deterministic_rules_dtos import (
-    DeterministicRuleMatch,
-)
+from src.application.dtos.evaluate_deterministic_rules_dtos import DeterministicRuleMatch
 from src.application.dtos.generate_agent_text_dtos import GenerateAgentTextInput
-from src.application.dtos.post_process_alert_dtos import (
-    PostProcessAlertInput,
-    PostProcessAlertOutput,
-)
-from src.application.dtos.pre_process_dtos import (
-    PreProcessAlertInput,
-    PreProcessAlertOutput,
-)
-from src.application.dtos.profile_alert_dtos import (
-    ProfileAlertInput,
-    ProfileAlertOutput,
-)
-from src.application.dtos.research_dtos import ResearchRequest, ResearchSource
+from src.application.dtos.post_process_alert_dtos import PostProcessAlertInput, PostProcessAlertOutput
+from src.application.dtos.pre_process_dtos import PreProcessAlertInput, PreProcessAlertOutput
+from src.application.dtos.profile_alert_dtos import ProfileAlertInput, ProfileAlertOutput
 from src.application.ports.alert_port import AlertOrigin, AlertStatus
 from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
-from src.application.ports.monitoring_port import (
-    ATTR_ALERT_ID,
-    ATTR_WORKFLOW_ATTEMPT,
-    ATTR_WORKFLOW_EXECUTION_ID,
-    ATTR_WORKFLOW_OUTCOME,
-    ATTR_WORKFLOW_STEP,
-    WORKFLOW_TOTAL_STEP,
-    MonitoringSpan,
-    span_dimension_attributes,
-)
+from src.application.ports.monitoring_port import ATTR_ALERT_ID, ATTR_WORKFLOW_ATTEMPT, ATTR_WORKFLOW_EXECUTION_ID, ATTR_WORKFLOW_OUTCOME, ATTR_WORKFLOW_STEP, WORKFLOW_TOTAL_STEP, MonitoringSpan, span_dimension_attributes
 from src.application.ports.async_operation_port import AsyncOperationStatus
-from src.application.ports.configuration_port import (
-    AdversarialConfig,
-    AgentToolsConfig,
-    ClassificationConfig,
-    DocumentationStrategy,
-    ExecutorConfig,
-    ProfilingStrategyKey,
-    SegmentSettings,
-)
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRecord,
-    WorkflowStatus,
-    WorkflowStepExecutionRecord,
-    WorkflowStepStatus,
-)
-from src.application.ports.workflow_status_port import (
-    WorkflowStatusReporter,
-    WorkflowStatusUpdate,
-)
+from src.application.ports.configuration_port import AdversarialConfig, AgentToolsConfig, ClassificationConfig, DocumentationStrategy, ProfilingStrategyKey
+from src.application.ports.workflow_port import WorkflowExecutionRecord, WorkflowStatus, WorkflowStepExecutionRecord, WorkflowStepStatus
+from src.application.ports.workflow_status_port import WorkflowStatusReporter, WorkflowStatusUpdate
 from src.infrastructure.workflows.celery.factories import (
     get_alert_action_dispatcher,
     get_alert_repository,
@@ -94,7 +39,6 @@ from src.infrastructure.workflows.celery.factories import (
     get_classify_alert_use_case,
     get_configuration_repository,
     get_discard_alert_use_case,
-    get_enrich_profiling_fields_use_case,
     get_evaluate_deterministic_rules_use_case,
     get_generate_agent_text_use_case,
     get_model_repository,
@@ -112,25 +56,24 @@ from src.infrastructure.workflows.celery.factories import (
     get_workflow_step_execution_repository,
     get_alert_object_storage,
     get_alert_schema_repository,
+)
+from src.infrastructure.workflows.celery.task_factories import (
     get_raw_alert_payload_loader,
     get_resolve_alert_segment_use_case,
 )
 from src.domain.alerts.rule_conditions import evaluate_condition
-from src.domain.alerts.transaction_history_selection import (
-    parse_event_time,
-    select_transaction_history,
-)
 from src.application.use_cases.alerts.agent_gate import agent_off_skip_reason
 from src.domain.configurations.exceptions import ConfigurationNotFoundError
 from src.domain.models.prompt_template import substitute_variables
-from src.infrastructure.workflows.queued.queued_status_reporter import (
-    QueuedWorkflowStatusReporter,
-)
-from src.infrastructure.workflows.celery.research_adapters import (
-    HeuristicHistoryResearchPlanner,
-)
+from src.infrastructure.workflows.queued.queued_status_reporter import QueuedWorkflowStatusReporter
+from src.infrastructure.workflows.celery.executor_text import _ARIC_MARKING_SYSTEM_PROMPT, _DOCUMENTADOR_SYSTEM_PROMPT, _executor_variables_pool, _voicebot_script
+from src.infrastructure.workflows.celery.history_research import _history_rounds
+from src.infrastructure.workflows.celery.step_context import _active_segment, _alert_payload, _effective_max_detector_feedback_iterations, _effective_max_feedback_iterations, _evaluation_labels, _pre_process_comparison_value, _rubric_prompt_context, _step_overrides, _step_reporting_ids, _variables_pool
+from src.infrastructure.workflows.celery.xgboost_score import _XGBoostScore
+
 
 logger = logging.getLogger(__name__)
+
 
 LINEAR_STEPS = (
     "pre_process",
@@ -834,17 +777,6 @@ class AdversarialFeedbackLimitExceededError(Exception):
     human analyst instead of looping forever."""
 
 
-def _step_reporting_ids(context: dict[str, Any]) -> tuple[UUID | None, UUID | None]:
-    status_reporter = context.get("status_reporter")
-    if status_reporter is None:
-        return None, None
-    step_id = context.get("current_step_id")
-    return (
-        UUID(context["workflow_execution_id"]),
-        UUID(step_id) if step_id else None,
-    )
-
-
 def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
     workflow_input = context.get("input") or {}
     payload = (
@@ -901,15 +833,6 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
     return candidate
 
 
-def _pre_process_comparison_value(result: PreProcessAlertOutput) -> dict[str, Any]:
-    return {
-        "schema_version": result.schema_version,
-        "input": result.input,
-        "labels": result.labels,
-        "history_prev_alerta": result.history,
-    }
-
-
 def _run_deterministic(context: dict[str, Any]) -> DeterministicRuleMatch:
     segment = _active_segment(context)
     if segment is None:
@@ -920,21 +843,6 @@ def _run_deterministic(context: dict[str, Any]) -> DeterministicRuleMatch:
     return get_evaluate_deterministic_rules_use_case().execute(
         deterministic_cfg.rules, fields, alert_filter=deterministic_cfg.alert_filter
     )
-
-
-def _step_overrides(
-    context: dict[str, Any], step_name: str
-) -> dict[str, str | None]:
-    # A test run stashes its TestRunConfig (asdict'd) under
-    # input["config_overrides"] - {} for a normal (non-test) alert, so
-    # these always resolve to "use the config-driven default".
-    config_overrides = (context.get("input") or {}).get("config_overrides") or {}
-    return {
-        "system_prompt": (config_overrides.get("prompt_overrides") or {}).get(
-            step_name
-        ),
-        "model": (config_overrides.get("model_overrides") or {}).get(step_name),
-    }
 
 
 _PROFILING_STRATEGY_OPERATION_MAP = {
@@ -964,7 +872,7 @@ def _segment_tool_kwargs(cfg: AgentToolsConfig) -> dict[str, Any]:
         kwargs["watchlist_compare_field"] = cfg.watchlist_compare_field
     vector_store = cfg.delegated_research.vector_store
     if vector_store.enabled and vector_store.vector_store_instance_id:
-        from src.infrastructure.workflows.celery.factories import (
+        from src.infrastructure.workflows.celery.task_factories import (
             get_vector_store_research_tool,
         )
 
@@ -972,28 +880,6 @@ def _segment_tool_kwargs(cfg: AgentToolsConfig) -> dict[str, Any]:
             vector_store
         )
     return kwargs
-
-
-def _variables_pool(context: dict[str, Any], segment: SegmentSettings) -> dict[str, Any]:
-    # {variable} substitution pool shared by every prompt in this segment's
-    # pipeline (profiling's own main_prompt/categorization_prompt, plus
-    # classification/adversarial/analyst's extra_instructions) - base alert
-    # fields plus this segment's field-enrichment recipe outputs. There's
-    # only one field_enrichment recipe set per segment (profiling's - see
-    # ProfilingConfig), reused here rather than duplicated. Not
-    # PreProcessAlertOutput.enrichment (an unrelated dict of raw fetched
-    # context: aric_signals/customer_profile/transaction_history/
-    # personal_data_changes, consumed as-is by profile/classify/adversarial).
-    pre_process: PreProcessAlertOutput = context["pre_process"]
-    current = pre_process.input
-    history = [
-        dataclasses.asdict(entry)
-        for entry in pre_process.enrichment.get("transaction_history", [])
-    ]
-    enrichment_values = get_enrich_profiling_fields_use_case().execute(
-        segment.agent.profiling.field_enrichment, current, history
-    )
-    return {**current, **enrichment_values}
 
 
 def _run_profiling(context: dict[str, Any]) -> ProfileAlertOutput:
@@ -1078,33 +964,6 @@ def _resolve_segment(context: dict[str, Any]) -> dict[str, Any]:
     except Exception:
         context["segment_code"] = None
     return context
-
-
-def _active_segment(context: dict[str, Any]) -> SegmentSettings | None:
-    config = context.get("active_configuration")
-    code = context.get("segment_code")
-    if config is None or code is None:
-        return None
-    segment = config.segments.get(code)
-    return segment if segment is not None and segment.enabled else None
-
-
-def _effective_max_feedback_iterations(
-    workflow: WorkflowExecutionRecord, context: dict[str, Any]
-) -> int:
-    segment = _active_segment(context)
-    if segment is not None:
-        return segment.agent.adversarial.max_cycles
-    return workflow.max_feedback_iterations
-
-
-def _effective_max_detector_feedback_iterations(
-    workflow: WorkflowExecutionRecord, context: dict[str, Any]
-) -> int:
-    segment = _active_segment(context)
-    if segment is not None:
-        return segment.agent.detector_adversarial.max_cycles
-    return workflow.max_feedback_iterations
 
 
 def _run_detector(context: dict[str, Any]) -> ClassifyAlertOutput:
@@ -1311,149 +1170,6 @@ def _run_rubrics(context: dict[str, Any]) -> dict[str, Any]:
     return {"scores": scores, "evaluated": len(scores)}
 
 
-def _rubric_prompt_context(context: dict[str, Any]) -> str:
-    rubric_result = context.get("rubrics")
-    if not rubric_result or not rubric_result.get("scores"):
-        return ""
-    lines = "\n".join(
-        f"- {item['name']}: {item['score']:g}/{item['max_score']:g}"
-        for item in rubric_result["scores"]
-    )
-    return (
-        "\n\nPuntajes de rúbricas configuradas (evidencia adicional; "
-        f"evalúalos junto con las demás señales):\n{lines}"
-    )
-
-
-def _history_research(
-    context: dict[str, Any], cfg: AgentToolsConfig, reasoning: str
-) -> list[dict[str, Any]]:
-    """Run the history analysis over the configured history slice."""
-    settings = cfg.delegated_research.history_pandas
-    pre_process: PreProcessAlertOutput = context["pre_process"]
-    history = pre_process.enrichment.get("transaction_history") or []
-    if not settings.enabled or settings.max_delegations <= 0 or not history:
-        return []
-    # Selector: time window before the alert + most recent N rows. Column
-    # restriction (allowed_columns) is enforced by the agent itself.
-    selected = select_transaction_history(
-        history,
-        columns=[],
-        window_days=settings.window_days,
-        max_transactions=settings.max_history_rows,
-        reference_time=parse_event_time(pre_process.roles.get("event_time")),
-    )
-    from src.infrastructure.workflows.celery import factories
-
-    agent = factories.get_history_research_agent(
-        HeuristicHistoryResearchPlanner(pre_process.roles.get("amount")),
-        settings,
-        history_provider=lambda _request: selected,
-    )
-    request = ResearchRequest(
-        ResearchSource.HISTORY_PANDAS,
-        "Investiga evidencia adicional en el historial de la alerta. "
-        f"Razonamiento previo: {reasoning}",
-    )
-    results = factories.get_research_delegation_coordinator(
-        {ResearchSource.HISTORY_PANDAS: agent}
-    ).delegate(
-        [request], is_inconclusive=lambda: True, accept=lambda _result: None
-    )
-    return [dataclasses.asdict(result) for result in results]
-
-
-_MAX_HISTORY_ROUNDS = 5
-
-
-def _history_rounds(
-    context: dict[str, Any],
-    cfg: AgentToolsConfig,
-    segment_kwargs: dict[str, Any],
-    output: Any,
-    run: Callable[[dict[str, Any]], Any],
-    *,
-    is_open: Callable[[Any], bool],
-    reasoning_of: Callable[[Any], str],
-) -> Any:
-    """Up to history_pandas.max_delegations rounds (capped at 5) while the
-    step stays open (inconclusive / challenged): each round runs the
-    history analysis, then the step once more with every finding so far.
-
-    Stops early when the step concludes, or when a round brings back the
-    same findings as the previous one - re-asking would only repeat the
-    same prompt.
-    """
-    rounds = min(
-        cfg.delegated_research.history_pandas.max_delegations, _MAX_HISTORY_ROUNDS
-    )
-    research: list[dict[str, Any]] = []
-    previous: list[Any] | None = None
-    for _ in range(rounds):
-        if not is_open(output):
-            break
-        found = _history_research(context, cfg, reasoning_of(output))
-        evidence = [(item.get("status"), item.get("findings")) for item in found]
-        if not found or evidence == previous:
-            break
-        previous = evidence
-        research.extend(found)
-        output = dataclasses.replace(
-            run(_with_research(segment_kwargs, research)),
-            research_delegations=list(research),
-        )
-    return output
-
-
-def _with_research(kwargs: dict[str, Any], research: list[dict[str, Any]]) -> dict[str, Any]:
-    final_kwargs = dict(kwargs)
-    final_kwargs["extra_instructions"] = (
-        str(final_kwargs.get("extra_instructions") or "")
-        + "\n\nInvestigación delegada: análisis de historial. Úsala como "
-        "evidencia adicional y responde ahora con tu conclusión final:\n"
-        f"{research}"
-    )
-    return final_kwargs
-
-
-@dataclasses.dataclass(frozen=True)
-class _XGBoostScore:
-    score: float
-    model_id: str
-    model_tag: str
-    is_fraud: str  # "fraud" | "not_fraud" | "unknown" (uncertainty band)
-    verdict: str
-    fraud_threshold: float
-    uncertainty_threshold: float
-    top_features: list[dict[str, Any]] | None
-
-    @property
-    def reasoning(self) -> str:
-        return f"XGBoost ({self.model_tag}) obtuvo {self.score:.4f} y {self.verdict}."
-
-    def as_output(self) -> dict[str, Any]:
-        # Kept apart from the LLM's reasoning on every step output: the
-        # model's own result plus which variables weighed most (SHAP).
-        return {
-            "model_id": self.model_id,
-            "model_tag": self.model_tag,
-            "score": self.score,
-            "prediction": self.is_fraud,
-            "verdict": self.verdict,
-            "fraud_threshold": self.fraud_threshold,
-            "uncertainty_threshold": self.uncertainty_threshold,
-            "top_features": self.top_features,
-        }
-
-    def prompt_block(self) -> str:
-        return (
-            "\n\nSalida del modelo XGBoost (evidencia separada del resto de "
-            "señales; top_features son las variables con más peso en la "
-            "predicción según SHAP):\n"
-            + json.dumps(self.as_output(), ensure_ascii=False, default=str)
-        )
-
-
 @lru_cache(maxsize=4)
 def _load_model_bundle(storage_ref: str) -> dict[str, Any]:
     # A trained bundle is immutable per storage_ref - cache the unpickled
@@ -1519,23 +1235,6 @@ def _score_with_xgboost(
     )
 
 
-def _alert_payload(context: dict[str, Any]) -> dict[str, Any]:
-    # The raw payload may contain test-run labels. Detector model features
-    # follow the same canonical input contract as every other agent step.
-    pre_process: PreProcessAlertOutput | None = context.get("pre_process")
-    return pre_process.input if pre_process is not None else {}
-
-
-def _evaluation_labels(context: dict[str, Any]) -> dict[str, Any]:
-    pre_process: PreProcessAlertOutput | None = context.get("pre_process")
-    if pre_process is None:
-        return {}
-    # PreProcessAlertUseCase built this mapping by walking the active schema's
-    # is_label fields. It is already the canonical, schema-shaped evaluation
-    # view; never recover labels from the raw workflow payload here.
-    return dict(pre_process.labels)
-
-
 def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
     workflow_execution_id, step_id = _step_reporting_ids(context)
     segment_kwargs: dict[str, Any] = {}
@@ -1570,41 +1269,6 @@ def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
     )
 
 
-_ARIC_MARKING_SYSTEM_PROMPT = (
-    "Eres un agente que redacta el comentario de marcación ARIC para una "
-    "alerta de fraude, a partir de la instrucción y los datos entregados. "
-    "Escribe un comentario breve, claro y accionable para quien revise la "
-    "marcación después."
-)
-
-_DOCUMENTADOR_SYSTEM_PROMPT = (
-    "Eres un agente que redacta la documentación final de una alerta de "
-    "fraude para el historial del caso, a partir de la instrucción y los "
-    "datos entregados. Sé claro, objetivo y conciso."
-)
-
-
-def _executor_variables_pool(
-    context: dict[str, Any], segment: SegmentSettings
-) -> dict[str, Any]:
-    # Same pool as classification/adversarial (_variables_pool), extended
-    # with the decision data the executor step's own prompts (ARIC
-    # marking, voicebot script, documentador, escalation) are actually
-    # about - neither exists yet when profiling/classification build
-    # their own pool, so this stays a superset built fresh here.
-    pool = dict(_variables_pool(context, segment))
-    classification: ClassifyAlertOutput | None = context.get("classification")
-    analyst: AnalystReviewAlertOutput | None = context.get("analyst")
-    if classification is not None:
-        pool.setdefault("fraud_classification", classification.fraud_classification)
-        pool.setdefault("is_fraud", classification.is_fraud)
-        pool.setdefault("classification_reasoning", classification.reasoning)
-    if analyst is not None:
-        pool.setdefault("analyst_decision", analyst.decision)
-        pool.setdefault("analyst_reasoning", analyst.reasoning)
-    return pool
-
-
 def _generate_agent_text(
     prompt: str, pool: dict[str, Any], system_prompt: str, operation_name: str
 ) -> str:
@@ -1617,36 +1281,6 @@ def _generate_agent_text(
         GenerateAgentTextInput(prompt=substitute_variables(prompt, pool))
     )
     return output.text
-
-
-def _voicebot_script(
-    executor_cfg: ExecutorConfig, context: dict[str, Any], pool: dict[str, Any]
-) -> str:
-    # Plain template concatenation (base + matching category prompt), no
-    # LLM call - unlike aric_marking/documentador's "agent" strategy, the
-    # UI describes this field as prompts that "se concatenan
-    # dinámicamente", not text for an agent to draft.
-    voicebot_cfg = executor_cfg.voicebot_call
-    parts = [
-        substitute_variables(voicebot_cfg.base_prompt, pool)
-    ] if voicebot_cfg.base_prompt else []
-    classification: ClassifyAlertOutput | None = context.get("classification")
-    fraud_classification = (
-        classification.fraud_classification if classification is not None else None
-    )
-    # taxonomy_id is matched directly against the classification's
-    # fraud_classification label - both are meant to name the same
-    # taxonomy entry (see Taxonomy/VoicebotCategoryPrompt in
-    # configuration_port.py). If that ever needs to become an explicit
-    # id lookup instead of a string match, this is the one place to change.
-    for category_prompt in voicebot_cfg.category_prompts:
-        if (
-            category_prompt.prompt
-            and fraud_classification is not None
-            and category_prompt.taxonomy_id == fraud_classification
-        ):
-            parts.append(substitute_variables(category_prompt.prompt, pool))
-    return "\n\n".join(parts)
 
 
 def _run_executor(context: dict[str, Any]) -> dict[str, Any]:

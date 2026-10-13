@@ -31,19 +31,21 @@ from src.infrastructure.workflows.celery.alert_review_workflow import (
     AlertReviewWorkflowRunner,
 )
 from src.infrastructure.workflows.celery.factories import (
+    get_async_operation_repository,
+    get_evaluate_alert_reasoning_use_case,
+    get_model_repository,
+    get_model_storage,
+    get_operational_settings_repository,
+)
+from src.infrastructure.workflows.celery.task_factories import (
     get_analyze_dataset_use_case,
     get_analyze_fraud_marking_use_case,
-    get_async_operation_repository,
     get_cleanup_test_runs_use_case,
     get_dataset_repository,
     get_delete_dataset_use_case,
     get_document_analyst_decision_use_case,
     get_escalate_alert_to_analyst_use_case,
-    get_evaluate_alert_reasoning_use_case,
     get_execute_alert_action_use_case,
-    get_model_repository,
-    get_model_storage,
-    get_operational_settings_repository,
     get_preview_features_use_case,
     get_reconcile_async_operations_use_case,
 )

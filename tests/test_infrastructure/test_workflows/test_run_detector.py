@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 import src.infrastructure.workflows.celery.alert_review_workflow as workflow_module
+import src.infrastructure.workflows.celery.history_research as history_research_module
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
@@ -259,7 +260,7 @@ def test_history_analysis_analyzes_only_the_selected_slice() -> None:
     segment = SegmentSettings(enabled=True, agent=AgentSettings())
     cfg = _history_cfg(window_days=30, max_history_rows=10, allowed_columns=["amount"])
 
-    [result] = workflow_module._history_research(_context(segment), cfg, "inconclusa")
+    [result] = history_research_module._history_research(_context(segment), cfg, "inconclusa")
 
     assert result["status"] == "executed"
     # e-old (June) falls outside the 30-day window before the alert.
@@ -269,13 +270,13 @@ def test_history_analysis_analyzes_only_the_selected_slice() -> None:
 def test_history_analysis_disabled_does_nothing() -> None:
     segment = SegmentSettings(enabled=True, agent=AgentSettings())
 
-    assert workflow_module._history_research(_context(segment), DetectorConfig(), "x") == []
+    assert history_research_module._history_research(_context(segment), DetectorConfig(), "x") == []
 
 
 def test_inconclusive_detector_reruns_with_history_findings(monkeypatch) -> None:
     calls, _ = _patched(monkeypatch, is_fraud="unknown")
     monkeypatch.setattr(
-        workflow_module,
+        history_research_module,
         "_history_research",
         lambda context, cfg, reasoning: [{"source": "history_pandas"}],
     )
@@ -295,7 +296,7 @@ def _numbered_history_research(monkeypatch) -> list[str]:
         reasonings.append(reasoning)
         return [{"status": "executed", "findings": [{"round": len(reasonings)}]}]
 
-    monkeypatch.setattr(workflow_module, "_history_research", fake)
+    monkeypatch.setattr(history_research_module, "_history_research", fake)
     return reasonings
 
 
@@ -344,7 +345,7 @@ def test_history_rounds_stop_once_the_step_concludes(monkeypatch) -> None:
 def test_history_rounds_stop_when_a_round_repeats_the_same_findings(monkeypatch) -> None:
     calls, _ = _patched(monkeypatch, is_fraud="unknown")
     monkeypatch.setattr(
-        workflow_module,
+        history_research_module,
         "_history_research",
         lambda context, cfg, reasoning: [{"status": "executed", "findings": [{"same": 1}]}],
     )

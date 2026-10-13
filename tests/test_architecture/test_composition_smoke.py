@@ -17,7 +17,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TASKS_FILE = ROOT / "src/infrastructure/entrypoint/worker/celery/tasks.py"
-WORKER_FACTORIES = "src.infrastructure.workflows.celery.factories"
+WORKER_FACTORIES = (
+    "src.infrastructure.workflows.celery.factories",
+    "src.infrastructure.workflows.celery.task_factories",
+)
 API_FACTORIES_DIR = ROOT / "src/infrastructure/entrypoint/api/factories"
 
 
@@ -26,7 +29,7 @@ def _factory_modules() -> list[str]:
         f"src.infrastructure.entrypoint.api.factories.{p.stem}"
         for p in API_FACTORIES_DIR.glob("*_factory.py")
     )
-    return [WORKER_FACTORIES, *api]
+    return [*WORKER_FACTORIES, *api]
 
 
 def _zero_arg_factories() -> list[tuple[str, str]]:
