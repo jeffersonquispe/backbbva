@@ -33,7 +33,7 @@ class Alerts:
     def __init__(self):
         self.items = {}
 
-    def create(self, alert):
+    def create(self, alert, *, raw_payload=None):
         self.items[alert.id] = alert
         return alert
 

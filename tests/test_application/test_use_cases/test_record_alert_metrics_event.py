@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -88,7 +89,9 @@ class InMemoryAlertRepository:
     def __init__(self) -> None:
         self.alerts: dict[UUID, AlertRecord] = {}
 
-    def create(self, alert: AlertRecord) -> AlertRecord:
+    def create(
+        self, alert: AlertRecord, *, raw_payload: dict[str, Any] | None = None
+    ) -> AlertRecord:
         self.alerts[alert.id] = alert
         return alert
 

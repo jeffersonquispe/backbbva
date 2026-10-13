@@ -38,7 +38,9 @@ class InMemoryAlertRepository:
     def __init__(self) -> None:
         self.alerts: dict[UUID, AlertRecord] = {}
 
-    def create(self, alert: AlertRecord) -> AlertRecord:
+    def create(
+        self, alert: AlertRecord, *, raw_payload: dict[str, Any] | None = None
+    ) -> AlertRecord:
         self.alerts[alert.id] = alert
         return alert
 

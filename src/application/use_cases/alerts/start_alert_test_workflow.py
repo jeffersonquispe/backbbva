@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-import json
 import logging
-import uuid
-from datetime import UTC, datetime
 
 from src.application.dtos.alert_dtos import (
     StartAlertWorkflowInput,
@@ -41,7 +38,6 @@ from src.domain.alerts.entities import (
     AlertRecord,
     AlertStatus,
 )
-from src.domain.alerts.exceptions import AlertPayloadTooLargeError
 from src.domain.workflows.entities import (
     WorkflowExecutionRecord,
     WorkflowStatus,
@@ -50,10 +46,6 @@ from src.domain.workflows.entities import (
 logger = logging.getLogger(__name__)
 
 WORKFLOW_NAME = "massive_fraud_alert_review"
-
-# Maximum serialized event size accepted by this use case. Keep headroom for
-# application metadata added when the alert is recorded.
-MAX_ALERT_PAYLOAD_BYTES = 380_000
 
 
 class StartAlertTestWorkflowUseCase:
@@ -85,9 +77,6 @@ class StartAlertTestWorkflowUseCase:
         self,
         input: StartAlertWorkflowInput,
     ) -> StartAlertWorkflowOutput:
-        payload_size = len(json.dumps(input.payload, default=str).encode("utf-8"))
-        if payload_size > MAX_ALERT_PAYLOAD_BYTES:
-            raise AlertPayloadTooLargeError(payload_size, MAX_ALERT_PAYLOAD_BYTES)
         now = self._clock.now()
         alert_id = self._id_generator.new_id()
         raw_ref = (
@@ -98,7 +87,9 @@ class StartAlertTestWorkflowUseCase:
         alert = self._alert_repository.create(
             AlertRecord(
                 id=alert_id,
-                event_id=str(input.payload.get("eventId") or self._id_generator.new_id()),
+                event_id=str(
+                    input.payload.get("eventId") or self._id_generator.new_id()
+                ),
                 event_type=str(input.payload.get("eventType") or "unknown"),
                 status=AlertStatus.RECEIVED,
                 customer_id=_optional_str(input.payload.get("customerId")),
