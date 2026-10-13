@@ -510,7 +510,11 @@ _OS_RESUME_FLAG := $(if $(RESUME_OPENSEARCH),--resume-opensearch,)
 
 .PHONY: db-backup
 db-backup:  ## Backup DynamoDB + OpenSearch + object storage to ./backups/<timestamp>/ (stack must be running). Var: SKIP_OBJECT_STORAGE=1
-	@$(PYTHON) scripts/db_backup.py backup $(if $(BACKUP_DIR),--dir $(BACKUP_DIR),) $(_OS_FLAG)
+	@if [ -n "$(LOCAL_DOCKER_PROJECT)" ] && $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) ps --services --filter status=running 2>/dev/null | grep -qx aria-worker-main; then \
+		$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) exec -T aria-worker-main python scripts/db_backup.py backup $(if $(BACKUP_DIR),--dir $(BACKUP_DIR),) $(_OS_FLAG); \
+	else \
+		$(PYTHON) scripts/db_backup.py backup $(if $(BACKUP_DIR),--dir $(BACKUP_DIR),) $(_OS_FLAG); \
+	fi
 
 .PHONY: db-restore
 db-restore:  ## Restore from backup. Vars: BACKUP_DIR(req), SKIP_OBJECT_STORAGE=1, OS_BULK_SIZE=20, OS_CHECKPOINT_FILE=..., RESUME_OPENSEARCH=1

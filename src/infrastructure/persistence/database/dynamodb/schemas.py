@@ -43,6 +43,14 @@ USERS_TABLE = {
 }
 
 
+BACKUPS_TABLE = {
+    "TableName": "backups",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "backup_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "backup_id", "AttributeType": "S"}],
+}
+
+
 # Access tokens ended by POST /auth/logout before their exp, keyed by the
 # token's jti. expires_at (epoch seconds) is the TTL attribute - see
 # manager.ensure_all_tables.

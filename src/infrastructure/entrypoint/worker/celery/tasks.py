@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import asdict
-from datetime import date, datetime
+import json
+from dataclasses import asdict, replace
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
@@ -23,6 +24,7 @@ from src.application.dtos.reasoning_evaluation_dtos import (
     EvaluateAlertReasoningInput,
 )
 from src.application.ports.async_operation_port import AsyncOperationStatus
+from src.application.ports.backup_catalog_port import BackupStatus
 from src.application.use_cases.async_operations.create_async_operation import (
     GENERIC_OPERATION_TYPES,
 )
@@ -39,6 +41,7 @@ from src.infrastructure.workflows.celery.factories import (
 from src.infrastructure.workflows.celery.task_factories import (
     get_analyze_dataset_use_case,
     get_analyze_fraud_marking_use_case,
+    get_backup_catalog_repository,
     get_cleanup_test_runs_use_case,
     get_dataset_repository,
     get_delete_dataset_use_case,
@@ -54,6 +57,40 @@ from src.infrastructure.workflows.celery.task_factories import (
 @app.task(name="queue.healthcheck")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok", "backend": "celery"}
+
+
+@app.task(name="backups.create")
+def create_backup(backup_id: str) -> dict[str, str | int]:
+    from pathlib import Path
+
+    from scripts.db_backup import backup
+
+    repository = get_backup_catalog_repository()
+    record = repository.get(backup_id)
+    if record is None:
+        return {"status": "not_found", "backup_id": backup_id}
+    running = replace(record, status=BackupStatus.RUNNING, updated_at=datetime.now(UTC))
+    repository.update(running)
+    try:
+        backup(Path(record.directory), skip_object_storage=False)
+        manifest = json.loads(
+            (Path(record.directory) / "manifest.json").read_text(encoding="utf-8")
+        )
+        succeeded = replace(
+            running,
+            status=BackupStatus.SUCCEEDED,
+            updated_at=datetime.now(UTC),
+            dynamodb_items=sum(table["items"] for table in manifest["dynamodb"].values()),
+            opensearch_documents=(manifest.get("opensearch") or {}).get("documents", 0),
+            object_storage_objects=len((manifest.get("object_storage") or {}).get("objects", [])),
+        )
+        repository.update(succeeded)
+        return {"status": succeeded.status.value, "backup_id": backup_id}
+    except Exception as exc:
+        repository.update(
+            replace(running, status=BackupStatus.FAILED, updated_at=datetime.now(UTC), error=str(exc))
+        )
+        raise
 
 
 @app.task(name="async_operations.run")

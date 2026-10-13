@@ -56,6 +56,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     ALERTS_TABLE,
     ASYNC_OPERATIONS_TABLE,
     AUDIT_LOG_TABLE,
+    BACKUPS_TABLE,
     CONFIGURATION_DEPLOY_REQUESTS_TABLE,
     CONFIGURATION_EVALUATION_TABLE,
     CONFIGURATION_EXAMPLES_TABLE,
@@ -360,6 +361,7 @@ def ensure_global_secondary_indexes(schema: dict) -> None:
 def ensure_all_tables() -> None:
     """Ensure all DynamoDB tables used by the application exist."""
     create_table(AUDIT_LOG_TABLE)
+    create_table(BACKUPS_TABLE)
     create_table(USERS_TABLE)
     create_table(REVOKED_TOKENS_TABLE)
     enable_ttl(REVOKED_TOKENS_TABLE, "expires_at")

@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from src.application.dtos.research_dtos import ResearchSource
+from src.application.ports.backup_catalog_port import BackupCatalogRepository
 from src.application.ports.dataset_analysis_port import (
     DatasetSampleRepository,
     DatasetSummaryRepository,
@@ -57,6 +58,9 @@ from src.infrastructure.model_serving.mcp_scoring_client import (
     MCPModelScoringClient,
 )
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
+from src.infrastructure.persistence.database.dynamodb.repositories.backup_catalog_repository import (
+    DynamoBackupCatalogRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sample_repository import (
     DynamoDatasetSampleRepository,
 )
@@ -97,6 +101,11 @@ from src.infrastructure.workflows.queued.queued_status_reporter import (
 )
 
 # --- task-level wiring: everything entrypoint/worker/celery/tasks.py runs ---
+
+
+@lru_cache
+def get_backup_catalog_repository() -> BackupCatalogRepository:
+    return DynamoBackupCatalogRepository()
 
 
 @lru_cache

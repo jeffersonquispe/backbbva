@@ -40,6 +40,7 @@ WORKDIR ${APP_DIR}
 
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 COPY --chown=www-data:www-data src ./src
+COPY --chown=www-data:www-data scripts/db_backup.py ./scripts/db_backup.py
 USER www-data
 
 CMD ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "worker", "--loglevel=INFO"]

@@ -167,6 +167,7 @@ services:
       # LLM backend/credentials live here, not in environment: below - see
       # config/local/config.cfg, read directly by Config._env_file.
       - ../../../config:/code/config:ro
+      - ../../../backups:/code/backups
     environment:
       GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
       API_V0_STR: ${API_V0_STR:-/api/v0}
@@ -195,6 +196,12 @@ services:
       OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
       OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-dummy123}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-aria-reports}
+      OPENSEARCH_ENDPOINT: http://opensearch:9200
+      OPENSEARCH_AUTH_MODE: ${OPENSEARCH_AUTH_MODE:-basic}
+      OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME:-admin}
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-dummy}
+      OPENSEARCH_INDEX: ${OPENSEARCH_INDEX:-fraud_knowledge}
+      OPENSEARCH_VERIFY_CERTS: ${OPENSEARCH_VERIFY_CERTS:-false}
       DATASET_STORAGE_BACKEND: ${DATASET_STORAGE_BACKEND:-minio}
       DATASET_STORAGE_BUCKET: ${DATASET_STORAGE_BUCKET:-datasets}
       MODEL_STORAGE_BUCKET: ${MODEL_STORAGE_BUCKET:-models}
@@ -205,6 +212,8 @@ services:
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      opensearch:
         condition: service_healthy
       api:
         condition: service_healthy
