@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 import base64
 from dataclasses import asdict
 from datetime import date, datetime
@@ -19,74 +20,29 @@ from src.application.dtos.escalate_alert_dtos import (
 from src.application.dtos.execute_alert_action_dtos import (
     ExecuteAlertActionInput,
 )
-from src.application.use_cases.alerts.document_analyst_decision import (
-    DocumentAnalystDecisionUseCase,
-)
-from src.application.use_cases.alerts.escalate_alert_to_analyst import (
-    EscalateAlertToAnalystUseCase,
-)
-from src.application.use_cases.alerts.execute_alert_action import (
-    ExecuteAlertActionUseCase,
-)
-from src.application.use_cases.async_operations.reconcile_async_operations import (
-    ReconcileAsyncOperationsUseCase,
-)
-from src.application.use_cases.datasets.analyze_dataset import AnalyzeDatasetUseCase
-from src.application.use_cases.datasets.delete_dataset import DeleteDatasetUseCase
-from src.application.use_cases.datasets.analyze_fraud_marking import (
-    AnalyzeFraudMarkingUseCase,
-)
-from src.application.use_cases.test_runs.cleanup_test_runs import CleanupTestRunsUseCase
-from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
-from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
 from src.application.dtos.dataset_dtos import FraudMarkingAnalysisInput
-from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
-    MockAlertChannelActionAdapter,
-)
-from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
-from src.infrastructure.core.config import genai_config
-from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
-from src.infrastructure.monitoring.opentelemetry import get_monitoring
-from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
-    DynamoAsyncOperationRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sample_repository import (
-    DynamoDatasetSampleRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.dataset_summary_repository import (
-    DynamoDatasetSummaryRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.operational_settings_repository import (
-    DynamoOperationalSettingsRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.test_run_repository import (
-    DynamoTestRunRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
-    DynamoWorkflowExecutionRepository,
-    DynamoWorkflowStepExecutionRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
-    DynamoAlertRepository,
-)
-from src.infrastructure.persistence.dataset.minio.csv_dataset_repository import (
-    MinioCsvDatasetRepository,
-)
-from src.infrastructure.persistence.object_storage.minio import (
-    get_dataset_object_storage,
-    get_object_storage,
-)
 from src.infrastructure.entrypoint.worker.celery.celery_app import app
-from src.infrastructure.queues.celery.inspector import (
-    CeleryAsyncExecutionInspector,
-)
 from src.domain.configurations.exceptions import ConfigurationNotFoundError
 from src.infrastructure.workflows.celery.alert_review_workflow import (
     AdversarialFeedbackLimitExceededError,
     AlertReviewWorkflowRunner,
 )
 from src.infrastructure.workflows.celery.factories import (
+    get_analyze_dataset_use_case,
+    get_analyze_fraud_marking_use_case,
+    get_async_operation_repository,
+    get_cleanup_test_runs_use_case,
+    get_dataset_repository,
+    get_delete_dataset_use_case,
+    get_document_analyst_decision_use_case,
+    get_escalate_alert_to_analyst_use_case,
     get_evaluate_alert_reasoning_use_case,
+    get_execute_alert_action_use_case,
+    get_model_repository,
+    get_model_storage,
+    get_operational_settings_repository,
+    get_preview_features_use_case,
+    get_reconcile_async_operations_use_case,
 )
 from src.application.dtos.reasoning_evaluation_dtos import (
     EvaluateAlertReasoningInput,
@@ -100,7 +56,7 @@ def healthcheck() -> dict[str, str]:
 
 @app.task(name="async_operations.run")
 def run_async_operation(operation_id: str) -> dict[str, str]:
-    repository = DynamoAsyncOperationRepository()
+    repository = get_async_operation_repository()
     operation_uuid = UUID(operation_id)
 
     operation = repository.update(
@@ -123,11 +79,7 @@ def run_async_operation(operation_id: str) -> dict[str, str]:
 
 @app.task(name="async_operations.reconcile")
 def reconcile_async_operations(limit: int = 100) -> dict:
-    use_case = ReconcileAsyncOperationsUseCase(
-        repository=DynamoAsyncOperationRepository(),
-        inspector=CeleryAsyncExecutionInspector(),
-    )
-    output = use_case.execute(ReconcileAsyncOperationsInput(limit=limit))
+    output = get_reconcile_async_operations_use_case().execute(ReconcileAsyncOperationsInput(limit=limit))
     return {
         "inspected": output.inspected,
         "updated": output.updated,
@@ -146,18 +98,10 @@ def reconcile_async_operations(limit: int = 100) -> dict:
 
 @app.task(name="test_runs.cleanup")
 def cleanup_test_runs() -> dict[str, int]:
-    settings = DynamoOperationalSettingsRepository().get()
-    workflows = DynamoWorkflowExecutionRepository()
-    output = CleanupTestRunsUseCase(
-        list_test_runs=ListTestRunsUseCase(DynamoTestRunRepository(), workflows),
-        delete_test_runs=DeleteTestRunsUseCase(
-            test_run_repository=DynamoTestRunRepository(),
-            workflow_repository=workflows,
-            step_repository=DynamoWorkflowStepExecutionRepository(),
-            alert_repository=DynamoAlertRepository(),
-            async_operation_repository=DynamoAsyncOperationRepository(),
-        ),
-    ).execute(settings.max_stored_test_runs, settings.test_cleanup_policy)
+    settings = get_operational_settings_repository().get()
+    output = get_cleanup_test_runs_use_case().execute(
+        settings.max_stored_test_runs, settings.test_cleanup_policy
+    )
     return {
         "deleted_test_runs": output.deleted_test_runs,
         "deleted_cases": output.deleted_cases,
@@ -212,11 +156,7 @@ def escalate_alert_to_analyst(
     session_id: str | None,
     reason: str,
 ) -> dict:
-    use_case = EscalateAlertToAnalystUseCase(
-        aric_alert_port=MockAricAlertAdapter(),
-        monitoring=get_monitoring(),
-    )
-    use_case.execute(
+    get_escalate_alert_to_analyst_use_case().execute(
         EscalateAlertToAnalystInput(
             alert_id=UUID(alert_id),
             event_id=event_id,
@@ -240,13 +180,7 @@ def document_analyst_decision(
     workflow_execution_id: str,
     steps: dict[str, dict[str, Any]],
 ) -> dict:
-    use_case = DocumentAnalystDecisionUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
-        monitoring=get_monitoring(),
-        model=genai_config.REPORT_LLM_MODEL,
-        object_storage_port=get_object_storage(),
-    )
-    output = use_case.execute(
+    output = get_document_analyst_decision_use_case().execute(
         DocumentAnalystDecisionInput(
             alert_id=UUID(alert_id),
             workflow_execution_id=UUID(workflow_execution_id),
@@ -295,11 +229,7 @@ def evaluate_alert_reasoning(self, alert_id: str, workflow_execution_id: str) ->
 def execute_alert_action(
     self, action: str, alert_id: str, content: str | None = None
 ) -> dict:
-    use_case = ExecuteAlertActionUseCase(
-        alert_action_port=MockAlertChannelActionAdapter(),
-        monitoring=get_monitoring(),
-    )
-    output = use_case.execute(
+    output = get_execute_alert_action_use_case().execute(
         ExecuteAlertActionInput(action=action, alert_id=UUID(alert_id), content=content)
     )
     return {
@@ -318,21 +248,15 @@ def execute_alert_action(
     retry_kwargs={"max_retries": 3},
 )
 def analyze_dataset_task(self, dataset_name: str, operation_id: str | None = None) -> dict:
-    operation_repository = DynamoAsyncOperationRepository()
+    operation_repository = get_async_operation_repository()
     if operation_id:
         operation_repository.update(
             UUID(operation_id),
             status=AsyncOperationStatus.RUNNING,
             result={"stage": "starting", "progress_pct": 1},
         )
-    use_case = AnalyzeDatasetUseCase(
-        dataset_repository=MinioCsvDatasetRepository(get_dataset_object_storage()),
-        sample_repository=DynamoDatasetSampleRepository(),
-        summary_repository=DynamoDatasetSummaryRepository(),
-        max_input_bytes=genai_config.DATASET_ANALYSIS_MAX_BYTES,
-    )
     try:
-        use_case.execute(
+        get_analyze_dataset_use_case().execute(
             dataset_name,
             progress=(
                 lambda result: operation_repository.update(UUID(operation_id), result=result)
@@ -356,22 +280,17 @@ def analyze_dataset_task(self, dataset_name: str, operation_id: str | None = Non
 @app.task(name="datasets.delete")
 def delete_dataset_task(dataset_name: str, operation_id: str) -> dict:
     """Remove a dataset outside the API process and report every stage."""
-    operations = DynamoAsyncOperationRepository()
+    operations = get_async_operation_repository()
     operation_uuid = UUID(operation_id)
     operations.update(
         operation_uuid,
         status=AsyncOperationStatus.RUNNING,
         result={"stage": "removing_dataset", "progress_pct": 5},
     )
-    use_case = DeleteDatasetUseCase(
-        dataset_repository=MinioCsvDatasetRepository(get_dataset_object_storage()),
-        sample_repository=DynamoDatasetSampleRepository(),
-        summary_repository=DynamoDatasetSummaryRepository(),
-    )
     try:
         # The use case's repository calls are idempotent; a retry or a delete
         # requested twice is safe.
-        use_case.execute(dataset_name)
+        get_delete_dataset_use_case().execute(dataset_name)
     except Exception as exc:
         operations.update(operation_uuid, status=AsyncOperationStatus.FAILED, error=str(exc))
         raise
@@ -394,7 +313,7 @@ def analyze_fraud_marking_task(
     operation_id: str,
 ) -> dict:
     """Compute a marking analysis outside the API request lifecycle."""
-    operations = DynamoAsyncOperationRepository()
+    operations = get_async_operation_repository()
     operation_uuid = UUID(operation_id)
     operations.update(
         operation_uuid,
@@ -402,10 +321,7 @@ def analyze_fraud_marking_task(
         result={"stage": "analyzing", "progress_pct": 1},
     )
     try:
-        output = AnalyzeFraudMarkingUseCase(
-            MinioCsvDatasetRepository(get_dataset_object_storage()),
-            DynamoDatasetSummaryRepository(),
-        ).execute(
+        output = get_analyze_fraud_marking_use_case().execute(
             FraudMarkingAnalysisInput(
                 dataset_name=dataset_name,
                 first_mark_field=first_mark_field,
@@ -435,12 +351,6 @@ def analyze_fraud_marking_task(
 # "Entrenar" again, not silently re-run a costly job in the background.
 @app.task(name="models.train")
 def train_model_task(model_id: str, async_operation_id: str) -> dict:
-    from src.infrastructure.persistence.database.dynamodb.repositories.model_repository import (
-        DynamoModelRepository,
-    )
-    from src.infrastructure.persistence.object_storage.minio import (
-        get_model_object_storage,
-    )
     from src.infrastructure.workflows.celery.model_training import (
         run_model_training,
     )
@@ -448,19 +358,17 @@ def train_model_task(model_id: str, async_operation_id: str) -> dict:
     return run_model_training(
         model_id,
         async_operation_id,
-        model_repository=DynamoModelRepository(),
-        async_operation_repository=DynamoAsyncOperationRepository(),
-        dataset_repository=MinioCsvDatasetRepository(get_dataset_object_storage()),
-        model_object_storage=get_model_object_storage(),
+        model_repository=get_model_repository(),
+        async_operation_repository=get_async_operation_repository(),
+        dataset_repository=get_dataset_repository(),
+        model_object_storage=get_model_storage(),
     )
 
 
 @app.task(name="models.preview_features")
 def preview_features_task(configuration: dict, rows: list[dict], target_field: str | None = None) -> dict:
     """Run an untrusted feature preview away from the API process."""
-    from src.application.use_cases.models.feature_engineering import PreviewFeaturesUseCase
-
-    return PreviewFeaturesUseCase().execute(configuration, rows, target_field)
+    return get_preview_features_use_case().execute(configuration, rows, target_field)
 
 
 # No autoretry (contrast with analyze_dataset_task above): a malformed

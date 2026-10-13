@@ -51,7 +51,6 @@ from src.application.dtos.profile_alert_dtos import (
     ProfileAlertOutput,
 )
 from src.application.dtos.research_dtos import ResearchRequest, ResearchSource
-from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.application.ports.alert_port import AlertOrigin, AlertStatus
 from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
 from src.application.ports.monitoring_port import (
@@ -113,6 +112,8 @@ from src.infrastructure.workflows.celery.factories import (
     get_workflow_step_execution_repository,
     get_alert_object_storage,
     get_alert_schema_repository,
+    get_raw_alert_payload_loader,
+    get_resolve_alert_segment_use_case,
 )
 from src.domain.alerts.rule_conditions import evaluate_condition
 from src.domain.alerts.transaction_history_selection import (
@@ -120,9 +121,6 @@ from src.domain.alerts.transaction_history_selection import (
     select_transaction_history,
 )
 from src.application.use_cases.alerts.agent_gate import agent_off_skip_reason
-from src.application.use_cases.alerts.resolve_alert_segment import (
-    ResolveAlertSegmentUseCase,
-)
 from src.domain.configurations.exceptions import ConfigurationNotFoundError
 from src.domain.models.prompt_template import substitute_variables
 from src.infrastructure.workflows.queued.queued_status_reporter import (
@@ -130,13 +128,6 @@ from src.infrastructure.workflows.queued.queued_status_reporter import (
 )
 from src.infrastructure.workflows.celery.research_adapters import (
     HeuristicHistoryResearchPlanner,
-    WorkflowVectorStoreRetriever,
-)
-from src.infrastructure.workflows.celery.history_pandas_research import HistoryPandasResearchAgent
-from src.application.use_cases.research.delegated_research import (
-    ResearchDelegationCoordinator,
-    TimeBoundedResearchAgent,
-    VectorStoreResearchAgent,
 )
 
 logger = logging.getLogger(__name__)
@@ -735,7 +726,7 @@ class AlertReviewWorkflowRunner:
             # persisted alerts always have raw_payload_ref.
             return alert.input
         if self._raw_payloads is None:
-            self._raw_payloads = RawAlertPayloadLoader(get_alert_object_storage())
+            self._raw_payloads = get_raw_alert_payload_loader()
         return self._raw_payloads.load(alert)
 
     def _finish_step_span(
@@ -974,25 +965,11 @@ def _segment_tool_kwargs(cfg: AgentToolsConfig) -> dict[str, Any]:
     vector_store = cfg.delegated_research.vector_store
     if vector_store.enabled and vector_store.vector_store_instance_id:
         from src.infrastructure.workflows.celery.factories import (
-            get_monitoring,
-            get_search_fraud_knowledge_use_case,
+            get_vector_store_research_tool,
         )
 
-        kwargs["vector_store_research"] = BoundedResearchTool(
-            TimeBoundedResearchAgent(
-                VectorStoreResearchAgent(
-                    WorkflowVectorStoreRetriever(
-                        get_search_fraud_knowledge_use_case(),
-                        vector_store.vector_store_instance_id,
-                    ),
-                    vector_store,
-                ),
-                ResearchSource.VECTOR_STORE,
-                vector_store.timeout_seconds,
-                monitoring=get_monitoring(),
-            ),
-            ResearchSource.VECTOR_STORE,
-            max_interactions=vector_store.max_delegations,
+        kwargs["vector_store_research"] = get_vector_store_research_tool(
+            vector_store
         )
     return kwargs
 
@@ -1093,7 +1070,7 @@ def _resolve_segment(context: dict[str, Any]) -> dict[str, Any]:
         return context
     try:
         pre_process: PreProcessAlertOutput = context["pre_process"]
-        context["segment_code"] = ResolveAlertSegmentUseCase().execute(
+        context["segment_code"] = get_resolve_alert_segment_use_case().execute(
             input_fields=pre_process.input,
             segments=config.segments,
             roles=pre_process.roles,
@@ -1366,32 +1343,24 @@ def _history_research(
         max_transactions=settings.max_history_rows,
         reference_time=parse_event_time(pre_process.roles.get("event_time")),
     )
-    agent = TimeBoundedResearchAgent(
-        HistoryPandasResearchAgent(
-            HeuristicHistoryResearchPlanner(pre_process.roles.get("amount")),
-            settings,
-            history_provider=lambda _request: selected,
-        ),
-        ResearchSource.HISTORY_PANDAS,
-        settings.timeout_seconds,
-        monitoring=_factories_monitoring(),
+    from src.infrastructure.workflows.celery import factories
+
+    agent = factories.get_history_research_agent(
+        HeuristicHistoryResearchPlanner(pre_process.roles.get("amount")),
+        settings,
+        history_provider=lambda _request: selected,
     )
     request = ResearchRequest(
         ResearchSource.HISTORY_PANDAS,
         "Investiga evidencia adicional en el historial de la alerta. "
         f"Razonamiento previo: {reasoning}",
     )
-    results = ResearchDelegationCoordinator({ResearchSource.HISTORY_PANDAS: agent}).delegate(
+    results = factories.get_research_delegation_coordinator(
+        {ResearchSource.HISTORY_PANDAS: agent}
+    ).delegate(
         [request], is_inconclusive=lambda: True, accept=lambda _result: None
     )
     return [dataclasses.asdict(result) for result in results]
-
-
-def _factories_monitoring():
-    # Call-time lookup so tests can swap factories.get_monitoring.
-    from src.infrastructure.workflows.celery.factories import get_monitoring
-
-    return get_monitoring()
 
 
 _MAX_HISTORY_ROUNDS = 5
