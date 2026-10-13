@@ -26,6 +26,23 @@ KNOWN_VIOLATIONS: set[tuple[str, str, str]] = {
     # Wipes DynamoDB tables straight from the router; move into a port +
     # adapter + use case (E2EStateCleaner) like the other routers.
     ("router-no-adapters", "src/infrastructure/entrypoint/api/routers/e2e_router.py", "src.infrastructure.persistence"),
+    # CA-004: Celery app/tasks imported from outside entrypoint/worker.
+    ("worker-entrypoint-private", "src/infrastructure/entrypoint/api/routers/datasets_router.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
+    ("worker-entrypoint-private", "src/infrastructure/entrypoint/api/routers/datasets_router.py", "src.infrastructure.entrypoint.worker.celery.tasks"),
+    ("worker-entrypoint-private", "src/infrastructure/entrypoint/api/routers/models_router.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/alert_action_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/analyst_capacity_import_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.tasks"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/analyst_capacity_import_status_reader.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/analyst_decision_documenter_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/analyst_escalation_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/dataset_analysis_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/dispatcher.py", "src.infrastructure.entrypoint.worker.celery.tasks"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/fraud_label_review_import_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.tasks"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/fraud_label_review_import_status_reader.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/inspector.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/model_training_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.tasks"),
+    ("worker-entrypoint-private", "src/infrastructure/queues/celery/reasoning_evaluation_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
+    ("worker-entrypoint-private", "src/infrastructure/workflows/celery/executor.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
 }
 
 _HEAVY = {
@@ -145,6 +162,20 @@ def test_env_vars_are_read_only_in_core_config() -> None:
                     and id(node) not in mutating:
                 found.add(("env-only-in-config", _rel(path), "os.environ"))
     _check("env-only-in-config", found)
+
+
+def test_only_the_worker_package_imports_the_worker_entrypoint() -> None:
+    """CA-010 Rule 3: the Celery app belongs to ``entrypoint/worker``;
+    dispatchers/routers should depend on a neutral module instead (CA-004)."""
+    worker_dir = SRC / "infrastructure/entrypoint/worker"
+    found: set[tuple[str, str, str]] = set()
+    for path in _py_files(SRC):
+        if worker_dir in path.parents:
+            continue
+        for mod in _imports(path):
+            if mod.startswith("src.infrastructure.entrypoint.worker"):
+                found.add(("worker-entrypoint-private", _rel(path), mod))
+    _check("worker-entrypoint-private", found)
 
 
 def test_routers_do_not_build_persistence_adapters() -> None:

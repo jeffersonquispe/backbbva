@@ -39,23 +39,24 @@ concrete edit. Check off in place; don't renumber.
   - [x] Rule 1: no file under `src/domain/` imports anything outside
         stdlib + `src.domain.*`.
   - [x] Rule 2: no file under `src/application/` imports `src.infrastructure`.
-  - [ ] Rule 3: no file outside `src/infrastructure/entrypoint/worker/`
+  - [x] Rule 3: no file outside `src/infrastructure/entrypoint/worker/`
         imports `src.infrastructure.entrypoint.worker.*` (this rule will
         fail today — see CA-004 — leave it added-but-`xfail` until CA-004
-        lands, then flip to enforced).
+        lands, then flip to enforced). *(done as a ratchet: 16 known
+        violations baselined in `KNOWN_VIOLATIONS`; new ones fail now)*
   - [x] Rule 4: `src/domain` and `src/application` contain no
         `fastapi`, `boto3`, `celery`, `opensearch`, `langchain`,
         `pydantic`, or `opentelemetry` imports (drop the `pydantic`
         exemption only after confirming — grep first,
         `application/dtos` may currently use `@dataclass` not pydantic,
         confirm before asserting).
-- [ ] New test `tests/test_architecture/test_composition_smoke.py`:
-  - [ ] Import `src.infrastructure.entrypoint.api.fastapi_app` and call
+- [x] New test `tests/test_architecture/test_composition_smoke.py`: *(2026-10-12)*
+  - [x] Import `src.infrastructure.entrypoint.api.fastapi_app` and call
         `create_app()`, assert it does not raise.
-  - [ ] For each task in `src/infrastructure/entrypoint/worker/celery/tasks.py`,
+  - [x] For each task in `src/infrastructure/entrypoint/worker/celery/tasks.py`,
         assert the module imports without raising (catches broken inline
         composition).
-- [ ] Wire this test file to run first in CI *(partial: `make test-architecture` exists; `Jenkinsfile` not wired yet)* (before slower integration
+- [x] Wire this test file to run first in CI *(`make test-architecture` exists; CI's shared `codeTest()` runs `tests/` per `pytest.ini`, so these tests already gate the pipeline - no Jenkinsfile change)* (before slower integration
       tests) — check `.gitlab-ci.yml` / `Makefile` test target ordering,
       add a fast `make test-architecture` target if none exists.
 
@@ -185,7 +186,8 @@ list already grew.
       test, not an import) — this is the "tested contract" the
       acceptance criteria asks for.
 - [ ] Flip the CA-010 Rule 3 test from `xfail` to enforced; confirm it
-      passes.
+      passes. *(it is enforced as a ratchet; this closes when the 16
+      `worker-entrypoint-private` entries are removed from `KNOWN_VIOLATIONS`)*
 - [ ] Add the smoke test the acceptance criteria names: import every API
       router module and assert `sys.modules` contains no
       `src.infrastructure.entrypoint.worker` entry afterward.
