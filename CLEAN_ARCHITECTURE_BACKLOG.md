@@ -5,10 +5,11 @@ Scope: current `src/` tree, API and Celery entrypoints, composition factories,
 adapters, and architecture-related tests. The assessment includes the current
 working tree, including uncommitted changes present at the time of review.
 
-> **Status tracking:** this file is the assessment as of 2026-08-21 and is
-> not updated task by task. The live per-task checklist is
-> `CLEAN_ARCHITECTURE_TASKS.md`; the per-CA `Status` lines below were last
-> synced on 2026-10-12.
+> **Status tracking:** This assessment and scorecard record the 2026-08-21
+> baseline and are not current evidence. The live checklist is
+> `CLEAN_ARCHITECTURE_TASKS.md`; CA status lines are being updated as changes
+> are verified. Re-audit the scorecard before using it as a statement of the
+> current architecture.
 
 ## Executive verdict
 
@@ -18,8 +19,7 @@ is **not yet fully compliant** with clean architecture.
 - **Application dependency direction: mostly compliant.** No application
   module imports `src.infrastructure`; use cases generally depend on ports and
   receive collaborators through constructors.
-- **Domain layer: not compliant or complete.** It is only 93 lines across four
-  files, imports LangChain types directly, and leaves most business records,
+- **Domain layer: not compliant or complete.** It leaves most business records,
   states, and policies inside `application/ports` or infrastructure workflow
   code.
 - **Infrastructure adapters: mostly well placed.** DynamoDB, OpenSearch,
@@ -28,10 +28,10 @@ is **not yet fully compliant** with clean architecture.
 - **FastAPI entrypoint and factories: mostly compliant.** `create_app()` owns
   router registration and lifecycle setup, routers receive use cases through
   `Depends`, and factories perform most API composition.
-- **Celery entrypoint and factories: not compliant.** Tasks construct concrete
-  repositories, adapters, and use cases inline. The main fraud-review workflow
-  also owns business orchestration inside `infrastructure` and resolves its
-  own dependencies through factory calls.
+- **Celery entrypoint and factories: not fully compliant.** Task composition
+  has improved, but some handlers still construct dependencies inline. The
+  fraud-review workflow still owns business orchestration inside
+  `infrastructure` and resolves dependencies through factory calls.
 
 Overall status: **partially implemented clean architecture; remediation is
 required before calling the architecture clean/hexagonal without qualification.**
@@ -112,7 +112,7 @@ an import of `src.domain.persistence` requires LangChain to be installed.
 ### CA-002 - Move fraud-review workflow policy into the application layer
 
 **Priority:** P1  
-**Status:** [ ] Not started
+**Status:** [ ] In progress planning; implementation not started (verified 2026-10-13)
 
 **Evidence**
 
@@ -197,7 +197,9 @@ vendor SDKs.
 ### CA-004 - Stop adapters from importing worker entrypoints
 
 **Priority:** P1  
-**Status:** [ ] Not started
+**Status:** [ ] Partially implemented (2026-10-13): neutral Celery app and
+task-name dispatch are in place; verify the registered-name contract and
+router smoke-test criteria in `CLEAN_ARCHITECTURE_TASKS.md`.
 
 **Evidence**
 
@@ -401,7 +403,9 @@ lifecycle rules harder to reason about.
 ### CA-009 - Decide and clean up unexposed or orphaned capabilities
 
 **Priority:** P2  
-**Status:** [ ] Not started
+**Status:** [ ] Partially implemented (2026-10-13): auth/session/audit DTO
+and port cleanup is complete; audit table ownership and fraud-knowledge
+exposure still require product/architecture decisions.
 
 **Evidence**
 

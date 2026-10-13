@@ -1,11 +1,8 @@
 # Clean Architecture Remediation — Task List
 
 Generated from `CLEAN_ARCHITECTURE_BACKLOG.md` (assessment date 2026-08-21).
-Line numbers below were re-verified against the working tree on 2026-09-03;
-several files have grown since the assessment (`alert_review_workflow.py`
-705 lines, `configuration_port.py` 557 lines, `configurations_router.py`
-551 lines, `schemas.py` 922 lines) — re-check line numbers again before
-editing, this list will drift too.
+Line-number and completion notes were rechecked against the working tree on
+2026-10-13; later changes make some original line references obsolete.
 
 Ordered per backlog's "Recommended delivery order". Each task = one
 concrete edit. Check off in place; don't renumber.
@@ -71,9 +68,9 @@ concrete edit. Check off in place; don't renumber.
 
 File: `src/infrastructure/workflows/celery/alert_review_workflow.py` (705 lines).
 
-- [ ] Read `LINEAR_STEPS` tuple (line 79) and
-      `class AlertReviewWorkflowRunner` (line 90) fully before touching —
-      this is the highest-risk file in the backlog.
+- [x] Read `LINEAR_STEPS` tuple and `class AlertReviewWorkflowRunner`
+      fully before implementation planning (verified 2026-10-13; the file
+      is now 1568 lines). This remains the highest-risk file in the backlog.
 - [ ] Create `src/application/use_cases/alerts/run_alert_review_workflow.py`
       with `RunAlertReviewWorkflowUseCase`. Constructor takes ports for:
       alert repo, workflow execution repo, each of the 7 step
@@ -123,10 +120,10 @@ File: `src/infrastructure/workflows/celery/alert_review_workflow.py` (705 lines)
 File: `src/infrastructure/entrypoint/worker/celery/tasks.py` (276 lines),
 factories: `src/infrastructure/workflows/celery/factories.py`.
 
-- [ ] Line 75: `repository = DynamoAsyncOperationRepository()` → replace
-      with `get_async_operation_repository()` from
-      `async_operation_factory.py` (the factory already exists — this is
-      just a missed call site, not new code).
+- [x] `run_async_operation` uses
+      `get_async_operation_repository()` (verified 2026-10-13). Its behavior
+      is tracked separately in `AUDIT_FINDINGS.md`; this does not complete
+      the larger CA-003 task.
 - [ ] Lines 98-99: `ReconcileAsyncOperationsUseCase(repository=DynamoAsyncOperationRepository(), ...)`
       → add `get_reconcile_async_operations_use_case()` to
       `src/infrastructure/workflows/celery/factories.py` (check —
@@ -159,38 +156,26 @@ factories: `src/infrastructure/workflows/celery/factories.py`.
 
 ### CA-004 — Stop adapters importing worker entrypoint
 
-Files confirmed still importing `entrypoint.worker.*`:
-`src/infrastructure/queues/celery/inspector.py`,
-`dispatcher.py`, `dataset_analysis_dispatcher.py`,
-`analyst_decision_documenter_dispatcher.py`,
-`alert_action_dispatcher.py`, `analyst_escalation_dispatcher.py`,
-`analyst_capacity_import_status_reader.py`,
-`analyst_capacity_import_dispatcher.py`,
-`src/infrastructure/workflows/celery/executor.py` — 9 files, more than
-the 4 the backlog cited; grep again right before starting since the
-list already grew.
+Formerly affected files (verified 2026-10-13 to dispatch through the neutral
+Celery app): `inspector.py`, `dispatcher.py`, `dataset_analysis_dispatcher.py`,
+`analyst_decision_documenter_dispatcher.py`, `alert_action_dispatcher.py`,
+`analyst_escalation_dispatcher.py`, `analyst_capacity_import_status_reader.py`,
+`analyst_capacity_import_dispatcher.py`, and `workflows/celery/executor.py`.
 
-- [ ] Create `src/infrastructure/queues/celery/app.py` (or reuse an
-      existing neutral Celery app module if `grep -rn "Celery(" src/infrastructure`
-      shows one) holding just the `Celery(...)` client/app instance, no
-      task registration.
-- [ ] In each of the 9 files above: replace
-      `from src.infrastructure.entrypoint.worker... import <task_fn>`
-      + `<task_fn>.delay(...)` with
-      `celery_app.send_task("<stable.task.name>", args=..., kwargs=...)`
-      using the neutral app from the previous step. Get each task's
-      registered name from its `@app.task(name=...)` decorator in
-      `tasks.py` (add explicit `name=` to each task if not already set —
-      implicit names break on module path changes).
-- [ ] Task registration (the actual `@app.task def ...` functions) stays
+- [x] Create neutral Celery app module
+      `src/infrastructure/queues/celery/app.py`; worker entrypoint imports
+      and registers its tasks on this app (verified 2026-10-13).
+- [x] Move dispatcher/executor task references to stable task names on the
+      neutral app (verified in code); import-boundary baseline is empty and
+      enforced. Task-name contract and API-router smoke tests remain open.
+- [x] Task registration (the actual `@app.task def ...` functions) stays
       exclusively in `src/infrastructure/entrypoint/worker/celery/tasks.py`.
 - [ ] Add one test asserting each dispatcher's task-name string matches
       an actually-registered task name in `tasks.py` (string-contract
       test, not an import) — this is the "tested contract" the
       acceptance criteria asks for.
-- [ ] Flip the CA-010 Rule 3 test from `xfail` to enforced; confirm it
-      passes. *(it is enforced as a ratchet; this closes when the 16
-      `worker-entrypoint-private` entries are removed from `KNOWN_VIOLATIONS`)*
+- [x] Enforce CA-010 Rule 3 as a ratchet; `KNOWN_VIOLATIONS` for this rule
+      is empty (verified 2026-10-13).
 - [ ] Add the smoke test the acceptance criteria names: import every API
       router module and assert `sys.modules` contains no
       `src.infrastructure.entrypoint.worker` entry afterward.

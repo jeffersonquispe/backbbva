@@ -1,7 +1,7 @@
 # Audit findings — dead code, architecture, inconsistencies
 
 Generated 2026-08-09 via general-purpose agent audit against `CLAUDE.md`'s
-stated conventions. Findings only — nothing here has been fixed yet. Format:
+stated conventions. Findings and resolutions are tracked below. Format:
 `file:line — what's wrong — why it matters — suggested fix`. Check items off
 as they're resolved.
 
@@ -50,12 +50,12 @@ as they're resolved.
   **Fix:** retrofit the DynamoDB class to match the Protocol, or delete both
   sides.
 
-- [ ] **`src/application/dtos/audit_dtos.py`** — leftover from the
+- [x] **`src/application/dtos/audit_dtos.py`** — leftover from the
   auth/session/audit deletion above; port, use cases, and the mismatched
-  DynamoDB adapter were all deleted but this dtos file wasn't. Zero
-  importers anywhere under `src/`. **(found during 2026-08-09 recheck, not
-  in the original audit)**
-  **Fix:** delete it.
+  DynamoDB adapter were all deleted but this dtos file wasn't. **(found
+  during 2026-08-09 recheck, not in the original audit)** Deleted with the
+  orphaned DTO cleanup on 2026-10-12; `rg --files src` confirms the file is
+  gone.
 
 - [x] **`src/infrastructure/core/system.py:run_async()`** (98 lines) — zero
   callers (`run_async_operation` in `tasks.py` is a different, unrelated
@@ -142,7 +142,7 @@ One gap worth tracking, not a violation:
   **Resolved (verified 2026-10-12):** `_execute_placeholder_step` is now only a
   dispatcher to real `_run_*` steps backed by use cases via factories.
 
-- [ ] **`infrastructure/entrypoint/worker/celery/tasks.py:run_async_operation`**
+- [x] **`infrastructure/entrypoint/worker/celery/tasks.py:run_async_operation`**
   (path moved from `infrastructure/queues/celery/tasks.py` by
   `4970d8f refactor(worker): move celery app/tasks under
   entrypoint/worker/celery` — content unchanged) — also placeholder, but
@@ -151,10 +151,10 @@ One gap worth tracking, not a violation:
   dispatched async operation `SUCCEEDED` with a canned message. Any real
   generic async-operation feature routed through `POST /async-operations`
   today silently no-ops instead of doing work.
-  **Fix:** add a `ponytail:`-style comment or a CLAUDE.md line so this is
-  tracked the same way `LINEAR_STEPS` is.
-  **Rechecked 2026-08-09: still unfixed**, confirmed at line 30 of the
-  moved file.
+  **Resolved (verified 2026-10-13):** the task checks operation type and
+  marks unsupported generic operations failed instead of reporting a
+  canned success; registered-but-unimplemented handlers raise
+  `NotImplementedError`.
 
 - [x] **`AuditLogRepository.write()` / `list_recent()` swallow all
   `ClientError`s silently** — moot per the original note ("moot today since
