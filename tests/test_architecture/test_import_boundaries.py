@@ -22,28 +22,7 @@ TESTS = ROOT / "tests"
 
 # (rule, file, module) triples; module is the offending import (or
 # "os.environ" for the env-var rule).
-KNOWN_VIOLATIONS: set[tuple[str, str, str]] = {
-    # Wipes DynamoDB tables straight from the router; move into a port +
-    # adapter + use case (E2EStateCleaner) like the other routers.
-    ("router-no-adapters", "src/infrastructure/entrypoint/api/routers/e2e_router.py", "src.infrastructure.persistence"),
-    # CA-004: Celery app/tasks imported from outside entrypoint/worker.
-    ("worker-entrypoint-private", "src/infrastructure/entrypoint/api/routers/datasets_router.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-    ("worker-entrypoint-private", "src/infrastructure/entrypoint/api/routers/datasets_router.py", "src.infrastructure.entrypoint.worker.celery.tasks"),
-    ("worker-entrypoint-private", "src/infrastructure/entrypoint/api/routers/models_router.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/alert_action_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/analyst_capacity_import_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.tasks"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/analyst_capacity_import_status_reader.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/analyst_decision_documenter_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/analyst_escalation_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/dataset_analysis_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/dispatcher.py", "src.infrastructure.entrypoint.worker.celery.tasks"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/fraud_label_review_import_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.tasks"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/fraud_label_review_import_status_reader.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/inspector.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/model_training_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.tasks"),
-    ("worker-entrypoint-private", "src/infrastructure/queues/celery/reasoning_evaluation_dispatcher.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-    ("worker-entrypoint-private", "src/infrastructure/workflows/celery/executor.py", "src.infrastructure.entrypoint.worker.celery.celery_app"),
-}
+KNOWN_VIOLATIONS: set[tuple[str, str, str]] = set()
 
 _HEAVY = {
     "fastapi", "starlette", "boto3", "botocore", "celery", "opensearchpy",

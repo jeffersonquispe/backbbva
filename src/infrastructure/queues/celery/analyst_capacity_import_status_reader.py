@@ -9,7 +9,7 @@ from src.application.ports.analyst_capacity_import_port import (
     AnalystCapacityImportStatusReader,
 )
 from src.application.ports.configuration_port import DayProfile
-from src.infrastructure.entrypoint.worker.celery.celery_app import app
+from src.infrastructure.queues.celery.app import app
 
 _PENDING_STATES = {states.PENDING, states.RECEIVED, states.STARTED, states.RETRY}
 

@@ -6,7 +6,7 @@ from src.application.ports.alert_action_dispatcher_port import (
     AlertActionDispatcher,
     AlertActionDispatchRef,
 )
-from src.infrastructure.entrypoint.worker.celery.celery_app import app
+from src.infrastructure.queues.celery.app import app
 
 # Dispatched by task name (app.send_task) rather than importing the task
 # function from entrypoint.worker.celery.tasks: that module imports

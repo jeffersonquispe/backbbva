@@ -7,7 +7,7 @@ from celery.result import AsyncResult
 
 from src.application.use_cases.models.feature_engineering import FeatureCapabilitiesUseCase, FeatureRecipeProblem, FeatureTemplatesUseCase, PreviewFeaturesUseCase
 from src.infrastructure.entrypoint.api.factories.model_factory import get_feature_capabilities_use_case, get_feature_templates_use_case, get_preview_features_use_case
-from src.infrastructure.entrypoint.worker.celery.celery_app import app as celery_app
+from src.infrastructure.queues.celery.app import app as celery_app
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status

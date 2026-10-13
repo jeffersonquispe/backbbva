@@ -190,18 +190,19 @@ def get_dataset_summary(
                     status_code=503,
                     detail="Fraud-marking analysis scheduling is unavailable",
                 )
-            from src.infrastructure.entrypoint.worker.celery.tasks import (
-                analyze_fraud_marking_task,
-            )
+            from src.infrastructure.queues.celery.app import app as celery_app
 
-            analyze_fraud_marking_task.delay(
-                name,
-                first_mark_field,
-                second_mark_field,
-                first_mark_time_field,
-                second_mark_time_field,
-                positive_values,
-                str(operation_id),
+            celery_app.send_task(
+                "datasets.analyze_fraud_marking",
+                args=[
+                    name,
+                    first_mark_field,
+                    second_mark_field,
+                    first_mark_time_field,
+                    second_mark_time_field,
+                    positive_values,
+                    str(operation_id),
+                ],
             )
             response.status_code = status.HTTP_202_ACCEPTED
             return FraudMarkingAnalysisQueuedResponse(
@@ -232,7 +233,7 @@ def delete_dataset(
     # Send by registered task name so the API does not import the complete
     # worker task module (and its optional research dependencies) just to
     # enqueue a dataset deletion.
-    from src.infrastructure.entrypoint.worker.celery.celery_app import app as celery_app
+    from src.infrastructure.queues.celery.app import app as celery_app
 
     celery_app.send_task("datasets.delete", args=[name, str(operation_id)])
     return DeleteDatasetResponse(

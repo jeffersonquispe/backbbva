@@ -6,7 +6,7 @@ from src.application.ports.reasoning_evaluation_dispatcher_port import (
     ReasoningEvaluationDispatcher,
     ReasoningEvaluationDispatchRef,
 )
-from src.infrastructure.entrypoint.worker.celery.celery_app import app
+from src.infrastructure.queues.celery.app import app
 
 # By task name (app.send_task), like the analyst-decision documenter: the
 # tasks module imports AlertReviewWorkflowRunner, which uses this

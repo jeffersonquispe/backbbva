@@ -10,7 +10,7 @@ from src.application.ports.fraud_label_review_import_port import (
     FraudLabelReviewRowResult,
     FraudLabelReviewRowStatus,
 )
-from src.infrastructure.entrypoint.worker.celery.celery_app import app
+from src.infrastructure.queues.celery.app import app
 
 _PENDING_STATES = {states.PENDING, states.RECEIVED, states.STARTED, states.RETRY}
 

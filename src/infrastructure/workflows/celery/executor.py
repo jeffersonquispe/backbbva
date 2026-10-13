@@ -7,7 +7,7 @@ from src.application.ports.workflow_executor_port import (
 from src.application.ports.workflow_port import WorkflowExecutionRecord
 from src.application.ports.alert_port import AlertOrigin
 from src.infrastructure.core.config import genai_config
-from src.infrastructure.entrypoint.worker.celery.celery_app import app
+from src.infrastructure.queues.celery.app import app
 
 # Dispatched by task name (app.send_task), same as
 # CeleryAlertActionDispatcher: importing the task function would pull the
