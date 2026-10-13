@@ -164,10 +164,7 @@ class Config(BaseSettings):
 
     # EVENT SIMULATOR - independent microservice
     # (src/infrastructure/entrypoint/simulator/), never imported by aria-api
-    # or aria-worker. Gated off by default: generation can hammer the LLM
-    # backend and, in LIVE_PIPELINE mode, aria-worker's Celery queue, so it
-    # must be turned on deliberately per environment.
-    EVENT_SIMULATOR_ENABLED: bool = False
+    # or aria-worker.
     # How often the self-rescheduling tick task wakes up per RUNNING
     # scenario - trades rate-curve precision against Celery/LLM load.
     EVENT_SIMULATOR_TICK_SECONDS: int = 10
