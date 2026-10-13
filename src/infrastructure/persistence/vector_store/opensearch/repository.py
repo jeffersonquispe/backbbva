@@ -14,6 +14,7 @@ from src.application.ports.fraud_knowledge_port import (
     SimilarCaseDocument,
     TaxonomiaDocument,
 )
+from src.infrastructure.monitoring.audit_collector import record_audit
 from src.infrastructure.persistence.vector_store.opensearch.index import (
     FRAUD_KNOWLEDGE_INDEX,
 )
@@ -103,6 +104,7 @@ class OpenSearchFraudKnowledgeRepository:
             body=document_to_source(document),
             refresh=True,
         )
+        record_audit("opensearch.create", FRAUD_KNOWLEDGE_INDEX, str(document.id))
         return document
 
     def get(self, document_id: UUID) -> FraudKnowledgeDocument | None:
@@ -121,6 +123,7 @@ class OpenSearchFraudKnowledgeRepository:
             body=document_to_source(document),
             refresh=True,
         )
+        record_audit("opensearch.update", FRAUD_KNOWLEDGE_INDEX, str(document.id))
         return document
 
     def delete(self, document_id: UUID) -> None:
@@ -130,6 +133,8 @@ class OpenSearchFraudKnowledgeRepository:
             )
         except NotFoundError:
             pass
+        else:
+            record_audit("opensearch.delete", FRAUD_KNOWLEDGE_INDEX, str(document_id))
 
     def list(
         self,

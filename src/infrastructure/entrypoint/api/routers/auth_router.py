@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from src.application.ports.local_auth_port import LocalRole, LocalUser
@@ -30,6 +30,10 @@ from src.infrastructure.entrypoint.api.factories.local_auth_factory import (
     get_list_local_users_use_case,
     get_logout_local_user_use_case,
     get_register_local_user_use_case,
+)
+from src.infrastructure.monitoring.audit_context import (
+    current_audit_context,
+    update_audit_context,
 )
 from src.infrastructure.security.local_auth import JwtService
 
@@ -90,6 +94,7 @@ def _to_managed_user_response(user: LocalUser) -> ManagedUserResponse:
 
 
 def require_bootstrap_token(
+    request: Request,
     bootstrap_token: Annotated[str | None, Header(alias="X-Bootstrap-Token")] = None,
 ) -> None:
     """User administration (create/list/reset password) is gated by the
@@ -103,6 +108,9 @@ def require_bootstrap_token(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="A valid bootstrap token is required to manage local users",
         )
+    request.state.audit_actor_id = "bootstrap"
+    if current_audit_context().actor_id == "anonymous":
+        update_audit_context(actor_type="user", actor_id="bootstrap")
 
 
 def get_token_claims(
@@ -126,6 +134,7 @@ def get_token_claims(
 
 
 def get_current_user(
+    request: Request,
     claims: Annotated[dict, Depends(get_token_claims)],
     use_case: Annotated[
         GetCurrentLocalUserUseCase, Depends(get_current_local_user_use_case)
@@ -138,6 +147,9 @@ def get_current_user(
             detail="Session ended or user is inactive",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    request.state.audit_actor_id = str(user.id)
+    if current_audit_context().actor_id == "anonymous":
+        update_audit_context(actor_type="user", actor_id=str(user.id))
     return user
 
 

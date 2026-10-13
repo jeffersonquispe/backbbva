@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 
 from src.application.ports.event_sink_port import EventSink
+from src.infrastructure.monitoring.audit_transport import audit_context_headers
 
 
 class HttpEventSink(EventSink):
@@ -59,6 +60,7 @@ class HttpEventSink(EventSink):
         return response.json()["total_rows"]
 
     def _headers(self) -> dict[str, str]:
+        headers = audit_context_headers()
         if self.token:
-            return {"Authorization": f"Bearer {self.token}"}
-        return {}
+            headers["Authorization"] = f"Bearer {self.token}"
+        return headers

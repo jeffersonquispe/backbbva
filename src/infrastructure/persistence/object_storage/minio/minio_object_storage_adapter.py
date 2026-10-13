@@ -10,6 +10,7 @@ from src.application.ports.object_storage_port import (
     ObjectStorageRef,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.monitoring.audit_collector import install_audit_hooks
 
 
 class MinioObjectStorageAdapter(ObjectStoragePort):
@@ -22,6 +23,7 @@ class MinioObjectStorageAdapter(ObjectStoragePort):
             aws_access_key_id=genai_config.OBJECT_STORAGE_ACCESS_KEY,
             aws_secret_access_key=genai_config.OBJECT_STORAGE_SECRET_KEY,
         )
+        install_audit_hooks(self._client, "s3")
         self._ensure_bucket()
 
     def _ensure_bucket(self) -> None:

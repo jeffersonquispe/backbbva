@@ -4,6 +4,7 @@ import boto3
 from botocore.config import Config
 
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.monitoring.audit_collector import install_audit_hooks
 
 
 @lru_cache
@@ -29,4 +30,6 @@ def get_dynamodb_resource():
             }
         )
 
-    return boto3.resource("dynamodb", **kwargs)
+    resource = boto3.resource("dynamodb", **kwargs)
+    install_audit_hooks(resource.meta.client, "dynamodb")
+    return resource

@@ -14,6 +14,7 @@ from src.application.errors import (
     ValidationError,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.entrypoint.api.audit_middleware import AuditContextMiddleware
 from src.infrastructure.entrypoint.api.initialization.cors import (
     configure_cors,
 )
@@ -123,6 +124,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     _register_error_handlers(app)
+    app.add_middleware(AuditContextMiddleware)
     configure_cors(app)
     app.include_router(health_router)
     app.include_router(auth_router, prefix=genai_config.API_V0_STR)

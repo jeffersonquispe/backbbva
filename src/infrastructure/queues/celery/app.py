@@ -4,6 +4,7 @@ from celery import Celery
 from celery.schedules import crontab
 
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.monitoring.audit_celery import register_audit_signals
 
 OPERATIONAL_STATE_INTERVAL_SECONDS = 60
 
@@ -51,6 +52,7 @@ def periodic_schedule(
 
 
 def create_celery_app(name: str = "aria-worker") -> Celery:
+    register_audit_signals()
     app = Celery(
         name,
         broker=genai_config.CELERY_BROKER_URL,

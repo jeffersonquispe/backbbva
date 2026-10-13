@@ -50,6 +50,7 @@ from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.entrypoint.api.factories.async_operation_factory import (
     get_async_operation_repository,
 )
+from src.infrastructure.monitoring.audit_collector import record_audit
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_field_mapping_repository import (
     DynamoAlertFieldMappingRepository,
 )
@@ -74,7 +75,9 @@ from src.infrastructure.persistence.object_storage.minio import (
 def get_dataset_repository() -> DatasetRepository:
     if genai_config.DATASET_STORAGE_BACKEND == "minio":
         return MinioCsvDatasetRepository(get_dataset_object_storage())
-    return FilesystemCsvDatasetRepository(Path(genai_config.DATASETS_DIR))
+    return FilesystemCsvDatasetRepository(
+        Path(genai_config.DATASETS_DIR), audit=record_audit
+    )
 
 
 @lru_cache

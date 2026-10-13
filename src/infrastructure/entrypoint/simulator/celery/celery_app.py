@@ -5,6 +5,7 @@ import os
 from celery import Celery
 
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.monitoring.audit_celery import register_audit_signals
 
 # Celery resolves conf.broker_url/result_backend by checking the
 # CELERY_BROKER_URL/CELERY_RESULT_BACKEND environment variables on every
@@ -25,6 +26,7 @@ os.environ.pop("CELERY_RESULT_BACKEND", None)
 
 
 def create_celery_app(name: str = "aria-event-simulator") -> Celery:
+    register_audit_signals()
     app = Celery(
         name,
         broker=genai_config.EVENT_SIMULATOR_CELERY_BROKER_URL,

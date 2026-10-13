@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -10,8 +11,17 @@ from src.infrastructure.persistence.dataset.csv_utils import flatten_row, unflat
 
 
 class FilesystemCsvDatasetRepository(DatasetRepository):
-    def __init__(self, datasets_dir: Path) -> None:
+    def __init__(
+        self,
+        datasets_dir: Path,
+        audit: Callable[[str, str, str | None], None] | None = None,
+    ) -> None:
         self._dir = datasets_dir
+        self._audit = audit
+
+    def _record_audit(self, action: str, name: str) -> None:
+        if self._audit is not None:
+            self._audit(action, "dataset", name)
 
     def list(self) -> list[DatasetRecord]:
         if not self._dir.is_dir():
@@ -49,6 +59,7 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
         self._dir.mkdir(parents=True, exist_ok=True)
         with path.open("w", newline="", encoding="utf-8") as f:
             csv.DictWriter(f, fieldnames=fields).writeheader()
+        self._record_audit("filesystem.create", name)
 
     def create_from_csv_bytes(self, name: str, content: bytes) -> None:
         path = self._dir / f"{name}.csv"
@@ -56,6 +67,7 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
             raise FileExistsError(f"Dataset '{name}' already exists")
         self._dir.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
+        self._record_audit("filesystem.create", name)
 
     def create_from_csv_file(self, name: str, file: BinaryIO) -> None:
         path = self._dir / f"{name}.csv"
@@ -64,6 +76,7 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
         self._dir.mkdir(parents=True, exist_ok=True)
         with path.open("xb") as destination:
             shutil.copyfileobj(file, destination, length=1024 * 1024)
+        self._record_audit("filesystem.create", name)
 
     def append_rows(self, name: str, rows: list[dict[str, Any]]) -> int:
         path = self._dir / f"{name}.csv"
@@ -81,10 +94,12 @@ class FilesystemCsvDatasetRepository(DatasetRepository):
                 writer.writerow(flatten_row(row))
         with path.open(newline="", encoding="utf-8") as f:
             total = sum(1 for _ in csv.reader(f)) - 1  # minus header
+        self._record_audit("filesystem.update", name)
         return max(total, 0)
 
     def delete(self, name: str) -> None:
         (self._dir / f"{name}.csv").unlink(missing_ok=True)
+        self._record_audit("filesystem.delete", name)
 
     def _name_exists(self, name: str) -> bool:
         return any(
