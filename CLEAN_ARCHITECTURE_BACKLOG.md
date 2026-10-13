@@ -403,9 +403,9 @@ lifecycle rules harder to reason about.
 ### CA-009 - Decide and clean up unexposed or orphaned capabilities
 
 **Priority:** P2  
-**Status:** [ ] Partially implemented (2026-10-13): auth/session/audit DTO
-and port cleanup is complete; audit table ownership and fraud-knowledge
-exposure still require product/architecture decisions.
+**Status:** [ ] Partially implemented (2026-10-13): fraud-knowledge exposure
+decision is resolved as internal-only with no dedicated API/router. Audit
+log repository/factory/schema and table ownership still require a decision.
 
 **Evidence**
 
@@ -416,7 +416,8 @@ exposure still require product/architecture decisions.
   `persistence/database/dynamodb/manager.py:135`, but there is no current
   audit port/repository/use case/entrypoint flow.
 - `fraud_knowledge_factory.py` composes list/search/related/ingest/update/delete
-  use cases, but `fastapi_app.py:52-76` registers no fraud-knowledge router.
+  use cases. **Decision 2026-10-13:** fraud-knowledge is internal to the
+  worker and API; it does not need a dedicated public router/API.
 
 **Problem**
 
@@ -427,11 +428,10 @@ unregistered capabilities create an incomplete entrypoint surface.
 
 - For each orphan, mark it as planned with an owner and target milestone, wire
   it end to end, or delete it.
-- Confirm whether fraud-knowledge operations are intentionally internal to
-  configuration activation or require API endpoints.
+- Preserve fraud-knowledge as internal-only; do not add a dedicated router.
 - Remove database tables and configuration that no active capability owns.
-- Update `CLAUDE.md` after the decision; it currently references an absent
-  `application/ports/audit_port.py`.
+- Update `CLAUDE.md` after the decision; remove stale references to the
+  deleted `application/ports/audit_port.py`.
 
 **Acceptance criteria**
 

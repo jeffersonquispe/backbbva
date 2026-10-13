@@ -33,7 +33,7 @@ ports (interfaces) in their constructor; concrete adapters are wired in
 Two established shapes, don't invent a third:
 
 1. **Flat CRUD repo** → `Protocol` with `create`/`get`/`update`/`list`.
-   Examples: `alert_port.py`, `workflow_port.py`, `audit_port.py`.
+   Examples: `alert_port.py`, `workflow_port.py`.
 2. **Single-behavior abstraction** → `ABC` with `raise NotImplementedError`
    (or `@abstractmethod`), one primary method, swappable backend.
    Examples: `workflow_executor_port.py` (`WorkflowExecutor.start`),
@@ -236,7 +236,6 @@ Design: `docs/OBSERVABILITY_STRATEGY.md`; tasks/decisions:
   functions passed a raw `context: dict[str, Any]` — typed run state and
   per-step `application/use_cases/alerts/<step>.py` use cases are **not
   done**; don't assume they exist.
-- `application/ports/audit_port.py` (`AuditLogRepository`) is an unrelated,
-  older concept — a flat per-tool-call audit log CRUD repo. Don't confuse it
-  with `monitoring_port.py` (the span/CoT/dependency tracker built this
-  session) or merge them without asking; they solve different problems.
+- Fraud-knowledge use cases are internal capabilities used by worker/API
+  flows. They intentionally have no dedicated public router or API surface;
+  do not register one without an architecture decision.
