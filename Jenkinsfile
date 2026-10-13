@@ -237,6 +237,29 @@ pipeline {
                 }
             }
         }
+        stage('Lint') {
+            when {
+                expression {
+                    return env.JOB_RUN == 'Build & Push Docker Image'
+                }
+            }
+            steps {
+                script {
+                    trackStage('Lint') {
+                        // Ratcheted ruff + mypy (see Makefile `lint`,
+                        // ruff.toml, mypy.ini, .lint-baseline.json). Versions
+                        // must match deploy/requirements/pyproject.toml: the
+                        // baseline is only comparable for the same versions.
+                        container('python-311') {
+                            sh '''
+                                pip install --quiet ruff==0.8.4 mypy==1.13.0
+                                make lint
+                            '''
+                        }
+                    }
+                }
+            }
+        }
         stage("Code Test") {
             when {
                 expression {

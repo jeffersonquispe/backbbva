@@ -1,0 +1,18 @@
+# Single source of truth for ruff. The repo has no root pyproject.toml (the
+# per-service ones live in deploy/requirements/), so without this file ruff
+# runs on whatever global config the machine happens to have and the error
+# count is not reproducible. Keep the line length in sync with
+# [tool.black] / [tool.isort] / [tool.flake8] in deploy/requirements/pyproject.toml.
+line-length = 88
+target-version = "py311"
+extend-exclude = ["experiments", "datasets", "resources", "deploy", "docs"]
+
+[lint]
+select = [
+    "E4", "E7", "E9",  # pycodestyle errors (no E501: the formatter owns line length)
+    "F",               # pyflakes
+    "I",               # isort
+    "UP",              # pyupgrade
+    "BLE",             # blind except
+    "DTZ",             # naive datetimes
+]

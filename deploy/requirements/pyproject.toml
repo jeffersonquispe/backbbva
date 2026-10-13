@@ -52,15 +52,16 @@ flake8 = "7.0.0"
 flake8-pyproject = "1.2.3"
 pyproject-autoflake = "1.0.2"
 ruff = "0.8.4"
+mypy = "1.13.0"
 vulture = "2.16.0"
 
 [tool.black]
 target-version = ["py311"]
-line-length = 79
+line-length = 88
 
 [tool.isort]
 profile = "black"
-line_length = 79
+line_length = 88
 use_parentheses = true
 
 [tool.coverage.run]
@@ -83,7 +84,7 @@ env = ["GENAI_ENVIRONMENT=test"]
 markers = ["docker_integration: requires Docker services, especially DynamoDB Local"]
 
 [tool.flake8]
-max-line-length = 120
+max-line-length = 88
 exclude = [".git",".venv","__pycache__", "old", "build", "dist",
     "./src/infrastructure/core/config.py",
     "./config/**/*.py"]

@@ -1,0 +1,10 @@
+{
+  "ruff": {
+    "errors": 611,
+    "version": "ruff 0.8.4"
+  },
+  "mypy": {
+    "errors": 104,
+    "version": "mypy 1.13.0"
+  }
+}

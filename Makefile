@@ -672,6 +672,27 @@ run-ruff-format:  ## Run ruff format to delete unused imports.
 	@echo "Running ruff format to delete unused imports... 🪄"
 	@poetry run ruff format .
 
+# Static checks. `lint` is what CI runs: ruff + mypy against the committed
+# baseline in .lint-baseline.json (fails only when the error count GROWS), so it
+# can gate merges while the existing backlog is paid down. Config lives in
+# ruff.toml / mypy.ini. After a cleanup, lower the baseline with `make lint-baseline`.
+.PHONY: lint
+lint:  ## Ratcheted ruff + mypy (CI gate): fail if errors exceed .lint-baseline.json.
+	@python scripts/lint_ratchet.py ruff mypy
+
+.PHONY: lint-baseline
+lint-baseline:  ## Rewrite .lint-baseline.json with the current ruff/mypy error counts.
+	@python scripts/lint_ratchet.py ruff mypy --update
+
+.PHONY: lint-strict
+lint-strict:  ## Zero-tolerance ruff check + format check (no baseline). Use once the backlog is fixed.
+	@ruff check src tests scripts
+	@ruff format --check src tests scripts
+
+.PHONY: typecheck
+typecheck:  ## Run mypy (src/domain + src/application, see mypy.ini) and list every error.
+	@mypy --config-file mypy.ini
+
 # Static dead-code scan. It never modifies source files. The default confidence
 # (80%) focuses on unreachable code and unused imports; use 60 for a broader
 # review that will include framework-driven functions and therefore needs
