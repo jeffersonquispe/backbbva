@@ -28,6 +28,7 @@ from src.application.dtos.run_alert_review_workflow_dtos import (
     RunAlertReviewWorkflowOutput,
 )
 from src.application.dtos.technical_metrics_dtos import RecordWorkflowStepMetricsInput
+from src.application.dtos.workflow_run_state import WorkflowRunState
 from src.application.ports.alert_port import (
     AlertOrigin,
     AlertRepository,
@@ -236,7 +237,7 @@ class RunAlertReviewWorkflowUseCase:
             status=WorkflowStatus.RUNNING,
         )
 
-        context: dict[str, Any] = {
+        context: WorkflowRunState = {
             "workflow_execution_id": str(workflow.id),
             "alert_id": str(workflow.alert_id),
             "async_operation_id": str(workflow.async_operation_id),
@@ -571,9 +572,9 @@ class RunAlertReviewWorkflowUseCase:
         self,
         workflow: WorkflowExecutionRecord,
         step_name: str,
-        context: dict[str, Any],
+        context: WorkflowRunState,
         attempt: int = 1,
-    ) -> dict[str, Any]:
+    ) -> WorkflowRunState:
         assert self._status is not None
         now = datetime.now(UTC)
         step = self._steps.create(
@@ -625,7 +626,9 @@ class RunAlertReviewWorkflowUseCase:
                     detail={"output": db_output, "finished_at": finished_at},
                 )
             )
-            context[step_name] = output
+            # Step names are runtime values from LINEAR_STEPS; their outputs
+            # share one state record but have step-specific value types.
+            context[step_name] = output  # type: ignore[literal-required]
             self._persist_agent_step(workflow, context, step_name, db_output)
             self._finish_step_span(
                 step_span, step_name, WorkflowStepStatus.SUCCEEDED, step_started
@@ -658,7 +661,7 @@ class RunAlertReviewWorkflowUseCase:
             raise
 
     def _persist_pre_process(
-        self, workflow: WorkflowExecutionRecord, context: dict[str, Any]
+        self, workflow: WorkflowExecutionRecord, context: WorkflowRunState
     ) -> None:
         result: PreProcessAlertOutput = context["pre_process"]
         config = context.get("active_configuration")
@@ -673,7 +676,7 @@ class RunAlertReviewWorkflowUseCase:
         )
 
     def _persist_schema_comparison(
-        self, workflow: WorkflowExecutionRecord, context: dict[str, Any]
+        self, workflow: WorkflowExecutionRecord, context: WorkflowRunState
     ) -> None:
         comparison = context.get("schema_comparison")
         if comparison is not None:
@@ -682,7 +685,7 @@ class RunAlertReviewWorkflowUseCase:
     def _persist_agent_step(
         self,
         workflow: WorkflowExecutionRecord,
-        context: dict[str, Any],
+        context: WorkflowRunState,
         step_name: str,
         db_output: Any,
     ) -> None:
@@ -739,8 +742,8 @@ class RunAlertReviewWorkflowUseCase:
     def _run_adversarial_review(
         self,
         workflow: WorkflowExecutionRecord,
-        context: dict[str, Any],
-    ) -> dict[str, Any]:
+        context: WorkflowRunState,
+    ) -> WorkflowRunState:
         context = self._run_step(workflow, "adversarial", context)
         effective_max = effective_max_feedback_iterations(workflow, context)
         while needs_classification_feedback(context, effective_max):
@@ -773,8 +776,8 @@ class RunAlertReviewWorkflowUseCase:
     def _run_detector_adversarial_review(
         self,
         workflow: WorkflowExecutionRecord,
-        context: dict[str, Any],
-    ) -> dict[str, Any]:
+        context: WorkflowRunState,
+    ) -> WorkflowRunState:
         # Twin of _run_adversarial_review, for the Detector/Adversarial
         # (detector) pair instead of Clasificación/Adversarial
         # (clasificador) - kept as a separate method rather than a

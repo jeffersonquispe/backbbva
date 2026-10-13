@@ -6,6 +6,7 @@ from typing import Any
 from src.application.dtos.adversarial_review_alert_dtos import (
     AdversarialReviewAlertOutput,
 )
+from src.application.dtos.workflow_run_state import WorkflowRunState
 from src.application.ports.configuration_port import SegmentSettings
 from src.application.ports.workflow_port import WorkflowExecutionRecord
 
@@ -32,7 +33,7 @@ DOCUMENTED_STEPS = (
 )
 
 
-def active_segment(context: dict[str, Any]) -> SegmentSettings | None:
+def active_segment(context: WorkflowRunState) -> SegmentSettings | None:
     config = context.get("active_configuration")
     code = context.get("segment_code")
     if config is None or code is None:
@@ -42,7 +43,7 @@ def active_segment(context: dict[str, Any]) -> SegmentSettings | None:
 
 
 def effective_max_feedback_iterations(
-    workflow: WorkflowExecutionRecord, context: dict[str, Any]
+    workflow: WorkflowExecutionRecord, context: WorkflowRunState
 ) -> int:
     segment = active_segment(context)
     if segment is not None:
@@ -51,7 +52,7 @@ def effective_max_feedback_iterations(
 
 
 def effective_max_detector_feedback_iterations(
-    workflow: WorkflowExecutionRecord, context: dict[str, Any]
+    workflow: WorkflowExecutionRecord, context: WorkflowRunState
 ) -> int:
     segment = active_segment(context)
     if segment is not None:
@@ -60,7 +61,7 @@ def effective_max_detector_feedback_iterations(
 
 
 def needs_classification_feedback(
-    context: dict[str, Any], max_feedback_iterations: int
+    context: WorkflowRunState, max_feedback_iterations: int
 ) -> bool:
     adversarial: AdversarialReviewAlertOutput | None = context.get("adversarial")
     return bool(
@@ -71,7 +72,7 @@ def needs_classification_feedback(
 
 
 def needs_detector_feedback(
-    context: dict[str, Any], max_feedback_iterations: int
+    context: WorkflowRunState, max_feedback_iterations: int
 ) -> bool:
     detector_adversarial: AdversarialReviewAlertOutput | None = context.get(
         "detector_adversarial"
@@ -90,7 +91,7 @@ def output_as_dict(output: Any) -> Any:
     return output
 
 
-def context_steps_snapshot(context: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def context_steps_snapshot(context: WorkflowRunState) -> dict[str, dict[str, Any]]:
     snapshot: dict[str, dict[str, Any]] = {}
     for step_name in DOCUMENTED_STEPS:
         output = context.get(step_name)
@@ -100,7 +101,7 @@ def context_steps_snapshot(context: dict[str, Any]) -> dict[str, dict[str, Any]]
     return snapshot
 
 
-def step_input(context: dict[str, Any]) -> dict[str, Any]:
+def step_input(context: WorkflowRunState) -> dict[str, Any]:
     return {
         "alert_id": context["alert_id"],
         "classification_attempt": context.get("classification_attempt", 1),
