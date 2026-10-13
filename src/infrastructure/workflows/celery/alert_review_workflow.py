@@ -132,8 +132,8 @@ from src.infrastructure.workflows.celery.research_adapters import (
     HeuristicHistoryResearchPlanner,
     WorkflowVectorStoreRetriever,
 )
+from src.infrastructure.workflows.celery.history_pandas_research import HistoryPandasResearchAgent
 from src.application.use_cases.research.delegated_research import (
-    HistoryPandasResearchAgent,
     ResearchDelegationCoordinator,
     TimeBoundedResearchAgent,
     VectorStoreResearchAgent,

@@ -5,7 +5,7 @@ from io import BytesIO
 import openpyxl
 import pytest
 
-from src.application.use_cases.analyst_capacity.workbook_parsing import (
+from src.infrastructure.entrypoint.worker.analyst_capacity_workbook import (
     parse_analyst_capacity_workbook,
 )
 

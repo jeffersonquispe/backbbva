@@ -16,8 +16,8 @@ from src.application.ports.monitoring_port import (
     MonitoringSpan,
     ResearchCallOutcome,
 )
+from src.infrastructure.workflows.celery.history_pandas_research import HistoryPandasResearchAgent
 from src.application.use_cases.research.delegated_research import (
-    HistoryPandasResearchAgent,
     ResearchDelegationCoordinator,
     TimeBoundedResearchAgent,
     VectorStoreResearchAgent,

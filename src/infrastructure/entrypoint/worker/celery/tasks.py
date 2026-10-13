@@ -476,7 +476,7 @@ def parse_analyst_capacity_workbook_task(content_b64: str) -> dict:
     # (CeleryAnalystCapacityImportDispatcher imports this module just to
     # call .delay()), which never actually parses a workbook and doesn't
     # carry openpyxl in its own deps.
-    from src.application.use_cases.analyst_capacity.workbook_parsing import (
+    from src.infrastructure.entrypoint.worker.analyst_capacity_workbook import (
         parse_analyst_capacity_workbook,
     )
 
