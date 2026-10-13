@@ -130,7 +130,7 @@ Ruta crítica: D1/D3/D8 → C1 → C4 → R3 → R4 → A2 → F2.
 - Listo cuando: tests de rangos que cruzan medianoche, fin de mes, fin de año y el límite de 90 días.
 
 **A2 — Endpoints de métricas** · L · depende de A1, R3
-- Qué: `GET /metrics/overview`, `GET /metrics/agent`, `GET /metrics/technical` (`from`, `to`, `segment`, `channel`, `subchannel`, `amount_tier`, `status`, `configuration_id`, `resolution_method`). Un use case por endpoint; schemas en `schemas.py`; permisos `dashboard` / `monitor`. La respuesta trae valores, perfil 0–23 h, maduración por periodo y aviso si el rango cruza un cambio de rangos de monto.
+- Qué: `GET /metrics/overview`, `GET /metrics/agent`, `GET /metrics/technical` (`from`, `to`, `segment`, `channel`, `subchannel`, `amount_tier`, `status`, `configuration_id`, `resolution_method`). Un use case por endpoint; schemas en `api/schemas/` (paquete por dominio); permisos `dashboard` / `monitor`. La respuesta trae valores, perfil 0–23 h, maduración por periodo y aviso si el rango cruza un cambio de rangos de monto.
 - Listo cuando: los números coinciden con un recálculo directo sobre las fotos (Q4).
 
 **A3 — Histórico y revisión** · M · depende de R5, C5

@@ -15,10 +15,12 @@ from src.infrastructure.entrypoint.api.factories.analyst_capacity_factory import
     get_get_analyst_capacity_import_use_case,
     get_upload_analyst_capacity_import_use_case,
 )
+from src.application.ports.analyst_capacity_import_port import (
+    AnalystCapacityImportStatus,
+)
 from src.infrastructure.entrypoint.api.schemas import (
     AnalystCapacityImportProfileSchema,
     AnalystCapacityImportResponse,
-    AnalystCapacityImportStatus,
     UploadAnalystCapacityImportResponse,
 )
 
