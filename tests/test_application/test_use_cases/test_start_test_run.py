@@ -450,12 +450,23 @@ def test_start_test_run_pins_draft_schema_version_on_each_workflow() -> None:
 @pytest.mark.parametrize("explicit", [True, False])
 def test_start_freezes_and_records_resolved_configuration(explicit: bool) -> None:
     from types import SimpleNamespace
-    from unittest.mock import Mock
 
-    configurations = Mock()
     record = SimpleNamespace(configuration_id="cfg", version=3)
-    configurations.get.return_value = record
-    configurations.get_active.return_value = record
+
+    class RecordingConfigurationRepository:
+        def __init__(self) -> None:
+            self.marked_tested: list[tuple[str, int]] = []
+
+        def get(self, configuration_id: str, version: int):
+            return record
+
+        def get_active(self):
+            return record
+
+        def mark_tested(self, configuration_id: str, version: int) -> None:
+            self.marked_tested.append((configuration_id, version))
+
+    configurations = RecordingConfigurationRepository()
     runs = InMemoryTestRunRepository()
     use_case = StartTestRunUseCase(
         dataset_repository=InMemoryDatasetRepository({"sample": []}),
@@ -470,5 +481,5 @@ def test_start_freezes_and_records_resolved_configuration(explicit: bool) -> Non
         name="Freeze", dataset_name="sample",
         config=TestRunConfig(configuration_ref=ConfigurationRef("cfg", 3) if explicit else None),
     ))
-    configurations.mark_tested.assert_called_once_with("cfg", 3)
+    assert configurations.marked_tested == [("cfg", 3)]
     assert runs.get(output.test_run_id).config.configuration_ref == ConfigurationRef("cfg", 3)

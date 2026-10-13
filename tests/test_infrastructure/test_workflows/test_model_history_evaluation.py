@@ -88,22 +88,43 @@ def test_target_leakage_and_empty_classes_rejected():
 
 def test_workflow_persists_bundle_and_report():
     from io import BytesIO
-    from unittest.mock import Mock
     import joblib
     from src.infrastructure.workflows.celery.model_training import run_model_training
     rows, record = rows_and_record()
-    models = Mock()
-    models.get.return_value = record
-    datasets = Mock()
-    datasets.get_rows.return_value = rows
-    operations = Mock()
-    storage = Mock()
+
+    class FakeModels:
+        def get(self, model_id):
+            return record
+
+        def update(self, model):
+            pass
+
+    class FakeDatasets:
+        def get_rows(self, dataset_name):
+            return rows
+
+    class RecordingOperations:
+        def __init__(self):
+            self.updates = []
+
+        def update(self, *args, **kwargs):
+            self.updates.append(kwargs)
+
+    class RecordingStorage:
+        def __init__(self):
+            self.puts = []
+
+        def put_bytes(self, *args, **kwargs):
+            self.puts.append(kwargs)
+
+    models, datasets = FakeModels(), FakeDatasets()
+    operations, storage = RecordingOperations(), RecordingStorage()
     result = run_model_training(str(record.id), str(uuid4()), model_repository=models,
                                 async_operation_repository=operations, dataset_repository=datasets,
                                 model_object_storage=storage)
-    artifact = joblib.load(BytesIO(storage.put_bytes.call_args.kwargs["content"]))
+    artifact = joblib.load(BytesIO(storage.puts[-1]["content"]))
     assert result["status"] == "ok"
     assert record.status == ModelStatus.READY
     assert record.training_report == artifact["training_report"]
     assert record.historical_features == artifact["historical_features"]
-    assert operations.update.call_args.kwargs["status"] == "SUCCEEDED"
+    assert operations.updates[-1]["status"] == "SUCCEEDED"
