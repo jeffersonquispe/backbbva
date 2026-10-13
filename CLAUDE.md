@@ -72,8 +72,9 @@ for the template.
   two run as separate poetry projects, see below). Same rules as the API:
   `@lru_cache` singleton functions for stateless adapters, plain functions
   returning a fresh use case per call. `alert_review_workflow.py` (the
-  workflow runner) is the only consumer today; it must not construct
-  adapters or use cases inline.
+  workflow runner) and `entrypoint/worker/celery/tasks.py` consume them; neither
+  may construct adapters or use cases inline (enforced by
+  `tests/test_architecture/`, run `make test-architecture`).
   This is also why `monitoring/` and `llm/` factories live directly under
   `infrastructure/`, not under `entrypoint/api/factories/`: both the API and
   the worker need to import them without pulling in FastAPI.
