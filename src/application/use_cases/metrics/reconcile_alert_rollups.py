@@ -35,7 +35,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 from src.application.dtos.metrics_maintenance_dtos import (
@@ -43,6 +43,7 @@ from src.application.dtos.metrics_maintenance_dtos import (
     ReconcileAlertRollupsOutput,
 )
 from src.application.ports.alert_port import AlertRepository
+from src.application.ports.clock_port import Clock
 from src.application.ports.metrics_rollup_port import (
     DAY_LEVEL_RETENTION_DAYS,
     MetricsDataType,
@@ -52,6 +53,7 @@ from src.application.ports.metrics_rollup_port import (
     RollupRow,
 )
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.metrics.alert_rollup_contribution import contribution
 from src.application.use_cases.metrics.backfill_alert_metrics import (
     BackfillAlertMetrics,
@@ -107,7 +109,7 @@ class ReconcileAlertRollups:
         monitoring: MonitoringPort,
         timezone_name: str,
         backfill: BackfillAlertMetrics | None = None,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
         settle_seconds: float = 5.0,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
@@ -116,7 +118,7 @@ class ReconcileAlertRollups:
         self._monitoring = monitoring
         self._zone = ZoneInfo(timezone_name)
         self._backfill = backfill
-        self._clock = clock
+        self._clock = resolve_clock(clock)
         self._settle_seconds = settle_seconds
         self._sleep = sleep
 
@@ -125,7 +127,7 @@ class ReconcileAlertRollups:
     ) -> ReconcileAlertRollupsOutput:
         input = input or ReconcileAlertRollupsInput()
         output = ReconcileAlertRollupsOutput()
-        today = self._clock().astimezone(self._zone).date()
+        today = self._clock.now().astimezone(self._zone).date()
         day_window = {
             today - timedelta(days=age)
             for age in range(min(input.day_window, DAY_LEVEL_RETENTION_DAYS))

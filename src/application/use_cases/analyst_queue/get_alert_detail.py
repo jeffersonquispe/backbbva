@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.dtos.analyst_queue_dtos import AlertDetail
 from src.application.ports.alert_port import AlertRepository
+from src.application.ports.clock_port import Clock
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservationRepository,
@@ -14,6 +13,7 @@ from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
     WorkflowStepExecutionRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.analyst_queue.analyst_reservations import (
     active_reservation_for_alert,
 )
@@ -31,13 +31,13 @@ class GetAlertDetailUseCase:
         reservation_repository: ResourceReservationRepository,
         workflow_repository: WorkflowExecutionRepository,
         step_repository: WorkflowStepExecutionRepository,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
     ) -> None:
         self._alerts = alert_repository
         self._reservations = reservation_repository
         self._workflows = workflow_repository
         self._steps = step_repository
-        self._clock = clock
+        self._clock = resolve_clock(clock)
 
     def execute(self, alert_id: UUID) -> AlertDetail:
         alert = self._alerts.get(alert_id)
@@ -54,7 +54,7 @@ class GetAlertDetailUseCase:
                 self._reservations,
                 ReservedResource.ANALYST,
                 str(alert.id),
-                self._clock(),
+                self._clock.now(),
             ),
             workflow=workflow,
             steps=(

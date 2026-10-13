@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import UUID
 
+from src.application.ports.clock_port import Clock
 from src.application.ports.simulation_dispatcher_port import SimulationDispatcher
 from src.application.ports.simulation_scenario_port import (
     ScenarioStatus,
     SimulationScenarioRecord,
     SimulationScenarioRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 
 
 class StartSimulationUseCase:
@@ -21,9 +22,11 @@ class StartSimulationUseCase:
         self,
         scenario_repository: SimulationScenarioRepository,
         dispatcher: SimulationDispatcher,
+        clock: Clock | None = None,
     ) -> None:
         self._scenarios = scenario_repository
         self._dispatcher = dispatcher
+        self._clock = resolve_clock(clock)
 
     def execute(self, scenario_id: UUID) -> SimulationScenarioRecord:
         scenario = self._scenarios.get(scenario_id)
@@ -37,7 +40,7 @@ class StartSimulationUseCase:
         updated = self._scenarios.update(
             scenario_id,
             status=ScenarioStatus.RUNNING,
-            started_at=scenario.started_at or datetime.now(UTC),
+            started_at=scenario.started_at or self._clock.now(),
             error=None,
         )
         self._dispatcher.dispatch(scenario_id)

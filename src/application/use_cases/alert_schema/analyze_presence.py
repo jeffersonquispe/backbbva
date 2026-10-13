@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 from collections import Counter
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from numbers import Number
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -20,7 +20,9 @@ from src.application.ports.alert_schema_port import (
     AlertSchemaRepository,
     AlertSchemaUnknownLocation,
 )
+from src.application.ports.clock_port import Clock
 from src.application.ports.object_storage_port import ObjectStoragePort
+from src.application.runtime_defaults import resolve_clock
 from src.domain.alerts.entities import (
     AlertRecord,
 )
@@ -37,18 +39,22 @@ class AnalyzeAlertSchemaPresenceUseCase:
         object_storage: ObjectStoragePort | None = None,
         *,
         timezone_name: str = "America/Bogota",
+        clock: Clock | None = None,
     ) -> None:
         self._alerts = alerts
         self._schemas = schemas
         self._reports = reports
         self._object_storage = object_storage
         self._timezone = ZoneInfo(timezone_name)
+        self._clock = resolve_clock(clock)
 
     def execute(
         self, report_day: date | None = None
     ) -> AlertSchemaPresenceReport | None:
         if report_day is None:
-            report_day = datetime.now(self._timezone).date() - timedelta(days=1)
+            report_day = self._clock.now().astimezone(
+                self._timezone
+            ).date() - timedelta(days=1)
         schema = self._schemas.get_active()
         if schema is None:
             return None
@@ -90,7 +96,7 @@ class AnalyzeAlertSchemaPresenceUseCase:
                 )
             )
 
-        generated_at = datetime.now(UTC)
+        generated_at = self._clock.now()
         report = AlertSchemaPresenceReport(
             report_day=report_day,
             generated_at=generated_at,

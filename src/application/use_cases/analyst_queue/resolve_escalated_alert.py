@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 from src.application.dtos.alert_metrics_dtos import (
@@ -17,11 +16,13 @@ from src.application.ports.alert_action_dispatcher_port import AlertActionDispat
 from src.application.ports.alert_port import (
     AlertRepository,
 )
+from src.application.ports.clock_port import Clock
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservation,
     ResourceReservationRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.analyst_queue.analyst_reservations import (
     active_reservation_for_alert,
 )
@@ -47,19 +48,19 @@ class ResolveEscalatedAlertUseCase:
         alert_repository: AlertRepository,
         reservation_repository: ResourceReservationRepository,
         action_dispatcher: AlertActionDispatcher,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
         metrics_recorder: RecordAlertMetricsEvent | None = None,
     ) -> None:
         self._alerts = alert_repository
         self._reservations = reservation_repository
         self._actions = action_dispatcher
-        self._clock = clock
+        self._clock = resolve_clock(clock)
         self._metrics = metrics_recorder
 
     def execute(self, input: ResolveEscalatedAlertInput) -> ResourceReservation:
         if input.decision not in VALID_ANALYST_RESOLUTIONS:
             raise ValueError(f"Unsupported resolution: {input.decision}")
-        now = self._clock()
+        now = self._clock.now()
         reservation = active_reservation_for_alert(
             self._reservations, ReservedResource.ANALYST, input.alert_id, now
         )

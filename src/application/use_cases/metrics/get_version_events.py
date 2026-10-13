@@ -3,8 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from src.application.ports.alert_schema_port import AlertSchemaRepository
+from src.application.ports.clock_port import Clock
 from src.application.ports.configuration_port import ConfigurationRepository
 from src.application.ports.version_events_port import VersionEvent
+from src.application.runtime_defaults import resolve_clock
 
 
 class GetVersionEvents:
@@ -12,14 +14,16 @@ class GetVersionEvents:
         self,
         schema_repository: AlertSchemaRepository,
         configuration_repository: ConfigurationRepository,
+        clock: Clock | None = None,
     ) -> None:
         self._schemas = schema_repository
         self._configurations = configuration_repository
+        self._clock = resolve_clock(clock)
 
     def execute(
         self, from_: datetime | None = None, to: datetime | None = None
     ) -> list[VersionEvent]:
-        end = to or datetime.now(UTC)
+        end = to or self._clock.now()
         start = from_ or end - timedelta(days=1)
         if start.tzinfo is None:
             start = start.replace(tzinfo=UTC)

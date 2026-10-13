@@ -27,8 +27,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -44,6 +42,7 @@ from src.application.ports.alert_reasoning_evaluation_port import (
     AlertReasoningEvaluationRepository,
     ReasoningEvaluationStatus,
 )
+from src.application.ports.clock_port import Clock
 from src.application.ports.llm_unit_of_work_port import (
     LLMMessage,
     LLMMessageRole,
@@ -58,6 +57,7 @@ from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
     WorkflowStepExecutionRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.metrics.technical_rollup_contribution import (
     evaluation_contribution,
     technical_alert_dimensions,
@@ -134,7 +134,7 @@ class EvaluateAlertReasoning:
         evaluation_repository: AlertReasoningEvaluationRepository,
         rollup_repository: MetricsRollupRepository,
         timezone_name: str,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
     ) -> None:
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
@@ -145,7 +145,7 @@ class EvaluateAlertReasoning:
         self._evaluations = evaluation_repository
         self._rollups = rollup_repository
         self._timezone_name = timezone_name
-        self._clock = clock
+        self._clock = resolve_clock(clock)
 
     def execute(
         self, input: EvaluateAlertReasoningInput
@@ -172,7 +172,7 @@ class EvaluateAlertReasoning:
             data_use_correct=record.data_use_correct,
         )
         deltas = technical_deltas(
-            [part], alert.created_at, self._clock(), self._timezone_name
+            [part], alert.created_at, self._clock.now(), self._timezone_name
         )
         return self._rollups.apply_once(
             deltas, RollupApplyMarker(scope=MARKER_SCOPE, key=str(record.alert_id))
@@ -251,7 +251,7 @@ class EvaluateAlertReasoning:
             data_use_correct=data_use_correct,
             rationale=rationale,
             judge_model=result.model or self._model,
-            evaluated_at=self._clock(),
+            evaluated_at=self._clock.now(),
             input_tokens=result.input_tokens or 0,
             output_tokens=result.output_tokens or 0,
         )

@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
 
 from src.application.errors import NotFoundError
+from src.application.ports.clock_port import Clock
 from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
     VectorStoreInstance,
     VectorStoreInstanceAsset,
     VectorStoreInstanceRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 
 
 class VectorStoreInstanceNotFoundError(NotFoundError):
@@ -17,8 +18,11 @@ class VectorStoreInstanceNotFoundError(NotFoundError):
 
 
 class UpdateVectorStoreInstanceUseCase:
-    def __init__(self, repository: VectorStoreInstanceRepository) -> None:
+    def __init__(
+        self, repository: VectorStoreInstanceRepository, clock: Clock | None = None
+    ) -> None:
         self._repository = repository
+        self._clock = resolve_clock(clock)
 
     def execute(
         self, instance_id: str, *, name: str | None, description: str | None, actor: str
@@ -35,7 +39,7 @@ class UpdateVectorStoreInstanceUseCase:
                 description=description
                 if description is not None
                 else current.description,
-                updated_at=datetime.now(UTC),
+                updated_at=self._clock.now(),
                 updated_by=actor,
             )
         )
@@ -44,8 +48,11 @@ class UpdateVectorStoreInstanceUseCase:
 class AddVectorStoreDocumentUseCase:
     """Creates only the instance-to-document relation, never an embedding."""
 
-    def __init__(self, repository: VectorStoreInstanceRepository) -> None:
+    def __init__(
+        self, repository: VectorStoreInstanceRepository, clock: Clock | None = None
+    ) -> None:
         self._repository = repository
+        self._clock = resolve_clock(clock)
 
     def execute(
         self,
@@ -70,14 +77,17 @@ class AddVectorStoreDocumentUseCase:
             )
         )
         self._repository.update(
-            replace(instance, updated_at=datetime.now(UTC), updated_by=actor)
+            replace(instance, updated_at=self._clock.now(), updated_by=actor)
         )
         return asset
 
 
 class RemoveVectorStoreDocumentUseCase:
-    def __init__(self, repository: VectorStoreInstanceRepository) -> None:
+    def __init__(
+        self, repository: VectorStoreInstanceRepository, clock: Clock | None = None
+    ) -> None:
         self._repository = repository
+        self._clock = resolve_clock(clock)
 
     def execute(self, instance_id: str, relation_id: str, *, actor: str) -> None:
         instance = self._repository.get(instance_id)
@@ -87,5 +97,5 @@ class RemoveVectorStoreDocumentUseCase:
             )
         self._repository.remove_asset(instance_id, relation_id)
         self._repository.update(
-            replace(instance, updated_at=datetime.now(UTC), updated_by=actor)
+            replace(instance, updated_at=self._clock.now(), updated_by=actor)
         )

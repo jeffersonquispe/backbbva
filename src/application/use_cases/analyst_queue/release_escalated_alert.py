@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime
-
+from src.application.ports.clock_port import Clock
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservation,
     ResourceReservationRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.analyst_queue.analyst_reservations import (
     active_reservation_for_alert,
 )
@@ -21,13 +20,13 @@ class ReleaseEscalatedAlertUseCase:
     def __init__(
         self,
         reservation_repository: ResourceReservationRepository,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
     ) -> None:
         self._reservations = reservation_repository
-        self._clock = clock
+        self._clock = resolve_clock(clock)
 
     def execute(self, alert_id: str, analyst_id: str) -> ResourceReservation:
-        now = self._clock()
+        now = self._clock.now()
         reservation = active_reservation_for_alert(
             self._reservations, ReservedResource.ANALYST, alert_id, now
         )

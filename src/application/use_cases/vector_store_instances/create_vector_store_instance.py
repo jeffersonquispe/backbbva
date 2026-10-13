@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from src.application.errors import ConflictError
+from src.application.ports.clock_port import Clock
 from src.application.ports.vector_store_instance_port import (
     VectorStoreInstance,
     VectorStoreInstanceAsset,
     VectorStoreInstanceRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 
 
 class DuplicateVectorStoreInstanceNameError(ConflictError):
@@ -15,8 +15,11 @@ class DuplicateVectorStoreInstanceNameError(ConflictError):
 
 
 class CreateVectorStoreInstanceUseCase:
-    def __init__(self, repository: VectorStoreInstanceRepository) -> None:
+    def __init__(
+        self, repository: VectorStoreInstanceRepository, clock: Clock | None = None
+    ) -> None:
         self._repository = repository
+        self._clock = resolve_clock(clock)
 
     def execute(
         self,
@@ -44,7 +47,7 @@ class CreateVectorStoreInstanceUseCase:
             version=version,
             name=name.strip(),
             description=description,
-            created_at=datetime.now(UTC),
+            created_at=self._clock.now(),
             created_by=created_by,
         )
         normalized = [

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from src.application.ports.clock_port import Clock
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
 )
@@ -16,6 +16,7 @@ from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservationRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.domain.configurations.entities import (
     AnalystCapacity,
 )
@@ -60,16 +61,16 @@ class LiveOperationsCapacity(OperationsCapacityPort):
         reservation_repository: ResourceReservationRepository,
         static_capacity: OperationsCapacityPort,
         timezone_name: str,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
     ) -> None:
         self._settings = settings_repository
         self._reservations = reservation_repository
         self._static = static_capacity
         self._timezone = ZoneInfo(timezone_name)
-        self._clock = clock
+        self._clock = resolve_clock(clock)
 
     def get_capacity(self) -> OperationsCapacityRecord:
-        now = self._clock()
+        now = self._clock.now()
         settings = self._settings.get()
         analysts = _channel(
             settings.analyst_enabled,

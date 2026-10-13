@@ -15,8 +15,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-from collections.abc import Callable
-from datetime import UTC, date, datetime, timedelta, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from zoneinfo import ZoneInfo
 
 from src.application.dtos.alert_history_dtos import (
@@ -29,6 +28,8 @@ from src.application.ports.alert_port import (
     AlertRepository,
 )
 from src.application.ports.alert_schema_port import AlertSchemaRepository
+from src.application.ports.clock_port import Clock
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.metrics.metrics_filters import (
     normalize_filters,
     snapshot_matches,
@@ -105,16 +106,16 @@ class ListAlertHistory:
         alert_repository: AlertRepository,
         timezone_name: str,
         schema_repository: AlertSchemaRepository | None = None,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
     ) -> None:
         self._alerts = alert_repository
         self._schemas = schema_repository
         self._zone: tzinfo = ZoneInfo(timezone_name)
-        self._clock = clock
+        self._clock = resolve_clock(clock)
 
     def execute(self, input: ListAlertHistoryInput) -> ListAlertHistoryOutput:
         """Raises ValueError (bad range / filter) or InvalidHistoryCursorError."""
-        to = input.to or self._clock()
+        to = input.to or self._clock.now()
         from_ = input.from_ or (to - DEFAULT_RANGE)
         for name, value in (("from", from_), ("to", to)):
             if value.tzinfo is None:

@@ -17,13 +17,12 @@ Feeds the "stuck queue", "no capacity" and "dead man's switch" alert rules:
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from src.application.ports.alert_port import (
     AlertRepository,
 )
+from src.application.ports.clock_port import Clock
 from src.application.ports.monitoring_port import (
     MonitoringPort,
     OperationalStateSnapshot,
@@ -32,6 +31,7 @@ from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
 )
 from src.application.ports.operations_capacity_port import OperationsCapacityPort
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.operations.live_operations_capacity import (
     analysts_scheduled,
 )
@@ -48,17 +48,17 @@ class RecordOperationalState:
         operations_capacity: OperationsCapacityPort,
         monitoring: MonitoringPort,
         timezone_name: str,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
     ) -> None:
         self._settings = settings_repository
         self._alerts = alert_repository
         self._capacity = operations_capacity
         self._monitoring = monitoring
         self._timezone = ZoneInfo(timezone_name)
-        self._clock = clock
+        self._clock = resolve_clock(clock)
 
     def execute(self) -> OperationalStateSnapshot:
-        now = self._clock()
+        now = self._clock.now()
         settings = self._settings.get()
         depth = self._alerts.count_by_status(AlertStatus.ESCALATED)
         oldest_age = 0.0

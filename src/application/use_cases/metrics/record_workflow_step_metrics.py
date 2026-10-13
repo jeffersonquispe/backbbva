@@ -24,19 +24,18 @@ step_name / model / source."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime
-
 from src.application.dtos.technical_metrics_dtos import (
     RecordWorkflowStepMetricsInput,
     RecordWorkflowStepMetricsOutput,
 )
 from src.application.ports.alert_port import AlertRepository
+from src.application.ports.clock_port import Clock
 from src.application.ports.metrics_rollup_port import (
     MetricsRollupRepository,
     RollupApplyMarker,
 )
 from src.application.ports.workflow_port import WorkflowStepExecutionRepository
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.metrics.technical_rollup_contribution import (
     is_finished,
     step_contributions,
@@ -54,13 +53,13 @@ class RecordWorkflowStepMetrics:
         step_repository: WorkflowStepExecutionRepository,
         rollup_repository: MetricsRollupRepository,
         timezone_name: str,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
     ) -> None:
         self._alerts = alert_repository
         self._steps = step_repository
         self._rollups = rollup_repository
         self._timezone_name = timezone_name
-        self._clock = clock
+        self._clock = resolve_clock(clock)
 
     def execute(
         self, input: RecordWorkflowStepMetricsInput
@@ -91,7 +90,7 @@ class RecordWorkflowStepMetrics:
                 model=input.step_models.get(step.step_name),
             )
             deltas = technical_deltas(
-                parts, alert.created_at, self._clock(), self._timezone_name
+                parts, alert.created_at, self._clock.now(), self._timezone_name
             )
             applied = self._rollups.apply_once(
                 deltas, RollupApplyMarker(scope=MARKER_SCOPE, key=str(step.id))

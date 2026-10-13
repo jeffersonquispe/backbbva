@@ -12,8 +12,7 @@ retry) is a no-op: no write, no delta - so nothing is ever counted twice."""
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -25,6 +24,7 @@ from src.application.ports.alert_port import (
     AlertRepository,
 )
 from src.application.ports.alert_schema_port import AlertSchemaRepository
+from src.application.ports.clock_port import Clock
 from src.application.ports.metrics_rollup_port import (
     AlertSnapshotGuard,
     MetricsRollupRepository,
@@ -38,6 +38,7 @@ from src.application.ports.monitoring_port import (
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.metrics.alert_mark_mapping import (
     analyst_resolution,
     voicebot_outcome_mark,
@@ -95,7 +96,7 @@ class RecordAlertMetricsEvent:
         settings_repository: OperationalSettingsRepository,
         timezone_name: str,
         schema_repository: AlertSchemaRepository | None = None,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
         monitoring: MonitoringPort | None = None,
     ) -> None:
         self._alerts = alert_repository
@@ -103,7 +104,7 @@ class RecordAlertMetricsEvent:
         self._settings = settings_repository
         self._schemas = schema_repository
         self._timezone_name = timezone_name
-        self._clock = clock
+        self._clock = resolve_clock(clock)
         # T2: emits the dedicated "alert.mark_set" span. Optional so the
         # pure-metrics callers/tests can omit it.
         self._monitoring = monitoring
@@ -114,7 +115,7 @@ class RecordAlertMetricsEvent:
         """The stored snapshot after the event, or None if the alert does
         not exist. Raises SnapshotVersionConflictError after MAX_ATTEMPTS
         lost races."""
-        occurred_at = input.occurred_at or self._clock()
+        occurred_at = input.occurred_at or self._clock.now()
         for attempt in range(1, MAX_ATTEMPTS + 1):
             alert = self._alerts.get(input.alert_id)
             if alert is None:
@@ -128,7 +129,7 @@ class RecordAlertMetricsEvent:
                 return current
             new = dataclasses.replace(proposed, snapshot_version=current_version + 1)
             deltas = diff(
-                current, new, alert.created_at, self._clock(), self._timezone_name
+                current, new, alert.created_at, self._clock.now(), self._timezone_name
             )
             try:
                 self._rollups.apply(
@@ -196,7 +197,9 @@ class RecordAlertMetricsEvent:
         if snapshot is None:
             snapshot = self._arrival_snapshot(alert)
         new = dataclasses.replace(snapshot, snapshot_version=1)
-        deltas = diff(None, new, alert.created_at, self._clock(), self._timezone_name)
+        deltas = diff(
+            None, new, alert.created_at, self._clock.now(), self._timezone_name
+        )
         try:
             self._rollups.apply(
                 deltas,

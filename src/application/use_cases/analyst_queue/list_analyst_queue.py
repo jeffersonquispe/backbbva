@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime
-
 from src.application.dtos.analyst_queue_dtos import AnalystQueueItem
 from src.application.ports.alert_port import (
     AlertRepository,
 )
+from src.application.ports.clock_port import Clock
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservationRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.domain.alerts.entities import (
     AlertStatus,
 )
@@ -24,14 +23,14 @@ class ListAnalystQueueUseCase:
         self,
         alert_repository: AlertRepository,
         reservation_repository: ResourceReservationRepository,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
     ) -> None:
         self._alerts = alert_repository
         self._reservations = reservation_repository
-        self._clock = clock
+        self._clock = resolve_clock(clock)
 
     def execute(self) -> list[AnalystQueueItem]:
-        now = self._clock()
+        now = self._clock.now()
         held = {
             reservation.alert_id: reservation
             for reservation in self._reservations.list_active(

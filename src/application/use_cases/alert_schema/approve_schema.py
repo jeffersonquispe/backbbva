@@ -1,5 +1,3 @@
-from datetime import UTC, datetime
-
 from src.application.dtos.alert_schema_dtos import ApproveAlertSchemaInput
 from src.application.errors import ForbiddenError, ValidationError
 from src.application.ports.alert_schema_port import (
@@ -7,6 +5,8 @@ from src.application.ports.alert_schema_port import (
     AlertSchemaStatus,
     AlertSchemaVersion,
 )
+from src.application.ports.clock_port import Clock
+from src.application.runtime_defaults import resolve_clock
 
 
 class SelfApprovalError(ForbiddenError):
@@ -18,8 +18,11 @@ class ImpactAcknowledgementRequired(ValidationError):
 
 
 class ApproveAlertSchemaUseCase:
-    def __init__(self, repository: AlertSchemaRepository) -> None:
+    def __init__(
+        self, repository: AlertSchemaRepository, clock: Clock | None = None
+    ) -> None:
         self._repository = repository
+        self._clock = resolve_clock(clock)
 
     def execute(self, input: ApproveAlertSchemaInput) -> AlertSchemaVersion:
         schema = self._repository.get(input.version)
@@ -39,7 +42,7 @@ class ApproveAlertSchemaUseCase:
                 **schema.__dict__,
                 "status": AlertSchemaStatus.ACTIVE,
                 "approved_by": input.approver_id,
-                "approved_at": datetime.now(UTC),
+                "approved_at": self._clock.now(),
                 "impact_acknowledged": bool(schema.impact)
                 and input.impact_acknowledged,
             }

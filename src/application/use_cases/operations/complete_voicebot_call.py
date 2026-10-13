@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -10,11 +9,13 @@ from src.application.dtos.alert_metrics_dtos import (
     AlertMetricsEventType,
     RecordAlertMetricsEventInput,
 )
+from src.application.ports.clock_port import Clock
 from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservation,
     ResourceReservationRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.analyst_queue.analyst_reservations import (
     active_reservation_for_alert,
 )
@@ -35,17 +36,17 @@ class CompleteVoicebotCallUseCase:
     def __init__(
         self,
         reservation_repository: ResourceReservationRepository,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
         metrics_recorder: RecordAlertMetricsEvent | None = None,
     ) -> None:
         self._reservations = reservation_repository
-        self._clock = clock
+        self._clock = resolve_clock(clock)
         self._metrics = metrics_recorder
 
     def execute(
         self, alert_id: str, outcome: str, detail: dict[str, Any] | None = None
     ) -> ResourceReservation:
-        now = self._clock()
+        now = self._clock.now()
         reservation = active_reservation_for_alert(
             self._reservations, ReservedResource.VOICEBOT, alert_id, now
         )

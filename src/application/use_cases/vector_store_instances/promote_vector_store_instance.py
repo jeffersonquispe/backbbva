@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.errors import ValidationError
+from src.application.ports.clock_port import Clock
 from src.application.ports.flag_library_port import FlagLibraryRepository
 from src.application.ports.fraud_knowledge_port import DocumentType
 from src.application.ports.fraud_knowledge_repository_port import (
@@ -20,6 +20,7 @@ from src.application.ports.vector_store_instance_port import (
     VectorStoreInstance,
     VectorStoreInstanceRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.flag_library.create_flag_library_entry import (
     embedding_text as flag_embedding_text,
 )
@@ -82,6 +83,7 @@ class PromoteVectorStoreInstanceUseCase:
         ingest_modus_operandi: IngestModusOperandiUseCase,
         ingest_flag: IngestFlagUseCase,
         ingest_similar_case: IngestSimilarCaseUseCase,
+        clock: Clock | None = None,
     ) -> None:
         self._instances = instances
         self._taxonomies = taxonomies
@@ -93,6 +95,7 @@ class PromoteVectorStoreInstanceUseCase:
         self._ingest_modus_operandi = ingest_modus_operandi
         self._ingest_flag = ingest_flag
         self._ingest_similar_case = ingest_similar_case
+        self._clock = resolve_clock(clock)
 
     def execute(self, instance_id: str, *, actor: str) -> VectorStoreInstance:
         instance = self._instances.get(instance_id)
@@ -237,7 +240,7 @@ class PromoteVectorStoreInstanceUseCase:
         promoted = replace(
             instance,
             promoted_version=new_version,
-            promoted_at=datetime.now(UTC),
+            promoted_at=self._clock.now(),
             promoted_by=actor,
         )
         return self._instances.update(promoted)

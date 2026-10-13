@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 
+from src.application.ports.clock_port import Clock
 from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
@@ -14,6 +13,7 @@ from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservationRepository,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.domain.configurations.entities import (
     ResolutionTag,
     ShortageBehavior,
@@ -77,12 +77,12 @@ class RouteAlertResolutionUseCase:
         operations_capacity: OperationsCapacityPort,
         settings_repository: OperationalSettingsRepository,
         reservation_repository: ResourceReservationRepository,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
     ) -> None:
         self._capacity = operations_capacity
         self._settings = settings_repository
         self._reservations = reservation_repository
-        self._clock = clock
+        self._clock = resolve_clock(clock)
 
     def execute(
         self,
@@ -128,7 +128,7 @@ class RouteAlertResolutionUseCase:
         capacity = (
             settings.voicebot_max_concurrent_calls if settings.voicebot_enabled else 0
         )
-        now = self._clock()
+        now = self._clock.now()
         result = self._reservations.try_acquire(
             ReservedResource.VOICEBOT,
             alert_id=alert_id,

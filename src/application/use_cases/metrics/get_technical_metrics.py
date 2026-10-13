@@ -11,8 +11,6 @@ alerts' arrival, the rollups' bucket."""
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable
-from datetime import UTC, datetime
 
 from src.application.dtos.metrics_dtos import (
     HistogramBucket,
@@ -31,6 +29,7 @@ from src.application.dtos.technical_metrics_dtos import (
     TechnicalPeriod,
     WorkflowStepStats,
 )
+from src.application.ports.clock_port import Clock
 from src.application.ports.metrics_rollup_port import (
     UNKNOWN_DIMENSION,
     MetricsDataType,
@@ -38,6 +37,7 @@ from src.application.ports.metrics_rollup_port import (
     RollupLevel,
     RollupRow,
 )
+from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.metrics import technical_rollup_contribution as m
 from src.application.use_cases.metrics.alert_metrics_reader import DEFAULT_RANGE
 from src.application.use_cases.metrics.metrics_filters import normalize_filters
@@ -78,15 +78,15 @@ class GetTechnicalMetrics:
         self,
         rollup_repository: MetricsRollupRepository,
         timezone_name: str,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
     ) -> None:
         self._rollups = rollup_repository
         self._timezone_name = timezone_name
-        self._clock = clock
+        self._clock = resolve_clock(clock)
 
     def execute(self, input: MetricsQueryInput) -> TechnicalMetricsOutput:
         """Raises ValueError for a naive/inverted range or an unknown filter."""
-        now = self._clock()
+        now = self._clock.now()
         to = input.to or now
         from_ = input.from_ or (to - DEFAULT_RANGE)
         filters = normalize_technical_filters(input.filters)
