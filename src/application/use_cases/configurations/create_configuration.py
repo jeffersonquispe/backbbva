@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-import uuid
-from datetime import UTC, datetime
-
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
 from src.application.errors import ConflictError
+from src.application.ports.clock_port import Clock
 from src.application.ports.configuration_port import (
     ConfigurationRepository,
 )
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.test_run_port import TestRunRepository
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
+)
 from src.domain.configurations.entities import (
     ConfigurationRecord,
 )
@@ -23,12 +26,16 @@ class CreateConfigurationUseCase:
         self,
         configuration_repository: ConfigurationRepository,
         test_run_repository: TestRunRepository,
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
     ) -> None:
         self._test_runs = test_run_repository
         self._configurations = configuration_repository
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, input: CreateConfigurationInput) -> ConfigurationRecord:
-        now = datetime.now(UTC)
+        now = self._clock.now()
         overwrite = False
         if input.configuration_id is not None:
             latest = self._configurations.get_latest_version(input.configuration_id)
@@ -67,7 +74,7 @@ class CreateConfigurationUseCase:
                 else (latest.version + 1 if latest is not None else 1)
             )
         else:
-            configuration_id = str(uuid.uuid4())
+            configuration_id = str(self._id_generator.new_id())
             version = 1
 
         record = ConfigurationRecord(

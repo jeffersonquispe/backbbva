@@ -15,6 +15,8 @@ from src.application.use_cases.variable_catalog.list_variables import (
 from src.application.use_cases.variable_catalog.update_variable import (
     UpdateVariableUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.persistence.database.dynamodb.repositories.variable_catalog_repository import (
     DynamoVariableCatalogRepository,
 )
@@ -26,7 +28,11 @@ def get_variable_catalog_repository() -> VariableCatalogRepository:
 
 
 def get_create_variable_use_case() -> CreateVariableUseCase:
-    return CreateVariableUseCase(get_variable_catalog_repository())
+    return CreateVariableUseCase(
+        get_variable_catalog_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
 
 
 def get_list_variables_use_case() -> ListVariablesUseCase:

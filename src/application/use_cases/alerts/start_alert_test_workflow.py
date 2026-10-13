@@ -22,10 +22,16 @@ from src.application.ports.async_operation_port import (
     AsyncOperationRepository,
     AsyncOperationStatus,
 )
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.object_storage_port import ObjectStoragePort
 from src.application.ports.workflow_executor_port import WorkflowExecutor
 from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
+)
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
 )
 from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
 from src.application.use_cases.metrics.record_alert_metrics_event import (
@@ -59,6 +65,8 @@ class StartAlertTestWorkflowUseCase:
         workflow_executor: WorkflowExecutor,
         metrics_recorder: RecordAlertMetricsEvent | None = None,
         object_storage: ObjectStoragePort | None = None,
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
     ) -> None:
         self._alert_repository = alert_repository
         self._async_operation_repository = async_operation_repository
@@ -70,6 +78,8 @@ class StartAlertTestWorkflowUseCase:
             if object_storage is not None
             else None
         )
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(
         self,
@@ -78,8 +88,8 @@ class StartAlertTestWorkflowUseCase:
         payload_size = len(json.dumps(input.payload, default=str).encode("utf-8"))
         if payload_size > MAX_ALERT_PAYLOAD_BYTES:
             raise AlertPayloadTooLargeError(payload_size, MAX_ALERT_PAYLOAD_BYTES)
-        now = datetime.now(UTC)
-        alert_id = uuid.uuid4()
+        now = self._clock.now()
+        alert_id = self._id_generator.new_id()
         raw_ref = (
             self._raw_payloads.store(str(alert_id), input.payload)
             if self._raw_payloads is not None
@@ -88,7 +98,7 @@ class StartAlertTestWorkflowUseCase:
         alert = self._alert_repository.create(
             AlertRecord(
                 id=alert_id,
-                event_id=str(input.payload.get("eventId") or uuid.uuid4()),
+                event_id=str(input.payload.get("eventId") or self._id_generator.new_id()),
                 event_type=str(input.payload.get("eventType") or "unknown"),
                 status=AlertStatus.RECEIVED,
                 customer_id=_optional_str(input.payload.get("customerId")),
@@ -103,7 +113,7 @@ class StartAlertTestWorkflowUseCase:
         self._record_created(alert.id, input, now)
         operation = self._async_operation_repository.create(
             AsyncOperationRecord(
-                id=uuid.uuid4(),
+                id=self._id_generator.new_id(),
                 operation_type=f"workflow.{WORKFLOW_NAME}",
                 status=AsyncOperationStatus.PENDING,
                 payload={
@@ -122,7 +132,7 @@ class StartAlertTestWorkflowUseCase:
         )
         workflow = self._workflow_repository.create(
             WorkflowExecutionRecord(
-                id=uuid.uuid4(),
+                id=self._id_generator.new_id(),
                 alert_id=alert.id,
                 async_operation_id=operation.id,
                 workflow_name=WORKFLOW_NAME,
@@ -155,7 +165,7 @@ class StartAlertTestWorkflowUseCase:
             )
         )
         execution_ref = self._workflow_executor.start(workflow)
-        dispatched_at = datetime.now(UTC)
+        dispatched_at = self._clock.now()
         self._workflow_repository.update(
             workflow.id,
             status=WorkflowStatus.DISPATCHED,

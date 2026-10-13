@@ -11,6 +11,8 @@ from src.application.use_cases.test_runs.get_test_case_detail import (
 from src.application.use_cases.test_runs.get_test_run import GetTestRunUseCase
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
 from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.entrypoint.api.factories.alert_factory import (
     get_alert_repository,
     get_workflow_execution_repository,
@@ -63,6 +65,8 @@ def get_start_test_run_use_case() -> StartTestRunUseCase:
         metrics_recorder=get_record_alert_metrics_event_use_case(),
         schema_repository=DynamoAlertSchemaRepository(),
         object_storage=get_object_storage(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 

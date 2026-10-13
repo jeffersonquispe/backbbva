@@ -20,6 +20,8 @@ from src.application.use_cases.watchlists.remove_watchlist_elements import (
     RemoveWatchlistElementsUseCase,
 )
 from src.application.use_cases.watchlists.update_watchlist import UpdateWatchlistUseCase
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.persistence.database.dynamodb.repositories.watchlist_repository import (
     DynamoWatchlistRepository,
 )
@@ -31,7 +33,9 @@ def get_watchlist_repository() -> WatchlistRepository:
 
 
 def get_create_watchlist_use_case() -> CreateWatchlistUseCase:
-    return CreateWatchlistUseCase(get_watchlist_repository())
+    return CreateWatchlistUseCase(
+        get_watchlist_repository(), clock=get_clock(), id_generator=get_id_generator()
+    )
 
 
 def get_get_watchlist_use_case() -> GetWatchlistUseCase:

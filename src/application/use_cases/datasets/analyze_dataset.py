@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from src.application.ports.clock_port import Clock
+from src.application.runtime_defaults import DEFAULT_CLOCK, resolve_clock
+
+
+
 from datetime import datetime, timezone
 from collections import Counter
 import random
@@ -33,11 +38,14 @@ class AnalyzeDatasetUseCase:
         sample_repository: DatasetSampleRepository,
         summary_repository: DatasetSummaryRepository,
         max_input_bytes: int = 268435456,
+
+        clock: Clock | None = None
     ) -> None:
         self._datasets = dataset_repository
         self._samples = sample_repository
         self._summaries = summary_repository
         self._max_input_bytes = max_input_bytes
+        self._clock = resolve_clock(clock)
 
     def execute(
         self,
@@ -69,7 +77,7 @@ class AnalyzeDatasetUseCase:
                     total_rows=0,
                     field_distributions={},
                     uploaded_at=uploaded_at,
-                    updated_at=datetime.now(timezone.utc),
+                    updated_at=self._clock.now(),
                     error=(
                         f"Dataset is {input_size} bytes; automatic analysis is limited "
                         f"to {self._max_input_bytes} bytes to protect the worker"
@@ -110,7 +118,7 @@ class AnalyzeDatasetUseCase:
                     field_distributions=distributions,
                     available_fields=available_fields,
                     uploaded_at=uploaded_at,
-                    updated_at=datetime.now(timezone.utc),
+                    updated_at=self._clock.now(),
                     origin=origin,
                     source_dataset_names=source_dataset_names,
                     extraction_filter=extraction_filter,
@@ -124,7 +132,7 @@ class AnalyzeDatasetUseCase:
                     total_rows=0,
                     field_distributions={},
                     uploaded_at=uploaded_at,
-                    updated_at=datetime.now(timezone.utc),
+                    updated_at=self._clock.now(),
                     error=str(exc),
                     origin=origin,
                     source_dataset_names=source_dataset_names,
@@ -202,7 +210,7 @@ class AnalyzeDatasetUseCase:
                 total_rows=total_rows,
                 field_distributions={field: dict(counter) for field, counter in counters.items()},
                 available_fields=fields, uploaded_at=uploaded_at,
-                updated_at=datetime.now(timezone.utc), origin=origin,
+                updated_at=self._clock.now(), origin=origin,
                 source_dataset_names=source_dataset_names,
                 extraction_filter=extraction_filter,
             ))
@@ -215,7 +223,7 @@ class AnalyzeDatasetUseCase:
             self._summaries.upsert(DatasetSummaryRecord(
                 dataset_name=dataset_name, status=DatasetAnalysisStatus.FAILED,
                 total_rows=0, field_distributions={}, uploaded_at=uploaded_at,
-                updated_at=datetime.now(timezone.utc), error=str(exc), origin=origin,
+                updated_at=self._clock.now(), error=str(exc), origin=origin,
                 source_dataset_names=source_dataset_names,
                 extraction_filter=extraction_filter,
             ))

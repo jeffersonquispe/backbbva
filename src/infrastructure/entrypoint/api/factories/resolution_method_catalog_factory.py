@@ -14,6 +14,8 @@ from src.application.use_cases.resolution_method_catalog.list_resolution_methods
 from src.application.use_cases.resolution_method_catalog.update_resolution_method import (
     UpdateResolutionMethodUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.persistence.database.dynamodb.repositories.resolution_method_catalog_repository import (
     DynamoResolutionMethodCatalogRepository,
 )
@@ -27,7 +29,11 @@ def get_resolution_method_catalog_repository() -> (
 
 
 def get_create_resolution_method_use_case() -> CreateResolutionMethodUseCase:
-    return CreateResolutionMethodUseCase(get_resolution_method_catalog_repository())
+    return CreateResolutionMethodUseCase(
+        get_resolution_method_catalog_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
 
 
 def get_list_resolution_methods_use_case() -> ListResolutionMethodsUseCase:

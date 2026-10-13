@@ -21,6 +21,8 @@ from src.application.use_cases.fraud_review.upload_fraud_label_review_import imp
     UploadFraudLabelReviewImport,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.entrypoint.api.factories.alert_factory import (
     get_alert_repository,
 )
@@ -65,6 +67,7 @@ def get_list_alert_history_use_case() -> ListAlertHistory:
         alert_repository=get_alert_repository(),
         schema_repository=DynamoAlertSchemaRepository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        clock=get_clock(),
     )
 
 
@@ -74,6 +77,8 @@ def get_review_fraud_label_use_case() -> ReviewFraudLabel:
         review_repository=get_fraud_label_review_repository(),
         record_metrics_event=get_record_alert_metrics_event_use_case(),
         monitoring=get_monitoring(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 

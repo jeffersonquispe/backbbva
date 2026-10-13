@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
 
 from src.application.dtos.alert_dtos import (
     CurateAlertToDatasetInput,
@@ -11,13 +9,19 @@ from src.application.dtos.alert_dtos import (
 from src.application.ports.alert_port import (
     AlertRepository,
 )
+from src.application.ports.clock_port import Clock
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
 from src.application.ports.dataset_analysis_port import DatasetSummaryRepository
 from src.application.ports.dataset_port import DatasetRepository
 from src.application.ports.feedback_port import FeedbackRecord, FeedbackRepository
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.workflow_port import WorkflowExecutionRepository
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
+)
 from src.application.use_cases.datasets.append_dataset_rows import (
     append_rows_and_dispatch,
 )
@@ -48,6 +52,8 @@ class CurateAlertToDatasetUseCase:
         dispatcher: DatasetAnalysisDispatcher,
         feedback_repository: FeedbackRepository,
         workflow_execution_repository: WorkflowExecutionRepository,
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
     ) -> None:
         self._alerts = alert_repository
         self._datasets = dataset_repository
@@ -55,6 +61,8 @@ class CurateAlertToDatasetUseCase:
         self._dispatcher = dispatcher
         self._feedback = feedback_repository
         self._workflow_executions = workflow_execution_repository
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, input: CurateAlertToDatasetInput) -> CurateAlertToDatasetOutput:
         alert = self._alerts.get(input.alert_id)
@@ -71,16 +79,17 @@ class CurateAlertToDatasetUseCase:
             dispatcher=self._dispatcher,
             name=input.dataset_name,
             rows=[row],
+            clock=self._clock,
         )
 
         feedback = FeedbackRecord(
-            id=uuid4(),
+            id=self._id_generator.new_id(),
             configuration_id=configuration_id,
             version=version,
             alert_id=input.alert_id,
             justification=input.justification,
             dataset_name=input.dataset_name,
-            created_at=datetime.now(UTC),
+            created_at=self._clock.now(),
         )
         self._feedback.create(feedback)
 

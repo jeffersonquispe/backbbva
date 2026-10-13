@@ -15,6 +15,8 @@ from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.entrypoint.api.factories.async_operation_factory import (
     get_async_operation_repository,
 )
@@ -72,6 +74,8 @@ def get_start_alert_test_workflow_use_case() -> StartAlertTestWorkflowUseCase:
         workflow_executor=get_workflow_executor(),
         metrics_recorder=get_record_alert_metrics_event_use_case(),
         object_storage=get_object_storage(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 
@@ -92,6 +96,8 @@ def get_curate_alert_to_dataset_use_case() -> CurateAlertToDatasetUseCase:
         dispatcher=get_dataset_analysis_dispatcher(),
         feedback_repository=get_feedback_repository(),
         workflow_execution_repository=get_workflow_execution_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 

@@ -3,9 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -44,6 +42,8 @@ from src.application.ports.async_operation_port import (
     AsyncOperationRepository,
     AsyncOperationStatus,
 )
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.monitoring_port import (
     ATTR_ALERT_ID,
     ATTR_WORKFLOW_ATTEMPT,
@@ -69,6 +69,10 @@ from src.application.ports.workflow_port import (
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
+)
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
 )
 from src.application.use_cases.alerts.agent_gate import agent_off_skip_reason
 from src.application.use_cases.alerts.alert_review_policy import (
@@ -138,6 +142,8 @@ class RunAlertReviewWorkflowUseCase:
         raw_payload_loader_factory: Callable[[], RawAlertPayloadLoader],
         alert_schemas_factory: Callable[[], AlertSchemaRepository],
         alert_object_storage_factory: Callable[[], ObjectStoragePort],
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
     ) -> None:
         self._alerts = alerts
         self._operations = operations
@@ -166,6 +172,8 @@ class RunAlertReviewWorkflowUseCase:
         # copied onto each step span.
         self._dimensions: dict[str, str] = {}
         self._raw_payloads: RawAlertPayloadLoader | None = None
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(
         self,
@@ -350,7 +358,7 @@ class RunAlertReviewWorkflowUseCase:
 
             if discarded:
                 match = context["deterministic"]
-                duration = (datetime.now(UTC) - workflow.created_at).total_seconds()
+                duration = (self._clock.now() - workflow.created_at).total_seconds()
                 output = {
                     "message": "Alert discarded by deterministic rule match",
                     "final_step": "deterministic",
@@ -369,7 +377,7 @@ class RunAlertReviewWorkflowUseCase:
                     "total_duration_seconds": post_process.total_duration_seconds,
                 }
                 current_step = "post_process"
-            finished_at = datetime.now(UTC)
+            finished_at = self._clock.now()
             self._status.flush()
             self._workflows.update(
                 workflow.id,
@@ -407,7 +415,7 @@ class RunAlertReviewWorkflowUseCase:
             )
         except Exception as exc:
             error = str(exc)
-            finished_at = datetime.now(UTC)
+            finished_at = self._clock.now()
             self._status.flush()
             self._workflows.update(
                 workflow.id,
@@ -471,7 +479,7 @@ class RunAlertReviewWorkflowUseCase:
             "origin": origin.value,
             "total_duration_seconds": 0,
         }
-        now = datetime.now(UTC)
+        now = self._clock.now()
         self._workflows.update(
             workflow.id,
             status=WorkflowStatus.SUCCEEDED,
@@ -585,10 +593,10 @@ class RunAlertReviewWorkflowUseCase:
         attempt: int = 1,
     ) -> WorkflowRunState:
         assert self._status is not None
-        now = datetime.now(UTC)
+        now = self._clock.now()
         step = self._steps.create(
             WorkflowStepExecutionRecord(
-                id=uuid.uuid4(),
+                id=self._id_generator.new_id(),
                 workflow_execution_id=workflow.id,
                 step_name=step_name,
                 status=WorkflowStepStatus.RUNNING,
@@ -625,7 +633,7 @@ class RunAlertReviewWorkflowUseCase:
         try:
             output = self._executor.execute(step_name, context)
             db_output = output_as_dict(output)
-            finished_at = datetime.now(UTC)
+            finished_at = self._clock.now()
             self._status.report(
                 WorkflowStatusUpdate(
                     workflow_execution_id=workflow.id,
@@ -647,7 +655,7 @@ class RunAlertReviewWorkflowUseCase:
             self._finish_step_span(
                 step_span, step_name, WorkflowStepStatus.FAILED, step_started, str(exc)
             )
-            finished_at = datetime.now(UTC)
+            finished_at = self._clock.now()
             # Must go through the queue, not a direct self._steps.update():
             # a progress report from mid-step (e.g. profile_alert's
             # _report_progress) may still be pending/in-flight for this same

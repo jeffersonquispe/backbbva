@@ -15,6 +15,8 @@ from src.application.use_cases.models.list_models import ListModelsUseCase
 from src.application.use_cases.models.start_model_training import (
     StartModelTrainingUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
@@ -46,7 +48,9 @@ def get_model_training_dispatcher() -> ModelTrainingDispatcher:
 
 
 def get_create_model_use_case() -> CreateModelUseCase:
-    return CreateModelUseCase(get_model_repository())
+    return CreateModelUseCase(
+        get_model_repository(), clock=get_clock(), id_generator=get_id_generator()
+    )
 
 
 def get_list_models_use_case() -> ListModelsUseCase:
@@ -70,6 +74,8 @@ def get_start_model_training_use_case() -> StartModelTrainingUseCase:
         model_repository=get_model_repository(),
         async_operation_repository=get_model_async_operation_repository(),
         training_dispatcher=get_model_training_dispatcher(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 
@@ -87,7 +93,11 @@ def get_feature_templates_use_case():
         FeatureTemplatesUseCase,
     )
 
-    return FeatureTemplatesUseCase(get_feature_template_repository())
+    return FeatureTemplatesUseCase(
+        get_feature_template_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
 
 
 def get_preview_features_use_case():

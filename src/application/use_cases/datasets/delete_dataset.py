@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
+from src.application.runtime_defaults import DEFAULT_CLOCK, DEFAULT_ID_GENERATOR, resolve_clock
+
+
+
 from datetime import datetime, timezone
 import uuid
 
@@ -22,18 +28,23 @@ class DeleteDatasetUseCase:
         sample_repository: DatasetSampleRepository,
         summary_repository: DatasetSummaryRepository,
         async_operation_repository: AsyncOperationRepository | None = None,
+
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None
     ) -> None:
         self._datasets = dataset_repository
         self._samples = sample_repository
         self._summaries = summary_repository
         self._operations = async_operation_repository
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def schedule(self, dataset_name: str) -> uuid.UUID | None:
         """Create the durable tracker used by the Celery deletion task."""
         if self._operations is None:
             return None
-        now = datetime.now(timezone.utc)
-        operation_id = uuid.uuid4()
+        now = self._clock.now()
+        operation_id = self._id_generator.new_id()
         self._operations.create(
             AsyncOperationRecord(
                 id=operation_id,

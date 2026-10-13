@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 import pytest
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.test_run_port import (
     TestRunConfig as RunConfig,
 )
@@ -53,6 +55,22 @@ from src.domain.configurations.entities import (
 from src.domain.configurations.entities import (
     TestSettings as ConfigSettings,
 )
+
+
+class FixedClock(Clock):
+    def __init__(self, instant: datetime) -> None:
+        self.instant = instant
+
+    def now(self) -> datetime:
+        return self.instant
+
+
+class FixedIdGenerator(IdGenerator):
+    def __init__(self, generated_id: uuid.UUID) -> None:
+        self.generated_id = generated_id
+
+    def new_id(self) -> uuid.UUID:
+        return self.generated_id
 
 
 class InMemoryConfigurationRepository:
@@ -205,6 +223,24 @@ def test_create_configuration_starts_new_lineage_at_version_1_inactive() -> None
     assert all(not s.enabled for s in record.segments.values())
     assert all(s.monitoring == MonitoringSettings() for s in record.segments.values())
     assert all(s.agent == AgentSettings() for s in record.segments.values())
+
+
+def test_create_configuration_uses_injected_clock_and_id_generator() -> None:
+    repo = InMemoryConfigurationRepository()
+    instant = datetime(2025, 2, 3, 4, 5, tzinfo=UTC)
+    generated_id = uuid.UUID("00000000-0000-0000-0000-000000000123")
+    use_case = CreateConfigurationUseCase(
+        repo,
+        InMemoryTestRunRepository(),
+        clock=FixedClock(instant),
+        id_generator=FixedIdGenerator(generated_id),
+    )
+
+    record = use_case.execute(CreateConfigurationInput(name="Inyectada"))
+
+    assert record.configuration_id == str(generated_id)
+    assert record.created_at == instant
+    assert record.updated_at == instant
 
 
 def test_create_configuration_with_custom_segment_filter_tree() -> None:

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import uuid
-from datetime import UTC, datetime
-
 from src.application.dtos.simulation_dtos import CreateSimulationScenarioInput
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaFieldType,
     AlertSchemaRepository,
 )
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.simulation_scenario_port import (
     FieldGenerator,
     GeneratorKind,
@@ -17,6 +16,10 @@ from src.application.ports.simulation_scenario_port import (
     SimulationScenarioRecord,
     SimulationScenarioRepository,
 )
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
+)
 
 
 class CreateSimulationScenarioUseCase:
@@ -24,9 +27,13 @@ class CreateSimulationScenarioUseCase:
         self,
         scenario_repository: SimulationScenarioRepository,
         schema_repository: AlertSchemaRepository | None = None,
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
     ) -> None:
         self._scenarios = scenario_repository
         self._schema_repository = schema_repository
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, input: CreateSimulationScenarioInput) -> SimulationScenarioRecord:
         if input.output_mode == OutputMode.DATASET and not input.target_dataset_name:
@@ -34,7 +41,7 @@ class CreateSimulationScenarioUseCase:
                 "target_dataset_name is required when output_mode is DATASET"
             )
 
-        now = datetime.now(UTC)
+        now = self._clock.now()
         field_specs = input.field_specs
         if field_specs is None:
             if self._schema_repository is None:
@@ -55,7 +62,7 @@ class CreateSimulationScenarioUseCase:
 
         return self._scenarios.create(
             SimulationScenarioRecord(
-                id=uuid.uuid4(),
+                id=self._id_generator.new_id(),
                 name=input.name,
                 status=ScenarioStatus.DRAFT,
                 output_mode=input.output_mode,

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import uuid
-from datetime import UTC, datetime
 from uuid import UUID
 
 from src.application.dtos.model_dtos import StartModelTrainingOutput
@@ -10,9 +8,15 @@ from src.application.ports.async_operation_port import (
     AsyncOperationRepository,
     AsyncOperationStatus,
 )
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.model_port import ModelRepository, ModelStatus
 from src.application.ports.model_training_dispatcher_port import (
     ModelTrainingDispatcher,
+)
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
 )
 from src.domain.models.exceptions import (
     ModelNotFoundError,
@@ -27,10 +31,14 @@ class StartModelTrainingUseCase:
         model_repository: ModelRepository,
         async_operation_repository: AsyncOperationRepository,
         training_dispatcher: ModelTrainingDispatcher,
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
     ) -> None:
         self._models = model_repository
         self._async_operations = async_operation_repository
         self._dispatcher = training_dispatcher
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, model_id: UUID) -> StartModelTrainingOutput:
         model = self._models.get(model_id)
@@ -50,10 +58,10 @@ class StartModelTrainingUseCase:
                 model.feature_configuration, forbidden_paths=(model.target_field,)
             )
 
-        now = datetime.now(UTC)
+        now = self._clock.now()
         operation = self._async_operations.create(
             AsyncOperationRecord(
-                id=uuid.uuid4(),
+                id=self._id_generator.new_id(),
                 operation_type=OPERATION_TYPE,
                 status=AsyncOperationStatus.PENDING,
                 payload={"model_id": str(model_id), "tag": model.tag},

@@ -24,6 +24,8 @@ from src.application.use_cases.configurations.list_configurations import (
 from src.application.use_cases.configurations.test_configuration import (
     PreviewConfigurationUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.entrypoint.api.factories.test_run_factory import (
     get_test_run_repository,
 )
@@ -41,6 +43,8 @@ def get_create_configuration_use_case() -> CreateConfigurationUseCase:
     return CreateConfigurationUseCase(
         get_configuration_repository(),
         get_test_run_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 

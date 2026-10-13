@@ -15,6 +15,8 @@ from src.application.use_cases.channel_library.list_channel_library_entries impo
 from src.application.use_cases.channel_library.update_channel_library_entry import (
     UpdateChannelLibraryEntryUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.persistence.database.dynamodb.repositories.channel_library_repository import (
     DynamoChannelLibraryRepository,
 )
@@ -26,7 +28,11 @@ def get_channel_library_repository() -> ChannelLibraryRepository:
 
 
 def get_create_channel_library_entry_use_case() -> CreateChannelLibraryEntryUseCase:
-    return CreateChannelLibraryEntryUseCase(get_channel_library_repository())
+    return CreateChannelLibraryEntryUseCase(
+        get_channel_library_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
 
 
 def get_list_channel_library_entries_use_case() -> ListChannelLibraryEntriesUseCase:

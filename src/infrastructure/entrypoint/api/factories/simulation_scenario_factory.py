@@ -41,6 +41,8 @@ from src.application.use_cases.event_simulation.stop_simulation import (
 from src.application.use_cases.event_simulation.update_simulation_scenario import (
     UpdateSimulationScenarioUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
     get_alert_schema_repository,
 )
@@ -126,6 +128,8 @@ def get_create_simulation_scenario_use_case() -> CreateSimulationScenarioUseCase
     return CreateSimulationScenarioUseCase(
         get_simulation_scenario_repository(),
         get_alert_schema_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 
@@ -155,6 +159,7 @@ def get_start_simulation_use_case() -> StartSimulationUseCase:
     return StartSimulationUseCase(
         scenario_repository=get_simulation_scenario_repository(),
         dispatcher=get_simulation_dispatcher(),
+        clock=get_clock(),
     )
 
 

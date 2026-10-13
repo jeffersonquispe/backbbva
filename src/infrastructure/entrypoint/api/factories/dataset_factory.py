@@ -45,6 +45,8 @@ from src.application.use_cases.datasets.save_alert_field_mapping import (
 from src.application.use_cases.datasets.upload_dataset import UploadDatasetUseCase
 from src.application.use_cases.test_runs.list_datasets import ListDatasetsUseCase
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.entrypoint.api.factories.async_operation_factory import (
     get_async_operation_repository,
 )
@@ -110,6 +112,8 @@ def get_upload_dataset_use_case() -> UploadDatasetUseCase:
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
         async_operation_repository=get_async_operation_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 
@@ -124,6 +128,8 @@ def get_analyze_fraud_marking_use_case() -> AnalyzeFraudMarkingUseCase:
         get_dataset_repository(),
         get_dataset_summary_repository(),
         get_async_operation_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 
@@ -133,6 +139,8 @@ def get_delete_dataset_use_case() -> DeleteDatasetUseCase:
         sample_repository=get_dataset_sample_repository(),
         summary_repository=get_dataset_summary_repository(),
         async_operation_repository=get_async_operation_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 
@@ -140,6 +148,7 @@ def get_create_empty_dataset_use_case() -> CreateEmptyDatasetUseCase:
     return CreateEmptyDatasetUseCase(
         dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
+        clock=get_clock(),
     )
 
 
@@ -148,6 +157,7 @@ def get_extract_dataset_use_case() -> ExtractDatasetUseCase:
         dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
+        clock=get_clock(),
     )
 
 
@@ -156,6 +166,7 @@ def get_append_dataset_rows_use_case() -> AppendDatasetRowsUseCase:
         dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
+        clock=get_clock(),
     )
 
 
@@ -165,6 +176,8 @@ def get_analyze_dataset_on_demand_use_case() -> AnalyzeDatasetOnDemandUseCase:
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
         async_operation_repository=get_async_operation_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 
@@ -192,4 +205,6 @@ def get_delete_alert_field_mapping_use_case() -> DeleteAlertFieldMappingUseCase:
 
 
 def get_save_alert_field_mapping_use_case() -> SaveAlertFieldMappingUseCase:
-    return SaveAlertFieldMappingUseCase(get_alert_field_mapping_repository())
+    return SaveAlertFieldMappingUseCase(
+        get_alert_field_mapping_repository(), clock=get_clock()
+    )

@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
+from src.application.runtime_defaults import DEFAULT_CLOCK, DEFAULT_ID_GENERATOR, resolve_clock
+
+
+
 from datetime import datetime, timezone
 import uuid
 
@@ -27,11 +33,16 @@ class UploadDatasetUseCase:
         summary_repository: DatasetSummaryRepository,
         dispatcher: DatasetAnalysisDispatcher,
         async_operation_repository: AsyncOperationRepository | None = None,
+
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None
     ) -> None:
         self._datasets = dataset_repository
         self._summaries = summary_repository
         self._dispatcher = dispatcher
         self._operations = async_operation_repository
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, input: UploadDatasetInput) -> UploadDatasetOutput:
         # Writes via DatasetRepository (not ObjectStoragePort directly) so the
@@ -44,7 +55,7 @@ class UploadDatasetUseCase:
             self._datasets.create_from_csv_bytes(input.name, input.content)
         else:
             raise ValueError("Either file or content is required")
-        now = datetime.now(timezone.utc)
+        now = self._clock.now()
         self._summaries.upsert(
             DatasetSummaryRecord(
                 dataset_name=input.name,
@@ -57,7 +68,7 @@ class UploadDatasetUseCase:
         )
         operation_id = None
         if self._operations is not None:
-            operation_id = uuid.uuid4()
+            operation_id = self._id_generator.new_id()
             self._operations.create(AsyncOperationRecord(
                 id=operation_id, operation_type="dataset.analyze",
                 status=AsyncOperationStatus.PENDING,

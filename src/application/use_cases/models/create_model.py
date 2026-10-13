@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-import uuid
 from copy import deepcopy
-from datetime import UTC, datetime
 
 from src.application.dtos.model_dtos import CreateModelInput, ModelOutput
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.model_port import (
     ModelRecord,
     ModelRepository,
     ModelStatus,
+)
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
 )
 
 
@@ -37,8 +41,15 @@ def _to_output(model: ModelRecord) -> ModelOutput:
 
 
 class CreateModelUseCase:
-    def __init__(self, repository: ModelRepository) -> None:
+    def __init__(
+        self,
+        repository: ModelRepository,
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
+    ) -> None:
         self._repository = repository
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, input: CreateModelInput) -> ModelOutput:
         if input.feature_configuration is not None:
@@ -47,9 +58,9 @@ class CreateModelUseCase:
             validate_feature_definition(
                 input.feature_configuration, forbidden_paths=(input.target_field,)
             )
-        now = datetime.now(UTC)
+        now = self._clock.now()
         model = ModelRecord(
-            id=uuid.uuid4(),
+            id=self._id_generator.new_id(),
             tag=input.tag,
             description=input.description,
             status=ModelStatus.DRAFT,

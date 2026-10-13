@@ -18,6 +18,8 @@ from src.application.use_cases.flag_library.update_flag_library_entry import (
     UpdateFlagLibraryEntryUseCase,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.embedding.langchain import get_embedding_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.flag_library_repository import (
@@ -45,6 +47,8 @@ def get_create_flag_library_entry_use_case() -> CreateFlagLibraryEntryUseCase:
         embedding_unit_of_work_factory=embedding_factory,
         monitoring=monitoring,
         embedding_model=model,
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 

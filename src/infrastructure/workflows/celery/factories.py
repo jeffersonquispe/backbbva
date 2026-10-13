@@ -88,6 +88,8 @@ from src.application.use_cases.operations.live_operations_capacity import (
 from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.embedding.langchain import get_embedding_unit_of_work_factory
 from src.infrastructure.fraud_intelligence.mock.fraud_taxonomy_adapter import (
     MockFraudTaxonomyAdapter,
@@ -219,6 +221,7 @@ def get_analyze_alert_schema_presence_use_case() -> AnalyzeAlertSchemaPresenceUs
         get_alert_schema_repository(),
         get_alert_schema_presence_report_repository(),
         get_object_storage(),
+        clock=get_clock(),
     )
 
 
@@ -274,6 +277,7 @@ def get_live_operations_capacity() -> LiveOperationsCapacity:
         reservation_repository=get_resource_reservation_repository(),
         static_capacity=get_operations_capacity_repository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        clock=get_clock(),
     )
 
 
@@ -599,6 +603,7 @@ def get_route_alert_resolution_use_case() -> RouteAlertResolutionUseCase:
         operations_capacity=get_live_operations_capacity(),
         settings_repository=get_operational_settings_repository(),
         reservation_repository=get_resource_reservation_repository(),
+        clock=get_clock(),
     )
 
 
@@ -610,6 +615,7 @@ def get_record_alert_metrics_event_use_case() -> RecordAlertMetricsEvent:
         schema_repository=DynamoAlertSchemaRepository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
         monitoring=get_monitoring(),
+        clock=get_clock(),
     )
 
 
@@ -638,12 +644,14 @@ def get_import_fraud_label_reviews_use_case():
             review_repository=get_fraud_label_review_repository(),
             record_metrics_event=get_record_alert_metrics_event_use_case(),
             monitoring=get_monitoring(),
+            clock=get_clock(),
+            id_generator=get_id_generator(),
         )
     )
 
 
 def get_post_process_alert_use_case() -> PostProcessAlertUseCase:
-    return PostProcessAlertUseCase()
+    return PostProcessAlertUseCase(clock=get_clock())
 
 
 def get_generate_agent_text_use_case(
@@ -686,6 +694,7 @@ def get_record_workflow_step_metrics_use_case() -> RecordWorkflowStepMetrics:
         step_repository=get_workflow_step_execution_repository(),
         rollup_repository=get_metrics_rollup_repository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        clock=get_clock(),
     )
 
 
@@ -700,6 +709,7 @@ def get_evaluate_alert_reasoning_use_case() -> EvaluateAlertReasoning:
         evaluation_repository=get_alert_reasoning_evaluation_repository(),
         rollup_repository=get_metrics_rollup_repository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        clock=get_clock(),
     )
 
 
@@ -723,6 +733,7 @@ def get_reconcile_alert_rollups_use_case() -> ReconcileAlertRollups:
         monitoring=get_monitoring(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
         backfill=get_backfill_alert_metrics_use_case(),
+        clock=get_clock(),
     )
 
 
@@ -739,4 +750,5 @@ def get_record_operational_state_use_case():
         operations_capacity=get_live_operations_capacity(),
         monitoring=get_monitoring(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        clock=get_clock(),
     )

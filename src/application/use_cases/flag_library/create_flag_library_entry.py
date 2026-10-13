@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-import uuid
-from datetime import UTC, datetime
-
+from src.application.ports.clock_port import Clock
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.flag_library_port import (
     FlagLibraryEntry,
     FlagLibraryRepository,
 )
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
+)
 from src.domain.configurations.entities import (
     FlagType,
 )
@@ -25,11 +28,15 @@ class CreateFlagLibraryEntryUseCase:
         embedding_unit_of_work_factory: EmbeddingUnitOfWorkFactory,
         monitoring: MonitoringPort,
         embedding_model: str,
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
     ) -> None:
         self._entries = flag_library_repository
         self._embedding_unit_of_work_factory = embedding_unit_of_work_factory
         self._monitoring = monitoring
         self._embedding_model = embedding_model
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(
         self,
@@ -46,7 +53,7 @@ class CreateFlagLibraryEntryUseCase:
                 and existing.flag_type == flag_type
             ):
                 return existing
-        now = datetime.now(UTC)
+        now = self._clock.now()
         uow = self._embedding_unit_of_work_factory.create(
             model=self._embedding_model,
             monitoring=self._monitoring,
@@ -57,7 +64,7 @@ class CreateFlagLibraryEntryUseCase:
         ).vectors[0]
         return self._entries.create(
             FlagLibraryEntry(
-                id=str(uuid.uuid4()),
+                id=str(self._id_generator.new_id()),
                 flag_type=flag_type,
                 name=name,
                 description=description,

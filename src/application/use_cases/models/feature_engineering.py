@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from datetime import UTC, datetime
-from uuid import uuid4
 
+from src.application.ports.clock_port import Clock
 from src.application.ports.feature_template_port import (
     FeatureTemplate,
     FeatureTemplateRepository,
+)
+from src.application.ports.id_generator_port import IdGenerator
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
 )
 from src.domain.models.feature_recipe import (
     describe_capabilities,
@@ -91,8 +95,15 @@ class PreviewFeaturesUseCase:
 
 
 class FeatureTemplatesUseCase:
-    def __init__(self, repository: FeatureTemplateRepository):
+    def __init__(
+        self,
+        repository: FeatureTemplateRepository,
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
+    ):
         self._repository = repository
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def list(self) -> list[FeatureTemplate]:
         return self._repository.list()
@@ -109,11 +120,11 @@ class FeatureTemplatesUseCase:
             raise ValueError("La configuración supera el límite de 200 KB")
         return self._repository.create(
             FeatureTemplate(
-                id=str(uuid4()),
+                id=str(self._id_generator.new_id()),
                 name=name.strip(),
                 description=description,
                 configuration=deepcopy(definition),
-                created_at=datetime.now(UTC),
+                created_at=self._clock.now(),
             )
         )
 

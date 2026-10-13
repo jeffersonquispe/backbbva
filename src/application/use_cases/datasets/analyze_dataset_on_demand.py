@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
+from src.application.runtime_defaults import DEFAULT_CLOCK, DEFAULT_ID_GENERATOR, resolve_clock
+
+
+
 from datetime import datetime, timezone
 import uuid
 
@@ -31,11 +37,16 @@ class AnalyzeDatasetOnDemandUseCase:
         summary_repository: DatasetSummaryRepository,
         dispatcher: DatasetAnalysisDispatcher,
         async_operation_repository: AsyncOperationRepository | None = None,
+
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None
     ) -> None:
         self._datasets = dataset_repository
         self._summaries = summary_repository
         self._dispatcher = dispatcher
         self._operations = async_operation_repository
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, dataset_name: str) -> UploadDatasetOutput:
         # Raises FileNotFoundError for a nonexistent dataset - checked before
@@ -43,7 +54,7 @@ class AnalyzeDatasetOnDemandUseCase:
         # phantom PENDING summary record for a dataset that was never created.
         self._datasets.get_fields(dataset_name)
         existing = self._summaries.get(dataset_name)
-        now = datetime.now(timezone.utc)
+        now = self._clock.now()
         if existing is not None:
             self._summaries.upsert(
                 DatasetSummaryRecord(
@@ -73,7 +84,7 @@ class AnalyzeDatasetOnDemandUseCase:
             )
         operation_id = None
         if self._operations is not None:
-            operation_id = uuid.uuid4()
+            operation_id = self._id_generator.new_id()
             self._operations.create(
                 AsyncOperationRecord(
                     id=operation_id,

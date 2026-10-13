@@ -29,6 +29,8 @@ from src.application.use_cases.alert_schema.reject_schema import (
 from src.application.use_cases.alert_schema.save_schema_draft import (
     SaveAlertSchemaDraftUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.entrypoint.api.factories.alert_factory import (
     get_alert_repository,
 )
@@ -86,11 +88,12 @@ def get_propose_alert_schema_use_case():
         AlertSchemaImpactAnalyzer(
             get_configuration_repository(), get_model_repository()
         ),
+        clock=get_clock(),
     )
 
 
 def get_approve_alert_schema_use_case():
-    return ApproveAlertSchemaUseCase(get_alert_schema_repository())
+    return ApproveAlertSchemaUseCase(get_alert_schema_repository(), clock=get_clock())
 
 
 def get_reject_alert_schema_use_case():
@@ -98,7 +101,11 @@ def get_reject_alert_schema_use_case():
 
 
 def get_create_alert_schema_suggestion_use_case():
-    return CreateAlertSchemaSuggestionUseCase(get_alert_schema_suggestion_repository())
+    return CreateAlertSchemaSuggestionUseCase(
+        get_alert_schema_suggestion_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
 
 
 def get_list_alert_schema_suggestions_use_case():
@@ -110,4 +117,5 @@ def get_alert_schema_presence_use_case():
         get_alert_repository(),
         get_alert_schema_repository(),
         get_alert_schema_presence_report_repository(),
+        clock=get_clock(),
     )

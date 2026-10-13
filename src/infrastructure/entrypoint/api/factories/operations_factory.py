@@ -28,6 +28,7 @@ from src.application.use_cases.operations.live_operations_capacity import (
     LiveOperationsCapacity,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.system_clock import get_clock
 from src.infrastructure.entrypoint.api.factories.alert_factory import (
     get_alert_repository,
     get_workflow_execution_repository,
@@ -61,6 +62,7 @@ def get_live_operations_capacity() -> LiveOperationsCapacity:
         reservation_repository=get_resource_reservation_repository(),
         static_capacity=DynamoOperationsCapacityRepository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        clock=get_clock(),
     )
 
 
@@ -76,7 +78,9 @@ def get_alert_action_dispatcher() -> AlertActionDispatcher:
 
 def get_list_analyst_queue_use_case() -> ListAnalystQueueUseCase:
     return ListAnalystQueueUseCase(
-        get_alert_repository(), get_resource_reservation_repository()
+        get_alert_repository(),
+        get_resource_reservation_repository(),
+        clock=get_clock(),
     )
 
 
@@ -86,6 +90,7 @@ def get_alert_detail_use_case() -> GetAlertDetailUseCase:
         get_resource_reservation_repository(),
         get_workflow_execution_repository(),
         get_workflow_step_execution_repository(),
+        clock=get_clock(),
     )
 
 
@@ -94,6 +99,7 @@ def get_take_escalated_alert_use_case() -> TakeEscalatedAlertUseCase:
         get_alert_repository(),
         get_resource_reservation_repository(),
         get_live_operations_capacity(),
+        clock=get_clock(),
     )
 
 
@@ -103,15 +109,19 @@ def get_resolve_escalated_alert_use_case() -> ResolveEscalatedAlertUseCase:
         get_resource_reservation_repository(),
         get_alert_action_dispatcher(),
         metrics_recorder=get_record_alert_metrics_event_use_case(),
+        clock=get_clock(),
     )
 
 
 def get_release_escalated_alert_use_case() -> ReleaseEscalatedAlertUseCase:
-    return ReleaseEscalatedAlertUseCase(get_resource_reservation_repository())
+    return ReleaseEscalatedAlertUseCase(
+        get_resource_reservation_repository(), clock=get_clock()
+    )
 
 
 def get_complete_voicebot_call_use_case() -> CompleteVoicebotCallUseCase:
     return CompleteVoicebotCallUseCase(
         get_resource_reservation_repository(),
         metrics_recorder=get_record_alert_metrics_event_use_case(),
+        clock=get_clock(),
     )

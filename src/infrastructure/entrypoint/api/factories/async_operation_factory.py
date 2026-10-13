@@ -26,6 +26,8 @@ from src.application.use_cases.async_operations.update_async_operation import (
     UpdateAsyncOperationUseCase,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
@@ -75,6 +77,8 @@ def get_create_async_operation_use_case() -> CreateAsyncOperationUseCase:
         repository=get_async_operation_repository(),
         executor=get_async_executor(),
         supported_operation_types=GENERIC_OPERATION_TYPES,
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from datetime import datetime
+from uuid import UUID
 
 from src.application.errors import ConflictError, ForbiddenError, NotFoundError
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.local_auth_port import (
     ROLE_PERMISSIONS,
     LocalRole,
@@ -12,6 +14,10 @@ from src.application.ports.local_auth_port import (
     LocalUserRepository,
 )
 from src.application.ports.revoked_token_port import RevokedTokenRepository
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
+)
 
 
 class InvalidCredentialsError(ForbiddenError):
@@ -34,9 +40,17 @@ class AuthenticatedUser:
 
 
 class RegisterLocalUserUseCase:
-    def __init__(self, users: LocalUserRepository, password_hasher) -> None:
+    def __init__(
+        self,
+        users: LocalUserRepository,
+        password_hasher,
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
+    ) -> None:
         self._users = users
         self._password_hasher = password_hasher
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(
         self, *, email: str, name: str, password: str, role: LocalRole
@@ -44,10 +58,10 @@ class RegisterLocalUserUseCase:
         email = email.strip().lower()
         if self._users.get_by_email(email):
             raise DuplicateEmailError("A user with this email already exists")
-        now = datetime.now(UTC)
+        now = self._clock.now()
         return self._users.create(
             LocalUser(
-                id=uuid4(),
+                id=self._id_generator.new_id(),
                 email=email,
                 name=name.strip(),
                 password_hash=self._password_hasher.hash(password),
@@ -68,9 +82,12 @@ class ListLocalUsersUseCase:
 
 
 class ChangeLocalUserPasswordUseCase:
-    def __init__(self, users: LocalUserRepository, password_hasher) -> None:
+    def __init__(
+        self, users: LocalUserRepository, password_hasher, clock: Clock | None = None
+    ) -> None:
         self._users = users
         self._password_hasher = password_hasher
+        self._clock = resolve_clock(clock)
 
     def execute(self, *, user_id: UUID, password: str) -> LocalUser:
         user = self._users.get_by_id(user_id)
@@ -80,7 +97,7 @@ class ChangeLocalUserPasswordUseCase:
             replace(
                 user,
                 password_hash=self._password_hasher.hash(password),
-                updated_at=datetime.now(UTC),
+                updated_at=self._clock.now(),
             )
         )
 

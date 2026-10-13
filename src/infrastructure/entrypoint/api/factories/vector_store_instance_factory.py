@@ -17,6 +17,7 @@ from src.application.use_cases.vector_store_instances.manage_vector_store_instan
 from src.application.use_cases.vector_store_instances.promote_vector_store_instance import (
     PromoteVectorStoreInstanceUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
 from src.infrastructure.entrypoint.api.factories.fraud_knowledge_factory import (
     get_fraud_knowledge_repository,
     get_ingest_flag_use_case,
@@ -61,7 +62,9 @@ def get_vector_store_instance_repository() -> VectorStoreInstanceRepository:
 
 
 def get_create_vector_store_instance_use_case() -> CreateVectorStoreInstanceUseCase:
-    return CreateVectorStoreInstanceUseCase(get_vector_store_instance_repository())
+    return CreateVectorStoreInstanceUseCase(
+        get_vector_store_instance_repository(), clock=get_clock()
+    )
 
 
 def get_list_vector_store_instances_use_case() -> ListVectorStoreInstancesUseCase:
@@ -69,15 +72,21 @@ def get_list_vector_store_instances_use_case() -> ListVectorStoreInstancesUseCas
 
 
 def get_update_vector_store_instance_use_case() -> UpdateVectorStoreInstanceUseCase:
-    return UpdateVectorStoreInstanceUseCase(get_vector_store_instance_repository())
+    return UpdateVectorStoreInstanceUseCase(
+        get_vector_store_instance_repository(), clock=get_clock()
+    )
 
 
 def get_add_vector_store_document_use_case() -> AddVectorStoreDocumentUseCase:
-    return AddVectorStoreDocumentUseCase(get_vector_store_instance_repository())
+    return AddVectorStoreDocumentUseCase(
+        get_vector_store_instance_repository(), clock=get_clock()
+    )
 
 
 def get_remove_vector_store_document_use_case() -> RemoveVectorStoreDocumentUseCase:
-    return RemoveVectorStoreDocumentUseCase(get_vector_store_instance_repository())
+    return RemoveVectorStoreDocumentUseCase(
+        get_vector_store_instance_repository(), clock=get_clock()
+    )
 
 
 def get_promote_vector_store_instance_use_case() -> PromoteVectorStoreInstanceUseCase:
@@ -105,4 +114,5 @@ def get_promote_vector_store_instance_use_case() -> PromoteVectorStoreInstanceUs
         ingest_modus_operandi=get_ingest_modus_operandi_use_case(),
         ingest_flag=get_ingest_flag_use_case(),
         ingest_similar_case=get_ingest_similar_case_use_case(),
+        clock=get_clock(),
     )

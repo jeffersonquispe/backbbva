@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import uuid
-from datetime import UTC, datetime
-
 from src.application.dtos.async_operation_dtos import (
     AsyncOperationOutput,
     CreateAsyncOperationInput,
@@ -13,6 +10,12 @@ from src.application.ports.async_operation_port import (
     AsyncOperationRecord,
     AsyncOperationRepository,
     AsyncOperationStatus,
+)
+from src.application.ports.clock_port import Clock
+from src.application.ports.id_generator_port import IdGenerator
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
 )
 
 # operation_type values the generic ``POST /async-operations`` path can run.
@@ -34,18 +37,22 @@ class CreateAsyncOperationUseCase:
         repository: AsyncOperationRepository,
         executor: AsyncExecutor,
         supported_operation_types: frozenset[str] | None = None,
+        clock: Clock | None = None,
+        id_generator: IdGenerator | None = None,
     ) -> None:
         """``supported_operation_types=None`` accepts any type (no gate)."""
         self._repository = repository
         self._executor = executor
         self._supported = supported_operation_types
+        self._clock = resolve_clock(clock)
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, input: CreateAsyncOperationInput) -> AsyncOperationOutput:
         if self._supported is not None and input.operation_type not in self._supported:
             raise UnsupportedAsyncOperationTypeError(input.operation_type)
-        now = datetime.now(UTC)
+        now = self._clock.now()
         operation = AsyncOperationRecord(
-            id=uuid.uuid4(),
+            id=self._id_generator.new_id(),
             operation_type=input.operation_type,
             status=AsyncOperationStatus.PENDING,
             payload=input.payload,
@@ -69,7 +76,7 @@ class CreateAsyncOperationUseCase:
         dispatched = self._repository.update(
             saved.id,
             status=AsyncOperationStatus.DISPATCHED,
-            dispatched_at=datetime.now(UTC),
+            dispatched_at=self._clock.now(),
             execution_backend=execution_ref.backend,
             external_id=execution_ref.external_id,
         )

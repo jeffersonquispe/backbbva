@@ -41,6 +41,7 @@ from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.embedding.langchain import get_embedding_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.vector_store.opensearch.client import (
@@ -92,6 +93,7 @@ def get_ingest_taxonomia_use_case() -> IngestTaxonomiaUseCase:
         embedding_unit_of_work_factory=embedding_factory,
         monitoring=monitoring,
         embedding_model=model,
+        id_generator=get_id_generator(),
     )
 
 
@@ -102,6 +104,7 @@ def get_ingest_modus_operandi_use_case() -> IngestModusOperandiUseCase:
         embedding_unit_of_work_factory=embedding_factory,
         monitoring=monitoring,
         embedding_model=model,
+        id_generator=get_id_generator(),
     )
 
 
@@ -112,6 +115,7 @@ def get_ingest_similar_case_use_case() -> IngestSimilarCaseUseCase:
         embedding_unit_of_work_factory=embedding_factory,
         monitoring=monitoring,
         embedding_model=model,
+        id_generator=get_id_generator(),
     )
 
 
@@ -122,6 +126,7 @@ def get_ingest_flag_use_case() -> IngestFlagUseCase:
         embedding_unit_of_work_factory=embedding_factory,
         monitoring=monitoring,
         embedding_model=model,
+        id_generator=get_id_generator(),
     )
 
 

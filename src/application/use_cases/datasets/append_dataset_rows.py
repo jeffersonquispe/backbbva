@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from src.application.dtos.dataset_dtos import (
     AppendDatasetRowsInput,
     AppendDatasetRowsOutput,
 )
+from src.application.ports.clock_port import Clock
+from src.application.runtime_defaults import DEFAULT_CLOCK, resolve_clock
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
@@ -26,6 +28,7 @@ def append_rows_and_dispatch(
     dispatcher: DatasetAnalysisDispatcher,
     name: str,
     rows: list[dict[str, Any]],
+    clock: Clock | None = None,
 ) -> AppendDatasetRowsOutput:
     """Shared core of "append rows to an existing dataset, then re-analyze" -
     a plain function (not a use case another use case would depend on, per
@@ -35,7 +38,7 @@ def append_rows_and_dispatch(
     new_total = dataset_repository.append_rows(name, rows)
 
     existing = summary_repository.get(name)
-    now = datetime.now(timezone.utc)
+    now = (clock or DEFAULT_CLOCK).now()
     uploaded_at = existing.uploaded_at if existing else now
     # Provenance is set once at creation and must survive every
     # subsequent write - it's not something this function computes.
@@ -75,10 +78,12 @@ class AppendDatasetRowsUseCase:
         dataset_repository: DatasetRepository,
         summary_repository: DatasetSummaryRepository,
         dispatcher: DatasetAnalysisDispatcher,
+        clock: Clock | None = None,
     ) -> None:
         self._datasets = dataset_repository
         self._summaries = summary_repository
         self._dispatcher = dispatcher
+        self._clock = resolve_clock(clock)
 
     def execute(self, input: AppendDatasetRowsInput) -> AppendDatasetRowsOutput:
         return append_rows_and_dispatch(
@@ -87,4 +92,5 @@ class AppendDatasetRowsUseCase:
             dispatcher=self._dispatcher,
             name=input.name,
             rows=input.rows,
+            clock=self._clock,
         )

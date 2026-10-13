@@ -18,6 +18,8 @@ from src.application.use_cases.similar_case_library.update_similar_case_library_
     UpdateSimilarCaseLibraryEntryUseCase,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.embedding.langchain import get_embedding_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.similar_case_library_repository import (
@@ -47,6 +49,8 @@ def get_create_similar_case_library_entry_use_case() -> (
         embedding_unit_of_work_factory=embedding_factory,
         monitoring=monitoring,
         embedding_model=model,
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 

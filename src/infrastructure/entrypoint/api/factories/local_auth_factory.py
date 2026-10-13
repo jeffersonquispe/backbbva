@@ -9,6 +9,8 @@ from src.application.use_cases.auth.local_auth import (
     LogoutLocalUserUseCase,
     RegisterLocalUserUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.persistence.database.dynamodb.repositories.local_user_repository import (
     DynamoLocalUserRepository,
 )
@@ -24,7 +26,12 @@ def get_revoked_token_repository() -> RevokedTokenRepository:
 
 
 def get_register_local_user_use_case() -> RegisterLocalUserUseCase:
-    return RegisterLocalUserUseCase(DynamoLocalUserRepository(), PasswordHasher())
+    return RegisterLocalUserUseCase(
+        DynamoLocalUserRepository(),
+        PasswordHasher(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
 
 
 def get_list_local_users_use_case() -> ListLocalUsersUseCase:
@@ -32,7 +39,9 @@ def get_list_local_users_use_case() -> ListLocalUsersUseCase:
 
 
 def get_change_local_user_password_use_case() -> ChangeLocalUserPasswordUseCase:
-    return ChangeLocalUserPasswordUseCase(DynamoLocalUserRepository(), PasswordHasher())
+    return ChangeLocalUserPasswordUseCase(
+        DynamoLocalUserRepository(), PasswordHasher(), clock=get_clock()
+    )
 
 
 def get_authenticate_local_user_use_case() -> AuthenticateLocalUserUseCase:

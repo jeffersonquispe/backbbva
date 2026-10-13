@@ -50,6 +50,8 @@ from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
     MockAlertChannelActionAdapter,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
 from src.infrastructure.model_serving.mcp_scoring_client import (
     MCPModelScoringClient,
@@ -177,6 +179,7 @@ def get_analyze_dataset_use_case() -> AnalyzeDatasetUseCase:
         sample_repository=get_dataset_sample_repository(),
         summary_repository=get_dataset_summary_repository(),
         max_input_bytes=genai_config.DATASET_ANALYSIS_MAX_BYTES,
+        clock=get_clock(),
     )
 
 
@@ -185,6 +188,8 @@ def get_delete_dataset_use_case() -> DeleteDatasetUseCase:
         dataset_repository=get_dataset_repository(),
         sample_repository=get_dataset_sample_repository(),
         summary_repository=get_dataset_summary_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 
@@ -192,6 +197,8 @@ def get_analyze_fraud_marking_use_case() -> AnalyzeFraudMarkingUseCase:
     return AnalyzeFraudMarkingUseCase(
         get_dataset_repository(),
         get_dataset_summary_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )
 
 
@@ -288,4 +295,6 @@ def get_run_alert_review_workflow_use_case() -> RunAlertReviewWorkflowUseCase:
         raw_payload_loader_factory=get_raw_alert_payload_loader,
         alert_schemas_factory=get_alert_schema_repository,
         alert_object_storage_factory=get_alert_object_storage,
+        clock=get_clock(),
+        id_generator=get_id_generator(),
     )

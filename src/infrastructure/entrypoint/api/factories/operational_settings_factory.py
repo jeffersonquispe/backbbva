@@ -14,6 +14,8 @@ from src.application.use_cases.operational_settings.list_operational_settings_hi
 from src.application.use_cases.operational_settings.update_operational_settings import (
     UpdateOperationalSettingsUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.persistence.database.dynamodb.repositories.operational_settings_repository import (
     DynamoOperationalSettingsRepository,
 )
@@ -29,7 +31,11 @@ def get_get_operational_settings_use_case() -> GetOperationalSettingsUseCase:
 
 
 def get_update_operational_settings_use_case() -> UpdateOperationalSettingsUseCase:
-    return UpdateOperationalSettingsUseCase(get_operational_settings_repository())
+    return UpdateOperationalSettingsUseCase(
+        get_operational_settings_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
 
 
 def get_list_operational_settings_history_use_case() -> (

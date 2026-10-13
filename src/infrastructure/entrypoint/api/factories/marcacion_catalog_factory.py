@@ -15,6 +15,8 @@ from src.application.use_cases.marcacion_catalog.list_marcacion_categories impor
 from src.application.use_cases.marcacion_catalog.update_marcacion_category import (
     UpdateMarcacionCategoryUseCase,
 )
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.persistence.database.dynamodb.repositories.marcacion_catalog_repository import (
     DynamoMarcacionCatalogRepository,
 )
@@ -26,7 +28,11 @@ def get_marcacion_catalog_repository() -> MarcacionCatalogRepository:
 
 
 def get_create_marcacion_category_use_case() -> CreateMarcacionCategoryUseCase:
-    return CreateMarcacionCategoryUseCase(get_marcacion_catalog_repository())
+    return CreateMarcacionCategoryUseCase(
+        get_marcacion_catalog_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
 
 
 def get_list_marcacion_categories_use_case() -> ListMarcacionCategoriesUseCase:

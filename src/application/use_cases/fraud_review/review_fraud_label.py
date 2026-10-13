@@ -15,10 +15,6 @@ on record, and re-submitting simply appends another row."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime
-from uuid import uuid4
-
 from src.application.dtos.alert_metrics_dtos import (
     AlertMetricsEventType,
     RecordAlertMetricsEventInput,
@@ -30,10 +26,12 @@ from src.application.dtos.fraud_review_dtos import (
 from src.application.ports.alert_port import (
     AlertRepository,
 )
+from src.application.ports.clock_port import Clock
 from src.application.ports.fraud_label_review_port import (
     FraudLabelReview,
     FraudLabelReviewRepository,
 )
+from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.monitoring_port import (
     ATTR_ALERT_ID,
     ATTR_FRAUD_REVIEW_CHANNEL,
@@ -41,6 +39,10 @@ from src.application.ports.monitoring_port import (
     ATTR_PREVIOUS_FRAUD_LABEL,
     MonitoringPort,
     span_dimension_attributes,
+)
+from src.application.runtime_defaults import (
+    DEFAULT_ID_GENERATOR,
+    resolve_clock,
 )
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
@@ -71,15 +73,17 @@ class ReviewFraudLabel:
         alert_repository: AlertRepository,
         review_repository: FraudLabelReviewRepository,
         record_metrics_event: RecordAlertMetricsEvent,
-        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Clock | None = None,
         monitoring: MonitoringPort | None = None,
+        id_generator: IdGenerator | None = None,
     ) -> None:
         self._alerts = alert_repository
         self._reviews = review_repository
         self._record_metrics_event = record_metrics_event
-        self._clock = clock
+        self._clock = resolve_clock(clock)
         # T2: one "fraud_label.review" span per review (optional).
         self._monitoring = monitoring
+        self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, input: ReviewFraudLabelInput) -> ReviewFraudLabelOutput:
         """Raises InvalidFraudLabelError / AlertNotFoundError."""
@@ -111,10 +115,10 @@ class ReviewFraudLabel:
         if alert is None:
             raise AlertNotFoundError(str(input.alert_id))
         from_label = alert.metrics.fraud_label if alert.metrics else Mark.PENDING
-        reviewed_at = self._clock()
+        reviewed_at = self._clock.now()
         review = self._reviews.create(
             FraudLabelReview(
-                id=uuid4(),
+                id=self._id_generator.new_id(),
                 alert_id=alert.id,
                 from_label=from_label,
                 to_label=to_label,
