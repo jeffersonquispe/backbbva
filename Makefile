@@ -135,6 +135,11 @@ test:  ## Run tests and generate coverage report.
 	python -m pytest
 
 
+.PHONY: test-architecture
+test-architecture:  ## Fast AST check of the CLAUDE.md layer/DI/env/observability rules (ratcheted baseline, no services needed).
+	GENAI_ENVIRONMENT=test python -m pytest tests/test_architecture -q
+
+
 .PHONY: test-integration-reservations
 test-integration-reservations:  ## Run resource-reservation tests (voicebot slots / analyst locks) against the running local DynamoDB. Vars: DYNAMO_PORT(8002)
 	GENAI_ENVIRONMENT=test DYNAMO_ENDPOINT=http://localhost:$${DYNAMO_PORT:-8002} DYNAMO_REGION_NAME=us-east-1 \
