@@ -96,3 +96,7 @@ def get_curate_alert_to_dataset_use_case() -> CurateAlertToDatasetUseCase:
         feedback_repository=get_feedback_repository(),
         workflow_execution_repository=get_workflow_execution_repository(),
     )
+
+
+def get_alert_object_storage():
+    return get_object_storage()

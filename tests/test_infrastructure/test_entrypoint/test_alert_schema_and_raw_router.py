@@ -101,7 +101,7 @@ def _raw_client(user: LocalUser, alert: AlertRecord, schema: AlertSchemaVersion,
     app.dependency_overrides[get_current_user] = lambda: user
     alerts_router.get_alert_repository = lambda: FakeAlertRepository(alert)
     alerts_router.get_alert_schema_repository = lambda: SimpleNamespace(get=lambda _: schema)
-    alerts_router.get_object_storage = lambda: storage
+    alerts_router.get_alert_object_storage = lambda: storage
     return TestClient(app)
 
 

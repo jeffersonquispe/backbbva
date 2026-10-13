@@ -64,13 +64,13 @@ from src.infrastructure.entrypoint.api.metrics_query_params import (
     metrics_query_params,
 )
 from src.infrastructure.entrypoint.api.factories.alert_factory import (
+    get_alert_object_storage,
     get_alert_repository,
     get_curate_alert_to_dataset_use_case,
     get_start_alert_test_workflow_use_case,
 )
 from src.infrastructure.entrypoint.api.factories.alert_schema_factory import get_alert_schema_repository
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
-from src.infrastructure.persistence.object_storage.minio import get_object_storage
 from src.infrastructure.entrypoint.api.schemas import (
     AlertHistoryItemSchema,
     AlertHistoryPageResponse,
@@ -121,7 +121,7 @@ def get_raw_alert(alert_id: UUID, user=Depends(get_current_user)):
     alert = get_alert_repository().get(alert_id)
     if alert is None or alert.raw_payload_ref is None:
         raise HTTPException(status_code=404, detail="Alert raw payload not found")
-    storage = get_object_storage()
+    storage = get_alert_object_storage()
     payload = json.loads(storage.get_bytes(alert.raw_payload_ref.key))
     schema = get_alert_schema_repository().get(alert.schema_version) if alert.schema_version is not None else None
     for field in schema.fields if schema else []:

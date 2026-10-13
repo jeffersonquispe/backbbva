@@ -11,20 +11,16 @@ from src.application.ports.configuration_deploy_request_port import Configuratio
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.use_cases.configurations.activate_configuration import ConfigurationNotFoundError, ConfigurationNotTestedError
 from src.application.use_cases.configurations.test_configuration import _diff, _record_values
+from src.infrastructure.entrypoint.api.factories.configuration_deploy_request_factory import get_configuration_deploy_request_repository
 from src.infrastructure.entrypoint.api.factories.configuration_factory import get_activate_configuration_use_case, get_configuration_repository
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas import (
     ConfigurationChangeResponse, ConfigurationDeployRequestResponse,
     ConfigurationDeployRequestPreviewResponse, CreateConfigurationDeployRequest,
 )
-from src.infrastructure.persistence.database.dynamodb.repositories.configuration_deploy_request_repository import DynamoConfigurationDeployRequestRepository
 
 
 router = APIRouter(prefix="/configuration-deploy-requests", tags=["configuration deploy requests"])
-
-
-def _repository() -> DynamoConfigurationDeployRequestRepository:
-    return DynamoConfigurationDeployRequestRepository()
 
 
 def _require_role(user: LocalUser, *roles: LocalRole) -> None:
@@ -85,13 +81,13 @@ def create_deploy_request(
         changes=preview["changes"],
         requested_by=user.name, requested_by_id=str(user.id), requested_at=datetime.now(timezone.utc),
     )
-    return _response(_repository().create(deploy_request))
+    return _response(get_configuration_deploy_request_repository().create(deploy_request))
 
 
 @router.get("", response_model=list[ConfigurationDeployRequestResponse])
 def list_deploy_requests(user: Annotated[LocalUser, Depends(get_current_user)]):
     _require_role(user, LocalRole.MANAGER, LocalRole.RELEASE_MANAGER)
-    return [_response(request) for request in _repository().list()]
+    return [_response(request) for request in get_configuration_deploy_request_repository().list()]
 
 
 @router.post("/{request_id}/approve", response_model=ConfigurationDeployRequestResponse)
@@ -100,7 +96,7 @@ def approve_deploy_request(
     user: Annotated[LocalUser, Depends(get_current_user)],
 ):
     _require_role(user, LocalRole.MANAGER, LocalRole.RELEASE_MANAGER)
-    requests = _repository()
+    requests = get_configuration_deploy_request_repository()
     deploy_request = requests.get(request_id)
     if deploy_request is None:
         raise HTTPException(status_code=404, detail="Deploy request not found")
