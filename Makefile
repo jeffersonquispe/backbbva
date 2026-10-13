@@ -6,7 +6,7 @@ SHELL := /usr/bin/env bash
 # ─── Python runner: use poetry run when available, plain python otherwise ─────
 # This allows db-backup/restore commands to work inside Docker containers where
 # the venv is already in PATH but poetry is not installed.
-PYTHON := $(if $(shell command -v poetry 2>/dev/null),poetry run python,python)
+PYTHON := $(if $(and $(wildcard pyproject.toml),$(shell command -v poetry 2>/dev/null)),poetry run python,python)
 
 # ─── Container runtime (prefer podman, fall back to docker) ──────────────────
 DOCKER := $(or $(shell which docker 2>/dev/null),$(shell which podman 2>/dev/null))
@@ -80,26 +80,21 @@ DOCKER_RUN_ENV = \
 
 .DEFAULT_GOAL := help
 
+.PHONY: local-users
+local-users:  ## Interactive menu to create/list local-auth users or change a password (API_URL, ARIA_BOOTSTRAP_TOKEN optional).
+	@python3 scripts/local_users.py $(if $(API_URL),--api-url $(API_URL))
+
 .PHONY: create-local-user
-create-local-user:  ## Interactively create a local-auth user; no credential is stored by Make.
-	@set -euo pipefail; \
-	read -r -p "Nombre: " auth_name; \
-	read -r -p "Correo: " auth_email; \
-	printf '%s\n' "Roles: manager, channel_manager, release_manager, data_analyst, fraud_analyst, ops_analyst"; \
-	read -r -p "Rol: " auth_role; \
-	case "$$auth_role" in manager|channel_manager|release_manager|data_analyst|fraud_analyst|ops_analyst) ;; *) echo "Rol no válido." >&2; exit 1;; esac; \
-	read -r -s -p "Contraseña: " auth_password; printf '\n'; \
-	read -r -s -p "Repite la contraseña: " auth_password_confirm; printf '\n'; \
-	[ "$$auth_password" = "$$auth_password_confirm" ] || { echo "Las contraseñas no coinciden." >&2; exit 1; }; \
-	read -r -s -p "Token de aprovisionamiento: " auth_bootstrap_token; printf '\n'; \
-	read -r -p "URL de API [http://localhost:8000]: " auth_api_url; \
-	auth_api_url=$${auth_api_url:-http://localhost:8000}; \
-	auth_curl_config=$$(mktemp); trap 'rm -f "$$auth_curl_config"' EXIT; chmod 600 "$$auth_curl_config"; \
-	printf 'header = "X-Bootstrap-Token: %s"\n' "$$auth_bootstrap_token" > "$$auth_curl_config"; \
-	AUTH_NAME="$$auth_name" AUTH_EMAIL="$$auth_email" AUTH_ROLE="$$auth_role" AUTH_PASSWORD="$$auth_password" \
-	python3 -c 'import json, os; print(json.dumps({"name": os.environ["AUTH_NAME"], "email": os.environ["AUTH_EMAIL"], "role": os.environ["AUTH_ROLE"], "password": os.environ["AUTH_PASSWORD"]}))' | \
-	curl --fail-with-body --silent --show-error -K "$$auth_curl_config" -H 'Content-Type: application/json' --data-binary @- "$$auth_api_url/api/v0/auth/users"; \
-	printf '\nUsuario creado.\n'
+create-local-user:  ## Interactively create a local-auth user (role picked from a list); no credential is stored.
+	@python3 scripts/local_users.py create $(if $(API_URL),--api-url $(API_URL))
+
+.PHONY: list-local-users
+list-local-users:  ## List local-auth users (needs the bootstrap token).
+	@python3 scripts/local_users.py list $(if $(API_URL),--api-url $(API_URL))
+
+.PHONY: change-local-user-password
+change-local-user-password:  ## Pick a local-auth user from a list and set a new password.
+	@python3 scripts/local_users.py passwd $(if $(API_URL),--api-url $(API_URL))
 
 .PHONY: refresh-github-token
 refresh-github-token:  ## Replace the saved GitHub credential with a classic PAT.
@@ -385,6 +380,10 @@ LOCAL_DOCKER_ENV_FLAGS = \
 	LOCAL_REDIS_PORT=$(LOCAL_REDIS_PORT) \
 	LOCAL_IMAGE_TAG=$(LOCAL_IMAGE_TAG)
 
+# Local builds reuse Docker's dependency layers by default. Set
+# LOCAL_DOCKER_BUILD_ARGS=--no-cache when a completely clean rebuild is needed.
+LOCAL_DOCKER_BUILD_ARGS ?=
+
 .PHONY: local-auth-up
 local-auth-up:  ## Start/rebuild only the local API with interactive auth secrets (not stored).
 	@set -euo pipefail; \
@@ -398,11 +397,11 @@ local-auth-up:  ## Start/rebuild only the local API with interactive auth secret
 		up -d --build api
 
 .PHONY: local-docker-build
-local-docker-build:  ## Build local Docker API stack. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
+local-docker-build:  ## Build local API/worker images. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build --no-cache
+		build $(LOCAL_DOCKER_BUILD_ARGS) api worker
 
 .PHONY: local-docker-run
 local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, default ../frontend_mockup). LLM/other app config comes from config/$(LOCAL_DOCKER_ENV)/config.cfg, mounted read-only - edit it and re-run this to pick up changes. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
@@ -425,8 +424,11 @@ local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, defau
 	fi
 
 .PHONY: local-docker-stop
-local-docker-stop:  ## Stop local Docker API stack + frontend.
-	@$(DOCKER) compose \
+local-docker-stop: local-docker-down  ## Alias for local-docker-down; preserves volumes.
+
+.PHONY: local-docker-down
+local-docker-down:  ## Remove local Docker API stack + frontend containers and networks; preserve volumes.
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
 		down
@@ -499,6 +501,19 @@ db-prune:  ## Delete all records from DynamoDB, OpenSearch, and object storage (
 	@echo "WARNING: this will permanently delete all data (schemas, indices, and bucket are preserved)."
 	@read -p "Type 'yes' to confirm: " confirm && [ "$$confirm" = "yes" ] || (echo "Aborted."; exit 1)
 	@$(PYTHON) scripts/db_backup.py prune $(_OS_FLAG)
+
+.PHONY: e2e-clean
+e2e-clean:  ## Destructive: clean E2E data through nginx/API, preserving users and tables.
+	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://127.0.0.1) E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) $(PYTHON) scripts/e2e_api_clean.py --yes
+
+.PHONY: e2e-real
+e2e-real:  ## Clean through API, then run Playwright against the real local API/frontend.
+	@test -n "$(E2E_MANAGER_EMAIL)" -a -n "$(E2E_MANAGER_PASSWORD)" -a -n "$(E2E_RELEASE_MANAGER_EMAIL)" -a -n "$(E2E_RELEASE_MANAGER_PASSWORD)" || (echo "ERROR: set E2E_MANAGER_EMAIL/E2E_MANAGER_PASSWORD/E2E_RELEASE_MANAGER_EMAIL/E2E_RELEASE_MANAGER_PASSWORD"; exit 1)
+	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://127.0.0.1) E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) $(PYTHON) scripts/e2e_api_clean.py --yes
+	@ARIA_E2E_REAL=1 ARIA_E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://127.0.0.1) \
+		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
+		E2E_RELEASE_MANAGER_EMAIL=$(E2E_RELEASE_MANAGER_EMAIL) E2E_RELEASE_MANAGER_PASSWORD=$(E2E_RELEASE_MANAGER_PASSWORD) \
+		npm --prefix ../frontend_mockup run test:e2e:real
 
 .PHONY: sample-docs
 sample-docs:  ## Wipe lupita-documents/ and copy N random files from lupita-documents$(SRC)/. Vars: SRC(2) N(10) MINSIZE(0, bytes) ORDER(random|name|size)

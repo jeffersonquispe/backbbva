@@ -39,6 +39,10 @@ class Config(BaseSettings):
     # through the API after the initial local users have been created.
     AUTH_BOOTSTRAP_TOKEN: str = ""
 
+    # Destructive E2E cleanup is exposed only by a local API instance. The
+    # endpoint remains disabled unless explicitly enabled in local config.
+    E2E_CLEANUP_ENABLED: bool = False
+
     GENAI_PRODUCT: str = "aria"
 
     GENAI_NAME: str = "aria-api"

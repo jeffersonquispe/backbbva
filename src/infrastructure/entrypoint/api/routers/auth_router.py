@@ -10,13 +10,15 @@ from pydantic import BaseModel, Field
 
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.use_cases.auth.local_auth import (
-    AuthenticateLocalUserUseCase, DuplicateEmailError, GetCurrentLocalUserUseCase,
-    InvalidCredentialsError, LogoutLocalUserUseCase, RegisterLocalUserUseCase, permissions_for,
+    AuthenticateLocalUserUseCase, ChangeLocalUserPasswordUseCase, DuplicateEmailError,
+    GetCurrentLocalUserUseCase, InvalidCredentialsError, ListLocalUsersUseCase, LocalUserNotFoundError,
+    LogoutLocalUserUseCase, RegisterLocalUserUseCase, permissions_for,
 )
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.factories.local_auth_factory import (
-    get_authenticate_local_user_use_case, get_current_local_user_use_case,
-    get_jwt_service, get_logout_local_user_use_case, get_register_local_user_use_case,
+    get_authenticate_local_user_use_case, get_change_local_user_password_use_case,
+    get_current_local_user_use_case, get_jwt_service, get_list_local_users_use_case,
+    get_logout_local_user_use_case, get_register_local_user_use_case,
 )
 from src.infrastructure.security.local_auth import JwtService
 
@@ -33,12 +35,22 @@ class CreateLocalUserRequest(LoginRequest):
     role: LocalRole
 
 
+class ChangePasswordRequest(BaseModel):
+    password: str = Field(min_length=8, max_length=256)
+
+
 class UserResponse(BaseModel):
     id: UUID
     email: str
     name: str
     role: LocalRole
     permissions: list[str]
+
+
+class ManagedUserResponse(UserResponse):
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
 
 
 class LoginResponse(UserResponse):
@@ -49,6 +61,18 @@ class LoginResponse(UserResponse):
 
 def _to_user_response(user: LocalUser) -> UserResponse:
     return UserResponse(id=user.id, email=user.email, name=user.name, role=user.role, permissions=permissions_for(user.role))
+
+
+def _to_managed_user_response(user: LocalUser) -> ManagedUserResponse:
+    return ManagedUserResponse(**_to_user_response(user).model_dump(), is_active=user.is_active,
+                               created_at=user.created_at, updated_at=user.updated_at)
+
+
+def require_bootstrap_token(bootstrap_token: Annotated[str | None, Header(alias="X-Bootstrap-Token")] = None) -> None:
+    """User administration (create/list/reset password) is gated by the
+    provisioning token, not by a user session — see `make local-users`."""
+    if not genai_config.AUTH_BOOTSTRAP_TOKEN or not bootstrap_token or not hmac.compare_digest(bootstrap_token, genai_config.AUTH_BOOTSTRAP_TOKEN):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="A valid bootstrap token is required to manage local users")
 
 
 def get_token_claims(
@@ -73,18 +97,32 @@ def get_current_user(
     return user
 
 
-@router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_bootstrap_token)])
 def create_local_user(
     request: CreateLocalUserRequest,
-    bootstrap_token: Annotated[str | None, Header(alias="X-Bootstrap-Token")] = None,
-    use_case: Annotated[RegisterLocalUserUseCase, Depends(get_register_local_user_use_case)] = None,
+    use_case: Annotated[RegisterLocalUserUseCase, Depends(get_register_local_user_use_case)],
 ):
-    if not genai_config.AUTH_BOOTSTRAP_TOKEN or not bootstrap_token or not hmac.compare_digest(bootstrap_token, genai_config.AUTH_BOOTSTRAP_TOKEN):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="A valid bootstrap token is required to create local users")
     try:
         return _to_user_response(use_case.execute(email=str(request.email), name=request.name, password=request.password, role=request.role))
     except DuplicateEmailError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.get("/users", response_model=list[ManagedUserResponse], dependencies=[Depends(require_bootstrap_token)])
+def list_local_users(use_case: Annotated[ListLocalUsersUseCase, Depends(get_list_local_users_use_case)]):
+    return [_to_managed_user_response(user) for user in use_case.execute()]
+
+
+@router.put("/users/{user_id}/password", response_model=ManagedUserResponse, dependencies=[Depends(require_bootstrap_token)])
+def change_local_user_password(
+    user_id: UUID,
+    request: ChangePasswordRequest,
+    use_case: Annotated[ChangeLocalUserPasswordUseCase, Depends(get_change_local_user_password_use_case)],
+):
+    try:
+        return _to_managed_user_response(use_case.execute(user_id=user_id, password=request.password))
+    except LocalUserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.post("/login", response_model=LoginResponse)

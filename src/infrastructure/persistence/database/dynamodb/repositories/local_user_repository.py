@@ -26,6 +26,20 @@ class DynamoLocalUserRepository:
         self._table.put_item(Item=_to_item(user), ConditionExpression="attribute_not_exists(user_id)")
         return user
 
+    def update(self, user: LocalUser) -> LocalUser:
+        self._table.put_item(Item=_to_item(user), ConditionExpression="attribute_exists(user_id)")
+        return user
+
+    def list(self) -> list[LocalUser]:
+        kwargs: dict = {}
+        users: list[LocalUser] = []
+        while True:
+            response = self._table.scan(**kwargs)
+            users.extend(_from_item(item) for item in response.get("Items", []))
+            if "LastEvaluatedKey" not in response:
+                return users
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+
 
 def _to_item(user: LocalUser) -> dict:
     return {"user_id": str(user.id), "email": user.email, "name": user.name,

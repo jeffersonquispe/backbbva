@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from src.application.ports.local_auth_port import (
     ROLE_PERMISSIONS,
@@ -18,6 +18,10 @@ class InvalidCredentialsError(Exception):
 
 
 class DuplicateEmailError(Exception):
+    pass
+
+
+class LocalUserNotFoundError(Exception):
     pass
 
 
@@ -42,6 +46,28 @@ class RegisterLocalUserUseCase:
             id=uuid4(), email=email, name=name.strip(),
             password_hash=self._password_hasher.hash(password), role=role,
             is_active=True, created_at=now, updated_at=now,
+        ))
+
+
+class ListLocalUsersUseCase:
+    def __init__(self, users: LocalUserRepository) -> None:
+        self._users = users
+
+    def execute(self) -> list[LocalUser]:
+        return sorted(self._users.list(), key=lambda user: user.email)
+
+
+class ChangeLocalUserPasswordUseCase:
+    def __init__(self, users: LocalUserRepository, password_hasher) -> None:
+        self._users = users
+        self._password_hasher = password_hasher
+
+    def execute(self, *, user_id: UUID, password: str) -> LocalUser:
+        user = self._users.get_by_id(user_id)
+        if not user:
+            raise LocalUserNotFoundError("User not found")
+        return self._users.update(replace(
+            user, password_hash=self._password_hasher.hash(password), updated_at=datetime.now(timezone.utc),
         ))
 
 
