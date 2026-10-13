@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.channel_library_port import ChannelLibraryRepository
 from src.application.use_cases.channel_library.create_channel_library_entry import (
     CreateChannelLibraryEntryUseCase,
 )
@@ -20,7 +21,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.channel_libra
 
 
 @lru_cache
-def get_channel_library_repository() -> DynamoChannelLibraryRepository:
+def get_channel_library_repository() -> ChannelLibraryRepository:
     return DynamoChannelLibraryRepository()
 
 

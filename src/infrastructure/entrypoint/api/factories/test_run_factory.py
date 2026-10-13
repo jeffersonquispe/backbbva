@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.test_run_port import TestRunRepository
+from src.application.ports.workflow_port import WorkflowStepExecutionRepository
 from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
 from src.application.use_cases.test_runs.get_test_case_detail import (
     GetTestCaseDetailUseCase,
@@ -33,12 +35,12 @@ from src.infrastructure.persistence.object_storage.minio import get_object_stora
 
 
 @lru_cache
-def get_test_run_repository() -> DynamoTestRunRepository:
+def get_test_run_repository() -> TestRunRepository:
     return DynamoTestRunRepository()
 
 
 @lru_cache
-def get_workflow_step_execution_repository() -> DynamoWorkflowStepExecutionRepository:
+def get_workflow_step_execution_repository() -> WorkflowStepExecutionRepository:
     return DynamoWorkflowStepExecutionRepository()
 
 

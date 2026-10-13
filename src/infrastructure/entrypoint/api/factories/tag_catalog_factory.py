@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.tag_catalog_port import TagCatalogRepository
 from src.application.use_cases.tag_catalog.create_tag import CreateTagUseCase
 from src.application.use_cases.tag_catalog.delete_tag import DeleteTagUseCase
 from src.application.use_cases.tag_catalog.list_tags import ListTagsUseCase
@@ -12,7 +13,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.tag_catalog_r
 
 
 @lru_cache
-def get_tag_catalog_repository() -> DynamoTagCatalogRepository:
+def get_tag_catalog_repository() -> TagCatalogRepository:
     return DynamoTagCatalogRepository()
 
 

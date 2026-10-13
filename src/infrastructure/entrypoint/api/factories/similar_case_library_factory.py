@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.similar_case_library_port import SimilarCaseLibraryRepository
 from src.application.use_cases.similar_case_library.create_similar_case_library_entry import (
     CreateSimilarCaseLibraryEntryUseCase,
 )
@@ -25,7 +26,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.similar_case_
 
 
 @lru_cache
-def get_similar_case_library_repository() -> DynamoSimilarCaseLibraryRepository:
+def get_similar_case_library_repository() -> SimilarCaseLibraryRepository:
     return DynamoSimilarCaseLibraryRepository()
 
 

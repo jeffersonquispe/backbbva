@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.watchlist_port import WatchlistRepository
 from src.application.use_cases.watchlists.add_watchlist_elements import (
     AddWatchlistElementsUseCase,
 )
@@ -25,7 +26,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.watchlist_rep
 
 
 @lru_cache
-def get_watchlist_repository() -> DynamoWatchlistRepository:
+def get_watchlist_repository() -> WatchlistRepository:
     return DynamoWatchlistRepository()
 
 

@@ -2,20 +2,22 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.alert_port import AlertRepository
+from src.application.ports.feedback_port import FeedbackRepository
 from src.application.ports.workflow_executor_port import (
-    WorkflowExecutionRef,
     WorkflowExecutor,
 )
+from src.application.ports.workflow_port import WorkflowExecutionRepository
 from src.application.use_cases.alerts.curate_alert_to_dataset import (
     CurateAlertToDatasetUseCase,
 )
 from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
 )
-from src.domain.workflows.entities import (
-    WorkflowExecutionRecord,
-)
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.entrypoint.api.factories.async_operation_factory import (
+    get_async_operation_repository,
+)
 from src.infrastructure.entrypoint.api.factories.dataset_factory import (
     get_dataset_analysis_dispatcher,
     get_dataset_repository,
@@ -24,33 +26,22 @@ from src.infrastructure.entrypoint.api.factories.dataset_factory import (
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_repository import (
     DynamoAlertRepository,
 )
-from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
-    DynamoAsyncOperationRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.feedback_repository import (
-    DynamoFeedbackRepository,
-)
 from src.infrastructure.persistence.database.dynamodb.repositories.workflow_repository import (
     DynamoWorkflowExecutionRepository,
 )
 from src.infrastructure.persistence.object_storage.minio import get_object_storage
-
-
-class DeferredWorkflowExecutor(WorkflowExecutor):
-    def start(
-        self,
-        workflow: WorkflowExecutionRecord,
-    ) -> WorkflowExecutionRef:
-        return WorkflowExecutionRef(backend="deferred")
+from src.infrastructure.queues.celery.deferred_executor import (
+    DeferredWorkflowExecutor,
+)
 
 
 @lru_cache
-def get_alert_repository() -> DynamoAlertRepository:
+def get_alert_repository() -> AlertRepository:
     return DynamoAlertRepository()
 
 
 @lru_cache
-def get_workflow_execution_repository() -> DynamoWorkflowExecutionRepository:
+def get_workflow_execution_repository() -> WorkflowExecutionRepository:
     return DynamoWorkflowExecutionRepository()
 
 
@@ -76,7 +67,7 @@ def get_start_alert_test_workflow_use_case() -> StartAlertTestWorkflowUseCase:
 
     return StartAlertTestWorkflowUseCase(
         alert_repository=get_alert_repository(),
-        async_operation_repository=DynamoAsyncOperationRepository(),
+        async_operation_repository=get_async_operation_repository(),
         workflow_repository=get_workflow_execution_repository(),
         workflow_executor=get_workflow_executor(),
         metrics_recorder=get_record_alert_metrics_event_use_case(),
@@ -85,7 +76,11 @@ def get_start_alert_test_workflow_use_case() -> StartAlertTestWorkflowUseCase:
 
 
 @lru_cache
-def get_feedback_repository() -> DynamoFeedbackRepository:
+def get_feedback_repository() -> FeedbackRepository:
+    from src.infrastructure.persistence.database.dynamodb.repositories.feedback_repository import (
+        DynamoFeedbackRepository,
+    )
+
     return DynamoFeedbackRepository()
 
 

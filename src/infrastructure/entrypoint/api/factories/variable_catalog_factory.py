@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.variable_catalog_port import VariableCatalogRepository
 from src.application.use_cases.variable_catalog.create_variable import (
     CreateVariableUseCase,
 )
@@ -20,7 +21,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.variable_cata
 
 
 @lru_cache
-def get_variable_catalog_repository() -> DynamoVariableCatalogRepository:
+def get_variable_catalog_repository() -> VariableCatalogRepository:
     return DynamoVariableCatalogRepository()
 
 

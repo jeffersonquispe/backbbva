@@ -3,6 +3,9 @@ from __future__ import annotations
 from functools import lru_cache
 
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.modus_operandi_library_port import (
+    ModusOperandiLibraryRepository,
+)
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.use_cases.modus_operandi_library.create_modus_operandi_library_entry import (
     CreateModusOperandiLibraryEntryUseCase,
@@ -25,7 +28,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.modus_operand
 
 
 @lru_cache
-def get_modus_operandi_library_repository() -> DynamoModusOperandiLibraryRepository:
+def get_modus_operandi_library_repository() -> ModusOperandiLibraryRepository:
     return DynamoModusOperandiLibraryRepository()
 
 

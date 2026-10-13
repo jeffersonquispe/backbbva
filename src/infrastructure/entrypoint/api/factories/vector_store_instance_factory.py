@@ -1,5 +1,8 @@
 from functools import lru_cache
 
+from src.application.ports.vector_store_instance_port import (
+    VectorStoreInstanceRepository,
+)
 from src.application.use_cases.vector_store_instances.create_vector_store_instance import (
     CreateVectorStoreInstanceUseCase,
 )
@@ -53,7 +56,7 @@ def get_knowledge_graph_service():
 
 
 @lru_cache
-def get_vector_store_instance_repository() -> DynamoVectorStoreInstanceRepository:
+def get_vector_store_instance_repository() -> VectorStoreInstanceRepository:
     return DynamoVectorStoreInstanceRepository()
 
 

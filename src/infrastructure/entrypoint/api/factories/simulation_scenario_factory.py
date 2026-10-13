@@ -6,6 +6,7 @@ from functools import lru_cache
 from src.application.dtos.dataset_dtos import GetDatasetRowsInput
 from src.application.ports.dataset_reader_gateway_port import DatasetReaderGateway
 from src.application.ports.simulation_dispatcher_port import SimulationDispatcher
+from src.application.ports.simulation_scenario_port import SimulationScenarioRepository
 from src.application.use_cases.datasets.get_dataset_rows import GetDatasetRowsUseCase
 from src.application.use_cases.event_simulation.create_simulation_scenario import (
     CreateSimulationScenarioUseCase,
@@ -96,7 +97,7 @@ class LocalDatasetReaderGateway(DatasetReaderGateway):
 
 
 @lru_cache
-def get_simulation_scenario_repository() -> DynamoSimulationScenarioRepository:
+def get_simulation_scenario_repository() -> SimulationScenarioRepository:
     return DynamoSimulationScenarioRepository()
 
 

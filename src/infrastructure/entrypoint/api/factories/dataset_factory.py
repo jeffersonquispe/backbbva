@@ -7,6 +7,10 @@ from src.application.ports.alert_field_mapping_port import AlertFieldMappingRepo
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
+from src.application.ports.dataset_analysis_port import (
+    DatasetSampleRepository,
+    DatasetSummaryRepository,
+)
 from src.application.ports.dataset_port import DatasetRepository
 from src.application.use_cases.datasets.analyze_dataset_on_demand import (
     AnalyzeDatasetOnDemandUseCase,
@@ -41,11 +45,11 @@ from src.application.use_cases.datasets.save_alert_field_mapping import (
 from src.application.use_cases.datasets.upload_dataset import UploadDatasetUseCase
 from src.application.use_cases.test_runs.list_datasets import ListDatasetsUseCase
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.entrypoint.api.factories.async_operation_factory import (
+    get_async_operation_repository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_field_mapping_repository import (
     DynamoAlertFieldMappingRepository,
-)
-from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
-    DynamoAsyncOperationRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sample_repository import (
     DynamoDatasetSampleRepository,
@@ -72,12 +76,12 @@ def get_dataset_repository() -> DatasetRepository:
 
 
 @lru_cache
-def get_dataset_summary_repository() -> DynamoDatasetSummaryRepository:
+def get_dataset_summary_repository() -> DatasetSummaryRepository:
     return DynamoDatasetSummaryRepository()
 
 
 @lru_cache
-def get_dataset_sample_repository() -> DynamoDatasetSampleRepository:
+def get_dataset_sample_repository() -> DatasetSampleRepository:
     return DynamoDatasetSampleRepository()
 
 
@@ -105,7 +109,7 @@ def get_upload_dataset_use_case() -> UploadDatasetUseCase:
         dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
-        async_operation_repository=DynamoAsyncOperationRepository(),
+        async_operation_repository=get_async_operation_repository(),
     )
 
 
@@ -119,7 +123,7 @@ def get_analyze_fraud_marking_use_case() -> AnalyzeFraudMarkingUseCase:
     return AnalyzeFraudMarkingUseCase(
         get_dataset_repository(),
         get_dataset_summary_repository(),
-        DynamoAsyncOperationRepository(),
+        get_async_operation_repository(),
     )
 
 
@@ -128,7 +132,7 @@ def get_delete_dataset_use_case() -> DeleteDatasetUseCase:
         dataset_repository=get_dataset_repository(),
         sample_repository=get_dataset_sample_repository(),
         summary_repository=get_dataset_summary_repository(),
-        async_operation_repository=DynamoAsyncOperationRepository(),
+        async_operation_repository=get_async_operation_repository(),
     )
 
 
@@ -160,7 +164,7 @@ def get_analyze_dataset_on_demand_use_case() -> AnalyzeDatasetOnDemandUseCase:
         dataset_repository=get_dataset_repository(),
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
-        async_operation_repository=DynamoAsyncOperationRepository(),
+        async_operation_repository=get_async_operation_repository(),
     )
 
 

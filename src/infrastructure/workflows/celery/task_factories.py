@@ -3,6 +3,10 @@ from __future__ import annotations
 from functools import lru_cache
 
 from src.application.dtos.research_dtos import ResearchSource
+from src.application.ports.dataset_analysis_port import (
+    DatasetSampleRepository,
+    DatasetSummaryRepository,
+)
 from src.application.ports.model_scoring_port import ModelScoringPort
 from src.application.ports.research_port import HistoryResearchPlanner
 from src.application.use_cases.alerts.document_analyst_decision import (
@@ -99,12 +103,12 @@ def get_model_scoring_port() -> ModelScoringPort:
 
 
 @lru_cache
-def get_dataset_sample_repository() -> DynamoDatasetSampleRepository:
+def get_dataset_sample_repository() -> DatasetSampleRepository:
     return DynamoDatasetSampleRepository()
 
 
 @lru_cache
-def get_dataset_summary_repository() -> DynamoDatasetSummaryRepository:
+def get_dataset_summary_repository() -> DatasetSummaryRepository:
     return DynamoDatasetSummaryRepository()
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.flag_library_port import FlagLibraryRepository
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.use_cases.flag_library.create_flag_library_entry import (
     CreateFlagLibraryEntryUseCase,
@@ -25,7 +26,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.flag_library_
 
 
 @lru_cache
-def get_flag_library_repository() -> DynamoFlagLibraryRepository:
+def get_flag_library_repository() -> FlagLibraryRepository:
     return DynamoFlagLibraryRepository()
 
 

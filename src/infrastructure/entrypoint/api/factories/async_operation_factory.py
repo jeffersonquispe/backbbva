@@ -4,14 +4,11 @@ from functools import lru_cache
 
 from src.application.ports.async_execution_inspector_port import (
     AsyncExecutionInspector,
-    AsyncExecutionSnapshot,
-    AsyncExecutionState,
 )
 from src.application.ports.async_executor_port import (
-    AsyncExecutionRef,
     AsyncExecutor,
 )
-from src.application.ports.async_operation_port import AsyncOperationRecord
+from src.application.ports.async_operation_port import AsyncOperationRepository
 from src.application.use_cases.async_operations.create_async_operation import (
     GENERIC_OPERATION_TYPES,
     CreateAsyncOperationUseCase,
@@ -32,28 +29,14 @@ from src.infrastructure.core.config import genai_config
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
-
-
-class DeferredAsyncExecutor(AsyncExecutor):
-    """Local no-op executor for environments without an async backend."""
-
-    def dispatch(self, operation: AsyncOperationRecord) -> AsyncExecutionRef:
-        return AsyncExecutionRef(backend="deferred")
-
-
-class DeferredAsyncExecutionInspector(AsyncExecutionInspector):
-    def inspect(
-        self,
-        operation: AsyncOperationRecord,
-    ) -> AsyncExecutionSnapshot:
-        return AsyncExecutionSnapshot(
-            state=AsyncExecutionState.UNKNOWN,
-            detail="Deferred executor has no backend state",
-        )
+from src.infrastructure.queues.celery.deferred_executor import (
+    DeferredAsyncExecutionInspector,
+    DeferredAsyncExecutor,
+)
 
 
 @lru_cache
-def get_async_operation_repository() -> DynamoAsyncOperationRepository:
+def get_async_operation_repository() -> AsyncOperationRepository:
     return DynamoAsyncOperationRepository()
 
 

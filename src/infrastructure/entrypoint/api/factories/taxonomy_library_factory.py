@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.taxonomy_library_port import TaxonomyLibraryRepository
 from src.application.use_cases.taxonomy_library.create_taxonomy_library_entry import (
     CreateTaxonomyLibraryEntryUseCase,
 )
@@ -25,7 +26,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.taxonomy_libr
 
 
 @lru_cache
-def get_taxonomy_library_repository() -> DynamoTaxonomyLibraryRepository:
+def get_taxonomy_library_repository() -> TaxonomyLibraryRepository:
     return DynamoTaxonomyLibraryRepository()
 
 

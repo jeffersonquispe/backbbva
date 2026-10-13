@@ -3,6 +3,9 @@ from __future__ import annotations
 from functools import lru_cache
 
 from src.application.ports.alert_action_dispatcher_port import AlertActionDispatcher
+from src.application.ports.resource_reservation_port import (
+    ResourceReservationRepository,
+)
 from src.application.use_cases.analyst_queue.get_alert_detail import (
     GetAlertDetailUseCase,
 )
@@ -47,7 +50,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.resource_rese
 
 
 @lru_cache
-def get_resource_reservation_repository() -> DynamoResourceReservationRepository:
+def get_resource_reservation_repository() -> ResourceReservationRepository:
     return DynamoResourceReservationRepository()
 
 

@@ -3,7 +3,34 @@ from __future__ import annotations
 from functools import lru_cache
 from uuid import UUID
 
-from src.application.ports.alert_schema_port import AlertSchemaRepository
+from src.application.ports.alert_port import AlertRepository
+from src.application.ports.alert_schema_port import (
+    AlertSchemaPresenceReportRepository,
+    AlertSchemaRepository,
+)
+from src.application.ports.async_operation_port import AsyncOperationRepository
+from src.application.ports.configuration_port import ConfigurationRepository
+from src.application.ports.metrics_rollup_port import MetricsRollupRepository
+from src.application.ports.model_port import ModelRepository
+from src.application.ports.modus_operandi_library_port import (
+    ModusOperandiLibraryRepository,
+)
+from src.application.ports.operational_settings_port import (
+    OperationalSettingsRepository,
+)
+from src.application.ports.operations_capacity_port import OperationsCapacityPort
+from src.application.ports.resource_reservation_port import (
+    ResourceReservationRepository,
+)
+from src.application.ports.test_run_port import TestRunRepository
+from src.application.ports.vector_store_instance_port import (
+    VectorStoreInstanceRepository,
+)
+from src.application.ports.watchlist_port import WatchlistRepository
+from src.application.ports.workflow_port import (
+    WorkflowExecutionRepository,
+    WorkflowStepExecutionRepository,
+)
 from src.application.ports.workflow_status_port import WorkflowStatusReporter
 from src.application.use_cases.alert_schema.analyze_presence import (
     AnalyzeAlertSchemaPresenceUseCase,
@@ -170,7 +197,7 @@ from src.infrastructure.queues.celery.reasoning_evaluation_dispatcher import (
 
 
 @lru_cache
-def get_alert_repository() -> DynamoAlertRepository:
+def get_alert_repository() -> AlertRepository:
     return DynamoAlertRepository()
 
 
@@ -181,7 +208,7 @@ def get_alert_schema_repository() -> AlertSchemaRepository:
 
 @lru_cache
 def get_alert_schema_presence_report_repository() -> (
-    DynamoAlertSchemaPresenceReportRepository
+    AlertSchemaPresenceReportRepository
 ):
     return DynamoAlertSchemaPresenceReportRepository()
 
@@ -196,47 +223,47 @@ def get_analyze_alert_schema_presence_use_case() -> AnalyzeAlertSchemaPresenceUs
 
 
 @lru_cache
-def get_metrics_rollup_repository() -> DynamoMetricsRollupRepository:
+def get_metrics_rollup_repository() -> MetricsRollupRepository:
     return DynamoMetricsRollupRepository(timezone_name=genai_config.OPERATIONS_TIMEZONE)
 
 
 @lru_cache
-def get_configuration_repository() -> DynamoConfigurationRepository:
+def get_configuration_repository() -> ConfigurationRepository:
     return DynamoConfigurationRepository()
 
 
 @lru_cache
-def get_async_operation_repository() -> DynamoAsyncOperationRepository:
+def get_async_operation_repository() -> AsyncOperationRepository:
     return DynamoAsyncOperationRepository()
 
 
 @lru_cache
-def get_workflow_execution_repository() -> DynamoWorkflowExecutionRepository:
+def get_workflow_execution_repository() -> WorkflowExecutionRepository:
     return DynamoWorkflowExecutionRepository()
 
 
 @lru_cache
-def get_workflow_step_execution_repository() -> DynamoWorkflowStepExecutionRepository:
+def get_workflow_step_execution_repository() -> WorkflowStepExecutionRepository:
     return DynamoWorkflowStepExecutionRepository()
 
 
 @lru_cache
-def get_operations_capacity_repository() -> DynamoOperationsCapacityRepository:
+def get_operations_capacity_repository() -> OperationsCapacityPort:
     return DynamoOperationsCapacityRepository()
 
 
 @lru_cache
-def get_operational_settings_repository() -> DynamoOperationalSettingsRepository:
+def get_operational_settings_repository() -> OperationalSettingsRepository:
     return DynamoOperationalSettingsRepository()
 
 
 @lru_cache
-def get_resource_reservation_repository() -> DynamoResourceReservationRepository:
+def get_resource_reservation_repository() -> ResourceReservationRepository:
     return DynamoResourceReservationRepository()
 
 
 @lru_cache
-def get_modus_operandi_library_repository() -> DynamoModusOperandiLibraryRepository:
+def get_modus_operandi_library_repository() -> ModusOperandiLibraryRepository:
     return DynamoModusOperandiLibraryRepository()
 
 
@@ -251,17 +278,17 @@ def get_live_operations_capacity() -> LiveOperationsCapacity:
 
 
 @lru_cache
-def get_test_run_repository() -> DynamoTestRunRepository:
+def get_test_run_repository() -> TestRunRepository:
     return DynamoTestRunRepository()
 
 
 @lru_cache
-def get_watchlist_repository() -> DynamoWatchlistRepository:
+def get_watchlist_repository() -> WatchlistRepository:
     return DynamoWatchlistRepository()
 
 
 @lru_cache
-def get_model_repository() -> DynamoModelRepository:
+def get_model_repository() -> ModelRepository:
     return DynamoModelRepository()
 
 
@@ -296,7 +323,7 @@ def get_host_personal_data_changes_port() -> MockHostServicePersonalDataChangesA
 
 
 @lru_cache
-def get_vector_store_instance_repository() -> DynamoVectorStoreInstanceRepository:
+def get_vector_store_instance_repository() -> VectorStoreInstanceRepository:
     return DynamoVectorStoreInstanceRepository()
 
 

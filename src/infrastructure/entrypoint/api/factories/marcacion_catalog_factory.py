@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.marcacion_catalog_port import MarcacionCatalogRepository
 from src.application.use_cases.marcacion_catalog.create_marcacion_category import (
     CreateMarcacionCategoryUseCase,
 )
@@ -20,7 +21,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.marcacion_cat
 
 
 @lru_cache
-def get_marcacion_catalog_repository() -> DynamoMarcacionCatalogRepository:
+def get_marcacion_catalog_repository() -> MarcacionCatalogRepository:
     return DynamoMarcacionCatalogRepository()
 
 

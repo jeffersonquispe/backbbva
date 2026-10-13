@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from src.application.ports.revoked_token_port import RevokedTokenRepository
 from src.application.use_cases.auth.local_auth import (
     AuthenticateLocalUserUseCase,
     ChangeLocalUserPasswordUseCase,
@@ -18,7 +19,7 @@ from src.infrastructure.security.local_auth import JwtService, PasswordHasher
 
 
 @lru_cache
-def get_revoked_token_repository() -> DynamoRevokedTokenRepository:
+def get_revoked_token_repository() -> RevokedTokenRepository:
     return DynamoRevokedTokenRepository()
 
 

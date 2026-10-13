@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.operational_settings_port import (
+    OperationalSettingsRepository,
+)
 from src.application.use_cases.operational_settings.get_operational_settings import (
     GetOperationalSettingsUseCase,
 )
@@ -17,7 +20,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.operational_s
 
 
 @lru_cache
-def get_operational_settings_repository() -> DynamoOperationalSettingsRepository:
+def get_operational_settings_repository() -> OperationalSettingsRepository:
     return DynamoOperationalSettingsRepository()
 
 

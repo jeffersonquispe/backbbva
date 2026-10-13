@@ -8,6 +8,7 @@ from src.application.ports.fraud_label_review_import_port import (
     FraudLabelReviewImportDispatcher,
     FraudLabelReviewImportStatusReader,
 )
+from src.application.ports.fraud_label_review_port import FraudLabelReviewRepository
 from src.application.use_cases.alerts.list_alert_history import ListAlertHistory
 from src.application.use_cases.fraud_review.get_fraud_label_review_import import (
     GetFraudLabelReviewImport,
@@ -36,7 +37,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.fraud_label_r
 
 
 @lru_cache
-def get_fraud_label_review_repository() -> DynamoFraudLabelReviewRepository:
+def get_fraud_label_review_repository() -> FraudLabelReviewRepository:
     return DynamoFraudLabelReviewRepository()
 
 

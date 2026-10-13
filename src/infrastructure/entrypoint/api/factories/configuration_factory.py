@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.configuration_port import ConfigurationRepository
 from src.application.use_cases.configurations.activate_configuration import (
     ActivateConfigurationUseCase,
 )
@@ -32,7 +33,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.configuration
 
 
 @lru_cache
-def get_configuration_repository() -> DynamoConfigurationRepository:
+def get_configuration_repository() -> ConfigurationRepository:
     return DynamoConfigurationRepository()
 
 

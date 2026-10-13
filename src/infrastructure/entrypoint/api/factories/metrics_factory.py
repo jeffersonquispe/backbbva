@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.metrics_rollup_port import MetricsRollupRepository
 from src.application.use_cases.metrics.get_agent_metrics import GetAgentMetrics
 from src.application.use_cases.metrics.get_live_alert_funnel import (
     GetLiveAlertFunnel,
@@ -41,7 +42,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.metrics_rollu
 
 
 @lru_cache
-def get_metrics_rollup_repository() -> DynamoMetricsRollupRepository:
+def get_metrics_rollup_repository() -> MetricsRollupRepository:
     return DynamoMetricsRollupRepository(timezone_name=genai_config.OPERATIONS_TIMEZONE)
 
 
