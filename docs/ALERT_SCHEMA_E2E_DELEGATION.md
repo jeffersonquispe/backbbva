@@ -64,7 +64,11 @@ crear duplicados arbitrarios de esquemas, datasets o configuraciones.
 El seed debe usar inicialmente el mapeo completo ya definido en
 `completeMappedFields` y `mandatoryFields` del E2E real.
 
-### Roles obligatorios
+### Roles requeridos en el esquema
+
+Los siete roles deben tener asignación en el esquema. Por transacción,
+`amount` puede faltar sin escalar la alerta; los otros seis roles siguen
+siendo obligatorios.
 
 | Rol | Ubicación CSV | Tipo |
 | --- | --- | --- |
@@ -84,6 +88,10 @@ Estos valores deben permanecer fuera del input enviado a los agentes:
 - `razon_marcacion`
 - `tipo`
 - `output_tags`
+
+`output_tags` se usa como label solo para entrenamiento/evaluación de
+entrenamiento; no es un label operativo de la alerta en producción. En ambos
+casos permanece fuera del input enviado a los agentes.
 
 ### Campos opcionales
 
@@ -235,8 +243,10 @@ Implementado:
 - `make e2e-seed` crea o reutiliza v1 activa, v2 propuesta, configuración
   `default` y el dataset E2E por API. Si el dataset existe, lo elimina por API,
   espera el borrado y vuelve a cargar el fixture actual.
-- `make e2e-real` encadena limpieza, seed, Playwright real y análisis diario;
-  `E2E_BASE_URL` y el default usan `http://localhost`.
+- `make e2e-real` con `E2E_FROM=0` (default) encadena limpieza, seed,
+  Playwright real y análisis diario; `E2E_FROM=1..6` conserva el estado y
+  omite los pasos anteriores. `E2E_BASE_URL` y el default usan
+  `http://localhost`.
 - `make local-test-queue-purge` reinicia el worker de pruebas y purga mensajes
   pendientes de su cola `test` tras una corrida interrumpida.
 - El fixture tiene cinco filas sintéticas consistentes, sin datos productivos.
@@ -251,24 +261,20 @@ Implementado:
 Validación final ejecutada mediante Make, con nginx en `localhost`:
 
 ```text
-make e2e-real GENAI_ENVIRONMENT=local E2E_BASE_URL=http://localhost ...
-Playwright: 5 passed (2.8m)
-E2E presence: report_day=2026-10-12, schema=v1, alerts=0, fields=56, suggestions=0
+make e2e-real E2E_FROM=0 GENAI_ENVIRONMENT=local E2E_BASE_URL=http://localhost ...
+Playwright: 6 passed (3.1m)
+E2E presence: report_day=2026-10-12, schema=v2, alerts=0, fields=56, suggestions=1
 ```
 
-Los cinco escenarios pasados cubren bloqueo de autoaprobación; cinco filas
-procesadas con esquema candidato y labels fuera del input; alerta canónica, raw
-restringido, historial y dimensiones de métricas; `schema_version`, `channel` y
-`entrypoint` en el dashboard; y preview sintético del simulador sin labels ni
-identificadores de cliente reales. C5 comprueba reporte diario, ubicaciones,
-distribuciones de roles y consulta de sugerencias. El reporte marca cero alertas
-porque `e2e-clean` se ejecutó antes del job. C4 requiere que las cinco filas
-lleguen a estado terminal; el resultado puede ser `FAILED` por la revisión
-adversarial del agente, que es independiente de la validación de mapeo y labels.
+Los seis escenarios cubren gobierno y aprobación cross-user, el lote de cinco
+filas con labels fuera del input, cola/detalle con formato regional, raw y su
+auditoría, historial y curación, métricas con corte de versión visible, reporte
+de presencia y sugerencias, y preview del simulador sin labels. También se
+verificó una reanudación desde C5 con el checkpoint persistido. El reporte marca
+cero alertas porque `e2e-clean` corre antes del análisis diario. La suite no
+define el resultado del agente para las filas: valida procesamiento, estado
+terminal y separación de labels.
 
-Cobertura pendiente: C1 no recorre todas las pestañas ni verifica aprobación
-por el segundo usuario o auditoría; C2 no verifica exportación “Al dataset” ni
-la entrada de auditoría de acceso raw; C3 no compara snapshots de dos versiones;
-C4 no comprueba la comparación completa de campos/roles ni inspecciona prompts;
-C5 no comprueba permisos por rol para campos de sistema; C6 no contrasta
-distribuciones categóricas observadas con sus pesos configurados.
+La especificación amplia de flujos UI/API sigue pendiente para los recorridos
+E00–E09 (roles, biblioteca, datasets, entrenamiento, remarcación y navegación
+integral del simulador); la suite C1–C6 es una cobertura específica del esquema.

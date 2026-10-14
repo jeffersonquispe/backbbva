@@ -162,15 +162,18 @@ La lista de roles la fija el código; el esquema sólo los asigna:
 | `event_type` | string | ✓ | Segmentación (`resolve_alert_segment`), perfilado determinista, métricas, catálogo de tags |
 | `channel` | string | ✓ | Segmentación, perfilado determinista, métricas (dimensión canal), análisis de historial |
 | `entrypoint` | string | ✓ | Segmentación, perfilado determinista, métricas (dimensión subcanal) |
-| `amount` | number | ✓ | Perfilado determinista, métricas (dimensión monto), análisis de historial |
+| `amount` | number | ✓ (asignación) | Perfilado determinista, métricas (dimensión monto), análisis de historial |
 | `customer_id` | string | ✓ | Consultas al host (perfil, historial, cambios de datos) |
 | `account_id` | string | | Consulta del historial al host |
 | `session_id` | string | | Consulta de señales de ARIC |
 
 **Reglas:**
-- Un rol se asigna a un único campo `is_alert` de tipo compatible. El
-  campo asignado a un rol obligatorio se trata como `is_mandatory`
-  aunque no esté marcado.
+- Un rol se asigna a un único campo `is_alert` de tipo compatible. Los
+  siete roles marcados ✓ requieren asignación en el esquema; eso no implica
+  que todos sus valores deban venir en cada transacción. Si falta `amount`,
+  la alerta continúa con el monto ausente, y consumidores como métricas y
+  perfilado reciben ese valor como ausente. Los otros seis roles mantienen
+  su obligatoriedad por transacción.
 - **Distribuciones:** el análisis diario (§4.4) calcula, además de la
   presencia, la distribución de los campos asignados a roles (valores y
   frecuencias en categóricos; percentiles en numéricos). Es la misma
@@ -316,10 +319,14 @@ campo; la v1 usa `es-CO` (`$ 5.400.000,00`, `09/10/2026`).
 
 ## 7. Campos de la v1
 
-Sin tabla base por ahora: la v1 se definirá más adelante, cargándola por
-la pestaña Configuración → Esquema. Mientras no exista una versión
-activa con todos los roles obligatorios asignados (§4.2), el pre-proceso
-no puede ejecutarse.
+La v1 parte del mapeo completo del seed E2E sobre `Muestra_total_ARIA.csv`:
+roles y campos opcionales según `scripts/e2e_api_seed.py`. Los siete roles
+deben estar asignados en el esquema; `amount` es opcional por transacción,
+mientras que los otros seis roles siguen siendo obligatorios por transacción.
+`output_tags` se conserva fuera del input y se usa como label únicamente en
+entrenamiento/evaluación de entrenamiento; no es un label operativo de la
+alerta en producción. Las ubicaciones son las columnas del CSV de referencia
+y no afirman que esos mismos nombres existan en cada payload crudo de ARIC.
 
 ## 8. Tareas
 
@@ -347,20 +354,28 @@ Orden: E1 → E2 → E3 → E4 → E17 → E5 → (E6, E7, E8, E9 en paralelo) �
 E13 → E14 → E15 → E16. E10 y E11 cuando haya datos de historial y el
 esquema esté estable.
 
-## 9. Pendiente de definir
+## 9. Decisiones de alcance
 
-- Contenido de la v1 (§7).
+- No hay obligatoriedad condicional. `card_bin` y `authorization_phase`
+  se descartan como campos obligatorios sólo-tarjeta.
+- `output_tags` es label únicamente para entrenamiento/evaluación de
+  entrenamiento; se excluye del input de agentes.
+- La asignación del rol `amount` es obligatoria en el esquema, pero su valor
+  puede faltar por transacción sin bloquear el procesamiento.
+- B1 (§8) cerró la definición del contenido v1. La carga y aprobación por el
+  flujo de gobierno sigue pendiente en B2.
 
-Decidido: no hay obligatoriedad condicional. `card_bin` y
-`authorization_phase` se descartan como campos obligatorios sólo-tarjeta.
+## 10. Estado del trabajo (actualizado 2026-10-13)
 
-## 10. Cierre: tareas pendientes (2026-10-11)
+E1–E17 están commiteadas: backend en `b943cff` y frontend en `87e8bc4`
+(`feature/version_0_0_3` en ambos repos). Durante la revisión ya se
+corrigieron el 500 en `/analyst-queue` (el modelo de respuesta aún exigía
+`payload`) y la tabla `alert_schema_suggestions`, que no se creaba al arrancar.
 
-E1–E17 están implementadas (sin commit) y verificadas con tests; en
-`http://localhost` sólo se revisó con rol `channel_manager` y sin esquema
-activo. Ya corregido durante la revisión: 500 en `/analyst-queue` (el modelo
-de respuesta aún exigía `payload`) y tabla `alert_schema_suggestions` sin
-crear al arrancar.
+El backend de respaldos y la pantalla local de respaldos continúan en B3. Antes
+de dar B3 por cerrado falta verificar un backup real, probar `db-restore` y
+añadir las pruebas correspondientes. La suite real de esquema C1–C6 ya está
+implementada y verificada contra la API local.
 
 ### Bloque A — Calidad (antes del commit)
 
@@ -370,35 +385,45 @@ crear al arrancar.
 | A2 | ✅ 2026-10-11. Tests HTTP para `raw` (roles, 404, sensibilidad y auditoría) y `/alert-schema/*` (acceso al activo, historial y roles). | Claude | A1 |
 | A3 | ✅ 2026-10-12. Aceptada la desviación de E3: las propuestas de esquema siguen su propio flujo, separado de `/configuration-deploy-requests` (ver `ALERT_SCHEMA_E2E_DELEGATION.md`). | Usuario | — |
 | A4 | ✅ 2026-10-11. `index.html` del nginx local queda con `Cache-Control: no-cache`; el variant OKD ya lo tenía. | Claude | — |
-| A5 | ⏳ Parcial (2026-10-13). Backend commiteado en `feature/version_0_0_3` (`b943cff`); falta el frontend (componentes `alert/`, `configuracion/schema/`, `SchemaComparison`, specs E2E) y en backend `e2e-seed`/`e2e-presence` + `scripts/e2e_api_seed.py`/`e2e_api_wait_presence.py`. | Usuario + Claude | A1, A2, A4 |
+| A5 | ✅ 2026-10-13. Commit completo: backend `b943cff`, `e2e-seed`/`e2e-presence` y `scripts/e2e_api_seed.py`/`e2e_api_wait_presence.py` en `1f0a7ad`; frontend `87e8bc4` (componentes `alert/`, `configuracion/schema/`, `SchemaComparison` y specs E2E). La cobertura ampliada de C1–C6 ya está implementada y verificada. | Usuario + Claude | A1, A2, A4 |
 
 ### Bloque B — Puesta en marcha local
 
 | # | Tarea | Responsable | Depende de |
 | --- | --- | --- | --- |
-| B1 | Definir el contenido de la v1: campos, ubicaciones, tipos, obligatorios, núcleo, sensibles, historial y asignación de los 7 roles obligatorios. | Usuario + equipo | — |
-| B2 | Cargar la v1 por Configuración → Esquema: propone un `manager`/`release_manager`, aprueba otro distinto. | Usuario | B1 |
-| B3 | Pendiente (2026-10-13: `scripts/db_backup.py` sigue sin existir; la delegación E2E no lo requiere). Datos antiguos: decidir si se vacían (`make db-prune`) o se conservan sin vista canónica. Antes, arreglar `make db-backup` (`scripts/db_backup.py` no existe). | Usuario (decisión) + Claude (arreglo) | — |
+| B1 | ✅ 2026-10-13. Definido el contenido de la v1 desde el mapeo completo del seed: siete roles asignados; `amount` opcional por transacción y los otros seis obligatorios; labels de desenlace separados del input, con `output_tags` reservado para entrenamiento; campos restantes opcionales y sin campos CSV declarados como historial. | Usuario + equipo | — |
+| B2 | **Siguiente.** Cargar la v1 por Configuración → Esquema: propone un `manager`/`release_manager`, aprueba otro distinto. | Usuario | B1 |
+| B3 | ⏳ En curso (sin commit). `scripts/db_backup.py` ya existe y `make db-backup` corre dentro de `aria-worker-main`; además hay un endpoint `/backups` asíncrono. Falta: (1) un backup verificado, porque los dos intentos de 2026-10-13 (`backups/20261013T232545Z`, `20261013T233119Z`) dejaron sólo `dynamodb/` vacío y sin `manifest.json`; (2) probar `db-restore`; (3) tests y commit. Después: decidir si se vacían los datos antiguos (`make db-prune`) o se conservan sin vista canónica. | Claude (arreglo) + Usuario (decisión) | — |
 
 ### Bloque C — Verificación de punta a punta (con la v1 activa)
 
+Los seis tests de `alert-schema-real-api.spec.ts` usan su propio esquema
+sembrado por `make e2e-seed`, así que pueden correr antes de B2. La
+verificación manual con la v1 real sí depende de B2. La corrida limpia
+`make e2e-real E2E_FROM=0` pasó los seis tests y el análisis de presencia.
+`E2E_FROM=1..6` permite reanudar sobre el estado existente; la reanudación desde
+C5 también se verificó.
+
 | # | Tarea | Responsable | Depende de |
 | --- | --- | --- | --- |
-| C1 | ⏳ Parcial: E2E real cubre gobierno y bloqueo de autoaprobación (`alert-schema-real-api.spec.ts`). Falta: 4 sub-pestañas, aviso de impacto, "Evento original" enmascarado y auditado. | Usuario (sesión) + Claude | B2 |
-| C2 | Procesar alertas nuevas (simulador o manual): canónica guardada, cola y detalle con formato, historial, `agent_output`, "Al dataset". | Claude | B2 |
-| C3 | Métricas desde roles y corte de versión en `/dashboard`. | Claude | C2 |
-| C4 | ⏳ Parcial: E2E real procesa 5 filas del CSV y verifica labels fuera del input. Falta: comparación activo vs candidato (campos/roles agregados, modificados y retirados). | Claude | B2 |
-| C5 | ⏳ Parcial: `make e2e-presence` despacha el job y espera el reporte por API (sin commit). Falta revisar Sugerencias y Campos de sistema en UI. | Claude | C2 |
-| C6 | Simulador: "Sembrar desde dataset" y generación con campos sensibles sintéticos. | Claude | B2 |
+| C1 | ✅ E2E real verifica gobierno, tabs, aprobación cross-user, raw enmascarado, permiso y auditoría al abrir "Evento original". | Claude | B2 |
+| C2 | ✅ E2E real verifica cola/detalle, formato `es-CO`, `agent_output`, historial, raw y curación al dataset. | Claude | B2 |
+| C3 | ✅ E2E real verifica métricas por roles y corte de versión visible en `/dashboard`. | Claude | C2 |
+| C4 | ✅ E2E real procesa cinco filas y verifica labels fuera del input, además de comparar campos y roles entre versiones. | Claude | B2 |
+| C5 | ✅ E2E real verifica el contenido de Sugerencias y Campos de sistema junto con el reporte de presencia. | Claude | C2 |
+| C6 | ✅ E2E real verifica el seed del simulador sin labels, datos sensibles sintéticos, pesos categóricos y vista previa de 100 eventos. | Claude | B2 |
 
 ### Bloque D — Despliegue (OKD)
 
+Desbloqueado por A5 y la verificación E2E verde de C1–C6.
+
 | # | Tarea | Responsable | Depende de |
 | --- | --- | --- | --- |
-| D1 | Provisionar tablas `alert_schema_versions`, `alert_schema_presence_reports`, `alert_schema_suggestions`. | Plataforma | A5 |
+| D1 | Provisionar tablas `alert_schema_versions`, `alert_schema_presence_reports`, `alert_schema_suggestions` (y la del catálogo de backups si B3 se commitea con el endpoint). | Plataforma | A5 |
 | D2 | Almacenamiento de objetos: payload crudo, salida del agente y auditoría del "Evento original" (bucket, permisos, retención). | Plataforma | A5 |
 | D3 | `scheduler`: confirmar el job diario de presencia en OKD. | Plataforma | A5 |
 | D4 | Cargar la v1 en OKD por el flujo de gobierno. | Usuario | B1, D1 |
 
-Orden: A1 → A2 → A4 → A5 en paralelo con B1/A3/B3; luego B2 → C1–C6;
-D cuando A5 esté hecho.
+Orden: Bloque A cerrado y B1 cerrado. Completar B3 (backup verificado,
+`db-restore` probado y tests), después B2 → verificación manual de C1–C6 con
+la v1 real → D1–D4.
