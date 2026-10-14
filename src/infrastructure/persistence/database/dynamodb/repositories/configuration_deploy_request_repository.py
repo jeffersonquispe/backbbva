@@ -65,7 +65,6 @@ class DynamoConfigurationDeployRequestRepository:
         assert result is not None
         return result
 
-
 def _to_item(request: ConfigurationDeployRequest) -> dict:
     return {
         "id": request.id,

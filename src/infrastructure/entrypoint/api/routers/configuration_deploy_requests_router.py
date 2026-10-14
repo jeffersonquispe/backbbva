@@ -12,6 +12,7 @@ from src.application.ports.configuration_deploy_request_port import (
 )
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.use_cases.configurations.activate_configuration import (
+    ConfigurationActivationConflictError,
     ConfigurationNotFoundError,
     ConfigurationNotTestedError,
 )
@@ -162,14 +163,31 @@ def approve_deploy_request(
         raise HTTPException(
             status_code=403, detail="A user cannot approve their own deploy request"
         )
+    current = get_configuration_repository().get_active()
+    current_key = (current.configuration_id, current.version) if current else None
+    requested_key = (
+        (deploy_request.current_configuration_id, deploy_request.current_version)
+        if deploy_request.current_configuration_id is not None
+        and deploy_request.current_version is not None
+        else None
+    )
+    if current_key != requested_key:
+        raise HTTPException(
+            status_code=409,
+            detail="Production configuration changed since this request was created; submit a new request",
+        )
     try:
         get_activate_configuration_use_case().execute(
-            deploy_request.target_configuration_id, deploy_request.target_version
+            deploy_request.target_configuration_id,
+            deploy_request.target_version,
+            expected_current=current_key,
         )
     except ConfigurationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ConfigurationNotTestedError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ConfigurationActivationConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     try:
         approved = requests.approve(
             request_id, user.name, datetime.now(UTC), str(user.id)

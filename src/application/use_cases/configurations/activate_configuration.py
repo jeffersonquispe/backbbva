@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from src.application.errors import ConflictError, NotFoundError
+from src.application.errors import (
+    ConfigurationWriteConflict,
+    ConflictError,
+    NotFoundError,
+)
 from src.application.ports.configuration_port import (
     ConfigurationRepository,
 )
@@ -18,6 +22,10 @@ class ConfigurationNotTestedError(ConflictError):
     pass
 
 
+class ConfigurationActivationConflictError(ConflictError):
+    pass
+
+
 class ActivateConfigurationUseCase:
     def __init__(
         self,
@@ -27,7 +35,12 @@ class ActivateConfigurationUseCase:
         self._configurations = configuration_repository
         self._test_runs = test_run_repository
 
-    def execute(self, configuration_id: str, version: int) -> ConfigurationRecord:
+    def execute(
+        self,
+        configuration_id: str,
+        version: int,
+        expected_current: tuple[str, int] | None = None,
+    ) -> ConfigurationRecord:
         if self._configurations.get(configuration_id, version) is None:
             raise ConfigurationNotFoundError(
                 f"Configuration {configuration_id} v{version} not found"
@@ -39,7 +52,12 @@ class ActivateConfigurationUseCase:
                 "test run in Testing"
             )
 
-        return self._configurations.activate(configuration_id, version)
+        try:
+            return self._configurations.activate(
+                configuration_id, version, expected_current=expected_current
+            )
+        except ConfigurationWriteConflict as exc:
+            raise ConfigurationActivationConflictError(str(exc)) from exc
 
     def _has_succeeded_test_run(self, configuration_id: str, version: int) -> bool:
         return any(

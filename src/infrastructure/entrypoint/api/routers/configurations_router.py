@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.application.use_cases.configurations.activate_configuration import (
     ActivateConfigurationUseCase,
+    ConfigurationActivationConflictError,
     ConfigurationNotFoundError,
     ConfigurationNotTestedError,
 )
@@ -163,9 +164,15 @@ def activate_configuration(
     ],
 ):
     try:
-        record = use_case.execute(configuration_id, version)
+        active = get_get_active_configuration_use_case().execute()
+        expected_current = (
+            (active.configuration_id, active.version) if active is not None else None
+        )
+        record = use_case.execute(
+            configuration_id, version, expected_current=expected_current
+        )
     except ConfigurationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ConfigurationNotTestedError as exc:
+    except (ConfigurationNotTestedError, ConfigurationActivationConflictError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return to_detail_response(record)
