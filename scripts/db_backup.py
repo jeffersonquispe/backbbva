@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -98,6 +99,22 @@ def _write_jsonl(path: Path, rows) -> int:
 def backup(directory: Path | None, skip_object_storage: bool) -> None:
     target = directory or BACKUP_ROOT / _timestamp()
     target.mkdir(parents=True, exist_ok=False)
+    working = target.with_name(f".{target.name}.incomplete")
+    if working.exists():
+        shutil.rmtree(working)
+    working.mkdir(parents=True)
+    try:
+        _write_backup_contents(working, skip_object_storage)
+        for path in working.iterdir():
+            path.replace(target / path.name)
+        working.rmdir()
+    except Exception:
+        shutil.rmtree(working, ignore_errors=True)
+        raise
+    print(f"Backup complete: {target}")
+
+
+def _write_backup_contents(target: Path, skip_object_storage: bool) -> None:
     db_dir = target / "dynamodb"
     db_dir.mkdir()
     dynamodb = _dynamodb()
@@ -154,7 +171,8 @@ def backup(directory: Path | None, skip_object_storage: bool) -> None:
         index_dir.mkdir()
         settings = os_client.indices.get_settings(index=index)
         mappings = os_client.indices.get_mapping(index=index)
-        (index_dir / "settings.json").write_text(json.dumps(settings[index]["settings"], indent=2) + "\n", encoding="utf-8")
+        index_settings = settings[index]["settings"].get("index", settings[index]["settings"])
+        (index_dir / "settings.json").write_text(json.dumps(index_settings, indent=2) + "\n", encoding="utf-8")
         (index_dir / "mapping.json").write_text(json.dumps(mappings[index]["mappings"], indent=2) + "\n", encoding="utf-8")
         count = _write_jsonl(
             index_dir / "documents.jsonl",
@@ -163,7 +181,6 @@ def backup(directory: Path | None, skip_object_storage: bool) -> None:
         manifest["opensearch"] = {"index": index, "documents": count}
         print(f"Backed up OpenSearch {index}: {count} documents")
     (target / META_FILE).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print(f"Backup complete: {target}")
 
 
 def _load_manifest(directory: Path) -> dict[str, Any]:
@@ -172,19 +189,40 @@ def _load_manifest(directory: Path) -> dict[str, Any]:
     manifest_path = directory / META_FILE
     if not manifest_path.is_file():
         raise SystemExit(f"Invalid backup: missing {manifest_path}")
-    return json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest.get("dynamodb"), dict):
+        raise SystemExit(f"Invalid backup: {manifest_path} has no DynamoDB table catalog")
+    for table_name, info in manifest["dynamodb"].items():
+        if not isinstance(info, dict) or not isinstance(info.get("schema"), str):
+            raise SystemExit(f"Invalid backup: malformed table entry for {table_name}")
+        table_dir = directory / "dynamodb"
+        if not (table_dir / info["schema"]).is_file() or not (table_dir / f"{table_name}.items.jsonl").is_file():
+            raise SystemExit(f"Invalid backup: missing DynamoDB files for {table_name}")
+    return manifest
+
+
+def _validate_table_schema(table_name: str, expected: dict[str, Any], actual: dict[str, Any]) -> None:
+    for field in ("KeySchema", "AttributeDefinitions"):
+        expected_value = expected.get(field, [])
+        actual_value = actual.get(field, [])
+        if sorted(expected_value, key=lambda item: item.get("AttributeName", "")) != sorted(
+            actual_value, key=lambda item: item.get("AttributeName", "")
+        ):
+            raise ValueError(f"Cannot restore {table_name}: existing table has incompatible {field}")
 
 
 def restore(directory: Path, skip_object_storage: bool, os_bulk_size: int, checkpoint: Path | None, resume: bool) -> None:
     if not directory.is_absolute():
         directory = REPO_ROOT / directory
     manifest = _load_manifest(directory)
+    if os_bulk_size < 1:
+        raise ValueError("--os-bulk-size must be at least 1")
     dynamodb = _dynamodb()
     client = dynamodb.meta.client
     for table_name, info in manifest["dynamodb"].items():
         schema = json.loads((directory / "dynamodb" / info["schema"]).read_text(encoding="utf-8"))
         try:
-            client.describe_table(TableName=table_name)
+            existing_schema = client.describe_table(TableName=table_name)["Table"]
         except ClientError as exc:
             if exc.response["Error"]["Code"] != "ResourceNotFoundException":
                 raise
@@ -204,6 +242,8 @@ def restore(directory: Path, skip_object_storage: bool, os_bulk_size: int, check
                 **({"GlobalSecondaryIndexes": global_indexes} if global_indexes else {}),
             )
             dynamodb.Table(table_name).wait_until_exists()
+        else:
+            _validate_table_schema(table_name, schema, existing_schema)
         table = dynamodb.Table(table_name)
         with (directory / "dynamodb" / f"{table_name}.items.jsonl").open(encoding="utf-8") as stream:
             with table.batch_writer() as batch:
@@ -227,7 +267,13 @@ def restore(directory: Path, skip_object_storage: bool, os_bulk_size: int, check
         index_dir = directory / "opensearch"
         mapping = json.loads((index_dir / "mapping.json").read_text(encoding="utf-8"))
         settings = json.loads((index_dir / "settings.json").read_text(encoding="utf-8"))
-        settings = {key: value for key, value in settings.items() if key not in {"provided_name", "creation_date", "uuid", "version", "routing", "index"}}
+        if set(settings) == {"settings"}:
+            settings = settings["settings"]
+        settings = {
+            key: value
+            for key, value in settings.items()
+            if key not in {"provided_name", "creation_date", "uuid", "version", "routing"}
+        }
         os_client.indices.create(index=index, body={"settings": settings, "mappings": mapping})
         actions = []
         checkpoint_path = checkpoint or directory / "opensearch.restore.checkpoint"

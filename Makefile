@@ -512,6 +512,8 @@ _OS_RESUME_FLAG := $(if $(RESUME_OPENSEARCH),--resume-opensearch,)
 db-backup:  ## Backup DynamoDB + OpenSearch + object storage to ./backups/<timestamp>/ (stack must be running). Var: SKIP_OBJECT_STORAGE=1
 	@if [ -n "$(LOCAL_DOCKER_PROJECT)" ] && $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) ps --services --filter status=running 2>/dev/null | grep -qx aria-worker-main; then \
 		$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) exec -T aria-worker-main python scripts/db_backup.py backup $(if $(BACKUP_DIR),--dir $(BACKUP_DIR),) $(_OS_FLAG); \
+	elif [ -n "$(LOCAL_DOCKER_PROJECT)" ]; then \
+		DYNAMO_ENDPOINT=$${DYNAMO_ENDPOINT:-http://localhost:$${LOCAL_DYNAMODB_PORT:-8002}} OBJECT_STORAGE_ENDPOINT=$${OBJECT_STORAGE_ENDPOINT:-http://localhost:$${LOCAL_MINIO_PORT:-9000}} OPENSEARCH_ENDPOINT=$${OPENSEARCH_ENDPOINT:-http://localhost:$${LOCAL_OPENSEARCH_PORT:-9200}} $(PYTHON) scripts/db_backup.py backup $(if $(BACKUP_DIR),--dir $(BACKUP_DIR),) $(_OS_FLAG); \
 	else \
 		$(PYTHON) scripts/db_backup.py backup $(if $(BACKUP_DIR),--dir $(BACKUP_DIR),) $(_OS_FLAG); \
 	fi
@@ -522,7 +524,13 @@ db-restore:  ## Restore from backup. Vars: BACKUP_DIR(req), SKIP_OBJECT_STORAGE=
 		echo "ERROR: BACKUP_DIR is required. Usage: make db-restore BACKUP_DIR=./backups/<timestamp>"; \
 		exit 1; \
 	fi
-	@$(PYTHON) scripts/db_backup.py restore --dir $(BACKUP_DIR) $(_OS_FLAG) $(_OS_BULK_FLAG) $(_OS_CHECKPOINT_FLAG) $(_OS_RESUME_FLAG)
+	@if [ -n "$(LOCAL_DOCKER_PROJECT)" ] && $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) ps --services --filter status=running 2>/dev/null | grep -qx aria-worker-main; then \
+		$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) exec -T aria-worker-main python scripts/db_backup.py restore --dir $(BACKUP_DIR) $(_OS_FLAG) $(_OS_BULK_FLAG) $(_OS_CHECKPOINT_FLAG) $(_OS_RESUME_FLAG); \
+	elif [ -n "$(LOCAL_DOCKER_PROJECT)" ]; then \
+		DYNAMO_ENDPOINT=$${DYNAMO_ENDPOINT:-http://localhost:$${LOCAL_DYNAMODB_PORT:-8002}} OBJECT_STORAGE_ENDPOINT=$${OBJECT_STORAGE_ENDPOINT:-http://localhost:$${LOCAL_MINIO_PORT:-9000}} OPENSEARCH_ENDPOINT=$${OPENSEARCH_ENDPOINT:-http://localhost:$${LOCAL_OPENSEARCH_PORT:-9200}} $(PYTHON) scripts/db_backup.py restore --dir $(BACKUP_DIR) $(_OS_FLAG) $(_OS_BULK_FLAG) $(_OS_CHECKPOINT_FLAG) $(_OS_RESUME_FLAG); \
+	else \
+		$(PYTHON) scripts/db_backup.py restore --dir $(BACKUP_DIR) $(_OS_FLAG) $(_OS_BULK_FLAG) $(_OS_CHECKPOINT_FLAG) $(_OS_RESUME_FLAG); \
+	fi
 
 .PHONY: db-backup-list
 db-backup-list:  ## List all available backups in ./backups/
