@@ -3,6 +3,10 @@
 Architecture and conventions for this repo live in [CLAUDE.md](CLAUDE.md) —
 read it before adding files. Rules every agent must follow:
 
+- Frontend and browser E2E clients reach this API through the same-origin
+  `/api/...` path proxied by nginx. Do not direct those clients to `localhost`
+  with an API port or to `127.*`; use the configured proxy/location.
+
 - Hexagonal layout: `application/` never imports `infrastructure/`; adapters
   are wired in factory functions, never inline in use cases, routers or tasks.
 - Commits: `DEMLGENAIF-<n> <type>(<scope>): <lowercase message>`, no AI

@@ -4,6 +4,13 @@ API for the massive fraud agent for BBVA. Hexagonal / clean architecture.
 Read this before adding files — most "new" needs already have a home and a
 pattern to copy.
 
+## Frontend API access
+
+Browser and frontend E2E requests must use the same-origin `/api/...` path,
+which nginx proxies to this service. Do not have those clients call
+`localhost` with an API port or `127.*`; use the configured frontend/API
+location and its `/api/...` proxy path.
+
 ## Layers
 
 ```
