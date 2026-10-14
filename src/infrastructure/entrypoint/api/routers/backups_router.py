@@ -16,7 +16,7 @@ from src.infrastructure.entrypoint.api.factories.backup_factory import (
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 
 router = APIRouter(prefix="/backups", tags=["backups"])
-ALLOWED_ROLES = {LocalRole.RELEASE_MANAGER, LocalRole.MANAGER}
+ALLOWED_ROLES = {LocalRole.MANAGER}
 
 
 class BackupResponse(BaseModel):
@@ -34,7 +34,7 @@ class BackupResponse(BaseModel):
 
 def _authorize(user: LocalUser) -> None:
     if user.role not in ALLOWED_ROLES:
-        raise HTTPException(status_code=403, detail="Role is not permitted to manage backups")
+        raise HTTPException(status_code=403, detail="Only managers can manage backups")
 
 
 def _response(record: BackupRecord) -> BackupResponse:
