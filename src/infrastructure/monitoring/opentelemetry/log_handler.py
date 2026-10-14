@@ -29,6 +29,21 @@ class _DropOwnTelemetryLogs(logging.Filter):
         return not record.name.startswith("opentelemetry")
 
 
+class _DropStructuredLogAttributes(logging.Filter):
+    """OTLP log attributes must be scalar values or sequences of scalars.
+
+    Celery and other libraries can attach structured payloads as ``data`` on
+    log records. The OTEL SDK rejects those dictionaries and emits a warning;
+    drop unsupported extras instead of serializing potentially sensitive data.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        for name, value in tuple(record.__dict__.items()):
+            if name == "data" and isinstance(value, dict):
+                del record.__dict__[name]
+        return True
+
+
 def build_logger_provider(processor: LogRecordProcessor) -> LoggerProvider:
     provider = LoggerProvider(resource=build_resource())
     provider.add_log_record_processor(processor)
@@ -41,6 +56,7 @@ def build_logging_handler(provider: LoggerProvider) -> LoggingHandler:
     uses to jump between Loki and Tempo."""
     handler = LoggingHandler(level=logging.NOTSET, logger_provider=provider)
     handler.addFilter(_DropOwnTelemetryLogs())
+    handler.addFilter(_DropStructuredLogAttributes())
     return handler
 
 

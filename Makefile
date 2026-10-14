@@ -488,7 +488,7 @@ observability-down:  ## Stop the local observability stack.
 	@$(DOCKER) compose \
 		-p $(OBSERVABILITY_PROJECT) \
 		-f $(OBSERVABILITY_COMPOSE_FILE) \
-		down -v
+		down
 
 .PHONY: observability-logs
 observability-logs:  ## Tail logs for the local observability stack.

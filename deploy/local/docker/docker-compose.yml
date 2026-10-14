@@ -205,6 +205,8 @@ services:
       DATASET_STORAGE_BACKEND: ${DATASET_STORAGE_BACKEND:-minio}
       DATASET_STORAGE_BUCKET: ${DATASET_STORAGE_BUCKET:-datasets}
       MODEL_STORAGE_BUCKET: ${MODEL_STORAGE_BUCKET:-models}
+      OTEL_ENDPOINT: ${OTEL_ENDPOINT:-http://otel-collector:4317}
+      OTEL_CAPTURE_LLM_CONTENT: ${OTEL_CAPTURE_LLM_CONTENT:-false}
     restart: unless-stopped
     depends_on:
       dynamodb:
@@ -221,6 +223,7 @@ services:
         condition: service_healthy
     networks:
       - aria-net
+      - aria-observability-net
 
   aria-worker-training:
     build:
@@ -247,6 +250,8 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
+      OTEL_ENDPOINT: ${OTEL_ENDPOINT:-http://otel-collector:4317}
+      OTEL_CAPTURE_LLM_CONTENT: ${OTEL_CAPTURE_LLM_CONTENT:-false}
       OBJECT_STORAGE_ENDPOINT: http://minio:9000
       OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
       OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
@@ -261,6 +266,7 @@ services:
         condition: service_healthy
     networks:
       - aria-net
+      - aria-observability-net
     restart: unless-stopped
 
   # Dedicated capacity for CSV/batch test runs. Production traffic is only
@@ -282,6 +288,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
       CELERY_TEST_QUEUE: ${CELERY_TEST_QUEUE:-test}
+      OTEL_ENDPOINT: ${OTEL_ENDPOINT:-http://otel-collector:4317}
+      OTEL_CAPTURE_LLM_CONTENT: ${OTEL_CAPTURE_LLM_CONTENT:-false}
       OBJECT_STORAGE_ENDPOINT: http://minio:9000
       OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
       OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
@@ -301,6 +309,7 @@ services:
         condition: service_healthy
     networks:
       - aria-net
+      - aria-observability-net
     restart: unless-stopped
 
   # Exactly one scheduler process must run per environment.  It only
@@ -320,11 +329,14 @@ services:
       CELERY_RECONCILE_INTERVAL_SECONDS: ${CELERY_RECONCILE_INTERVAL_SECONDS:-60}
       CELERY_RECONCILE_LIMIT: ${CELERY_RECONCILE_LIMIT:-100}
       CELERY_TEST_RUN_CLEANUP_INTERVAL_SECONDS: ${CELERY_TEST_RUN_CLEANUP_INTERVAL_SECONDS:-3600}
+      OTEL_ENDPOINT: ${OTEL_ENDPOINT:-http://otel-collector:4317}
+      OTEL_CAPTURE_LLM_CONTENT: ${OTEL_CAPTURE_LLM_CONTENT:-false}
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - aria-net
+      - aria-observability-net
     restart: unless-stopped
 
   aria-worker-simulator:
@@ -364,13 +376,7 @@ services:
       DYNAMO_REGION_NAME: ${DYNAMO_REGION_NAME:-us-east-1}
       DYNAMO_ACCESS_KEY: ${DYNAMO_ACCESS_KEY:-dummy}
       DYNAMO_SECRET_KEY: ${DYNAMO_SECRET_KEY:-dummy}
-      # Not wired in the api block above either as of this writing - OTLP
-      # Collector lives on the separate aria-observability-net (see
-      # deploy/local/docker/observability/), so this only resolves once that
-      # stack is up and reachable; falls back to config.py's own default
-      # otherwise. See CLAUDE.md's "Observability - OTLP is the only
-      # contract".
-      OTEL_ENDPOINT: ${OTEL_ENDPOINT:-http://localhost:4317}
+      OTEL_ENDPOINT: ${OTEL_ENDPOINT:-http://otel-collector:4317}
       OTEL_CAPTURE_LLM_CONTENT: ${OTEL_CAPTURE_LLM_CONTENT:-false}
     depends_on:
       dynamodb:
@@ -384,6 +390,7 @@ services:
         condition: service_healthy
     networks:
       - aria-net
+      - aria-observability-net
     restart: unless-stopped
 
   mcp:
@@ -436,6 +443,9 @@ networks:
   aria-net:
     name: aria-net
     driver: bridge
+  aria-observability-net:
+    name: aria-observability-net
+    external: true
 
 volumes:
   dynamodb-data:

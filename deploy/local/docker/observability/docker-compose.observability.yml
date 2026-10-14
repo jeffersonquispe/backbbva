@@ -57,6 +57,12 @@ services:
       - prometheus
     networks:
       - aria-observability-net
+    healthcheck:
+      test: ["CMD", "/otelcol-contrib", "validate", "--config=/etc/otel-collector/collector.yaml"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   tempo:
     image: grafana/tempo:2.6.1
@@ -120,6 +126,7 @@ services:
 
 networks:
   aria-observability-net:
+    name: aria-observability-net
     driver: bridge
 
 volumes:
