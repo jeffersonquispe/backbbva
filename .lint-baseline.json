@@ -4,7 +4,7 @@
     "version": "ruff 0.8.4"
   },
   "mypy": {
-    "errors": 104,
+    "errors": 102,
     "version": "mypy 1.13.0"
   }
 }

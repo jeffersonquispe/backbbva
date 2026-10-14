@@ -42,7 +42,6 @@ def get_configuration_repository() -> ConfigurationRepository:
 def get_create_configuration_use_case() -> CreateConfigurationUseCase:
     return CreateConfigurationUseCase(
         get_configuration_repository(),
-        get_test_run_repository(),
         clock=get_clock(),
         id_generator=get_id_generator(),
     )

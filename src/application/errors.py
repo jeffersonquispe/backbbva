@@ -8,8 +8,14 @@ from src.domain import (
     ValidationError,
 )
 
+
+class ConfigurationWriteConflict(ConflictError):
+    """A concurrent configuration change invalidated this write."""
+
+
 __all__ = [
     "ConflictError",
+    "ConfigurationWriteConflict",
     "DomainException",
     "ForbiddenError",
     "NotFoundError",

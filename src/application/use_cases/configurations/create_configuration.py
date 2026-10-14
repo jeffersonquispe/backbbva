@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
-from src.application.errors import ConflictError
+from src.application.errors import ConfigurationWriteConflict, ConflictError
 from src.application.ports.clock_port import Clock
 from src.application.ports.configuration_port import (
     ConfigurationRepository,
 )
 from src.application.ports.id_generator_port import IdGenerator
-from src.application.ports.test_run_port import TestRunRepository
 from src.application.runtime_defaults import (
     DEFAULT_ID_GENERATOR,
     resolve_clock,
@@ -25,18 +24,15 @@ class CreateConfigurationUseCase:
     def __init__(
         self,
         configuration_repository: ConfigurationRepository,
-        test_run_repository: TestRunRepository,
         clock: Clock | None = None,
         id_generator: IdGenerator | None = None,
     ) -> None:
-        self._test_runs = test_run_repository
         self._configurations = configuration_repository
         self._clock = resolve_clock(clock)
         self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, input: CreateConfigurationInput) -> ConfigurationRecord:
         now = self._clock.now()
-        overwrite = False
         if input.configuration_id is not None:
             latest = self._configurations.get_latest_version(input.configuration_id)
             if input.based_on_version is not None and (
@@ -49,30 +45,7 @@ class CreateConfigurationUseCase:
                     f"{input.based_on_version}"
                 )
             configuration_id = input.configuration_id
-            # Overwrite the latest version in place instead of minting a new
-            # one, as long as it never reached production - otherwise every
-            # small tweak-and-save cycle piles up a fresh immutable version.
-            # Once a version has ever been activated it's frozen for audit,
-            # so the next save mints version+1 as before.
-            overwrite = (
-                latest is not None
-                and input.based_on_version == latest.version
-                and not latest.ever_tested
-                and not latest.active
-                and not latest.ever_activated
-                and not any(
-                    run.config.configuration_ref is not None
-                    and run.config.configuration_ref.configuration_id
-                    == configuration_id
-                    and run.config.configuration_ref.version == latest.version
-                    for run in self._test_runs.list()
-                )
-            )
-            version = (
-                latest.version
-                if overwrite
-                else (latest.version + 1 if latest is not None else 1)
-            )
+            version = latest.version + 1 if latest is not None else 1
         else:
             configuration_id = str(self._id_generator.new_id())
             version = 1
@@ -82,21 +55,18 @@ class CreateConfigurationUseCase:
             version=version,
             name=input.name,
             description=input.description,
-            # Never active on creation - activation is a separate, explicit
-            # step so the single-active invariant is only ever touched by
-            # ActivateConfigurationUseCase.
             active=False,
             general=input.general,
             infra=input.infra,
             test=input.test,
-            created_at=latest.created_at if overwrite else now,
+            created_at=now,
             updated_at=now,
             created_by=input.created_by,
             segments=input.segments,
         )
-        created = (
-            self._configurations.update(record)
-            if overwrite
-            else self._configurations.create(record)
-        )
-        return created
+        try:
+            return self._configurations.create(record)
+        except ConfigurationWriteConflict as exc:
+            raise ConfigurationVersionConflictError(
+                f"Configuration {configuration_id} changed while this version was being saved; reload and retry"
+            ) from exc

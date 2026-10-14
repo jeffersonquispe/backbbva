@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
+from src.application.errors import ConfigurationWriteConflict
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.test_run_port import (
@@ -19,6 +21,7 @@ from src.application.ports.test_run_port import (
 )
 from src.application.use_cases.configurations.activate_configuration import (
     ActivateConfigurationUseCase,
+    ConfigurationActivationConflictError,
     ConfigurationNotFoundError,
     ConfigurationNotTestedError,
 )
@@ -78,11 +81,10 @@ class InMemoryConfigurationRepository:
         self.items: dict[tuple[str, int], ConfigurationRecord] = {}
 
     def create(self, config: ConfigurationRecord) -> ConfigurationRecord:
-        self.items[(config.configuration_id, config.version)] = config
-        return config
-
-    def update(self, config: ConfigurationRecord) -> ConfigurationRecord:
-        self.items[(config.configuration_id, config.version)] = config
+        key = (config.configuration_id, config.version)
+        if key in self.items:
+            raise ConfigurationWriteConflict(f"{key} already exists")
+        self.items[key] = config
         return config
 
     def get(self, configuration_id: str, version: int) -> ConfigurationRecord | None:
@@ -113,8 +115,20 @@ class InMemoryConfigurationRepository:
             config for (cid, _), config in self.items.items() if cid == configuration_id
         ]
 
-    def activate(self, configuration_id: str, version: int) -> ConfigurationRecord:
+    def activate(
+        self,
+        configuration_id: str,
+        version: int,
+        expected_current: tuple[str, int] | None = None,
+    ) -> ConfigurationRecord:
         current_active = self.get_active()
+        current_key = (
+            (current_active.configuration_id, current_active.version)
+            if current_active is not None
+            else None
+        )
+        if expected_current is not None and current_key != expected_current:
+            raise ConfigurationWriteConflict("stale active configuration")
         if current_active is not None and (
             current_active.configuration_id,
             current_active.version,
@@ -195,7 +209,7 @@ class InMemoryTestRunRepository:
 def _create_use_case(
     repo: InMemoryConfigurationRepository,
 ) -> CreateConfigurationUseCase:
-    return CreateConfigurationUseCase(repo, InMemoryTestRunRepository())
+    return CreateConfigurationUseCase(repo)
 
 
 def _activate_use_case(
@@ -231,7 +245,6 @@ def test_create_configuration_uses_injected_clock_and_id_generator() -> None:
     generated_id = uuid.UUID("00000000-0000-0000-0000-000000000123")
     use_case = CreateConfigurationUseCase(
         repo,
-        InMemoryTestRunRepository(),
         clock=FixedClock(instant),
         id_generator=FixedIdGenerator(generated_id),
     )
@@ -335,9 +348,36 @@ def test_create_configuration_rejects_stale_based_on_version() -> None:
     assert repo.get_latest_version(v1.configuration_id).version == 2
 
 
-def test_create_configuration_with_matching_based_on_version_overwrites_never_activated_version() -> (
-    None
-):
+def test_create_configuration_rejects_a_racing_duplicate_version() -> None:
+    class RacingRepository(InMemoryConfigurationRepository):
+        inject_competing_write = False
+
+        def get_latest_version(self, configuration_id: str) -> ConfigurationRecord | None:
+            latest = super().get_latest_version(configuration_id)
+            if self.inject_competing_write and latest is not None:
+                self.inject_competing_write = False
+                self.items[(configuration_id, latest.version + 1)] = replace(
+                    latest, version=latest.version + 1
+                )
+            return latest
+
+    repo = RacingRepository()
+    use_case = _create_use_case(repo)
+    v1 = use_case.execute(CreateConfigurationInput(name="Concurrente"))
+    repo.inject_competing_write = True
+
+    with pytest.raises(ConfigurationVersionConflictError, match="changed while"):
+        use_case.execute(
+            CreateConfigurationInput(
+                name="Concurrente editada",
+                configuration_id=v1.configuration_id,
+                based_on_version=1,
+            )
+        )
+    assert repo.get_latest_version(v1.configuration_id).version == 2
+
+
+def test_create_configuration_preserves_every_saved_version() -> None:
     repo = InMemoryConfigurationRepository()
     use_case = _create_use_case(repo)
 
@@ -351,12 +391,10 @@ def test_create_configuration_with_matching_based_on_version_overwrites_never_ac
         )
     )
 
-    # Small edits on a version that never reached production overwrite that
-    # same version in place, instead of piling up a new one for every save.
-    assert saved.version == 1
+    assert saved.version == 2
     assert saved.infra.max_instances == 12
-    assert repo.get_latest_version(v1.configuration_id).version == 1
-    assert repo.get_latest_version(v1.configuration_id).infra.max_instances == 12
+    assert repo.get(v1.configuration_id, 1).infra.max_instances == v1.infra.max_instances
+    assert repo.get_latest_version(v1.configuration_id).version == 2
 
 
 def test_create_configuration_mints_new_version_once_latest_was_activated() -> None:
@@ -419,6 +457,28 @@ def test_activate_enforces_single_active_invariant_across_activations() -> None:
     # Activating v2 must flip v1 back to inactive - exactly one active
     # configuration at any time, across the whole table.
     assert repo.get(v1.configuration_id, 1).active is False
+
+
+def test_activation_rejects_a_stale_production_snapshot() -> None:
+    repo = InMemoryConfigurationRepository()
+    test_runs = InMemoryTestRunRepository()
+    create = _create_use_case(repo)
+    activate = _activate_use_case(repo, test_run_repo=test_runs)
+    v1 = create.execute(CreateConfigurationInput(name="Producción"))
+    v2 = create.execute(
+        CreateConfigurationInput(name="Canary", configuration_id=v1.configuration_id)
+    )
+    test_runs.add_succeeded(v1.configuration_id, 1)
+    test_runs.add_succeeded(v2.configuration_id, 2)
+    activate.execute(v1.configuration_id, 1)
+
+    with pytest.raises(ConfigurationActivationConflictError, match="stale active"):
+        activate.execute(
+            v2.configuration_id,
+            2,
+            expected_current=("different-config", 1),
+        )
+    assert repo.get_active().version == 1
 
 
 def test_activate_unknown_configuration_raises() -> None:
@@ -530,7 +590,7 @@ def test_tested_latest_configuration_is_preserved_after_test_history_deleted() -
 def test_legacy_test_run_protects_only_its_configuration_version() -> None:
     repo = InMemoryConfigurationRepository()
     runs = InMemoryTestRunRepository()
-    create = CreateConfigurationUseCase(repo, runs)
+    create = CreateConfigurationUseCase(repo)
     original = create.execute(CreateConfigurationInput(name="Protected"))
     runs.add_succeeded(original.configuration_id, 1)
     runs._runs[0].status = RunStatus.FAILED
@@ -550,4 +610,4 @@ def test_legacy_test_run_protects_only_its_configuration_version() -> None:
             based_on_version=2,
         )
     )
-    assert edited.version == 2
+    assert edited.version == 3

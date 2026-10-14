@@ -7,7 +7,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from boto3.dynamodb.conditions import Attr, Key
+from botocore.exceptions import ClientError
 
+from src.application.errors import ConfigurationWriteConflict
 from src.application.ports.configuration_port import (
     ConfigurationRepository,
 )
@@ -138,17 +140,18 @@ class DynamoConfigurationRepository(ConfigurationRepository):
             ConditionExpression="attribute_exists(configuration_id)",
         )
 
-    def update(self, config: ConfigurationRecord) -> ConfigurationRecord:
-        # Every per-segment child row is keyed off a fresh uuid segment_id
-        # minted on each write (see the loop below) - overwriting in place
-        # means the old rows for this (configuration_id, version) are
-        # orphaned unless deleted first, so cascade-delete before rewriting
-        # exactly like create() would.
-        self._delete_version_children(config.configuration_id, config.version)
-        return self._write_version(config)
-
     def _write_version(self, config: ConfigurationRecord) -> ConfigurationRecord:
-        self._table.put_item(Item=_to_item(config))
+        try:
+            self._table.put_item(
+                Item=_to_item(config),
+                ConditionExpression="attribute_not_exists(configuration_id)",
+            )
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                raise ConfigurationWriteConflict(
+                    f"Configuration {config.configuration_id}:v{config.version} already exists"
+                ) from exc
+            raise
 
         configuration_id, version = config.configuration_id, config.version
         config_key = _config_key(configuration_id, version)
@@ -242,27 +245,86 @@ class DynamoConfigurationRepository(ConfigurationRepository):
     def list_all_versions(self) -> list[ConfigurationRecord]:
         return self._scan_all()
 
-    def activate(self, configuration_id: str, version: int) -> ConfigurationRecord:
-        # ponytail: two sequential update_item calls, not a
-        # transact_write_items - no other repository in this codebase uses
-        # DynamoDB transactions, and this is a low-frequency admin action.
-        # Leaves a narrow race window under concurrent activations; upgrade
-        # to transact_write_items if that ever becomes a real risk.
+    def activate(
+        self,
+        configuration_id: str,
+        version: int,
+        expected_current: tuple[str, int] | None = None,
+    ) -> ConfigurationRecord:
         current_active = self.get_active()
-        if current_active is not None and (
-            current_active.configuration_id,
-            current_active.version,
-        ) != (configuration_id, version):
-            self._set_active(
-                current_active.configuration_id, current_active.version, False
-            )
-        self._set_active(
-            configuration_id,
-            version,
-            True,
-            ever_activated=True,
-            activated_at=datetime.now(UTC),
+        current_key = (
+            (current_active.configuration_id, current_active.version)
+            if current_active is not None
+            else None
         )
+        if expected_current is not None and current_key != expected_current:
+            raise ConfigurationWriteConflict(
+                "Production configuration changed since this deployment was requested"
+            )
+        if current_key == (configuration_id, version):
+            activated = self.get(configuration_id, version)
+            assert activated is not None
+            return activated
+
+        now = datetime.now(UTC).isoformat()
+        client = self._table.meta.client
+        updates = []
+        if current_active is not None:
+            current_condition = (
+                "active = :active AND configuration_id = :current_configuration_id "
+                "AND version = :current_version"
+            )
+            updates.append(
+                {
+                    "Update": {
+                        "TableName": self._table.name,
+                        "Key": {
+                            "configuration_id": {"S": current_active.configuration_id},
+                            "version": {"N": str(current_active.version)},
+                        },
+                        "UpdateExpression": "SET active = :inactive, updated_at = :updated_at",
+                        "ConditionExpression": current_condition,
+                        "ExpressionAttributeValues": {
+                            ":inactive": {"BOOL": False},
+                            ":active": {"BOOL": True},
+                            ":current_configuration_id": {
+                                "S": current_active.configuration_id
+                            },
+                            ":current_version": {"N": str(current_active.version)},
+                            ":updated_at": {"S": now},
+                        },
+                    }
+                }
+            )
+        updates.append(
+            {
+                "Update": {
+                    "TableName": self._table.name,
+                    "Key": {
+                        "configuration_id": {"S": configuration_id},
+                        "version": {"N": str(version)},
+                    },
+                    "UpdateExpression": "SET active = :active, ever_activated = :ever_activated, activated_at = :activated_at, updated_at = :updated_at",
+                    "ConditionExpression": "attribute_exists(configuration_id) AND active = :inactive",
+                    "ExpressionAttributeValues": {
+                        ":active": {"BOOL": True},
+                        ":inactive": {"BOOL": False},
+                        ":ever_activated": {"BOOL": True},
+                        ":activated_at": {"S": now},
+                        ":updated_at": {"S": now},
+                    },
+                }
+            }
+        )
+        try:
+            client.transact_write_items(TransactItems=updates)
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code")
+            if code == "TransactionCanceledException":
+                raise ConfigurationWriteConflict(
+                    "Production configuration changed during deployment; refresh and retry"
+                ) from exc
+            raise
         activated = self.get(configuration_id, version)
         assert activated is not None
         return activated
@@ -487,54 +549,3 @@ class DynamoConfigurationRepository(ConfigurationRepository):
 
         root_id = children_of[None][0]
         return groups_by_id[root_id]
-
-    # --- overwrite-in-place support (update()) ----------------------------
-
-    def _delete_version_children(self, configuration_id: str, version: int) -> None:
-        config_key = _config_key(configuration_id, version)
-        segment_rows = self._delete_query(self._segments, "config_key", config_key)
-        for row in segment_rows:
-            self._delete_segment_children(row["id"])
-
-    def _delete_segment_children(self, segment_id: str) -> None:
-        self._delete_query(
-            self._profiling_strategies, "segment_id", segment_id, range_attr="key"
-        )
-        self._delete_query(self._taxonomies, "segment_id", segment_id)
-        self._delete_query(self._modus_operandi, "segment_id", segment_id)
-        self._delete_query(self._flags, "segment_id", segment_id)
-        self._delete_query(self._examples, "segment_id", segment_id)
-        self._delete_query(self._voicebot_prompts, "segment_id", segment_id)
-
-        criteria_rows = self._delete_query(
-            self._sampling_criteria, "segment_id", segment_id
-        )
-        for criterion in criteria_rows:
-            self._delete_query(
-                self._sampling_criteria_values,
-                "criterion_key",
-                _criterion_key(segment_id, criterion["id"]),
-            )
-
-        group_rows = self._delete_query(self._filter_groups, "segment_id", segment_id)
-        for group in group_rows:
-            self._delete_query(
-                self._filter_conditions,
-                "group_key",
-                _group_key(segment_id, group["id"]),
-            )
-
-    def _delete_query(
-        self, table: Any, hash_attr: str, key: str, range_attr: str = "id"
-    ) -> list[dict[str, Any]]:
-        """Query every row under `key` and delete it, returning the rows
-        (pre-delete) so callers can cascade into child tables keyed off
-        each row's own id."""
-        response = table.query(KeyConditionExpression=Key(hash_attr).eq(key))
-        items = response.get("Items", [])
-        if not items:
-            return items
-        with table.batch_writer() as batch:
-            for item in items:
-                batch.delete_item(Key={hash_attr: key, range_attr: item[range_attr]})
-        return items

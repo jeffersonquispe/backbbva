@@ -14,14 +14,6 @@ class ConfigurationRepository(Protocol):
 
     def mark_tested(self, configuration_id: str, version: int) -> None: ...
 
-    def update(self, config: ConfigurationRecord) -> ConfigurationRecord:
-        """Overwrite an existing (configuration_id, version) in place -
-        every child row is replaced, matching create()'s shape exactly.
-        Callers must only use this on a version that has never been
-        activated (see ConfigurationRecord.ever_activated); this method
-        itself does not enforce that."""
-        ...
-
     def get(
         self, configuration_id: str, version: int
     ) -> ConfigurationRecord | None: ...
@@ -38,4 +30,9 @@ class ConfigurationRepository(Protocol):
 
     def list_all_versions(self) -> list[ConfigurationRecord]: ...
 
-    def activate(self, configuration_id: str, version: int) -> ConfigurationRecord: ...
+    def activate(
+        self,
+        configuration_id: str,
+        version: int,
+        expected_current: tuple[str, int] | None = None,
+    ) -> ConfigurationRecord: ...
