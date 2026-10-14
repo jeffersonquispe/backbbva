@@ -372,10 +372,10 @@ E1–E17 están commiteadas: backend en `b943cff` y frontend en `87e8bc4`
 corrigieron el 500 en `/analyst-queue` (el modelo de respuesta aún exigía
 `payload`) y la tabla `alert_schema_suggestions`, que no se creaba al arrancar.
 
-El backend de respaldos y la pantalla local de respaldos continúan en B3. Antes
-de dar B3 por cerrado falta verificar un backup real, probar `db-restore` y
-añadir las pruebas correspondientes. La suite real de esquema C1–C6 ya está
-implementada y verificada contra la API local.
+Respaldos: backup real verificado y tests en `e746e61`; de B3 queda probar
+el restore contra el stack local y la decisión sobre los datos antiguos. La suite real de esquema C1–C6 está commiteada
+(frontend `4b3a72a`, `462efe4`, `76eb6bd`; backend `3b31ae4`, `a3e82cf`) y
+verificada contra la API local.
 
 ### Bloque A — Calidad (antes del commit)
 
@@ -393,7 +393,7 @@ implementada y verificada contra la API local.
 | --- | --- | --- | --- |
 | B1 | ✅ 2026-10-13. Definido el contenido de la v1 desde el mapeo completo del seed: siete roles asignados; `amount` opcional por transacción y los otros seis obligatorios; labels de desenlace separados del input, con `output_tags` reservado para entrenamiento; campos restantes opcionales y sin campos CSV declarados como historial. | Usuario + equipo | — |
 | B2 | **Siguiente.** Cargar la v1 por Configuración → Esquema: propone un `manager`/`release_manager`, aprueba otro distinto. | Usuario | B1 |
-| B3 | ⏳ En curso (sin commit). `scripts/db_backup.py` ya existe y `make db-backup` corre dentro de `aria-worker-main`; además hay un endpoint `/backups` asíncrono. Falta: (1) un backup verificado, porque los dos intentos de 2026-10-13 (`backups/20261013T232545Z`, `20261013T233119Z`) dejaron sólo `dynamodb/` vacío y sin `manifest.json`; (2) probar `db-restore`; (3) tests y commit. Después: decidir si se vacían los datos antiguos (`make db-prune`) o se conservan sin vista canónica. | Claude (arreglo) + Usuario (decisión) | — |
+| B3 | ✅ 2026-10-14. Backend en `553c5cc`, `0207334` y `e746e61` (backup/restore confiables, `make db-restore` dentro del worker y tests en `tests/test_infrastructure/test_db_backup.py`); pantalla `/backups` en `e0bf774`. Restore real ejecutado contra el stack local desde `backups/20261014T040510Z`: 670 ítems DynamoDB y 377 objetos restaurados; el manifiesto no tiene snapshot de OpenSearch (`opensearch: null`). Se conservan los datos antiguos; no se ejecutó `db-prune`. | Claude | — |
 
 ### Bloque C — Verificación de punta a punta (con la v1 activa)
 
@@ -419,11 +419,10 @@ Desbloqueado por A5 y la verificación E2E verde de C1–C6.
 
 | # | Tarea | Responsable | Depende de |
 | --- | --- | --- | --- |
-| D1 | Provisionar tablas `alert_schema_versions`, `alert_schema_presence_reports`, `alert_schema_suggestions` (y la del catálogo de backups si B3 se commitea con el endpoint). | Plataforma | A5 |
+| D1 | Provisionar tablas `alert_schema_versions`, `alert_schema_presence_reports`, `alert_schema_suggestions` y `backups` (catálogo de respaldos, `553c5cc`). | Plataforma | A5 |
 | D2 | Almacenamiento de objetos: payload crudo, salida del agente y auditoría del "Evento original" (bucket, permisos, retención). | Plataforma | A5 |
 | D3 | `scheduler`: confirmar el job diario de presencia en OKD. | Plataforma | A5 |
 | D4 | Cargar la v1 en OKD por el flujo de gobierno. | Usuario | B1, D1 |
 
-Orden: Bloque A cerrado y B1 cerrado. Completar B3 (backup verificado,
-`db-restore` probado y tests), después B2 → verificación manual de C1–C6 con
+Orden: Bloque A cerrado y B1 cerrado. B3 cerrado; después B2 → verificación manual de C1–C6 con
 la v1 real → D1–D4.
