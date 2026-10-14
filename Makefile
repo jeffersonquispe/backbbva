@@ -568,20 +568,25 @@ e2e-presence:  ## Dispatch and verify today's schema-presence analysis via the l
 		$(PYTHON) scripts/e2e_api_wait_presence.py
 
 .PHONY: e2e-real
-e2e-real:  ## Clean through API, then run Playwright against the real local API/frontend.
+e2e-real:  ## Run real E2E from zero (default) or resume at a numbered E2E_FROM checkpoint (1-6).
 	@test -n "$(E2E_MANAGER_EMAIL)" -a -n "$(E2E_MANAGER_PASSWORD)" -a -n "$(E2E_RELEASE_MANAGER_EMAIL)" -a -n "$(E2E_RELEASE_MANAGER_PASSWORD)" || (echo "ERROR: set E2E_MANAGER_EMAIL/E2E_MANAGER_PASSWORD/E2E_RELEASE_MANAGER_EMAIL/E2E_RELEASE_MANAGER_PASSWORD"; exit 1)
+	@test -z "$(E2E_FROM)" -o "$(E2E_FROM)" = "0" -o -n "$(filter $(E2E_FROM),1 2 3 4 5 6)" || (echo "ERROR: E2E_FROM supports 0 (full clean run) or a checkpoint from 1 to 6"; exit 1)
 	@$(MAKE) -C ../frontend_mockup down
+	@$(MAKE) -C ../frontend_mockup build
 	@$(MAKE) -C ../frontend_mockup run
-	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) $(PYTHON) scripts/e2e_api_clean.py --yes
-	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) restart api aria-worker-main
-	@$(MAKE) -C ../frontend_mockup down
-	@$(MAKE) -C ../frontend_mockup run
-	@$(MAKE) e2e-seed E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
-		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
-		E2E_RELEASE_MANAGER_EMAIL=$(E2E_RELEASE_MANAGER_EMAIL) E2E_RELEASE_MANAGER_PASSWORD=$(E2E_RELEASE_MANAGER_PASSWORD)
+	@if test -z "$(E2E_FROM)" -o "$(E2E_FROM)" = "0"; then \
+		E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) $(PYTHON) scripts/e2e_api_clean.py --yes && \
+		$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) restart api aria-worker-main && \
+		$(MAKE) -C ../frontend_mockup down && $(MAKE) -C ../frontend_mockup run && \
+		$(MAKE) e2e-seed E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+			E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
+			E2E_RELEASE_MANAGER_EMAIL=$(E2E_RELEASE_MANAGER_EMAIL) E2E_RELEASE_MANAGER_PASSWORD=$(E2E_RELEASE_MANAGER_PASSWORD); \
+	fi
 	@ARIA_E2E_REAL=1 ARIA_E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+		E2E_FROM=$(if $(E2E_FROM),$(E2E_FROM),0) \
 		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
 		E2E_RELEASE_MANAGER_EMAIL=$(E2E_RELEASE_MANAGER_EMAIL) E2E_RELEASE_MANAGER_PASSWORD=$(E2E_RELEASE_MANAGER_PASSWORD) \
+		E2E_FRAUD_ANALYST_EMAIL=$(E2E_FRAUD_ANALYST_EMAIL) E2E_FRAUD_ANALYST_PASSWORD=$(E2E_FRAUD_ANALYST_PASSWORD) \
 		npm --prefix ../frontend_mockup run test:e2e:real -- $(if $(E2E_GREP),--grep "$(E2E_GREP)")
 	@$(MAKE) e2e-presence E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD)

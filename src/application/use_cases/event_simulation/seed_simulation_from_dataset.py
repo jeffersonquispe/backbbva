@@ -67,6 +67,7 @@ class SeedSimulationFromDatasetUseCase:
             value
             for row in rows
             if (value := _read_value(row, field.field_ds_loc)) is not None
+            and not (isinstance(value, str) and not value.strip())
         ]
         if field.type == AlertSchemaFieldType.NUMBER:
             numeric = [_as_number(value) for value in values]

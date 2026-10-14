@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -11,6 +13,7 @@ from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.e2e_factory import (
     get_clean_e2e_state_use_case,
 )
+from src.infrastructure.persistence.object_storage.minio import get_object_storage
 
 router = APIRouter(prefix="/e2e", tags=["e2e"])
 
@@ -40,3 +43,28 @@ def clean_e2e_state(
         "preserved_tables": result.preserved_tables,
         "table_count": result.table_count,
     }
+
+
+@router.get("/alerts/{alert_id}/raw-access-audit")
+def get_raw_access_audit(
+    alert_id: UUID,
+    _: Annotated[LocalUser, Depends(require_permission("alert_schema"))],
+) -> list[dict[str, str]]:
+    """Read raw-access audit artifacts for a local E2E alert only."""
+    if (
+        genai_config.GENAI_ENVIRONMENT != "local"
+        or not genai_config.E2E_CLEANUP_ENABLED
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    storage = get_object_storage()
+    prefix = f"alerts/{alert_id}/audit/raw-access/"
+    keys = [key for key in storage.list_keys(".json") if key.startswith(prefix)]
+    result = []
+    for key in keys:
+        try:
+            item = json.loads(storage.get_bytes(key))
+        except (ValueError, TypeError):
+            continue
+        if item.get("alert_id") == str(alert_id):
+            result.append(item)
+    return result

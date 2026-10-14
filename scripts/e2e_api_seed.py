@@ -66,7 +66,14 @@ FIELDS = [
     _field("event-type", "event_type", "eventtype"),
     _field("channel", "channel", "channel"),
     _field("entrypoint", "entrypoint", "integrationpoint"),
-    _field("amount", "amount", "amount_value", "number"),
+    _field(
+        "amount",
+        "amount",
+        "amount_value",
+        "number",
+        use_locale=True,
+        locale_type="es-CO",
+    ),
     _field(
         "customer-id",
         "customer_id",
