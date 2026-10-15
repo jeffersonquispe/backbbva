@@ -75,10 +75,12 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
         return candidate
     # With no pin the candidate was already produced from the active schema;
     # avoid a second repository read and preserve the single pre-process pass.
+    active_schema_version = workflow_input.get("active_schema_version")
+    schema_repository = get_alert_schema_repository()
     active_schema = (
-        get_alert_schema_repository().get_active()
-        if candidate_version is not None
-        else None
+        schema_repository.get(int(active_schema_version))
+        if active_schema_version is not None
+        else schema_repository.get_active()
     )
     if candidate_version is None or (
         active_schema is not None and active_schema.version == candidate.schema_version

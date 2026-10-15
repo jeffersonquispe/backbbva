@@ -42,6 +42,9 @@ class TestRunConfig:
     # concurrently - see alert_review_workflow.py's _resolve_segment.
     configuration_ref: ConfigurationRef | None = None
     schema_version: int | None = None
+    # Active schema captured when the run starts, used as the comparison
+    # baseline even if the active schema changes while jobs wait in Celery.
+    active_schema_version: int | None = None
 
 
 @dataclass

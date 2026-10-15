@@ -138,6 +138,7 @@ class StartAlertTestWorkflowUseCase:
                     ),
                     "config_overrides": input.config_overrides,
                     "schema_version": input.schema_version,
+                    "active_schema_version": input.active_schema_version,
                     "configuration_ref": (
                         dataclasses.asdict(input.configuration_ref)
                         if input.configuration_ref is not None

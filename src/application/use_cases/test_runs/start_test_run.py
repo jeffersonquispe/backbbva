@@ -106,9 +106,23 @@ class StartTestRunUseCase:
                         version=config.version,
                     ),
                 )
-        if input.config.schema_version is not None and self._schemas is not None:
-            if self._schemas.get(input.config.schema_version) is None:
+        if self._schemas is not None:
+            active_schema = self._schemas.get_active()
+            active_schema_version = active_schema.version if active_schema else None
+            candidate_version = input.config.schema_version or active_schema_version
+            if candidate_version is None:
+                raise ValidationError("No active alert schema is available for this test run")
+            if (
+                candidate_version is not None
+                and self._schemas.get(candidate_version) is None
+            ):
                 raise NotFoundError("Alert schema version not found")
+            if active_schema_version is not None:
+                input.config = dataclasses.replace(
+                    input.config,
+                    schema_version=candidate_version,
+                    active_schema_version=active_schema_version,
+                )
         now = self._clock.now()
         test_run = self._test_runs.create(
             TestRunRecord(
@@ -138,6 +152,7 @@ class StartTestRunUseCase:
                     max_feedback_iterations=input.config.max_feedback_iterations,
                     configuration_ref=input.config.configuration_ref,
                     schema_version=input.config.schema_version,
+                    active_schema_version=input.config.active_schema_version,
                     origin=AlertOrigin.TEST_RUN,
                 )
             )

@@ -440,6 +440,16 @@ class InMemoryAlertSchemaRepository:
     def get(self, version: int) -> AlertSchemaVersion | None:
         return self.versions.get(version)
 
+    def get_active(self) -> AlertSchemaVersion | None:
+        return next(
+            (
+                schema
+                for schema in self.versions.values()
+                if schema.status.value == "active"
+            ),
+            None,
+        )
+
 
 def test_start_test_run_pins_draft_schema_version_on_each_workflow() -> None:
     use_case, _, workflows = _use_case({"sample": [{"eventId": "e-1"}]})

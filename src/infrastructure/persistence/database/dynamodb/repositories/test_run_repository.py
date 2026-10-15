@@ -84,6 +84,7 @@ def _to_item(run: TestRunRecord) -> dict[str, Any]:
             else None
         ),
         "schema_version": run.config.schema_version,
+        "active_schema_version": run.config.active_schema_version,
         "status": run.status.value,
         "total": run.total,
         "created_at": run.created_at.isoformat(),
@@ -123,6 +124,11 @@ def _from_item(item: dict[str, Any]) -> TestRunRecord:
             schema_version=(
                 int(item["schema_version"])
                 if item.get("schema_version") is not None
+                else None
+            ),
+            active_schema_version=(
+                int(item["active_schema_version"])
+                if item.get("active_schema_version") is not None
                 else None
             ),
         ),

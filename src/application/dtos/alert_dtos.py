@@ -32,6 +32,7 @@ class StartAlertWorkflowInput:
     # alert_review_workflow.py.
     configuration_ref: ConfigurationRef | None = None
     schema_version: int | None = None
+    active_schema_version: int | None = None
     origin: AlertOrigin = AlertOrigin.MANUAL
 
 

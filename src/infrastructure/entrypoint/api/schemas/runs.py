@@ -32,6 +32,7 @@ class TestRunConfigRequest(BaseModel):
     # concurrently without touching the global active flag.
     configuration_ref: ConfigurationRefRequest | None = None
     schema_version: int | None = Field(default=None, ge=1)
+    active_schema_version: int | None = Field(default=None, ge=1)
 
 
 class StartTestRunRequest(BaseModel):
