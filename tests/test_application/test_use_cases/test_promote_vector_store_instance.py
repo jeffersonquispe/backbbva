@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from threading import Event, Thread
 from datetime import UTC, datetime
+from threading import Event, Thread
 
 import pytest
 
@@ -448,7 +448,7 @@ def test_previous_generation_remains_available_while_next_generation_is_loading(
     def repromote() -> None:
         try:
             use_case.execute("vector-store-v1", actor="manager")
-        except Exception as exc:  # pragma: no cover - assertion reports thread failures
+        except Exception as exc:  # noqa: BLE001 - forward worker-thread failures
             error.append(exc)
 
     thread = Thread(target=repromote)

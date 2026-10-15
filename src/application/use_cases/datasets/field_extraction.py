@@ -117,7 +117,9 @@ def compute_distributions(
     rows: list[dict[str, Any]],
     fields: tuple[str, ...] = ANALYSIS_FIELDS,
 ) -> dict[str, dict[str, int]]:
-    counters = {field_name: Counter() for field_name in fields}
+    counters: dict[str, Counter[str]] = {
+        field_name: Counter() for field_name in fields
+    }
     for row in rows:
         extracted = extract_fields(row, fields)
         for field_name in fields:

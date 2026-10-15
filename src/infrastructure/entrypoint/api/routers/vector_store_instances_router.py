@@ -4,8 +4,7 @@ import re
 from typing import Annotated
 
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi import Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.application.errors import NotFoundError, ValidationError
 from src.application.ports.fraud_knowledge_port import DocumentType, SearchPipeline
@@ -14,6 +13,9 @@ from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
     VectorStoreInstance,
     VectorStoreInstanceAsset,
+)
+from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
+    VectorStoreNotPromotedError,
 )
 from src.application.use_cases.vector_store_instances.create_vector_store_instance import (
     CreateVectorStoreInstanceUseCase,
@@ -29,14 +31,11 @@ from src.application.use_cases.vector_store_instances.promote_vector_store_insta
     EmptyVectorStoreInstanceError,
     PromoteVectorStoreInstanceUseCase,
 )
-from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
-    VectorStoreNotPromotedError,
+from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
+    get_flag_library_repository,
 )
 from src.infrastructure.entrypoint.api.factories.fraud_knowledge_factory import (
     get_search_fraud_knowledge_use_case,
-)
-from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
-    get_flag_library_repository,
 )
 from src.infrastructure.entrypoint.api.factories.modus_operandi_library_factory import (
     get_modus_operandi_library_repository,

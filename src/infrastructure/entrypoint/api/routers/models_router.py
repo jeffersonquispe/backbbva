@@ -47,8 +47,8 @@ from src.infrastructure.entrypoint.api.schemas import (
     ModelResponse,
     StartModelTrainingResponse,
 )
-from src.infrastructure.queues.celery.app import app as celery_app
 from src.infrastructure.model_serving.mcp_scoring_client import MCPModelScoringClient
+from src.infrastructure.queues.celery.app import app as celery_app
 
 router = APIRouter(prefix="/models", tags=["models"])
 

@@ -12,13 +12,13 @@ os.environ.setdefault("API_V0_STR", "/api/v0")
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
     FraudKnowledgeSearchResult,
     SearchPipeline,
     TaxonomiaDocument,
 )
+from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
     VectorStoreInstance,
