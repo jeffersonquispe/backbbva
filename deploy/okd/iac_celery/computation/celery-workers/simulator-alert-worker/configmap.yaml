@@ -29,11 +29,10 @@ data:
   DATASET_STORAGE_BACKEND: minio
   DATASET_STORAGE_BUCKET: datasets
   MODEL_STORAGE_BUCKET: models
-  OPENSEARCH_ENDPOINT: http://opensearch:9200
+  OPENSEARCH_ENDPOINT: https://opensearch:9200
   OPENSEARCH_AUTH_MODE: basic
-  OPENSEARCH_USERNAME: admin
-  OPENSEARCH_PASSWORD: dummy
   OPENSEARCH_INDEX: fraud_knowledge
+  OPENSEARCH_VERIFY_CERTS: "false"
   LLM_BACKEND: azure
   OPENAI_ENDPOINT: https://genai-lupitaasistente-work-llm-openai.openai.azure.com/
   OPENAI_VERSION: "2024-08-01-preview"
