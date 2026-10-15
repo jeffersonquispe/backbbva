@@ -121,6 +121,7 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
       CELERY_TEST_QUEUE: ${CELERY_TEST_QUEUE:-test}
+      CELERY_SIMULATOR_ALERT_QUEUE: ${CELERY_SIMULATOR_ALERT_QUEUE:-simulator_alerts}
       OBJECT_STORAGE_ENDPOINT: http://minio:9000
       OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
       OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
@@ -305,6 +306,61 @@ services:
       minio:
         condition: service_healthy
       api:
+        condition: service_healthy
+    networks:
+      - aria-net
+      - aria-observability-net
+    restart: unless-stopped
+
+  # Simulator alerts run through the active production pipeline/configuration
+  # while keeping their workload off the production worker pool.
+  aria-worker-simulator-alerts:
+    image: aria-worker-main:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-worker-simulator-alerts
+    command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=${CELERY_SIMULATOR_ALERT_WORKER_CONCURRENCY:-1}", "-Q", "${CELERY_SIMULATOR_ALERT_QUEUE:-simulator_alerts}"]
+    volumes:
+      - ../../../config:/code/config:ro
+    environment:
+      GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      API_V0_STR: ${API_V0_STR:-/api/v0}
+      DYNAMO_ENDPOINT: http://dynamodb:8000
+      DYNAMO_REGION_NAME: ${DYNAMO_REGION_NAME:-us-east-1}
+      DYNAMO_ACCESS_KEY: ${DYNAMO_ACCESS_KEY:-dummy}
+      DYNAMO_SECRET_KEY: ${DYNAMO_SECRET_KEY:-dummy}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
+      CELERY_TEST_QUEUE: ${CELERY_TEST_QUEUE:-test}
+      CELERY_SIMULATOR_ALERT_QUEUE: ${CELERY_SIMULATOR_ALERT_QUEUE:-simulator_alerts}
+      OTEL_ENDPOINT: ${OTEL_ENDPOINT:-http://otel-collector:4317}
+      OTEL_CAPTURE_LLM_CONTENT: ${OTEL_CAPTURE_LLM_CONTENT:-false}
+      OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
+      OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-dummy}
+      OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-dummy123}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-aria-reports}
+      DATASET_STORAGE_BACKEND: ${DATASET_STORAGE_BACKEND:-minio}
+      DATASET_STORAGE_BUCKET: ${DATASET_STORAGE_BUCKET:-datasets}
+      MODEL_STORAGE_BUCKET: ${MODEL_STORAGE_BUCKET:-models}
+      OPENSEARCH_ENDPOINT: http://opensearch:9200
+      OPENSEARCH_AUTH_MODE: ${OPENSEARCH_AUTH_MODE:-basic}
+      OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME:-admin}
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-dummy}
+      OPENSEARCH_INDEX: ${OPENSEARCH_INDEX:-fraud_knowledge}
+      MCP_BASE_URL: http://mcp:8100
+      MCP_TIMEOUT_SECONDS: ${MCP_TIMEOUT_SECONDS:-15}
+    depends_on:
+      dynamodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+      mcp:
         condition: service_healthy
     networks:
       - aria-net

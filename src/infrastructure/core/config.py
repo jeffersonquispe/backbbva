@@ -138,6 +138,9 @@ class Config(BaseSettings):
     # Test runs use a dedicated queue and worker so batch CSV work cannot
     # consume production workflow capacity.
     CELERY_TEST_QUEUE: str = "test"
+    # Simulator alerts use the production pipeline/configuration, but consume
+    # isolated worker capacity so test traffic cannot delay production.
+    CELERY_SIMULATOR_ALERT_QUEUE: str = "simulator_alerts"
     # Celery Beat is deliberately a standalone process (never co-located
     # with a worker).  This is the first global maintenance schedule; future
     # retention and cleanup jobs use the same scheduler.

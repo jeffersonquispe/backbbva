@@ -21,11 +21,11 @@ _TASK_NAME = "workflows.alert_review.run"
 
 
 def queue_for_origin(origin: str | None) -> str:
-    return (
-        genai_config.CELERY_TEST_QUEUE
-        if origin == AlertOrigin.TEST_RUN.value
-        else genai_config.CELERY_DEFAULT_QUEUE
-    )
+    if origin == AlertOrigin.TEST_RUN.value:
+        return genai_config.CELERY_TEST_QUEUE
+    if origin == AlertOrigin.SIMULATOR.value:
+        return genai_config.CELERY_SIMULATOR_ALERT_QUEUE
+    return genai_config.CELERY_DEFAULT_QUEUE
 
 
 class CeleryWorkflowExecutor(WorkflowExecutor):

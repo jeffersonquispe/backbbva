@@ -12,5 +12,5 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
-        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [api, aria-worker-main, aria-worker-training, aria-worker-test, aria-worker-scheduler, aria-worker-simulator, mcp]}]}
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [api, aria-worker-main, aria-worker-training, aria-worker-test, aria-worker-simulator-alerts, aria-worker-scheduler, aria-worker-simulator, mcp]}]}
       ports: [{protocol: TCP, port: 4317}, {protocol: TCP, port: 4318}]

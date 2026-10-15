@@ -61,9 +61,16 @@ def healthcheck() -> dict[str, str]:
 
 @app.task(name="backups.create")
 def create_backup(backup_id: str) -> dict[str, str | int]:
+    import importlib.util
     from pathlib import Path
 
-    from scripts.db_backup import backup
+    backup_script = Path(__file__).resolve().parents[5] / "scripts" / "db_backup.py"
+    spec = importlib.util.spec_from_file_location("aria_db_backup", backup_script)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load backup script: {backup_script}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    backup = module.backup
 
     repository = get_backup_catalog_repository()
     record = repository.get(backup_id)
