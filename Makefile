@@ -408,6 +408,13 @@ local-docker-build:  ## Build local API, worker and MCP images. Vars: LOCAL_DOCK
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
 		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-worker-training mcp
 
+.PHONY: local-api-build
+local-api-build:  ## Build only the local API image from the current backend source.
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		build $(LOCAL_DOCKER_BUILD_ARGS) api
+
 .PHONY: local-worker-refresh
 local-worker-refresh:  ## Recreate local alert/test/training workers and MCP from current images.
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \

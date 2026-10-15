@@ -204,3 +204,26 @@ def test_retiring_taxonomy_removes_its_entire_relation_tree_from_every_instance(
         KnowledgeAssetType.TAXONOMY, "tax-1"
     ) == ["instance-1"]
     assert relations.assets == []
+
+
+def test_retiring_taxonomy_keeps_flag_shared_with_a_surviving_taxonomy() -> None:
+    relations = Relations()
+    graph = KnowledgeGraphService(
+        instances=relations,
+        taxonomies=Catalog([Taxonomy("tax-1"), Taxonomy("tax-2")]),
+        modus_operandi=Catalog([MO("mo-1", "tax-1"), MO("mo-2", "tax-2")]),
+        similar_cases=Catalog([]),
+        flags=Catalog([Flag("red-1", FlagType.RED, ["mo-1", "mo-2"])]),
+    )
+    graph.attach("instance-1", KnowledgeAssetType.TAXONOMY, "tax-1")
+    graph.attach("instance-1", KnowledgeAssetType.TAXONOMY, "tax-2")
+
+    graph.detach_tree_from_all_instances(KnowledgeAssetType.TAXONOMY, "tax-1")
+
+    assert {
+        (item.asset_type, item.asset_id) for item in relations.list_assets("instance-1")
+    } == {
+        (KnowledgeAssetType.TAXONOMY, "tax-2"),
+        (KnowledgeAssetType.MODUS_OPERANDI, "mo-2"),
+        (KnowledgeAssetType.RED_FLAG, "red-1"),
+    }

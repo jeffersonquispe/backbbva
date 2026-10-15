@@ -177,8 +177,30 @@ class KnowledgeGraphService:
         affected: list[str] = []
         for instance in self._instances.list():
             removed = False
-            for relation in self._instances.list_assets(instance.id):
-                if (relation.asset_type, relation.asset_id) in targets:
+            relations = self._instances.list_assets(instance.id)
+            relation_keys = {(item.asset_type, item.asset_id) for item in relations}
+            for relation in relations:
+                key = (relation.asset_type, relation.asset_id)
+                if key in targets:
+                    if relation.asset_type in (
+                        KnowledgeAssetType.RED_FLAG,
+                        KnowledgeAssetType.YELLOW_FLAG,
+                    ):
+                        flag = self._flags.get(relation.asset_id)
+                        removed_mos = {
+                            asset_id
+                            for kind, asset_id in targets
+                            if kind == KnowledgeAssetType.MODUS_OPERANDI
+                        }
+                        if flag and any(
+                            mo_id not in removed_mos
+                            and (KnowledgeAssetType.MODUS_OPERANDI, mo_id)
+                            in relation_keys
+                            for mo_id in flag.modus_operandi_library_ids
+                        ):
+                            # Keep shared descendants that still belong to a
+                            # surviving taxonomy root in this instance.
+                            continue
                     self._instances.remove_asset(instance.id, relation.relation_id)
                     removed = True
             if removed:

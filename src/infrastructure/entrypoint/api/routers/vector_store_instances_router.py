@@ -5,8 +5,10 @@ from typing import Annotated
 
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Query
 
 from src.application.errors import NotFoundError, ValidationError
+from src.application.ports.fraud_knowledge_port import DocumentType, SearchPipeline
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
@@ -26,6 +28,12 @@ from src.application.use_cases.vector_store_instances.manage_vector_store_instan
 from src.application.use_cases.vector_store_instances.promote_vector_store_instance import (
     EmptyVectorStoreInstanceError,
     PromoteVectorStoreInstanceUseCase,
+)
+from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
+    VectorStoreNotPromotedError,
+)
+from src.infrastructure.entrypoint.api.factories.fraud_knowledge_factory import (
+    get_search_fraud_knowledge_use_case,
 )
 from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
     get_flag_library_repository,
@@ -84,6 +92,40 @@ def _document_schema(asset: VectorStoreInstanceAsset) -> VectorStoreDocumentSche
 
 def _graph() -> KnowledgeGraphService:
     return get_knowledge_graph_service()
+
+
+@router.get("/{instance_id}/query")
+def query_vector_store_instance(
+    instance_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    query: str = Query(min_length=1, max_length=2000),
+    document_type: DocumentType = DocumentType.MODUS_OPERANDI,
+    pipeline: SearchPipeline = SearchPipeline.BALANCED,
+    top_k: int = Query(default=5, ge=1, le=50),
+):
+    """Runs a production retrieval query against an instance's active generation."""
+    _require_writer(user)
+    try:
+        hits = get_search_fraud_knowledge_use_case().execute(
+            query,
+            pipeline=pipeline,
+            vector_store_id=instance_id,
+            document_type=document_type,
+            top_k=top_k,
+        )
+    except VectorStoreNotPromotedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return [
+        {
+            "id": str(hit.document.id),
+            "type": hit.document.type.value,
+            "text": hit.document.text,
+            "score": hit.score,
+            "vector_store_id": hit.document.vector_store_id,
+            "vector_store_version": hit.document.vector_store_version,
+        }
+        for hit in hits
+    ]
 
 
 @router.get("", response_model=list[VectorStoreInstanceSchema])

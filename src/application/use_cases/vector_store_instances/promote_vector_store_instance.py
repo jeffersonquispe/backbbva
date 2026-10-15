@@ -113,121 +113,131 @@ class PromoteVectorStoreInstanceUseCase:
         new_version = (instance.promoted_version or 0) + 1
         previous_version = instance.promoted_version
 
-        taxonomia_os_id: dict[str, UUID] = {}
-        for asset in assets:
-            if asset.asset_type != KnowledgeAssetType.TAXONOMY:
-                continue
-            entry = self._taxonomies.get(asset.asset_id)
-            if entry is None:
-                raise NotFoundError(
-                    f"taxonomy library entry {asset.asset_id} no longer exists"
+        try:
+            taxonomia_os_id: dict[str, UUID] = {}
+            for asset in assets:
+                if asset.asset_type != KnowledgeAssetType.TAXONOMY:
+                    continue
+                entry = self._taxonomies.get(asset.asset_id)
+                if entry is None:
+                    raise NotFoundError(
+                        f"taxonomy library entry {asset.asset_id} no longer exists"
+                    )
+                created = self._ingest_taxonomia.execute(
+                    IngestTaxonomiaInput(
+                        text=taxonomia_embedding_text(
+                            name=entry.name,
+                            description=entry.description,
+                            examples=entry.examples,
+                        ),
+                        vector_store_id=instance_id,
+                        vector_store_version=new_version,
+                        text_embedded=asset.embedding or entry.embedding,
+                    )
                 )
-            created = self._ingest_taxonomia.execute(
-                IngestTaxonomiaInput(
-                    text=taxonomia_embedding_text(
-                        name=entry.name,
-                        description=entry.description,
-                        examples=entry.examples,
-                    ),
-                    vector_store_id=instance_id,
-                    vector_store_version=new_version,
-                    text_embedded=asset.embedding or entry.embedding,
-                )
-            )
-            taxonomia_os_id[entry.id] = created.id
+                taxonomia_os_id[entry.id] = created.id
 
-        modus_operandi_os_id: dict[str, UUID] = {}
-        for asset in assets:
-            if asset.asset_type != KnowledgeAssetType.MODUS_OPERANDI:
-                continue
-            entry = self._modus_operandi.get(asset.asset_id)
-            if entry is None:
-                raise NotFoundError(
-                    f"modus operandi library entry {asset.asset_id} no longer exists"
+            modus_operandi_os_id: dict[str, UUID] = {}
+            for asset in assets:
+                if asset.asset_type != KnowledgeAssetType.MODUS_OPERANDI:
+                    continue
+                entry = self._modus_operandi.get(asset.asset_id)
+                if entry is None:
+                    raise NotFoundError(
+                        f"modus operandi library entry {asset.asset_id} no longer exists"
+                    )
+                taxonomia_id = taxonomia_os_id.get(entry.taxonomy_library_id)
+                if taxonomia_id is None:
+                    raise ValidationError(
+                        f"modus operandi {entry.id!r}'s taxonomy {entry.taxonomy_library_id!r} "
+                        "is not included in this vector store instance"
+                    )
+                taxonomy_entry = self._taxonomies.get(entry.taxonomy_library_id)
+                created = self._ingest_modus_operandi.execute(
+                    IngestModusOperandiInput(
+                        text=modus_operandi_embedding_text(
+                            title=entry.title, narrative=entry.narrative
+                        ),
+                        vector_store_id=instance_id,
+                        vector_store_version=new_version,
+                        taxonomia_id=taxonomia_id,
+                        taxonomia=taxonomy_entry.name if taxonomy_entry else "",
+                        library_id=entry.id,
+                        text_embedded=asset.embedding or entry.embedding,
+                    )
                 )
-            taxonomia_id = taxonomia_os_id.get(entry.taxonomy_library_id)
-            if taxonomia_id is None:
-                raise ValidationError(
-                    f"modus operandi {entry.id!r}'s taxonomy {entry.taxonomy_library_id!r} "
-                    "is not included in this vector store instance"
-                )
-            taxonomy_entry = self._taxonomies.get(entry.taxonomy_library_id)
-            created = self._ingest_modus_operandi.execute(
-                IngestModusOperandiInput(
-                    text=modus_operandi_embedding_text(
-                        title=entry.title, narrative=entry.narrative
-                    ),
-                    vector_store_id=instance_id,
-                    vector_store_version=new_version,
-                    taxonomia_id=taxonomia_id,
-                    taxonomia=taxonomy_entry.name if taxonomy_entry else "",
-                    library_id=entry.id,
-                    text_embedded=asset.embedding or entry.embedding,
-                )
-            )
-            modus_operandi_os_id[entry.id] = created.id
+                modus_operandi_os_id[entry.id] = created.id
 
-        for asset in assets:
-            if asset.asset_type not in (
-                KnowledgeAssetType.RED_FLAG,
-                KnowledgeAssetType.YELLOW_FLAG,
+            for asset in assets:
+                if asset.asset_type not in (
+                    KnowledgeAssetType.RED_FLAG,
+                    KnowledgeAssetType.YELLOW_FLAG,
+                ):
+                    continue
+                entry = self._flags.get(asset.asset_id)
+                if entry is None:
+                    raise NotFoundError(
+                        f"flag library entry {asset.asset_id} no longer exists"
+                    )
+                # A flag can be attached standalone, without its parent modus
+                # operandi(s) - drop references to whichever parents aren't
+                # part of this vector store rather than failing the promotion.
+                resolved_mo_ids = [
+                    modus_operandi_os_id[mid]
+                    for mid in entry.modus_operandi_library_ids
+                    if mid in modus_operandi_os_id
+                ]
+                self._ingest_flag.execute(
+                    IngestFlagInput(
+                        text=flag_embedding_text(
+                            name=entry.name, description=entry.description
+                        ),
+                        flag_type=DocumentType.RED_FLAG
+                        if entry.flag_type == FlagType.RED
+                        else DocumentType.YELLOW_FLAG,
+                        vector_store_id=instance_id,
+                        vector_store_version=new_version,
+                        modus_operandi_ids=resolved_mo_ids,
+                        text_embedded=asset.embedding or entry.embedding,
+                    )
+                )
+
+            for asset in assets:
+                if asset.asset_type != KnowledgeAssetType.SIMILAR_CASE:
+                    continue
+                entry = self._similar_cases.get(asset.asset_id)
+                if entry is None:
+                    raise NotFoundError(
+                        f"similar case library entry {asset.asset_id} no longer exists"
+                    )
+                modus_operandi_id = modus_operandi_os_id.get(
+                    entry.modus_operandi_library_id
+                )
+                taxonomia_id = taxonomia_os_id.get(entry.taxonomy_library_id)
+                if modus_operandi_id is None or taxonomia_id is None:
+                    raise ValidationError(
+                        f"similar case {entry.id!r}'s modus operandi {entry.modus_operandi_library_id!r} "
+                        "and/or taxonomy are not included in this vector store instance"
+                    )
+                self._ingest_similar_case.execute(
+                    IngestSimilarCaseInput(
+                        text=entry.text,
+                        vector_store_id=instance_id,
+                        vector_store_version=new_version,
+                        modus_operandi_id=modus_operandi_id,
+                        taxonomia_id=taxonomia_id,
+                        text_embedded=asset.embedding or entry.embedding,
+                    )
+                )
+
+        except Exception:
+            # A failed build is not published. Remove any documents already
+            # written for this candidate generation and keep the old version.
+            for document in self._fraud_knowledge_repository.list(
+                vector_store_id=instance_id, vector_store_version=new_version
             ):
-                continue
-            entry = self._flags.get(asset.asset_id)
-            if entry is None:
-                raise NotFoundError(
-                    f"flag library entry {asset.asset_id} no longer exists"
-                )
-            # A flag can be attached standalone, without its parent modus
-            # operandi(s) - drop references to whichever parents aren't
-            # part of this vector store rather than failing the promotion.
-            resolved_mo_ids = [
-                modus_operandi_os_id[mid]
-                for mid in entry.modus_operandi_library_ids
-                if mid in modus_operandi_os_id
-            ]
-            self._ingest_flag.execute(
-                IngestFlagInput(
-                    text=flag_embedding_text(
-                        name=entry.name, description=entry.description
-                    ),
-                    flag_type=DocumentType.RED_FLAG
-                    if entry.flag_type == FlagType.RED
-                    else DocumentType.YELLOW_FLAG,
-                    vector_store_id=instance_id,
-                    vector_store_version=new_version,
-                    modus_operandi_ids=resolved_mo_ids,
-                    text_embedded=asset.embedding or entry.embedding,
-                )
-            )
-
-        for asset in assets:
-            if asset.asset_type != KnowledgeAssetType.SIMILAR_CASE:
-                continue
-            entry = self._similar_cases.get(asset.asset_id)
-            if entry is None:
-                raise NotFoundError(
-                    f"similar case library entry {asset.asset_id} no longer exists"
-                )
-            modus_operandi_id = modus_operandi_os_id.get(
-                entry.modus_operandi_library_id
-            )
-            taxonomia_id = taxonomia_os_id.get(entry.taxonomy_library_id)
-            if modus_operandi_id is None or taxonomia_id is None:
-                raise ValidationError(
-                    f"similar case {entry.id!r}'s modus operandi {entry.modus_operandi_library_id!r} "
-                    "and/or taxonomy are not included in this vector store instance"
-                )
-            self._ingest_similar_case.execute(
-                IngestSimilarCaseInput(
-                    text=entry.text,
-                    vector_store_id=instance_id,
-                    vector_store_version=new_version,
-                    modus_operandi_id=modus_operandi_id,
-                    taxonomia_id=taxonomia_id,
-                    text_embedded=asset.embedding or entry.embedding,
-                )
-            )
+                self._fraud_knowledge_repository.delete(document.id)
+            raise
 
         # New generation is fully loaded and searchable - only now retire
         # the previous one, so a concurrent search never sees a gap.

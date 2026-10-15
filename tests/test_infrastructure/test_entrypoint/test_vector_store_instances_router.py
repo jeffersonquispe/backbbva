@@ -13,6 +13,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.application.ports.local_auth_port import LocalRole, LocalUser
+from src.application.ports.fraud_knowledge_port import (
+    DocumentType,
+    FraudKnowledgeSearchResult,
+    SearchPipeline,
+    TaxonomiaDocument,
+)
 from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
     VectorStoreInstance,
@@ -100,6 +106,16 @@ class _UpdateInstance:
             updated_at=datetime(2026, 1, 2, tzinfo=UTC),
             updated_by="QA Analyst",
         )
+
+
+class _SearchKnowledge:
+    def __init__(self, hits):
+        self.hits = hits
+        self.call = None
+
+    def execute(self, query, **kwargs):
+        self.call = (query, kwargs)
+        return self.hits
 
 
 def test_vector_store_write_requires_an_authorized_role() -> None:
@@ -192,3 +208,72 @@ def test_children_cannot_be_deleted_through_the_public_api() -> None:
         app.dependency_overrides[delete_dependency] = lambda: object()
         response = client.delete(path)
         assert response.status_code == 405
+
+
+def test_query_instance_uses_requested_pipeline_and_returns_active_generation(monkeypatch) -> None:
+    client, _ = _client(vector_store_instances_router.router, _user())
+    document = TaxonomiaDocument(
+        id=uuid4(),
+        text="Fraude por cambio de dispositivo",
+        text_embedded=[0.1, 0.2],
+        vector_store_id="vector-store-v1",
+        vector_store_version=3,
+    )
+    search = _SearchKnowledge([FraudKnowledgeSearchResult(document, 1.25)])
+    monkeypatch.setattr(
+        vector_store_instances_router,
+        "get_search_fraud_knowledge_use_case",
+        lambda: search,
+    )
+
+    response = client.get(
+        "/api/v0/vector-store-instances/vector-store-v1/query",
+        params={
+            "query": "acceso desde un móvil nuevo",
+            "document_type": "taxonomia",
+            "pipeline": "embedding_heavy",
+            "top_k": 7,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "id": str(document.id),
+            "type": "taxonomia",
+            "text": document.text,
+            "score": 1.25,
+            "vector_store_id": "vector-store-v1",
+            "vector_store_version": 3,
+        }
+    ]
+    assert search.call == (
+        "acceso desde un móvil nuevo",
+        {
+            "pipeline": SearchPipeline.EMBEDDING_HEAVY,
+            "vector_store_id": "vector-store-v1",
+            "document_type": DocumentType.TAXONOMIA,
+            "top_k": 7,
+        },
+    )
+
+
+def test_query_instance_rejects_invalid_pipeline_and_limits(monkeypatch) -> None:
+    client, _ = _client(vector_store_instances_router.router, _user())
+    monkeypatch.setattr(
+        vector_store_instances_router,
+        "get_search_fraud_knowledge_use_case",
+        lambda: _SearchKnowledge([]),
+    )
+
+    invalid_pipeline = client.get(
+        "/api/v0/vector-store-instances/vector-store-v1/query",
+        params={"query": "fraude", "pipeline": "unknown"},
+    )
+    excessive_top_k = client.get(
+        "/api/v0/vector-store-instances/vector-store-v1/query",
+        params={"query": "fraude", "top_k": 51},
+    )
+
+    assert invalid_pipeline.status_code == 422
+    assert excessive_top_k.status_code == 422

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from threading import Event, Thread
 from datetime import UTC, datetime
 
 import pytest
@@ -93,6 +94,36 @@ class InMemoryFraudKnowledgeRepository:
                 d for d in results if d.vector_store_version == vector_store_version
             ]
         return results
+
+
+class FailOnNthCreateRepository(InMemoryFraudKnowledgeRepository):
+    def __init__(self) -> None:
+        super().__init__()
+        self._fail_on_create: int | None = None
+        self._create_count = 0
+
+    def create(self, document: FraudKnowledgeDocument) -> FraudKnowledgeDocument:
+        self._create_count += 1
+        if self._create_count == self._fail_on_create:
+            raise RuntimeError("injected OpenSearch write failure")
+        return super().create(document)
+
+
+class PauseOnNthCreateRepository(InMemoryFraudKnowledgeRepository):
+    def __init__(self, pause_on_create: int) -> None:
+        super().__init__()
+        self.pause_on_create = pause_on_create
+        self.create_count = 0
+        self.paused = Event()
+        self.resume = Event()
+
+    def create(self, document: FraudKnowledgeDocument) -> FraudKnowledgeDocument:
+        self.create_count += 1
+        if self.create_count == self.pause_on_create:
+            self.paused.set()
+            if not self.resume.wait(timeout=10):
+                raise TimeoutError("promotion test was not resumed")
+        return super().create(document)
 
 
 class InMemoryVectorStoreInstanceRepository:
@@ -193,12 +224,13 @@ def _full_tree_use_case(
     flag: FlagLibraryEntry,
     case: SimilarCaseLibraryEntry,
     embedding_factory: CountingEmbeddingUnitOfWorkFactory,
+    fraud_repo: InMemoryFraudKnowledgeRepository | None = None,
 ) -> tuple[
     PromoteVectorStoreInstanceUseCase,
     InMemoryFraudKnowledgeRepository,
     InMemoryVectorStoreInstanceRepository,
 ]:
-    fraud_repo = InMemoryFraudKnowledgeRepository()
+    fraud_repo = fraud_repo or InMemoryFraudKnowledgeRepository()
     instances = InMemoryVectorStoreInstanceRepository(instance, assets)
     kwargs = dict(
         repository=fraud_repo,
@@ -355,6 +387,86 @@ def test_repromoting_deletes_previous_generation_after_loading_the_new_one() -> 
         len(fraud_repo.list(vector_store_id="vector-store-v1", vector_store_version=2))
         == 4
     )
+
+
+def test_repromotion_write_failure_keeps_previous_generation_and_rolls_back_partial_new_generation() -> None:
+    now = datetime.now(UTC)
+    taxonomy, mo, flag, case, assets = _seed_full_tree(now)
+    embedding_factory = CountingEmbeddingUnitOfWorkFactory()
+    fraud_repo = FailOnNthCreateRepository()
+    use_case, fraud_repo, instances = _full_tree_use_case(
+        instance=_instance(),
+        assets=assets,
+        taxonomy=taxonomy,
+        modus_operandi=mo,
+        flag=flag,
+        case=case,
+        embedding_factory=embedding_factory,
+        fraud_repo=fraud_repo,
+    )
+    use_case.execute("vector-store-v1", actor="manager")
+    previous = fraud_repo.list(
+        vector_store_id="vector-store-v1", vector_store_version=1
+    )
+
+    # Fail on the third write of the second promotion. The first two new
+    # documents have already been persisted at this point.
+    fraud_repo._fail_on_create = fraud_repo._create_count + 3
+    with pytest.raises(RuntimeError, match="injected OpenSearch write failure"):
+        use_case.execute("vector-store-v1", actor="manager")
+
+    assert instances.get("vector-store-v1").promoted_version == 1
+    assert fraud_repo.list(
+        vector_store_id="vector-store-v1", vector_store_version=1
+    ) == previous
+    assert fraud_repo.list(
+        vector_store_id="vector-store-v1", vector_store_version=2
+    ) == []
+
+
+def test_previous_generation_remains_available_while_next_generation_is_loading() -> None:
+    now = datetime.now(UTC)
+    taxonomy, mo, flag, case, assets = _seed_full_tree(now)
+    embedding_factory = CountingEmbeddingUnitOfWorkFactory()
+    fraud_repo = PauseOnNthCreateRepository(pause_on_create=5)
+    use_case, fraud_repo, instances = _full_tree_use_case(
+        instance=_instance(),
+        assets=assets,
+        taxonomy=taxonomy,
+        modus_operandi=mo,
+        flag=flag,
+        case=case,
+        embedding_factory=embedding_factory,
+        fraud_repo=fraud_repo,
+    )
+    use_case.execute("vector-store-v1", actor="manager")
+    previous = fraud_repo.list(
+        vector_store_id="vector-store-v1", vector_store_version=1
+    )
+    error: list[Exception] = []
+
+    def repromote() -> None:
+        try:
+            use_case.execute("vector-store-v1", actor="manager")
+        except Exception as exc:  # pragma: no cover - assertion reports thread failures
+            error.append(exc)
+
+    thread = Thread(target=repromote)
+    thread.start()
+    assert fraud_repo.paused.wait(timeout=10)
+    assert instances.get("vector-store-v1").promoted_version == 1
+    assert fraud_repo.list(
+        vector_store_id="vector-store-v1", vector_store_version=1
+    ) == previous
+    assert fraud_repo.list(
+        vector_store_id="vector-store-v1", vector_store_version=2
+    ) == []
+
+    fraud_repo.resume.set()
+    thread.join(timeout=10)
+    assert not thread.is_alive()
+    assert error == []
+    assert instances.get("vector-store-v1").promoted_version == 2
 
 
 def test_promote_unknown_instance_raises() -> None:

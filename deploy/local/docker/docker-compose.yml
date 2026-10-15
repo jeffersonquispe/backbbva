@@ -133,7 +133,6 @@ services:
       OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME:-admin}
       OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-dummy}
       OPENSEARCH_INDEX: ${OPENSEARCH_INDEX:-fraud_knowledge}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
     depends_on:
       dynamodb:
         condition: service_healthy

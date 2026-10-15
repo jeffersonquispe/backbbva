@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from src.application.ports.taxonomy_library_port import (
@@ -79,7 +80,11 @@ def _to_item(entry: TaxonomyLibraryEntry) -> dict[str, Any]:
         "active": entry.active,
         "created_at": entry.created_at.isoformat(),
         "updated_at": entry.updated_at.isoformat(),
-        "embedding": entry.embedding,
+        "embedding": (
+            [Decimal(str(value)) for value in entry.embedding]
+            if entry.embedding is not None
+            else None
+        ),
     }
 
 

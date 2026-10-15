@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from boto3.dynamodb.conditions import Key
@@ -141,7 +142,11 @@ def _asset_to_item(asset: VectorStoreInstanceAsset) -> dict[str, Any]:
         "asset_type": asset.asset_type.value,
         "asset_id": asset.asset_id,
         "asset_version": asset.asset_version,
-        "embedding": asset.embedding,
+        "embedding": (
+            [Decimal(str(value)) for value in asset.embedding]
+            if asset.embedding is not None
+            else None
+        ),
         "origin": asset.origin,
         "root_asset_type": asset.root_asset_type.value
         if asset.root_asset_type
