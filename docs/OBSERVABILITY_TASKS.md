@@ -156,6 +156,19 @@ Ruta crítica: D1/D3/D8 → C1 → C4 → R3 → R4 → A2 → F2.
 **F4 — `/historico-fraude` y revisión** · M · depende de A3, D2
 - Qué: lista real paginada; si D2 incluye la UI, acción "Revisar fraude" con confirmación y nota.
 
+**E08 — E2E integral de marcación, remarcación e histórico**
+- Playwright real en `../frontend_mockup/e2e/fraud-review-real.spec.ts`.
+- `make e2e-fraud-review` inicia nginx y usa el token bootstrap temporal para
+  crear o reutilizar un usuario manager E2E con contraseña efímera. El runner
+  restaura el token bootstrap original al terminar.
+- El escenario crea una alerta por `/api/v0`, registra dos revisiones
+  auditadas por API,
+  completa una tercera corrección desde `/historico-fraude` y comprueba el
+  conteo, el resultado final, las notas y el orden del historial.
+- Requiere el stack local y Docker. Conserva un usuario E2E fijo con password
+  reiniciada al azar y las alertas sintéticas creadas (ids únicos); no limpia
+  datos ajenos al escenario.
+
 **F5 — Editor de rangos de monto** · M · depende de C2
 - Qué: sección en "Operación (inmediata)" con validación en vivo (contiguos, sin solapes) y aviso de que sólo aplica a alertas nuevas.
 
