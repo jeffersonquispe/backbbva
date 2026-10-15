@@ -582,6 +582,15 @@ e2e-presence:  ## Dispatch and verify today's schema-presence analysis via the l
 		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
 		$(PYTHON) scripts/e2e_api_wait_presence.py
 
+.PHONY: e2e-alert-processing
+e2e-alert-processing:  ## Run E07 alert intake, real workflow, escalation and analyst resolution through nginx/API.
+	@test -n "$(E2E_MANAGER_EMAIL)" -a -n "$(E2E_MANAGER_PASSWORD)" -a -n "$(E2E_FRAUD_ANALYST_EMAIL)" -a -n "$(E2E_FRAUD_ANALYST_PASSWORD)" || (echo "ERROR: set E2E_MANAGER_EMAIL/E2E_MANAGER_PASSWORD/E2E_FRAUD_ANALYST_EMAIL/E2E_FRAUD_ANALYST_PASSWORD"; exit 1)
+	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
+		E2E_FRAUD_ANALYST_EMAIL=$(E2E_FRAUD_ANALYST_EMAIL) E2E_FRAUD_ANALYST_PASSWORD=$(E2E_FRAUD_ANALYST_PASSWORD) \
+		E2E_WORKFLOW_TIMEOUT=$(if $(E2E_WORKFLOW_TIMEOUT),$(E2E_WORKFLOW_TIMEOUT),600) \
+		$(PYTHON) scripts/e2e_alert_processing_local.py
+
 .PHONY: e2e-real
 e2e-real:  ## Run real E2E from zero (default) or resume at a numbered E2E_FROM checkpoint (1-6).
 	@test -n "$(E2E_MANAGER_EMAIL)" -a -n "$(E2E_MANAGER_PASSWORD)" -a -n "$(E2E_RELEASE_MANAGER_EMAIL)" -a -n "$(E2E_RELEASE_MANAGER_PASSWORD)" || (echo "ERROR: set E2E_MANAGER_EMAIL/E2E_MANAGER_PASSWORD/E2E_RELEASE_MANAGER_EMAIL/E2E_RELEASE_MANAGER_PASSWORD"; exit 1)

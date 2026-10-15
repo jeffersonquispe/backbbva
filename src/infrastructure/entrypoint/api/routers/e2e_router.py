@@ -12,8 +12,8 @@ from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.e2e_factory import (
     get_clean_e2e_state_use_case,
+    get_e2e_object_storage,
 )
-from src.infrastructure.persistence.object_storage.minio import get_object_storage
 
 router = APIRouter(prefix="/e2e", tags=["e2e"])
 
@@ -56,7 +56,7 @@ def get_raw_access_audit(
         or not genai_config.E2E_CLEANUP_ENABLED
     ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    storage = get_object_storage()
+    storage = get_e2e_object_storage()
     prefix = f"alerts/{alert_id}/audit/raw-access/"
     keys = [key for key in storage.list_keys(".json") if key.startswith(prefix)]
     result = []

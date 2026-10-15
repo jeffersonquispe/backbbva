@@ -7,6 +7,7 @@ from src.application.use_cases.e2e.clean_e2e_state import CleanE2EStateUseCase
 from src.infrastructure.persistence.database.dynamodb.repositories.e2e_state_cleaner import (
     DynamoE2EStateCleaner,
 )
+from src.infrastructure.persistence.object_storage.minio import get_object_storage
 
 
 @lru_cache
@@ -16,3 +17,7 @@ def get_e2e_state_cleaner() -> E2EStateCleaner:
 
 def get_clean_e2e_state_use_case() -> CleanE2EStateUseCase:
     return CleanE2EStateUseCase(get_e2e_state_cleaner())
+
+
+def get_e2e_object_storage():
+    return get_object_storage()

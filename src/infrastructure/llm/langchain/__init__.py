@@ -19,5 +19,13 @@ def get_llm_unit_of_work_factory() -> LLMUnitOfWorkFactory:
         )
 
         return LangchainBedrockLLMUnitOfWorkFactory()
+    if backend == "scripted_e2e":
+        if genai_config.GENAI_ENVIRONMENT != "local":
+            raise ValueError("scripted_e2e LLM backend is available only locally")
+        from src.infrastructure.llm.scripted_e2e import (
+            ScriptedE2ELLMUnitOfWorkFactory,
+        )
+
+        return ScriptedE2ELLMUnitOfWorkFactory()
 
     raise ValueError(f"Unsupported LLM backend: {backend}")
