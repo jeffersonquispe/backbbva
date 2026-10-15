@@ -6,6 +6,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from src.application.ports.object_storage_port import (
+    ObjectInfo,
     ObjectStoragePort,
     ObjectStorageRef,
 )
@@ -98,6 +99,20 @@ class MinioObjectStorageAdapter(ObjectStoragePort):
                 if obj["Key"].endswith(suffix):
                     keys.append(obj["Key"])
         return keys
+
+    def list_objects(self, prefix: str = "") -> list[ObjectInfo]:
+        objects: list[ObjectInfo] = []
+        paginator = self._client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                objects.append(
+                    ObjectInfo(
+                        key=obj["Key"],
+                        size=int(obj["Size"]),
+                        last_modified=obj["LastModified"],
+                    )
+                )
+        return objects
 
     def delete(self, key: str) -> None:
         self._client.delete_object(Bucket=self._bucket, Key=key)

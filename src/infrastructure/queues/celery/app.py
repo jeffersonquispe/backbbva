@@ -35,6 +35,12 @@ def periodic_schedule(
             "task": "metrics.reconcile_alert_rollups",
             "schedule": crontab(hour=2, minute=0),
         },
+        # Object-storage retention sweep: 03:00 Bogota, after the nightly
+        # rollup reconciliation. No-op unless OBJECT_STORAGE_RETENTION_ENABLED.
+        "object-storage-retention": {
+            "task": "object_storage.retention",
+            "schedule": crontab(hour=3, minute=0),
+        },
         "analyze-alert-schema-presence": {
             "task": "alert_schema.analyze_presence",
             "schedule": crontab(hour=2, minute=30),

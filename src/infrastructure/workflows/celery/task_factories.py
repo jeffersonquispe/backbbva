@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 
 from src.application.dtos.research_dtos import ResearchSource
@@ -34,6 +35,10 @@ from src.application.use_cases.datasets.analyze_fraud_marking import (
     AnalyzeFraudMarkingUseCase,
 )
 from src.application.use_cases.datasets.delete_dataset import DeleteDatasetUseCase
+from src.application.use_cases.object_storage.apply_retention import (
+    ApplyObjectStorageRetentionUseCase,
+    RetentionRule,
+)
 from src.application.use_cases.research.delegated_research import (
     ResearchDelegationCoordinator,
     TimeBoundedResearchAgent,
@@ -72,6 +77,8 @@ from src.infrastructure.persistence.dataset.minio.csv_dataset_repository import 
 )
 from src.infrastructure.persistence.object_storage.minio import (
     get_dataset_object_storage,
+    get_model_object_storage,
+    get_object_storage,
 )
 from src.infrastructure.queues.celery.inspector import CeleryAsyncExecutionInspector
 from src.infrastructure.workflows.celery.factories import (
@@ -142,6 +149,29 @@ def get_reconcile_async_operations_use_case() -> ReconcileAsyncOperationsUseCase
     return ReconcileAsyncOperationsUseCase(
         repository=get_async_operation_repository(),
         inspector=get_async_execution_inspector(),
+    )
+
+
+def get_object_storage_retention_rules() -> list[RetentionRule]:
+    raw = json.loads(genai_config.OBJECT_STORAGE_RETENTION_RULES or "[]")
+    return [
+        RetentionRule(
+            store=str(item["store"]),
+            prefix=str(item["prefix"]),
+            max_age_days=int(item["max_age_days"]),
+        )
+        for item in raw
+    ]
+
+
+def get_apply_object_storage_retention_use_case() -> ApplyObjectStorageRetentionUseCase:
+    return ApplyObjectStorageRetentionUseCase(
+        stores={
+            "reports": get_object_storage(),
+            "datasets": get_dataset_object_storage(),
+            "models": get_model_object_storage(),
+        },
+        clock=get_clock(),
     )
 
 

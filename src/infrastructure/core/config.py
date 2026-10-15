@@ -117,6 +117,14 @@ class Config(BaseSettings):
     OBJECT_STORAGE_ACCESS_KEY: str = "dummy"
     OBJECT_STORAGE_SECRET_KEY: str = "dummy"
     OBJECT_STORAGE_BUCKET: str = "aria-reports"
+    # Age-based retention sweep (daily, Celery Beat). Deletes are permanent,
+    # so it is off by default and, once enabled, dry-runs until
+    # OBJECT_STORAGE_RETENTION_DRY_RUN=false. RULES is a JSON list of
+    # {"store": "reports"|"datasets"|"models", "prefix": "...",
+    #  "max_age_days": N}; an empty prefix is rejected.
+    OBJECT_STORAGE_RETENTION_ENABLED: bool = False
+    OBJECT_STORAGE_RETENTION_DRY_RUN: bool = True
+    OBJECT_STORAGE_RETENTION_RULES: str = "[]"
 
     # OPENSEARCH (fraud knowledge vector store)
     OPENSEARCH_ENDPOINT: str = "http://opensearch:9200"

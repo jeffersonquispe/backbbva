@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
+from datetime import datetime
 from typing import BinaryIO
 
 
@@ -10,6 +11,13 @@ class ObjectStorageRef:
     bucket: str
     key: str
     uri: str
+
+
+@dataclass(frozen=True)
+class ObjectInfo:
+    key: str
+    size: int
+    last_modified: datetime
 
 
 class ObjectStoragePort(ABC):
@@ -49,6 +57,10 @@ class ObjectStoragePort(ABC):
         raise NotImplementedError
 
     def list_keys(self, suffix: str = "") -> list[str]:
+        raise NotImplementedError
+
+    def list_objects(self, prefix: str = "") -> list[ObjectInfo]:
+        """List objects under ``prefix`` with their size and last-modified."""
         raise NotImplementedError
 
     def delete(self, key: str) -> None:

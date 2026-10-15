@@ -31,6 +31,11 @@ data:
   DATASET_STORAGE_BACKEND: minio
   DATASET_STORAGE_BUCKET: datasets
   MODEL_STORAGE_BUCKET: models
+  # Retention sweep (daily 03:00 Bogota). Deletes are permanent: keep
+  # DRY_RUN "true" until the matched counts in the task result look right.
+  OBJECT_STORAGE_RETENTION_ENABLED: "false"
+  OBJECT_STORAGE_RETENTION_DRY_RUN: "true"
+  OBJECT_STORAGE_RETENTION_RULES: "[]"
   LLM_BACKEND: azure
   OPENAI_ENDPOINT: https://genai-lupitaasistente-work-llm-openai.openai.azure.com/
   OPENAI_VERSION: "2024-08-01-preview"

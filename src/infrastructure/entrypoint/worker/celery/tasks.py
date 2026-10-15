@@ -30,6 +30,7 @@ from src.application.use_cases.async_operations.create_async_operation import (
 )
 from src.domain.alerts.exceptions import AdversarialFeedbackLimitExceededError
 from src.domain.configurations.exceptions import ConfigurationNotFoundError
+from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.worker.celery.celery_app import app
 from src.infrastructure.workflows.celery.factories import (
     get_async_operation_repository,
@@ -41,6 +42,7 @@ from src.infrastructure.workflows.celery.factories import (
 from src.infrastructure.workflows.celery.task_factories import (
     get_analyze_dataset_use_case,
     get_analyze_fraud_marking_use_case,
+    get_apply_object_storage_retention_use_case,
     get_backup_catalog_repository,
     get_cleanup_test_runs_use_case,
     get_dataset_repository,
@@ -48,6 +50,7 @@ from src.infrastructure.workflows.celery.task_factories import (
     get_document_analyst_decision_use_case,
     get_escalate_alert_to_analyst_use_case,
     get_execute_alert_action_use_case,
+    get_object_storage_retention_rules,
     get_preview_features_use_case,
     get_reconcile_async_operations_use_case,
     get_run_alert_review_workflow_use_case,
@@ -87,15 +90,24 @@ def create_backup(backup_id: str) -> dict[str, str | int]:
             running,
             status=BackupStatus.SUCCEEDED,
             updated_at=datetime.now(UTC),
-            dynamodb_items=sum(table["items"] for table in manifest["dynamodb"].values()),
+            dynamodb_items=sum(
+                table["items"] for table in manifest["dynamodb"].values()
+            ),
             opensearch_documents=(manifest.get("opensearch") or {}).get("documents", 0),
-            object_storage_objects=len((manifest.get("object_storage") or {}).get("objects", [])),
+            object_storage_objects=len(
+                (manifest.get("object_storage") or {}).get("objects", [])
+            ),
         )
         repository.update(succeeded)
         return {"status": succeeded.status.value, "backup_id": backup_id}
     except Exception as exc:
         repository.update(
-            replace(running, status=BackupStatus.FAILED, updated_at=datetime.now(UTC), error=str(exc))
+            replace(
+                running,
+                status=BackupStatus.FAILED,
+                updated_at=datetime.now(UTC),
+                error=str(exc),
+            )
         )
         raise
 
@@ -155,6 +167,33 @@ def cleanup_test_runs() -> dict[str, int]:
         "deleted_test_runs": output.deleted_test_runs,
         "deleted_cases": output.deleted_cases,
         "deferred_active_runs": output.deferred_active_runs,
+    }
+
+
+@app.task(name="object_storage.retention")
+def apply_object_storage_retention() -> dict[str, Any]:
+    if not genai_config.OBJECT_STORAGE_RETENTION_ENABLED:
+        return {"enabled": False}
+    output = get_apply_object_storage_retention_use_case().execute(
+        get_object_storage_retention_rules(),
+        dry_run=genai_config.OBJECT_STORAGE_RETENTION_DRY_RUN,
+    )
+    return {
+        "enabled": True,
+        "dry_run": output.dry_run,
+        "deleted": output.deleted,
+        "rules": [
+            {
+                "store": r.rule.store,
+                "prefix": r.rule.prefix,
+                "max_age_days": r.rule.max_age_days,
+                "matched": r.matched,
+                "deleted": r.deleted,
+                "failed": r.failed,
+                "bytes_matched": r.bytes_matched,
+            }
+            for r in output.results
+        ],
     }
 
 

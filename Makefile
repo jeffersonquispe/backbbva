@@ -152,6 +152,13 @@ test-integration-metrics:  ## Run metrics snapshot/rollup tests (transaction, re
 		DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
 		python -m pytest -m docker_integration tests/test_integration/test_metrics_rollups
 
+.PHONY: test-integration-retention
+test-integration-retention:  ## Run the object-storage retention e2e against the running local MinIO. Vars: MINIO_PORT(9000), OBJECT_STORAGE_ACCESS_KEY(dummy), OBJECT_STORAGE_SECRET_KEY(dummy123)
+	GENAI_ENVIRONMENT=test OBJECT_STORAGE_ENDPOINT=http://localhost:$${MINIO_PORT:-9000} \
+		OBJECT_STORAGE_ACCESS_KEY=$${OBJECT_STORAGE_ACCESS_KEY:-dummy} \
+		OBJECT_STORAGE_SECRET_KEY=$${OBJECT_STORAGE_SECRET_KEY:-dummy123} \
+		python -m pytest -m docker_integration tests/test_integration/test_object_storage_retention
+
 .PHONY: metrics-backfill
 metrics-backfill:  ## Rebuild metrics snapshots + rollups for alerts of FROM..TO (Bogota days, inclusive) that have none. Idempotent. Vars: FROM, TO (YYYY-MM-DD, required), DYNAMO_PORT(8002), GENAI_ENVIRONMENT(local)
 	@if [ -z "$(FROM)" ] || [ -z "$(TO)" ]; then \

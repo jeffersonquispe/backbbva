@@ -20,6 +20,9 @@ def test_periodic_schedule_reconciles_async_operations() -> None:
     reconcile_rollups = schedule.pop("reconcile-alert-rollups")
     schedule.pop("record-operational-state")
     presence = schedule.pop("analyze-alert-schema-presence")
+    retention = schedule.pop("object-storage-retention")
+    assert retention["task"] == "object_storage.retention"
+    assert retention["schedule"].hour == {3} and retention["schedule"].minute == {0}
     assert schedule == {
         "reconcile-async-operations": {
             "task": "async_operations.reconcile",
