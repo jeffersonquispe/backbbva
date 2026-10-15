@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: dynamodb-data
-  labels: {app.kubernetes.io/name: dynamodb, app.kubernetes.io/component: database, app.kubernetes.io/part-of: aria, app.kubernetes.io/managed-by: argocd}
+  labels: {app.kubernetes.io/name: dynamodb, app.kubernetes.io/component: database, app.kubernetes.io/part-of: aria-storage, app.kubernetes.io/managed-by: argocd}
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: ceph-rbd

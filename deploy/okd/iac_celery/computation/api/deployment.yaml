@@ -5,20 +5,20 @@ metadata:
   labels:
     app.kubernetes.io/name: api
     app.kubernetes.io/component: api
-    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/part-of: aria-main-services
     app.kubernetes.io/managed-by: argocd
 spec:
   replicas: 1
   selector: {matchLabels: {app.kubernetes.io/name: api}}
   template:
-    metadata: {labels: {app.kubernetes.io/name: api, app.kubernetes.io/component: api, app.kubernetes.io/part-of: aria}}
+    metadata: {labels: {app.kubernetes.io/name: api, app.kubernetes.io/component: api, app.kubernetes.io/part-of: aria-main-services}}
     spec:
       serviceAccountName: aria-api
       imagePullSecrets:
         - name: artifactory-auth
       containers:
         - name: api
-          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-api:a35181f2f32cbd73530173d887ee3cc93f869996
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-api:14a263531ebcb2d03a531cfcafde3254af3a1589
           ports: [{name: http, containerPort: 8000}]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}

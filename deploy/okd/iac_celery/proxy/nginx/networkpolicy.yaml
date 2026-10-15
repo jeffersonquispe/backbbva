@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: nginx-ingress
-  labels: {app.kubernetes.io/name: nginx, app.kubernetes.io/part-of: aria, app.kubernetes.io/managed-by: argocd}
+  labels: {app.kubernetes.io/name: nginx, app.kubernetes.io/part-of: aria-main-services, app.kubernetes.io/managed-by: argocd}
 spec:
   podSelector: {matchLabels: {app.kubernetes.io/name: nginx}}
   policyTypes: [Ingress]

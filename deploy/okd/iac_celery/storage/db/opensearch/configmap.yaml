@@ -5,7 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/name: opensearch
     app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/part-of: aria-storage
     app.kubernetes.io/managed-by: argocd
 data:
   OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"

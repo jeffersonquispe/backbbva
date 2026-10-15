@@ -5,13 +5,13 @@ metadata:
   labels:
     app.kubernetes.io/name: mcp
     app.kubernetes.io/component: mcp
-    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/part-of: aria-main-services
     app.kubernetes.io/managed-by: argocd
 spec:
   replicas: 1
   selector: {matchLabels: {app.kubernetes.io/name: mcp}}
   template:
-    metadata: {labels: {app.kubernetes.io/name: mcp, app.kubernetes.io/component: mcp, app.kubernetes.io/part-of: aria}}
+    metadata: {labels: {app.kubernetes.io/name: mcp, app.kubernetes.io/component: mcp, app.kubernetes.io/part-of: aria-main-services}}
     spec:
       enableServiceLinks: false
       serviceAccountName: aria-mcp
@@ -19,7 +19,7 @@ spec:
         - name: artifactory-auth
       containers:
         - name: mcp
-          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-mcp:a35181f2f32cbd73530173d887ee3cc93f869996
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-mcp:14a263531ebcb2d03a531cfcafde3254af3a1589
           ports: [{name: http, containerPort: 8100}]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}

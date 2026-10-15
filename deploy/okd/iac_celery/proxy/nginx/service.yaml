@@ -5,7 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/name: nginx
     app.kubernetes.io/component: proxy
-    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/part-of: aria-main-services
     app.kubernetes.io/managed-by: argocd
 spec:
   type: ClusterIP

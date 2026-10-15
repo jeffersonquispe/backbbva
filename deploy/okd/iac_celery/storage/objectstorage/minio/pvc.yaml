@@ -5,7 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/name: minio
     app.kubernetes.io/component: objectstorage
-    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/part-of: aria-storage
     app.kubernetes.io/managed-by: argocd
 spec:
   accessModes: [ReadWriteOnce]

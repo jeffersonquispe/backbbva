@@ -13,7 +13,7 @@ metadata:
   labels:
     app.kubernetes.io/name: otel-collector
     app.kubernetes.io/component: telemetry
-    app.kubernetes.io/part-of: aria
+    app.kubernetes.io/part-of: aria-main-services
     app.kubernetes.io/managed-by: argocd
 data:
   OTLP_UPSTREAM_ENDPOINT: "placeholder-otlp-backend.invalid:4317"
