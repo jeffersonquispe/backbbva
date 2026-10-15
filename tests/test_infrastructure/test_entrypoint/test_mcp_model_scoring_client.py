@@ -50,6 +50,62 @@ def test_client_posts_alert_and_selected_model_to_mcp(monkeypatch) -> None:
     assert result["score"] == 0.9
 
 
+def test_client_posts_contract_row_and_model_to_mcp(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def open_request(request, timeout):
+        captured["url"] = request.full_url
+        captured["body"] = json.loads(request.data)
+        captured["timeout"] = timeout
+        return InMemoryHTTPResponse(
+            {"score": 0.42, "model_id": "model-2", "model_tag": "fraud-v1"}
+        )
+
+    monkeypatch.setattr(client_module, "urlopen", open_request)
+    monkeypatch.setattr(client_module.genai_config, "MCP_BASE_URL", "http://mcp:8100")
+    monkeypatch.setattr(client_module.genai_config, "MCP_TIMEOUT_SECONDS", 4.0)
+
+    row = {"amount_value": 125.0, "eventtype": "payment"}
+    result = MCPModelScoringClient().score_row(
+        "00000000-0000-0000-0000-000000000002", row
+    )
+
+    assert captured == {
+        "url": "http://mcp:8100/internal/score-row",
+        "body": {
+            "model_id": "00000000-0000-0000-0000-000000000002",
+            "row": row,
+        },
+        "timeout": 4.0,
+    }
+    assert result["score"] == 0.42
+
+
+def test_client_reloads_the_model_activated_in_repository(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def open_request(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.get_method()
+        captured["timeout"] = timeout
+        return InMemoryHTTPResponse(
+            {"loaded": True, "model_id": "00000000-0000-0000-0000-000000000003"}
+        )
+
+    monkeypatch.setattr(client_module, "urlopen", open_request)
+    monkeypatch.setattr(client_module.genai_config, "MCP_BASE_URL", "http://mcp:8100")
+    monkeypatch.setattr(client_module.genai_config, "MCP_TIMEOUT_SECONDS", 4.0)
+
+    result = MCPModelScoringClient().reload_active_model()
+
+    assert captured == {
+        "url": "http://mcp:8100/internal/reload-active-model",
+        "method": "POST",
+        "timeout": 4.0,
+    }
+    assert result["model_id"] == "00000000-0000-0000-0000-000000000003"
+
+
 class RecordingCeleryApp:
     def __init__(self) -> None:
         self.call = None

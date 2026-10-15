@@ -48,6 +48,7 @@ from src.infrastructure.entrypoint.api.schemas import (
     StartModelTrainingResponse,
 )
 from src.infrastructure.queues.celery.app import app as celery_app
+from src.infrastructure.model_serving.mcp_scoring_client import MCPModelScoringClient
 
 router = APIRouter(prefix="/models", tags=["models"])
 
@@ -112,6 +113,20 @@ class FeatureTemplateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=2000)
     configuration: dict[str, Any]
+
+
+class ScoreModelRequest(BaseModel):
+    row: dict[str, Any] = Field(min_length=1)
+
+
+class ScoreModelResponse(BaseModel):
+    model_id: UUID
+    model_tag: str
+    score: float
+    score_raw: float
+    threshold: float
+    predicted_positive: bool
+    top_features: list[dict[str, Any]]
 
 
 @router.get("/features/operations")
@@ -210,6 +225,27 @@ def get_model(
     return model
 
 
+@router.post("/{model_id}/score", response_model=ScoreModelResponse)
+def score_model(
+    model_id: UUID,
+    request: ScoreModelRequest,
+    use_case: Annotated[GetModelUseCase, Depends(get_get_model_use_case)],
+):
+    """Score one raw row using this model's immutable persisted contract."""
+    model = use_case.execute(model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+    if model.status.value != "READY" or not model.storage_ref:
+        raise HTTPException(status_code=409, detail="Model is not trained")
+    try:
+        result = MCPModelScoringClient().score_row(str(model.id), request.row)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=422, detail=f"No se pudo puntuar el registro: {exc}"
+        ) from exc
+    return {"model_id": model.id, "model_tag": model.tag, **result}
+
+
 @router.delete("/{model_id}", response_model=DeleteModelResponse)
 def delete_model(
     model_id: UUID,
@@ -244,6 +280,19 @@ def activate_model(
     use_case: Annotated[ActivateModelUseCase, Depends(get_activate_model_use_case)],
 ):
     try:
-        return use_case.execute(model_id)
+        activated = use_case.execute(model_id)
     except ModelNotFoundError:
         raise HTTPException(status_code=404, detail="Model not found")
+    try:
+        serving_model = MCPModelScoringClient().reload_active_model()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Modelo activado, pero MCP no pudo cargarlo: {exc}",
+        ) from exc
+    if serving_model.get("model_id") != str(activated.id):
+        raise HTTPException(
+            status_code=503,
+            detail="Modelo activado, pero MCP reportó otra versión cargada",
+        )
+    return activated

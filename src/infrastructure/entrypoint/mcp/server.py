@@ -75,6 +75,42 @@ async def score_alert_http(request: Request) -> JSONResponse:
     return JSONResponse(result, status_code=404 if "error" in result else 200)
 
 
+@mcp.custom_route("/internal/score-row", methods=["POST"])
+async def score_row_http(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+        model_id = str(UUID(body["model_id"]))
+        row = body["row"]
+        if not isinstance(row, dict) or not row:
+            raise ValueError("row must be a non-empty object")
+    except (KeyError, TypeError, ValueError):
+        return JSONResponse(
+            {"error": "model_id must be a UUID and row must be a non-empty object"},
+            status_code=422,
+        )
+    result = await run_in_threadpool(_score_model_row, model_id, row)
+    return JSONResponse(result, status_code=404 if "error" in result else 200)
+
+
+@mcp.custom_route("/internal/reload-active-model", methods=["POST"])
+async def reload_active_model_http(request: Request) -> JSONResponse:
+    try:
+        result = await run_in_threadpool(reload_active_model)
+    except Exception as exc:  # noqa: BLE001 - report the serving transition to the API
+        return JSONResponse({"error": str(exc)}, status_code=503)
+    return JSONResponse(result, status_code=200 if result.get("loaded") else 409)
+
+
+def _score_model_row(model_id: str, row: dict[str, Any]) -> dict[str, Any]:
+    model = get_model_repository().get(UUID(model_id))
+    if model is None or model.storage_ref is None:
+        return {"error": "requested model is not trained or does not exist"}
+    result = score_row(get_model_bundle(model.storage_ref), row)
+    result["model_id"] = str(model.id)
+    result["model_tag"] = model.tag
+    return result
+
+
 @mcp.tool()
 def reload_model() -> dict[str, Any]:
     """Forces the in-memory model bundle to reload from whatever version is
