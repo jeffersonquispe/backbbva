@@ -1,0 +1,31 @@
+# Throwaway pod to run scripts/local_users.py against the in-cluster API.
+# NOT listed in kustomization.yaml: Argo CD never syncs it. Launched on demand
+# by `make okd-users` (which copies the script in, runs it, and deletes the
+# pod). activeDeadlineSeconds is a safety net if the session is abandoned.
+# The bootstrap token is read from the existing aria-api-runtime secret and is
+# never written to a manifest or to disk.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: aria-ops-toolbox
+  labels:
+    app.kubernetes.io/name: aria-ops-toolbox
+    app.kubernetes.io/component: ops-toolbox
+    app.kubernetes.io/part-of: aria
+spec:
+  serviceAccountName: aria-ops-toolbox
+  restartPolicy: Never
+  activeDeadlineSeconds: 3600
+  imagePullSecrets:
+    - name: artifactory-auth
+  containers:
+    - name: toolbox
+      image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:96d1a1902f30c9873f3d89c6274a6184f65a6978
+      command: [sleep, "3600"]
+      securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
+      resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 200m, memory: 128Mi}}
+      env:
+        - name: ARIA_API_URL
+          value: http://api:8000
+        - name: ARIA_BOOTSTRAP_TOKEN
+          valueFrom: {secretKeyRef: {name: aria-api-runtime, key: AUTH_BOOTSTRAP_TOKEN}}

@@ -96,6 +96,19 @@ list-local-users:  ## List local-auth users (needs the bootstrap token).
 change-local-user-password:  ## Pick a local-auth user from a list and set a new password.
 	@python3 scripts/local_users.py passwd $(if $(API_URL),--api-url $(API_URL))
 
+OKD_NAMESPACE ?=
+OKD_TOOLBOX_DIR := deploy/okd/iac_celery/computation/ops-toolbox
+
+.PHONY: okd-users
+okd-users:  ## Run the interactive user manager inside OKD via a throwaway pod. Vars: OKD_NAMESPACE (required), USERS_ACTION (create|list|passwd; default menu)
+	@test -n "$(OKD_NAMESPACE)" || { echo "OKD_NAMESPACE is required (oc login first)"; exit 1; }
+	@oc -n $(OKD_NAMESPACE) delete pod aria-ops-toolbox --ignore-not-found --wait=true
+	@oc -n $(OKD_NAMESPACE) apply -f $(OKD_TOOLBOX_DIR)/serviceaccount.yaml -f $(OKD_TOOLBOX_DIR)/pod.yaml
+	@oc -n $(OKD_NAMESPACE) wait --for=condition=Ready pod/aria-ops-toolbox --timeout=180s
+	@oc -n $(OKD_NAMESPACE) cp scripts/local_users.py aria-ops-toolbox:/tmp/local_users.py
+	@oc -n $(OKD_NAMESPACE) exec -it aria-ops-toolbox -- python3 /tmp/local_users.py $(USERS_ACTION); \
+		status=$$?; oc -n $(OKD_NAMESPACE) delete pod aria-ops-toolbox --ignore-not-found --wait=false; exit $$status
+
 .PHONY: refresh-github-token
 refresh-github-token:  ## Replace the saved GitHub credential with a classic PAT.
 	@set -euo pipefail; \
