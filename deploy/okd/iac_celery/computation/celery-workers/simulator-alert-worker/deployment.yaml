@@ -13,6 +13,7 @@ spec:
   template:
     metadata: {labels: {app.kubernetes.io/name: aria-worker-simulator-alerts, app.kubernetes.io/component: celery-worker, app.kubernetes.io/part-of: aria-workers}}
     spec:
+      enableServiceLinks: false
       serviceAccountName: aria-worker-simulator-alerts
       imagePullSecrets:
         - name: artifactory-auth

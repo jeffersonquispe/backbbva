@@ -13,6 +13,7 @@ spec:
   template:
     metadata: {labels: {app.kubernetes.io/name: nginx, app.kubernetes.io/component: proxy, app.kubernetes.io/part-of: aria-main-services}}
     spec:
+      enableServiceLinks: false
       serviceAccountName: aria-nginx
       containers:
         - name: nginx

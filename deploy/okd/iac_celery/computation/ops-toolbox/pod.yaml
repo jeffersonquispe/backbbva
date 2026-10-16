@@ -13,6 +13,7 @@ metadata:
     app.kubernetes.io/component: ops-toolbox
     app.kubernetes.io/part-of: aria-workers
 spec:
+  enableServiceLinks: false
   serviceAccountName: aria-ops-toolbox
   restartPolicy: Never
   activeDeadlineSeconds: 3600

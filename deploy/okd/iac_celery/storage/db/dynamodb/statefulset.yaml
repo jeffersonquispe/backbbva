@@ -10,6 +10,7 @@ spec:
   template:
     metadata: {labels: {app.kubernetes.io/name: dynamodb, app.kubernetes.io/component: database, app.kubernetes.io/part-of: aria-storage}}
     spec:
+      enableServiceLinks: false
       serviceAccountName: aria-dynamodb
       containers:
         - name: dynamodb

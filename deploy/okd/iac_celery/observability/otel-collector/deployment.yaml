@@ -13,6 +13,7 @@ spec:
   template:
     metadata: {labels: {app.kubernetes.io/name: otel-collector, app.kubernetes.io/component: telemetry, app.kubernetes.io/part-of: aria-main-services}}
     spec:
+      enableServiceLinks: false
       serviceAccountName: aria-otel-collector
       imagePullSecrets:
         - name: artifactory-auth
