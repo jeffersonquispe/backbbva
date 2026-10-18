@@ -5,11 +5,10 @@ Scope: current `src/` tree, API and Celery entrypoints, composition factories,
 adapters, and architecture-related tests. The assessment includes the current
 working tree, including uncommitted changes present at the time of review.
 
-> **Status tracking:** This assessment and scorecard record the 2026-08-21
-> baseline and are not current evidence. The live checklist is
-> `CLEAN_ARCHITECTURE_TASKS.md`; CA status lines are being updated as changes
-> are verified. Re-audit the scorecard before using it as a statement of the
-> current architecture.
+> **Status tracking:** This file preserves the 2026-08-21 assessment and is
+> not current evidence. The planned remediation was completed and verified
+> against commits through 2026-10-18. Follow-up domain-model expansion beyond
+> the agreed alert/workflow/configuration scope is tracked in `PENDIENTES.md`.
 
 ## Executive verdict
 
@@ -33,8 +32,9 @@ is **not yet fully compliant** with clean architecture.
   fraud-review workflow still owns business orchestration inside
   `infrastructure` and resolves dependencies through factory calls.
 
-Overall status: **partially implemented clean architecture; remediation is
-required before calling the architecture clean/hexagonal without qualification.**
+Overall status at assessment time (2026-08-21): **partially implemented clean
+architecture.** This is historical; see the status note above for the current
+remediation state.
 
 ## Scorecard
 
@@ -112,7 +112,7 @@ an import of `src.domain.persistence` requires LangChain to be installed.
 ### CA-002 - Move fraud-review workflow policy into the application layer
 
 **Priority:** P1  
-**Status:** [ ] In progress planning; implementation not started (verified 2026-10-13)
+**Status:** [x] Done (`f0812b2`, `1cab521`; application orchestration and typed state)
 
 **Evidence**
 
@@ -156,7 +156,7 @@ factories rather than inject dependencies explicitly.
 ### CA-003 - Make the worker composition root complete and tasks thin
 
 **Priority:** P1  
-**Status:** [ ] Not started
+**Status:** [x] Done (`47b31a6`, `b553cd5`; worker factories and task-handler coverage)
 
 **Evidence**
 
@@ -197,9 +197,8 @@ vendor SDKs.
 ### CA-004 - Stop adapters from importing worker entrypoints
 
 **Priority:** P1  
-**Status:** [ ] Partially implemented (2026-10-13): neutral Celery app and
-task-name dispatch are in place; verify the registered-name contract and
-router smoke-test criteria in `CLEAN_ARCHITECTURE_TASKS.md`.
+**Status:** [x] Done (`dcd1eb2`, `b553cd5`; neutral Celery app, task-name contract,
+and API-router isolation coverage)
 
 **Evidence**
 
@@ -238,7 +237,8 @@ task registration, and causes unrelated workflow imports to load Celery.
 ### CA-005 - Establish a real domain model instead of storing entities in ports
 
 **Priority:** P1  
-**Status:** [ ] Not started
+**Status:** [x] Initial migration done (`73fffdf`); additional bounded contexts
+are future domain-model expansion tracked in `PENDIENTES.md`.
 
 **Evidence**
 
@@ -284,7 +284,7 @@ adapters import large port modules simply to use business types.
 ### CA-006 - Remove persistence and queue details from application contracts
 
 **Priority:** P2  
-**Status:** [ ] Not started
+**Status:** [x] Done (`0e2ff38`, `f89a266`, `73fffdf`; storage/search concerns moved to adapters)
 
 **Evidence**
 
@@ -326,7 +326,7 @@ adapter boundaries unless they represent a technology-neutral product rule.
 ### CA-007 - Normalize error ownership and entrypoint translation
 
 **Priority:** P2  
-**Status:** [ ] Not started
+**Status:** [x] Done (`577468e`, `dcabfa9`; categorized errors and entrypoint mappings)
 
 **Evidence**
 
@@ -366,7 +366,7 @@ for equivalent failures.
 ### CA-008 - Keep factories limited to composition
 
 **Priority:** P2  
-**Status:** [ ] Not started
+**Status:** [x] Done (`8b10b44`; adapter factories compose through port types)
 
 **Evidence**
 
@@ -403,9 +403,8 @@ lifecycle rules harder to reason about.
 ### CA-009 - Decide and clean up unexposed or orphaned capabilities
 
 **Priority:** P2  
-**Status:** [ ] Partially implemented (2026-10-13): fraud-knowledge exposure
-decision is resolved as internal-only with no dedicated API/router. Audit
-log repository/factory/schema and table ownership still require a decision.
+**Status:** [x] Done (`0acbc24`, `ef3810f`, `4d8f642`; orphan cleanup, internal-only
+fraud-knowledge decision, and durable audit sink)
 
 **Evidence**
 
@@ -475,7 +474,7 @@ unregistered capabilities create an incomplete entrypoint surface.
 ### CA-011 - Inject time and identity generation into state-creating use cases
 
 **Priority:** P3  
-**Status:** [ ] Not started
+**Status:** [x] Done (`eabf45f`, `5db9443`; injected clock and ID generation)
 
 **Evidence**
 
@@ -506,7 +505,7 @@ worker flows.
 ### CA-012 - Reduce entrypoint mapping concentration
 
 **Priority:** P3  
-**Status:** [ ] Not started
+**Status:** [x] Done (`cbcedf2`, `41e77cc`; schemas and configuration mapping split)
 
 **Evidence**
 
