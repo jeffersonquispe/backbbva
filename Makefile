@@ -499,30 +499,29 @@ local-docker-down:  ## Remove local Docker API stack + frontend containers and n
 		echo "FRONTEND_DIR=$(FRONTEND_DIR) not found, skipping frontend."; \
 	fi
 
-# ─── Local observability stack (OTel Collector, Tempo, Loki, Prometheus, Grafana, MinIO) ──
-OBSERVABILITY_COMPOSE_FILE ?= deploy/local/docker/observability/docker-compose.observability.yml
-OBSERVABILITY_PROJECT ?= aria-observability
+# ─── Local observability services in the general local stack ──
+OBSERVABILITY_SERVICES := observability-minio observability-minio-init otel-collector tempo loki prometheus grafana
 
 .PHONY: observability-up
 observability-up:  ## Start the local observability stack (Grafana at :3000).
-	@$(DOCKER) compose \
-		-p $(OBSERVABILITY_PROJECT) \
-		-f $(OBSERVABILITY_COMPOSE_FILE) \
-		up -d
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		up -d $(OBSERVABILITY_SERVICES)
 
 .PHONY: observability-down
 observability-down:  ## Stop the local observability stack.
-	@$(DOCKER) compose \
-		-p $(OBSERVABILITY_PROJECT) \
-		-f $(OBSERVABILITY_COMPOSE_FILE) \
-		down
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		stop $(OBSERVABILITY_SERVICES)
 
 .PHONY: observability-logs
 observability-logs:  ## Tail logs for the local observability stack.
-	@$(DOCKER) compose \
-		-p $(OBSERVABILITY_PROJECT) \
-		-f $(OBSERVABILITY_COMPOSE_FILE) \
-		logs -f
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		logs -f $(OBSERVABILITY_SERVICES)
 
 # ─── Backup / restore flags ───────────────────────────────────────────────────
 # SKIP_OBJECT_STORAGE=1  — omit object storage from backup/restore/prune/drop

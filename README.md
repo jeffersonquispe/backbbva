@@ -155,16 +155,17 @@ otherwise only size/shape metadata is recorded.
 
 ## Local Observability Stack
 
-An OTel Collector + Tempo + Loki + Prometheus + Grafana + MinIO stack for
-local tracing/metrics/logs, all fed through a single OTLP endpoint:
+The OTel Collector, Tempo, Loki, Prometheus, Grafana, and observability MinIO
+are included in the general local Docker stack. Start them with the application:
+
+```bash
+make local-docker-run
+```
+
+The observability services can also be started or stopped independently:
 
 ```bash
 make observability-up
-```
-
-Stop it:
-
-```bash
 make observability-down
 ```
 

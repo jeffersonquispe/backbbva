@@ -30,8 +30,9 @@ alerta ni monto exacto.
 ### Stack local
 
 ```bash
-make observability-up          # Grafana http://localhost:3000 (admin/admin)
-make observability-down        # borra también los volúmenes
+make local-docker-run          # inicia la aplicación y observabilidad
+make observability-up          # inicia sólo observabilidad si hace falta
+make observability-down        # detiene observabilidad; conserva volúmenes
 ```
 
 Dashboards versionados en `deploy/local/docker/observability/grafana/dashboards/`

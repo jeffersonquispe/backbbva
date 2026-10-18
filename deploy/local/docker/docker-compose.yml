@@ -223,7 +223,6 @@ services:
         condition: service_healthy
     networks:
       - aria-net
-      - aria-observability-net
 
   aria-worker-training:
     build:
@@ -266,7 +265,6 @@ services:
         condition: service_healthy
     networks:
       - aria-net
-      - aria-observability-net
     restart: unless-stopped
 
   # Dedicated capacity for CSV/batch test runs. Production traffic is only
@@ -309,7 +307,6 @@ services:
         condition: service_healthy
     networks:
       - aria-net
-      - aria-observability-net
     restart: unless-stopped
 
   # Simulator alerts run through the active production pipeline/configuration
@@ -364,7 +361,6 @@ services:
         condition: service_healthy
     networks:
       - aria-net
-      - aria-observability-net
     restart: unless-stopped
 
   # Exactly one scheduler process must run per environment.  It only
@@ -391,7 +387,6 @@ services:
         condition: service_healthy
     networks:
       - aria-net
-      - aria-observability-net
     restart: unless-stopped
 
   aria-worker-simulator:
@@ -445,7 +440,6 @@ services:
         condition: service_healthy
     networks:
       - aria-net
-      - aria-observability-net
     restart: unless-stopped
 
   mcp:
@@ -494,15 +488,134 @@ services:
     networks:
       - aria-net
 
+  # Local observability services are part of the same stack so workers can
+  # always reach the collector when the main Compose project starts.
+  observability-minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: aria-observability-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-observability}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-observability}
+    ports:
+      - "${LOCAL_OBSERVABILITY_MINIO_API_PORT:-9010}:9000"
+      - "${LOCAL_OBSERVABILITY_MINIO_CONSOLE_PORT:-9011}:9001"
+    volumes:
+      - observability-minio-data:/data
+    networks:
+      - aria-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  observability-minio-init:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: aria-observability-minio-init
+    depends_on:
+      observability-minio:
+        condition: service_healthy
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-observability}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-observability}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://observability-minio:9000 $$S3_ACCESS_KEY $$S3_SECRET_KEY &&
+      mc mb --ignore-existing local/tempo &&
+      mc mb --ignore-existing local/loki
+      "
+    networks:
+      - aria-net
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    container_name: aria-otel-collector
+    command: ["--config=/etc/otel-collector/collector.yaml"]
+    volumes:
+      - ./observability/otel-collector/collector.yaml:/etc/otel-collector/collector.yaml:ro
+    ports:
+      - "${LOCAL_OTEL_GRPC_PORT:-4317}:4317"
+      - "${LOCAL_OTEL_HTTP_PORT:-4318}:4318"
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+    networks:
+      - aria-net
+    healthcheck:
+      test: ["CMD", "/otelcol-contrib", "validate", "--config=/etc/otel-collector/collector.yaml"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: aria-tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml", "-config.expand-env=true"]
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-observability}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-observability}
+    volumes:
+      - ./observability/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+    depends_on:
+      observability-minio-init:
+        condition: service_completed_successfully
+    networks:
+      - aria-net
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: aria-loki
+    command: ["-config.file=/etc/loki/loki.yaml", "-config.expand-env=true"]
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-observability}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-observability}
+    volumes:
+      - ./observability/loki/loki.yaml:/etc/loki/loki.yaml:ro
+    depends_on:
+      observability-minio-init:
+        condition: service_completed_successfully
+    networks:
+      - aria-net
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: aria-prometheus
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${LOCAL_PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - aria-net
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: aria-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "${LOCAL_GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+    networks:
+      - aria-net
+
 networks:
   aria-net:
     name: aria-net
     driver: bridge
-  aria-observability-net:
-    name: aria-observability-net
-    external: true
-
 volumes:
   dynamodb-data:
   minio-data:
   opensearch-data:
+  observability-minio-data:
