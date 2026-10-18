@@ -1,0 +1,10 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: aria-capacity-controller
+  labels: {app.kubernetes.io/name: aria-capacity-controller, app.kubernetes.io/part-of: aria-workers, app.kubernetes.io/managed-by: argocd}
+rules:
+  - apiGroups: [keda.sh]
+    resources: [scaledobjects]
+    resourceNames: [aria-worker-main, aria-worker-test]
+    verbs: [get, patch]

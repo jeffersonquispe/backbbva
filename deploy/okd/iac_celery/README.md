@@ -26,6 +26,16 @@ straight from public registries (the cluster has internet egress):
 `OTEL_ENDPOINT` points every workload at the namespace OTLP Collector, `http://otel-collector:4317` (`observability/otel-collector/`, decision D5). The Collector image is the AWS Distro for OpenTelemetry (`aws-otel-collector`) pulled through Artifactory's `public.ecr.aws-remote`. **Its upstream backend is still a placeholder**: it exports to the `debug` exporter (sampled, pod logs) and to `otlp/upstream` -> `OTLP_UPSTREAM_ENDPOINT` in `aria-otel-collector-config`, which must be set to the real BBVA observability endpoint (plus TLS/auth) before telemetry leaves the namespace. PVCs use the `ceph-rbd` storage class. Initial resource values are
 development defaults, not production sizing.
 
+OKD capacity scaling requires the KEDA operator and Redis scaler CRDs to be
+installed by the platform team. The `aria-capacity-controller` CronJob reads
+the operational settings from DynamoDB every minute and can patch only the
+`aria-worker-main` and `aria-worker-test` ScaledObjects. Configure the Argo CD
+Application to ignore differences for `/spec/minReplicaCount` and
+`/spec/maxReplicaCount` on those two resources, and `/spec/replicas` on both
+worker Deployments. Otherwise GitOps reconciliation can overwrite the
+runtime capacity settings. Docker Compose has no queue autoscaler and uses
+explicit `--scale` values.
+
 `dynamodb-local` is documented as a compatibility risk: the local Compose stack
 runs it as root. This base does not grant privileged/root execution; validate the
 selected image under OKD arbitrary-UID SCC before deployment.

@@ -94,6 +94,7 @@ services:
       - ../../../config:/code/config:ro
     environment:
       GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      DEPLOYMENT_TYPE: ${DEPLOYMENT_TYPE:-docker}
       DATASETS_DIR: /app/datasets
       API_V0_STR: ${API_V0_STR:-/api/v0}
       COMPONENT_NAME: ${COMPONENT_NAME:-aria-api}
@@ -170,6 +171,7 @@ services:
       - ../../../backups:/code/backups
     environment:
       GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      DEPLOYMENT_TYPE: ${DEPLOYMENT_TYPE:-docker}
       API_V0_STR: ${API_V0_STR:-/api/v0}
       COMPONENT_NAME: ${COMPONENT_NAME:-aria-worker-main}
       COMPONENT_VERSION: ${COMPONENT_VERSION:-0.1.0}
@@ -237,6 +239,7 @@ services:
       - ../../../config:/code/config:ro
     environment:
       GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      DEPLOYMENT_TYPE: ${DEPLOYMENT_TYPE:-docker}
       API_V0_STR: ${API_V0_STR:-/api/v0}
       AWS_REGION_NAME: ${AWS_REGION_NAME:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
@@ -277,6 +280,7 @@ services:
       - ../../../config:/code/config:ro
     environment:
       GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
+      DEPLOYMENT_TYPE: ${DEPLOYMENT_TYPE:-docker}
       API_V0_STR: ${API_V0_STR:-/api/v0}
       DYNAMO_ENDPOINT: http://dynamodb:8000
       DYNAMO_REGION_NAME: ${DYNAMO_REGION_NAME:-us-east-1}

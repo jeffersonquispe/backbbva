@@ -48,11 +48,22 @@ draining. Lambda is not suitable for the present workflows: they make
 long-lived LLM calls, need retry/observability continuity, and would require
 moving task orchestration out of Celery.
 
-`OperationalSettings.max_instances`, `auto_scale` and
-`max_test_instances` cannot safely change process replicas from application
-code. Applying them requires a chosen control plane and credentials (for
-example Kubernetes HPA/KEDA, ECS, or a managed worker platform). Until that
-is selected, they remain desired-capacity settings rather than enforcement.
+`DEPLOYMENT_TYPE` selects the infrastructure pattern (`docker` by default,
+`okd` in the OKD manifests). Docker Compose keeps replicas operator-managed;
+scale the `aria-worker-main` and `aria-worker-test` services explicitly with
+`docker compose up --scale`. Compose has no queue-aware autoscaler.
+
+OKD uses KEDA Redis list scalers for the `default` and `test` queues. A
+one-minute capacity controller reads `OperationalSettings` from DynamoDB and
+patches only those two KEDA `ScaledObject` resources: `max_instances` sets
+the production worker ceiling, `max_test_instances` sets the test worker
+ceiling, and `auto_scale=true` lets each worker scale to zero while idle.
+`auto_scale=false` pins both at one replica. KEDA must already be installed
+in the OKD cluster. The controller's service account is limited
+to reading and patching those named ScaledObjects. Changes take effect within
+one reconciliation interval. The Argo CD Application must ignore differences
+for `spec.minReplicaCount` and `spec.maxReplicaCount` on the ScaledObjects and
+`spec.replicas` on both worker Deployments so GitOps does not undo scaling.
 
 ## Fraud-history retention: required decision
 

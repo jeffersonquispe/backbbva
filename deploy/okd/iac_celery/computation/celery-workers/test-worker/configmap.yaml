@@ -13,6 +13,7 @@ data:
   TZ: America/Bogota
   OPERATIONS_TIMEZONE: America/Bogota
   GENAI_ENVIRONMENT: development
+  DEPLOYMENT_TYPE: okd
   API_V0_STR: /api/v0
   COMPONENT_NAME: aria-worker-test
   DEFAULT_LOGGING_LEVEL: INFO
