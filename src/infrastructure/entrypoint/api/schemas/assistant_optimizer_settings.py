@@ -51,3 +51,22 @@ class MatureSamplePreviewResponse(BaseModel):
     estimated_sample_size: int
     counts_by_stratum: dict[str, int]
     active_triggers: list[str]
+
+
+class MatureSamplerSchemaFieldOption(BaseModel):
+    field: str
+    type: str
+    description: str
+
+
+class MatureSamplerSchemaMappingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target_field: str
+    marking_date_field: str
+    label_value_mapping: dict[str, str]
+
+
+class MatureSamplerSchemaConfigurationResponse(BaseModel):
+    target_fields: list[MatureSamplerSchemaFieldOption]
+    marking_date_fields: list[MatureSamplerSchemaFieldOption]
+    mapping: MatureSamplerSchemaMappingRequest

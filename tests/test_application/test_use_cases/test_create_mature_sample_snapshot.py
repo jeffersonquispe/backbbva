@@ -23,6 +23,7 @@ from src.domain.alerts.entities import (
 )
 from src.domain.datasets.mature_sample_entities import (
     DatasetSamplerState,
+    MatureSamplerSchemaMapping,
 )
 
 
@@ -52,7 +53,22 @@ class InMemorySchemas:
                     data_source=AlertSchemaDataSource.ARIA,
                     type=AlertSchemaFieldType.STRING,
                     is_alert=True,
-                )
+                ),
+                AlertSchemaField(
+                    id="target",
+                    field="outcome",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.STRING,
+                    is_alert=True,
+                    is_label=True,
+                ),
+                AlertSchemaField(
+                    id="marked-on",
+                    field="marked_on",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.DATETIME,
+                    is_alert=True,
+                ),
             ],
         )
 
@@ -76,6 +92,15 @@ class FixedSamplerSettings:
             sampler_strata=("risk_band",),
             sampler_period_days=30,
             sampler_minimum_per_stratum=1,
+        )
+
+
+class FixedSchemaMapping:
+    def get(self):
+        return MatureSamplerSchemaMapping(
+            target_field="outcome",
+            marking_date_field="marked_on",
+            label_value_mapping={"fraud": "fraud", "no fraud": "no_fraud"},
         )
 
 
@@ -143,7 +168,11 @@ def _alert(day: date, *, label: Mark, risk: str) -> AlertRecord:
         status=AlertStatus.CLOSED,
         created_at=created,
         updated_at=created,
-        input={"risk_band": risk},
+        input={
+            "risk_band": risk,
+            "outcome": label.value.replace("_", " "),
+            "marked_on": created.isoformat(),
+        },
         schema_version=3,
         metrics=AlertMetricsSnapshot(fraud_label=label),
     )
@@ -167,6 +196,7 @@ def test_snapshot_materializes_four_partitions_and_is_idempotent() -> None:
         datasets,
         snapshots,
         state,
+        FixedSchemaMapping(),
         FixedClock(),
     )
 

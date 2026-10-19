@@ -21,7 +21,10 @@ from src.domain.alerts.entities import (
     AlertStatus,
     Mark,
 )
-from src.domain.datasets.mature_sample_entities import DatasetSamplerState
+from src.domain.datasets.mature_sample_entities import (
+    DatasetSamplerState,
+    MatureSamplerSchemaMapping,
+)
 
 
 class InMemoryAlerts:
@@ -60,6 +63,15 @@ class InMemorySamplerState:
         return self.value
 
 
+class FixedSchemaMapping:
+    def get(self):
+        return MatureSamplerSchemaMapping(
+            target_field="outcome",
+            marking_date_field="marked_on",
+            label_value_mapping={"fraud": "fraud", "no fraud": "no_fraud"},
+        )
+
+
 class FixedSamplerSettings:
     def __init__(self, settings: AssistantOptimizerSettings) -> None:
         self.settings = settings
@@ -80,6 +92,21 @@ class InMemoryAlertSchemas:
                     field_name="risk_band",
                     data_source=AlertSchemaDataSource.ARIA,
                     type=AlertSchemaFieldType.STRING,
+                    is_alert=True,
+                ),
+                AlertSchemaField(
+                    id="target",
+                    field="outcome",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.STRING,
+                    is_alert=True,
+                    is_label=True,
+                ),
+                AlertSchemaField(
+                    id="marked-on",
+                    field="marked_on",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.DATETIME,
                     is_alert=True,
                 ),
                 AlertSchemaField(
@@ -120,7 +147,12 @@ def _alert(
         status=AlertStatus.CLOSED,
         created_at=created,
         updated_at=created,
-        input={"risk_band": "high", "device_type": "mobile"},
+        input={
+            "risk_band": "high",
+            "device_type": "mobile",
+            "outcome": label.value.replace("_", " "),
+            "marked_on": created.isoformat(),
+        },
         metrics=AlertMetricsSnapshot(
             fraud_label=label, fraud_reviewed_at=reviewed_at
         ),
@@ -142,6 +174,7 @@ def test_preview_returns_only_aggregates_and_excludes_pending_or_immature() -> N
         FixedSamplerSettings(settings),
         InMemoryAlertSchemas(),
         InMemorySamplerState(),
+        FixedSchemaMapping(),
         FixedClock(),
         "America/Bogota",
     )
@@ -163,6 +196,7 @@ def test_preview_rejects_fields_outside_manager_schema_pool() -> None:
         FixedSamplerSettings(settings),
         InMemoryAlertSchemas(),
         InMemorySamplerState(),
+        FixedSchemaMapping(),
         FixedClock(),
         "America/Bogota",
     )
@@ -200,6 +234,7 @@ def test_preview_evaluates_periodic_and_newly_matured_volume_triggers() -> None:
         FixedSamplerSettings(settings),
         InMemoryAlertSchemas(),
         InMemorySamplerState(state),
+        FixedSchemaMapping(),
         FixedClock(),
         "America/Bogota",
     )

@@ -20,8 +20,10 @@ from src.application.use_cases.assistant_optimizer_settings import (
 from src.infrastructure.entrypoint.api.factories.assistant_optimizer_settings_factory import (
     get_get_assistant_optimizer_settings_use_case,
     get_list_assistant_optimizer_settings_changes_use_case,
+    get_mature_sampler_schema_configuration_use_case,
     get_preview_mature_sample_use_case,
     get_update_assistant_optimizer_settings_use_case,
+    get_update_mature_sampler_schema_configuration_use_case,
 )
 from src.infrastructure.entrypoint.api.routers.assistant_optimizer_settings_router import (
     router,
@@ -69,6 +71,35 @@ class InMemorySamplerFieldPool:
         return ["schema_feature"]
 
 
+class InMemorySamplerSchemaConfiguration:
+    def __init__(self):
+        self.configuration = {
+            "target_fields": [{"field": "schema_label", "type": "string", "description": ""}],
+            "marking_date_fields": [{"field": "schema_marked_at", "type": "datetime", "description": ""}],
+            "mapping": {
+                "target_field": "",
+                "marking_date_field": "",
+                "label_value_mapping": {},
+            },
+        }
+
+    def execute(self):
+        return self.configuration
+
+
+class InMemorySamplerSchemaConfigurationUpdater:
+    def __init__(self, configuration):
+        self.configuration = configuration
+
+    def execute(self, proposed, *, changed_by):
+        self.configuration.configuration["mapping"] = {
+            "target_field": proposed.target_field,
+            "marking_date_field": proposed.marking_date_field,
+            "label_value_mapping": proposed.label_value_mapping,
+        }
+        return proposed
+
+
 def _client(role: LocalRole = LocalRole.MANAGER):
     app = FastAPI()
     app.include_router(router)
@@ -98,6 +129,13 @@ def _client(role: LocalRole = LocalRole.MANAGER):
     ] = lambda: ListAssistantOptimizerSettingsChangesUseCase(changes)
     app.dependency_overrides[get_preview_mature_sample_use_case] = (
         lambda: InMemorySamplerFieldPool()
+    )
+    schema_configuration = InMemorySamplerSchemaConfiguration()
+    app.dependency_overrides[get_mature_sampler_schema_configuration_use_case] = (
+        lambda: schema_configuration
+    )
+    app.dependency_overrides[get_update_mature_sampler_schema_configuration_use_case] = (
+        lambda: InMemorySamplerSchemaConfigurationUpdater(schema_configuration)
     )
     return TestClient(app), settings, changes, audit
 
@@ -172,3 +210,24 @@ def test_sampler_fields_are_served_from_schema_pool_and_invalid_selection_is_rej
     )
 
     assert response.status_code == 422
+
+
+def test_manager_can_configure_target_label_date_and_value_mapping():
+    client, _, _, _ = _client()
+    config = client.get("/assistant-optimizer-settings/sampler/schema-configuration")
+    assert config.status_code == 200
+    assert config.json()["target_fields"][0]["field"] == "schema_label"
+    response = client.put(
+        "/assistant-optimizer-settings/sampler/schema-configuration",
+        json={
+            "target_field": "schema_label",
+            "marking_date_field": "schema_marked_at",
+            "label_value_mapping": {"f": "fraud", "n": "no_fraud"},
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["mapping"]["target_field"] == "schema_label"
+    assert response.json()["mapping"]["label_value_mapping"] == {
+        "f": "fraud",
+        "n": "no_fraud",
+    }

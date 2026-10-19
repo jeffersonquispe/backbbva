@@ -40,6 +40,38 @@ def test_maturity_requires_final_label_and_elapsed_window() -> None:
     assert not is_mature(recent, as_of=date(2026, 1, 10), maturing_days=4)
 
 
+def test_schema_mapping_drives_target_and_marking_date_maturity() -> None:
+    alert = _alert(Mark.PENDING, 1)
+    alert.labels = {"resultado_operativo": "No fraude"}
+    alert.input = {"fecha_decision": "2026-01-05T09:00:00Z"}
+    mapping = {"no fraude": "no_fraud", "Fraude": "fraud"}
+
+    assert is_mature(
+        alert,
+        as_of=date(2026, 1, 10),
+        maturing_days=4,
+        target_field="resultado_operativo",
+        marking_date_field="fecha_decision",
+        label_value_mapping=mapping,
+    )
+    assert not is_mature(
+        alert,
+        as_of=date(2026, 1, 10),
+        maturing_days=6,
+        target_field="resultado_operativo",
+        marking_date_field="fecha_decision",
+        label_value_mapping=mapping,
+    )
+    assert not is_mature(
+        alert,
+        as_of=date(2026, 1, 10),
+        maturing_days=4,
+        target_field="resultado_operativo",
+        marking_date_field="fecha_decision",
+        label_value_mapping={"Fraude": "fraud"},
+    )
+
+
 def test_same_specification_and_seed_return_same_sample_and_partitions() -> None:
     alerts = [_alert(Mark.FRAUD if index % 4 == 0 else Mark.NO_FRAUD, 1) for index in range(20)]
     spec = MatureSampleSpec(

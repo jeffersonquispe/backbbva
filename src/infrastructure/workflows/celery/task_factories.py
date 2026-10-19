@@ -85,6 +85,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.dataset_summa
 from src.infrastructure.persistence.database.dynamodb.repositories.mature_sample_repository import (
     DynamoDatasetSamplerStateRepository,
     DynamoDatasetSnapshotRepository,
+    DynamoMatureSamplerSchemaMappingRepository,
 )
 from src.infrastructure.persistence.dataset.minio.csv_dataset_repository import (
     MinioCsvDatasetRepository,
@@ -166,6 +167,11 @@ def get_dataset_sampler_state_repository() -> DynamoDatasetSamplerStateRepositor
     return DynamoDatasetSamplerStateRepository()
 
 
+@lru_cache
+def get_mature_sampler_schema_mapping_repository() -> DynamoMatureSamplerSchemaMappingRepository:
+    return DynamoMatureSamplerSchemaMappingRepository()
+
+
 def get_create_mature_sample_snapshot_use_case() -> CreateMatureSampleSnapshotUseCase:
     return CreateMatureSampleSnapshotUseCase(
         alerts=get_alert_repository(),
@@ -175,6 +181,7 @@ def get_create_mature_sample_snapshot_use_case() -> CreateMatureSampleSnapshotUs
         datasets=get_dataset_repository(),
         snapshots=get_dataset_snapshot_repository(),
         sampler_state=get_dataset_sampler_state_repository(),
+        schema_mapping=get_mature_sampler_schema_mapping_repository(),
         clock=get_clock(),
     )
 
@@ -186,6 +193,7 @@ def get_preview_mature_sample_use_case() -> PreviewMatureSampleUseCase:
         sampler_settings=get_assistant_optimizer_settings_repository(),
         schemas=get_alert_schema_repository(),
         sampler_state=get_dataset_sampler_state_repository(),
+        schema_mapping=get_mature_sampler_schema_mapping_repository(),
         clock=get_clock(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
     )

@@ -257,12 +257,18 @@ FP0/FP1.
 
 - Muestreo reproducible y estratificado. Solo entran alertas con etiqueta final
   (`fraud`/`no_fraud`) y edad suficiente según `OperationalSettings.maturing_days`.
-- **Los campos de estratificación los elige el manager desde el pool del esquema**:
-  `GET .../sampler/fields` obtiene campos de versiones activa/compatibles,
-  filtra sensibles y etiquetas; el servidor valida el PUT y las ejecuciones
-  contra el mismo pool. Las filas materializadas usan esos campos elegidos,
-  sin nombres de columnas de negocio codificados. `fraud_label` es el target
-  fijo reservado y `__aria_partition` es metadato técnico del dataset conjunto.
+- **Los campos de estratificación, etiqueta objetivo y fecha de marcación los
+  elige el manager desde el pool del esquema**. La etiqueta seleccionada se
+  mapea a las clases canónicas `fraud`/`no_fraud`; el servidor usa esa etiqueta
+  y fecha para elegibilidad, vista previa, disparadores y materialización. No
+  consulta los campos fijos de métricas internas para decidir la madurez. El
+  campo de salida `fraud_label` sigue siendo el nombre canónico requerido por
+  el trainer, y `__aria_partition` es metadato técnico del dataset conjunto.
+  `GET .../sampler/schema-configuration` publica los pools compatibles y
+  `PUT` valida y audita la selección. `GET .../sampler/fields` obtiene los
+  campos de estratificación de versiones activa/compatibles y filtra sensibles
+  y etiquetas. Las filas materializadas usan los campos elegidos, sin nombres
+  de columnas de negocio codificados.
 - Se materializan cuatro CSV de catálogo (`training`, `validation`, `test`,
   `final`) y un quinto dataset conjunto para que el trainer lea una sola
   referencia y respete las particiones sin volverlas a dividir. Los snapshots
@@ -344,3 +350,63 @@ Frontend (`../frontend_mockup`):
   por el panel y el spec de interacción del muestreador.
 - **Necesito del integrador:** revisar H6 e integrar la rama. No se requiere
   intervención de B.
+
+### Ajuste H6 antes de integración — objetivo y fecha desde el esquema
+
+- **Qué quedó hecho:** el manager selecciona un campo etiqueta y una fecha
+  `date`/`datetime` de las versiones compatibles del esquema y define valores
+  fuente que se normalizan a `fraud` o `no_fraud`. El servidor excluye campos
+  sensibles, valida que ambas selecciones pertenezcan al pool, exige las dos
+  clases canónicas y registra diff/historial/auditoría. Preview y snapshots
+  leen la etiqueta desde `AlertRecord.labels` y la fecha del campo seleccionado
+  en la entrada; el volumen de disparador también usa la etiqueta mapeada. El
+  mapeo vive como fila `schema_mapping` de la tabla ya existente
+  `dataset_sampler_state`: no se añade tabla ni se cambia el contrato del
+  integrador `assistant_optimizer_settings_port.py`.
+- **Archivos backend tocados:**
+  `src/application/ports/mature_sampler_schema_mapping_port.py`,
+  `src/application/use_cases/datasets/configure_mature_sampler_schema.py`,
+  `src/domain/datasets/mature_sample_entities.py`,
+  `src/domain/datasets/mature_sampling.py`,
+  `src/application/use_cases/datasets/{preview_mature_sample.py,create_mature_sample_snapshot.py}`,
+  `src/infrastructure/persistence/database/dynamodb/repositories/mature_sample_repository.py`,
+  `src/infrastructure/entrypoint/api/{factories/assistant_optimizer_settings_factory.py,routers/assistant_optimizer_settings_router.py,schemas/assistant_optimizer_settings.py}`,
+  `src/infrastructure/workflows/celery/task_factories.py` y pruebas de los
+  casos de uso, dominio y router indicadas abajo.
+- **Archivos frontend tocados:**
+  `../frontend_mockup/src/lib/api/assistantOptimizerSettings.functions.ts`,
+  `../frontend_mockup/src/components/configuracion/AgentSettingsPanel.tsx` y
+  `../frontend_mockup/e2e/mature-sampler-real.spec.ts`.
+- **Comandos y resultados reales:**
+  `RUFF_CACHE_DIR=/private/tmp/aria-h6-adjustment-ruff make lint`: pasó,
+  Ruff 0 y mypy 0, baseline sin crecimiento.
+  `API_V0_STR=/api/v0 make test-architecture`: 229 pasaron; warning conocido
+  porque pytest no puede crear `.pytest_cache` en el worktree.
+  `GENAI_ENVIRONMENT=test API_V0_STR=/api/v0 pytest -p no:cacheprovider
+  tests/test_domain/test_mature_sampling.py
+  tests/test_application/test_use_cases/test_configure_mature_sampler_schema.py
+  tests/test_application/test_use_cases/test_preview_mature_sample.py
+  tests/test_application/test_use_cases/test_create_mature_sample_snapshot.py
+  tests/test_infrastructure/test_entrypoint/test_assistant_optimizer_settings_router.py`:
+  19 pasaron, 1 warning de deprecación Starlette.
+  En `../frontend_mockup`, `npx eslint --fix` sobre API, componente y E2E,
+  `npx eslint` focalizado y `npx tsc --noEmit`: pasaron.
+  `E2E_TEST_FILES=e2e/mature-sampler-real.spec.ts make e2e-all-local`, con
+  lock `/tmp/aria-e2e.lock`: reconstruyó API/workers y frontend nginx; el
+  Playwright real por `http://localhost:80` pasó 1/1, sin mocks de API. El
+  test configura vía API y UI los campos del esquema, crea y revisa una alerta,
+  ejecuta el snapshot, consulta la operación y verifica referencias y conteos
+  de las cuatro particiones. El lock fue liberado; la limpieza restauró el
+  mapping y los ajustes operacionales/sampler originales.
+  `git diff --check`: pasó.
+- **Supuestos nuevos:** los valores origen se normalizan con `strip` y
+  `casefold`; el manager debe mapear explícitamente al menos un valor de cada
+  clase. Se permite borrar toda la configuración de mapping (queda vacía y el
+  muestreador no puede ejecutar hasta configurarla de nuevo), para restaurar
+  un estado inicialmente no configurado.
+- **Estado:** ajuste de H6 implementado; lint, arquitectura, pytest focalizado,
+  lint/tipos frontend y E2E real pasaron. Pendiente de revisión/integración; no
+  empezar otro hito.
+- **Necesito del integrador:** integrar el ajuste backend y coordinar la
+  integración de los tres archivos frontend señalados. No se requiere acción
+  de B; el puerto contractual permanece intacto.

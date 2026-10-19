@@ -9,6 +9,7 @@ from typing import Any
 
 from src.application.ports.alert_port import AlertRepository
 from src.application.ports.alert_schema_port import (
+    AlertSchemaFieldType,
     AlertSchemaRepository,
     AlertSchemaStatus,
 )
@@ -22,6 +23,9 @@ from src.application.ports.dataset_sampler_state_port import (
 )
 from src.application.ports.dataset_snapshot_port import (
     DatasetSnapshotRepository,
+)
+from src.application.ports.mature_sampler_schema_mapping_port import (
+    MatureSamplerSchemaMappingRepository,
 )
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
@@ -39,6 +43,7 @@ from src.domain.datasets.mature_sampling import (
     content_hash,
     deterministic_partition,
     deterministic_sample,
+    mapped_alert_label,
     stratum_key,
 )
 
@@ -58,6 +63,7 @@ class CreateMatureSampleSnapshotUseCase:
         datasets: DatasetRepository,
         snapshots: DatasetSnapshotRepository,
         sampler_state: DatasetSamplerStateRepository,
+        schema_mapping: MatureSamplerSchemaMappingRepository,
         clock: Clock,
     ) -> None:
         self._alerts = alerts
@@ -67,10 +73,18 @@ class CreateMatureSampleSnapshotUseCase:
         self._datasets = datasets
         self._snapshots = snapshots
         self._sampler_state = sampler_state
+        self._schema_mapping = schema_mapping
         self._clock = clock
 
     def execute(self, *, trigger: str = "manual") -> DatasetSnapshot:
         settings = self._sampler_settings.get()
+        schema_mapping = self._schema_mapping.get()
+        if (
+            not schema_mapping.target_field
+            or not schema_mapping.marking_date_field
+            or not schema_mapping.label_value_mapping
+        ):
+            raise ValueError("Configura la etiqueta objetivo, su mapeo y la fecha de marcación")
         operational = self._operational_settings.get()
         today = self._clock.now().date()
         maturity = operational.maturing_days
@@ -79,6 +93,16 @@ class CreateMatureSampleSnapshotUseCase:
         schemas = self._selected_schema_versions(
             settings.sampler_compatible_schema_versions
         )
+        schema_fields = [field for schema in schemas for field in schema.fields if field.is_alert and not field.is_sensible]
+        if not any(field.field == schema_mapping.target_field and field.is_label for field in schema_fields):
+            raise ValueError("El campo objetivo no pertenece al esquema compatible")
+        if not any(
+            field.field == schema_mapping.marking_date_field
+            and field.type in {AlertSchemaFieldType.DATE, AlertSchemaFieldType.DATETIME}
+            and not field.is_label
+            for field in schema_fields
+        ):
+            raise ValueError("La fecha de marcación no pertenece al esquema compatible")
         fields = tuple(settings.sampler_strata)
         schema_pool = self._schema_field_pool(schemas)
         unsupported = set(fields) - set(schema_pool)
@@ -98,6 +122,9 @@ class CreateMatureSampleSnapshotUseCase:
             "as_of": today.isoformat(),
             "maturing_days": maturity,
             "fields": list(fields),
+            "target_field": schema_mapping.target_field,
+            "marking_date_field": schema_mapping.marking_date_field,
+            "label_value_mapping": dict(schema_mapping.label_value_mapping),
             "schema_versions": [schema.version for schema in schemas],
             "sampler_period_days": settings.sampler_period_days,
             "sampler_minimum_per_stratum": settings.sampler_minimum_per_stratum,
@@ -131,6 +158,9 @@ class CreateMatureSampleSnapshotUseCase:
             period_end=period_end,
             as_of=today,
             maturing_days=maturity,
+            target_field=schema_mapping.target_field,
+            marking_date_field=schema_mapping.marking_date_field,
+            label_value_mapping=schema_mapping.label_value_mapping,
             max_read=MAX_ALERTS_PER_RUN,
             limit_error="La ejecución supera el máximo de lectura por muestra",
         )
@@ -157,13 +187,20 @@ class CreateMatureSampleSnapshotUseCase:
             train_proportion=settings.sampler_train_proportion,
             validation_proportion=settings.sampler_validation_proportion,
             test_proportion=settings.sampler_test_proportion,
+            target_field=schema_mapping.target_field,
+            marking_date_field=schema_mapping.marking_date_field,
+            label_value_mapping=schema_mapping.label_value_mapping,
         )
         selected = deterministic_sample(eligible, sample_spec)
         rows_by_partition: dict[str, list[dict[str, Any]]] = {
             partition: [] for partition in PARTITIONS
         }
         for alert in selected:
-            label = alert.metrics.fraud_label.value if alert.metrics else "pending"
+            label = mapped_alert_label(
+                alert,
+                schema_mapping.target_field,
+                schema_mapping.label_value_mapping,
+            ) or "pending"
             row: dict[str, Any] = {
                 field: (alert.input or {}).get(field) for field in fields
             }

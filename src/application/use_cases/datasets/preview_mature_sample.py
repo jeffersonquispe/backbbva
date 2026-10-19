@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from src.application.dtos.mature_sample_dtos import MatureSamplePreview
 from src.application.ports.alert_port import AlertRepository
 from src.application.ports.alert_schema_port import (
+    AlertSchemaFieldType,
     AlertSchemaRepository,
     AlertSchemaStatus,
 )
@@ -18,11 +19,19 @@ from src.application.ports.clock_port import Clock
 from src.application.ports.dataset_sampler_state_port import (
     DatasetSamplerStateRepository,
 )
+from src.application.ports.mature_sampler_schema_mapping_port import (
+    MatureSamplerSchemaMappingRepository,
+)
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
 )
 from src.domain.alerts.entities import AlertRecord
-from src.domain.datasets.mature_sampling import is_mature, stratum_key
+from src.domain.datasets.mature_sampling import (
+    alert_field_date,
+    is_mature,
+    mapped_alert_label,
+    stratum_key,
+)
 
 _PREVIEW_READ_LIMIT = 20_000
 _ALERT_PAGE_SIZE = 500
@@ -36,6 +45,7 @@ class PreviewMatureSampleUseCase:
         sampler_settings: AssistantOptimizerSettingsPort,
         schemas: AlertSchemaRepository,
         sampler_state: DatasetSamplerStateRepository,
+        schema_mapping: MatureSamplerSchemaMappingRepository,
         clock: Clock,
         timezone_name: str,
     ) -> None:
@@ -44,6 +54,7 @@ class PreviewMatureSampleUseCase:
         self._sampler_settings = sampler_settings
         self._schemas = schemas
         self._sampler_state = sampler_state
+        self._schema_mapping = schema_mapping
         self._clock = clock
         self._timezone = ZoneInfo(timezone_name)
 
@@ -51,6 +62,10 @@ class PreviewMatureSampleUseCase:
         now = self._clock.now().astimezone(self._timezone)
         today = as_of or now.date()
         settings = self._sampler_settings.get()
+        mapping = self._schema_mapping.get()
+        if not mapping.target_field or not mapping.marking_date_field or not mapping.label_value_mapping:
+            raise ValueError("Configura la etiqueta objetivo, su mapeo y la fecha de marcación")
+        self._validate_schema_mapping(mapping, settings.sampler_compatible_schema_versions)
         maturity = self._operational_settings.get().maturing_days
         period_end = today - timedelta(days=maturity)
         period_start = period_end - timedelta(days=settings.sampler_period_days - 1)
@@ -64,6 +79,9 @@ class PreviewMatureSampleUseCase:
             period_end=period_end,
             as_of=today,
             maturing_days=maturity,
+            target_field=mapping.target_field,
+            marking_date_field=mapping.marking_date_field,
+            label_value_mapping=mapping.label_value_mapping or {},
             max_read=_PREVIEW_READ_LIMIT,
             limit_error="La vista previa excede el límite de lectura de alertas",
         )
@@ -77,6 +95,7 @@ class PreviewMatureSampleUseCase:
             as_of=today,
             now=now,
             current_strata=dict(counts),
+            mapping=mapping,
         )
 
         sample_size = _estimated_sample_size(settings, len(eligible))
@@ -124,6 +143,32 @@ class PreviewMatureSampleUseCase:
                 f"compatible: {', '.join(sorted(unsupported))}"
             )
 
+    def _validate_schema_mapping(self, mapping, compatible_versions: tuple[str, ...]) -> None:
+        versions = self._schemas.list_versions()
+        if compatible_versions:
+            selected = {int(value) for value in compatible_versions}
+            versions = [version for version in versions if version.version in selected]
+        else:
+            active = self._schemas.get_active()
+            versions = [active] if active else []
+        fields = [
+            field
+            for version in versions
+            if version is not None
+            and version.status in {AlertSchemaStatus.ACTIVE, AlertSchemaStatus.HISTORICAL}
+            for field in version.fields
+            if field.is_alert and not field.is_sensible
+        ]
+        if not any(field.field == mapping.target_field and field.is_label for field in fields):
+            raise ValueError("El campo objetivo no pertenece al esquema compatible")
+        if not any(
+            field.field == mapping.marking_date_field
+            and field.type in {AlertSchemaFieldType.DATE, AlertSchemaFieldType.DATETIME}
+            and not field.is_label
+            for field in fields
+        ):
+            raise ValueError("La fecha de marcación no pertenece al esquema compatible")
+
     def _active_triggers(
         self,
         eligible: list[AlertRecord],
@@ -132,6 +177,7 @@ class PreviewMatureSampleUseCase:
         as_of: date,
         now: datetime,
         current_strata: dict[str, int],
+        mapping,
     ) -> list[str]:
         if not settings.sampler_enabled:
             return []
@@ -156,14 +202,12 @@ class PreviewMatureSampleUseCase:
             newly_matured = sum(
                 1
                 for alert in eligible
-                if alert.metrics
-                and any(
-                    timestamp is not None and timestamp > last_completed
-                    for timestamp in (
-                        alert.metrics.fraud_reviewed_at,
-                        alert.metrics.marked_at,
-                    )
-                )
+                if mapped_alert_label(
+                    alert, mapping.target_field, mapping.label_value_mapping or {}
+                ) in {"fraud", "no_fraud"}
+                and (marked_at := alert_field_date(alert, mapping.marking_date_field))
+                is not None
+                and marked_at >= last_completed.astimezone(self._timezone).date()
             )
             if newly_matured >= settings.sampler_volume_threshold:
                 active.append("volume")
@@ -197,6 +241,9 @@ def collect_mature_alerts(
     period_end: date,
     as_of: date,
     maturing_days: int,
+    target_field: str,
+    marking_date_field: str,
+    label_value_mapping: dict[str, str],
     max_read: int,
     limit_error: str,
 ) -> list[AlertRecord]:
@@ -214,7 +261,14 @@ def collect_mature_alerts(
             eligible.extend(
                 alert
                 for alert in page
-                if is_mature(alert, as_of=as_of, maturing_days=maturing_days)
+                if is_mature(
+                    alert,
+                    as_of=as_of,
+                    maturing_days=maturing_days,
+                    target_field=target_field,
+                    marking_date_field=marking_date_field,
+                    label_value_mapping=label_value_mapping,
+                )
             )
             if len(page) < requested:
                 break

@@ -12,9 +12,13 @@ from src.application.ports.dataset_sampler_state_port import (
 from src.application.ports.dataset_snapshot_port import (
     DatasetSnapshotRepository,
 )
+from src.application.ports.mature_sampler_schema_mapping_port import (
+    MatureSamplerSchemaMappingRepository,
+)
 from src.domain.datasets.mature_sample_entities import (
     DatasetSamplerState,
     DatasetSnapshot,
+    MatureSamplerSchemaMapping,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
@@ -76,6 +80,39 @@ class DynamoDatasetSamplerStateRepository(DatasetSamplerStateRepository):
     def update(self, state: DatasetSamplerState) -> DatasetSamplerState:
         self._table.put_item(Item=_state_to_item(state))
         return state
+
+
+class DynamoMatureSamplerSchemaMappingRepository(MatureSamplerSchemaMappingRepository):
+    """Stores the selected schema mapping in its own row of the sampler state table."""
+
+    def __init__(self) -> None:
+        self._table = get_dynamodb_resource().Table(SAMPLER_STATE_TABLE)
+
+    def get(self) -> MatureSamplerSchemaMapping:
+        item = self._table.get_item(Key={"state_id": "schema_mapping"}).get("Item")
+        if not item:
+            return MatureSamplerSchemaMapping()
+        value = from_dynamodb(item)
+        return MatureSamplerSchemaMapping(
+            target_field=str(value.get("target_field", "")),
+            marking_date_field=str(value.get("marking_date_field", "")),
+            label_value_mapping=dict(value.get("label_value_mapping") or {}),
+        )
+
+    def update(
+        self, mapping: MatureSamplerSchemaMapping
+    ) -> MatureSamplerSchemaMapping:
+        self._table.put_item(
+            Item=to_dynamodb(
+                {
+                    "state_id": "schema_mapping",
+                    "target_field": mapping.target_field,
+                    "marking_date_field": mapping.marking_date_field,
+                    "label_value_mapping": mapping.label_value_mapping or {},
+                }
+            )
+        )
+        return mapping
 
 
 def _snapshot_to_item(snapshot: DatasetSnapshot) -> dict[str, Any]:

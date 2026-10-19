@@ -28,3 +28,10 @@ class DatasetSamplerState:
     last_period_key: str | None = None
     matured_alert_count: int = 0
     latest_strata_counts: dict[str, int] | None = None
+
+
+@dataclass(frozen=True)
+class MatureSamplerSchemaMapping:
+    target_field: str = ""
+    marking_date_field: str = ""
+    label_value_mapping: dict[str, str] | None = None

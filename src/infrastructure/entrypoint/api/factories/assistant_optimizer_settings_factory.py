@@ -10,6 +10,10 @@ from src.application.use_cases.assistant_optimizer_settings import (
 from src.application.use_cases.async_operations.create_async_operation import (
     CreateAsyncOperationUseCase,
 )
+from src.application.use_cases.datasets.configure_mature_sampler_schema import (
+    GetMatureSamplerSchemaConfigurationUseCase,
+    UpdateMatureSamplerSchemaConfigurationUseCase,
+)
 from src.application.use_cases.datasets.preview_mature_sample import (
     PreviewMatureSampleUseCase,
 )
@@ -36,6 +40,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.assistant_opt
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.mature_sample_repository import (
     DynamoDatasetSamplerStateRepository,
+    DynamoMatureSamplerSchemaMappingRepository,
 )
 from src.infrastructure.queues.celery.mature_sample_executor import (
     CeleryMatureSampleExecutor,
@@ -79,6 +84,7 @@ def get_preview_mature_sample_use_case() -> PreviewMatureSampleUseCase:
         get_assistant_optimizer_settings_repository(),
         get_alert_schema_repository(),
         get_dataset_sampler_state_repository(),
+        get_mature_sampler_schema_mapping_repository(),
         clock=get_clock(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
     )
@@ -87,6 +93,32 @@ def get_preview_mature_sample_use_case() -> PreviewMatureSampleUseCase:
 @lru_cache
 def get_dataset_sampler_state_repository() -> DynamoDatasetSamplerStateRepository:
     return DynamoDatasetSamplerStateRepository()
+
+
+@lru_cache
+def get_mature_sampler_schema_mapping_repository() -> DynamoMatureSamplerSchemaMappingRepository:
+    return DynamoMatureSamplerSchemaMappingRepository()
+
+
+def get_mature_sampler_schema_configuration_use_case() -> GetMatureSamplerSchemaConfigurationUseCase:
+    return GetMatureSamplerSchemaConfigurationUseCase(
+        get_alert_schema_repository(),
+        get_assistant_optimizer_settings_repository(),
+        get_mature_sampler_schema_mapping_repository(),
+    )
+
+
+def get_update_mature_sampler_schema_configuration_use_case() -> UpdateMatureSamplerSchemaConfigurationUseCase:
+    repository = get_assistant_optimizer_settings_repository()
+    return UpdateMatureSamplerSchemaConfigurationUseCase(
+        get_alert_schema_repository(),
+        repository,
+        get_mature_sampler_schema_mapping_repository(),
+        repository,
+        get_audit_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
 
 
 @lru_cache

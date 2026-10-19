@@ -19,15 +19,22 @@ from src.application.use_cases.assistant_optimizer_settings import (
 from src.application.use_cases.async_operations.create_async_operation import (
     CreateAsyncOperationUseCase,
 )
+from src.application.use_cases.datasets.configure_mature_sampler_schema import (
+    GetMatureSamplerSchemaConfigurationUseCase,
+    UpdateMatureSamplerSchemaConfigurationUseCase,
+)
 from src.application.use_cases.datasets.preview_mature_sample import (
     PreviewMatureSampleUseCase,
 )
+from src.domain.datasets.mature_sample_entities import MatureSamplerSchemaMapping
 from src.infrastructure.entrypoint.api.factories.assistant_optimizer_settings_factory import (
     get_get_assistant_optimizer_settings_use_case,
     get_list_assistant_optimizer_settings_changes_use_case,
+    get_mature_sampler_schema_configuration_use_case,
     get_preview_mature_sample_use_case,
     get_start_mature_sample_use_case,
     get_update_assistant_optimizer_settings_use_case,
+    get_update_mature_sampler_schema_configuration_use_case,
 )
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas.assistant_optimizer_settings import (
@@ -35,6 +42,8 @@ from src.infrastructure.entrypoint.api.schemas.assistant_optimizer_settings impo
     AssistantOptimizerSettingsRequest,
     AssistantOptimizerSettingsSchema,
     MatureSamplePreviewResponse,
+    MatureSamplerSchemaConfigurationResponse,
+    MatureSamplerSchemaMappingRequest,
 )
 from src.infrastructure.entrypoint.api.schemas.async_operations import (
     AsyncOperationResponse,
@@ -142,6 +151,52 @@ def list_sampler_fields(
 ) -> list[str]:
     _require_editor(user)
     return use_case.available_fields()
+
+
+@router.get(
+    "/sampler/schema-configuration",
+    response_model=MatureSamplerSchemaConfigurationResponse,
+)
+def get_sampler_schema_configuration(
+    use_case: Annotated[
+        GetMatureSamplerSchemaConfigurationUseCase,
+        Depends(get_mature_sampler_schema_configuration_use_case),
+    ],
+    user: Annotated[LocalUser, Depends(get_current_user)],
+):
+    _require_editor(user)
+    return use_case.execute()
+
+
+@router.put(
+    "/sampler/schema-configuration",
+    response_model=MatureSamplerSchemaConfigurationResponse,
+)
+def update_sampler_schema_configuration(
+    request: MatureSamplerSchemaMappingRequest,
+    use_case: Annotated[
+        UpdateMatureSamplerSchemaConfigurationUseCase,
+        Depends(get_update_mature_sampler_schema_configuration_use_case),
+    ],
+    reader: Annotated[
+        GetMatureSamplerSchemaConfigurationUseCase,
+        Depends(get_mature_sampler_schema_configuration_use_case),
+    ],
+    user: Annotated[LocalUser, Depends(get_current_user)],
+):
+    _require_editor(user)
+    try:
+        use_case.execute(
+            MatureSamplerSchemaMapping(
+                target_field=request.target_field,
+                marking_date_field=request.marking_date_field,
+                label_value_mapping=request.label_value_mapping,
+            ),
+            changed_by=user.email,
+        )
+        return reader.execute()
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post(
