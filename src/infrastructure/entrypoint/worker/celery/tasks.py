@@ -23,7 +23,9 @@ from src.application.dtos.execute_alert_action_dtos import (
 from src.application.dtos.reasoning_evaluation_dtos import (
     EvaluateAlertReasoningInput,
 )
-from src.application.ports.async_operation_port import AsyncOperationStatus
+from src.application.ports.async_operation_port import (
+    AsyncOperationStatus,
+)
 from src.application.ports.backup_catalog_port import BackupStatus
 from src.application.use_cases.async_operations.create_async_operation import (
     GENERIC_OPERATION_TYPES,
@@ -464,6 +466,72 @@ def train_model_task(model_id: str, async_operation_id: str) -> dict:
         model_object_storage=get_model_storage(),
     )
 
+
+@app.task(bind=True, name="datasets.sample_mature")
+def sample_mature_dataset_task(task, operation_id: str | None = None) -> dict:
+    from datetime import UTC, datetime
+    from uuid import UUID, uuid4
+
+    from src.application.ports.async_operation_port import AsyncOperationRecord
+    from src.infrastructure.workflows.celery.task_factories import (
+        get_create_mature_sample_snapshot_use_case,
+        get_preview_mature_sample_use_case,
+    )
+
+    operations = get_async_operation_repository()
+    now = datetime.now(UTC)
+    if operation_id is None:
+        active_triggers = get_preview_mature_sample_use_case().execute().active_triggers
+        if not active_triggers:
+            return {"status": "skipped", "reason": "no sampler trigger is active"}
+        operation = AsyncOperationRecord(
+            id=uuid4(),
+            operation_type="mature_sample.create",
+            status=AsyncOperationStatus.PENDING,
+            payload={"trigger": "+".join(active_triggers)},
+            result=None,
+            error=None,
+            created_at=now,
+            updated_at=now,
+            created_by="celery-beat",
+        )
+        operations.create(operation)
+        operation_id = str(operation.id)
+
+    operation_uuid = UUID(operation_id)
+    operation = operations.get(operation_uuid)
+    if operation is None:
+        return {"status": "not_found", "operation_id": operation_id}
+    operations.update(
+        operation_uuid,
+        status=AsyncOperationStatus.RUNNING,
+        execution_backend="celery",
+        external_id=task.request.id,
+    )
+    try:
+        snapshot = get_create_mature_sample_snapshot_use_case().execute(
+            trigger=str(operation.payload.get("trigger", "manual"))
+        )
+        result = {
+            "snapshot_id": snapshot.snapshot_id,
+            "dataset_refs": snapshot.dataset_refs,
+            "partition_counts": snapshot.partition_counts,
+            "strata_counts": snapshot.strata_counts,
+            "content_hash": snapshot.content_hash,
+        }
+        operations.update(
+            operation_uuid,
+            status=AsyncOperationStatus.SUCCEEDED,
+            result={"stage": "done", "progress_pct": 100, **result},
+        )
+        return {"status": "ok", **result}
+    except Exception as exc:
+        operations.update(
+            operation_uuid,
+            status=AsyncOperationStatus.FAILED,
+            error=str(exc),
+        )
+        raise
 
 @app.task(name="models.preview_features")
 def preview_features_task(

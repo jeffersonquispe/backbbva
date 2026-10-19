@@ -38,7 +38,13 @@ from src.application.use_cases.datasets.analyze_dataset import AnalyzeDatasetUse
 from src.application.use_cases.datasets.analyze_fraud_marking import (
     AnalyzeFraudMarkingUseCase,
 )
+from src.application.use_cases.datasets.create_mature_sample_snapshot import (
+    CreateMatureSampleSnapshotUseCase,
+)
 from src.application.use_cases.datasets.delete_dataset import DeleteDatasetUseCase
+from src.application.use_cases.datasets.preview_mature_sample import (
+    PreviewMatureSampleUseCase,
+)
 from src.application.use_cases.object_storage.apply_retention import (
     ApplyObjectStorageRetentionUseCase,
     RetentionRule,
@@ -76,6 +82,11 @@ from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sampl
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_summary_repository import (
     DynamoDatasetSummaryRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.mature_sample_repository import (
+    DynamoDatasetSamplerStateRepository,
+    DynamoDatasetSnapshotRepository,
+    DynamoMatureSamplerSchemaMappingRepository,
+)
 from src.infrastructure.persistence.dataset.minio.csv_dataset_repository import (
     MinioCsvDatasetRepository,
 )
@@ -92,6 +103,7 @@ from src.infrastructure.workflows.celery.factories import (
     get_analyst_decision_documenter,
     get_analyst_escalation_dispatcher,
     get_aric_alert_port,
+    get_assistant_optimizer_settings_repository,
     get_async_operation_repository,
     get_discard_alert_use_case,
     get_operational_settings_repository,
@@ -143,6 +155,48 @@ def get_dataset_summary_repository() -> DatasetSummaryRepository:
 @lru_cache
 def get_dataset_repository() -> MinioCsvDatasetRepository:
     return MinioCsvDatasetRepository(get_dataset_object_storage())
+
+
+@lru_cache
+def get_dataset_snapshot_repository() -> DynamoDatasetSnapshotRepository:
+    return DynamoDatasetSnapshotRepository()
+
+
+@lru_cache
+def get_dataset_sampler_state_repository() -> DynamoDatasetSamplerStateRepository:
+    return DynamoDatasetSamplerStateRepository()
+
+
+@lru_cache
+def get_mature_sampler_schema_mapping_repository() -> DynamoMatureSamplerSchemaMappingRepository:
+    return DynamoMatureSamplerSchemaMappingRepository()
+
+
+def get_create_mature_sample_snapshot_use_case() -> CreateMatureSampleSnapshotUseCase:
+    return CreateMatureSampleSnapshotUseCase(
+        alerts=get_alert_repository(),
+        alert_schemas=get_alert_schema_repository(),
+        operational_settings=get_operational_settings_repository(),
+        sampler_settings=get_assistant_optimizer_settings_repository(),
+        datasets=get_dataset_repository(),
+        snapshots=get_dataset_snapshot_repository(),
+        sampler_state=get_dataset_sampler_state_repository(),
+        schema_mapping=get_mature_sampler_schema_mapping_repository(),
+        clock=get_clock(),
+    )
+
+
+def get_preview_mature_sample_use_case() -> PreviewMatureSampleUseCase:
+    return PreviewMatureSampleUseCase(
+        alerts=get_alert_repository(),
+        operational_settings=get_operational_settings_repository(),
+        sampler_settings=get_assistant_optimizer_settings_repository(),
+        schemas=get_alert_schema_repository(),
+        sampler_state=get_dataset_sampler_state_repository(),
+        schema_mapping=get_mature_sampler_schema_mapping_repository(),
+        clock=get_clock(),
+        timezone_name=genai_config.OPERATIONS_TIMEZONE,
+    )
 
 
 @lru_cache

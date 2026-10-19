@@ -44,3 +44,33 @@ class AssistantOptimizerSettingsChangeResponse(BaseModel):
     changed_by: str
     changed_at: datetime
     changes: list[AssistantOptimizerSettingChangeSchema]
+
+
+class MatureSamplePreviewResponse(BaseModel):
+    eligible_alerts: int
+    estimated_sample_size: int
+    counts_by_stratum: dict[str, int]
+    active_triggers: list[str]
+
+
+class MatureSamplerSchemaFieldOption(BaseModel):
+    field: str
+    type: str
+    description: str
+
+
+class MatureSamplerSchemaMappingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    initial_mark_field: str = ""
+    initial_marking_date_field: str = ""
+    target_field: str
+    marking_date_field: str
+    label_value_mapping: dict[str, str]
+
+
+class MatureSamplerSchemaConfigurationResponse(BaseModel):
+    initial_mark_fields: list[MatureSamplerSchemaFieldOption]
+    initial_marking_date_fields: list[MatureSamplerSchemaFieldOption]
+    target_fields: list[MatureSamplerSchemaFieldOption]
+    marking_date_fields: list[MatureSamplerSchemaFieldOption]
+    mapping: MatureSamplerSchemaMappingRequest

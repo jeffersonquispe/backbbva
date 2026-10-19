@@ -89,7 +89,9 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     CONFIGURATION_TAXONOMIES_TABLE,
     CONFIGURATION_VOICEBOT_PROMPTS_TABLE,
     CONFIGURATIONS_TABLE,
+    DATASET_SAMPLER_STATE_TABLE,
     DATASET_SAMPLES_TABLE,
+    DATASET_SNAPSHOTS_TABLE,
     DATASET_SUMMARIES_TABLE,
     FEEDBACK_TABLE,
     FRAUD_LABEL_REVIEWS_TABLE,
@@ -442,6 +444,11 @@ def ensure_all_tables() -> None:
     # Assistant and optimizer settings singleton plus append-only history.
     create_table(ASSISTANT_OPTIMIZER_SETTINGS_TABLE)
     create_table(ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE)
+
+    # Mature sampler snapshots and scheduler cursor (H6 / Fase S).
+    create_table(DATASET_SNAPSHOTS_TABLE)
+    ensure_global_secondary_indexes(DATASET_SNAPSHOTS_TABLE)
+    create_table(DATASET_SAMPLER_STATE_TABLE)
     # Agent orchestration tables (kept together for the H3 backbone).
     create_table(AGENT_SESSIONS_TABLE)
     create_table(AGENT_ITERATIONS_TABLE)

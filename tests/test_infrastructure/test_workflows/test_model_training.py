@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from src.application.ports.model_port import FieldTransform, FieldTransformKind
+from src.infrastructure.workflows.celery.model_evaluation import split_indices
 from src.infrastructure.workflows.celery.model_training import (
     build_feature_frame,
     target_vector,
@@ -102,3 +103,22 @@ def test_train_xgboost_model_fits_and_reports_metrics() -> None:
     proba = model.predict_proba(X)[:, 1]
     calibrated = isotonic.transform(proba)
     assert np.all((calibrated >= 0.0) & (calibrated <= 1.0))
+
+
+def test_mature_snapshot_partitions_are_consumed_without_resplitting() -> None:
+    partition_names = ("training", "validation", "test", "final")
+    rows = [
+        {
+            "__aria_partition": partition_names[index // 4],
+            "feature": index,
+        }
+        for index in range(16)
+    ]
+    labels = np.asarray([index % 2 for index in range(16)])
+
+    partitions = split_indices(rows, labels, config=None)
+
+    assert partitions["training"].tolist() == [0, 1, 2, 3]
+    assert partitions["validation"].tolist() == [4, 5, 6, 7]
+    assert partitions["calibration"].tolist() == [8, 9, 10, 11]
+    assert partitions["test"].tolist() == [12, 13, 14, 15]

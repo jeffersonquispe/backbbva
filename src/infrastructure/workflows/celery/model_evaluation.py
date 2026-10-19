@@ -40,10 +40,33 @@ from src.infrastructure.workflows.celery.model_training import (
     target_vector,
 )
 
+_MATURE_SAMPLE_PARTITION_FIELD = "__aria_partition"
+
 
 def split_indices(
     rows: list[dict], y: np.ndarray, config: TrainingConfig
 ) -> dict[str, np.ndarray]:
+    if rows and all(_MATURE_SAMPLE_PARTITION_FIELD in row for row in rows):
+        partition_map = {name: [] for name in ("training", "validation", "calibration", "test")}
+        source_names = {
+            "training": "training",
+            "validation": "validation",
+            "calibration": "test",
+            "test": "final",
+        }
+        for index, row in enumerate(rows):
+            source = row[_MATURE_SAMPLE_PARTITION_FIELD]
+            target = next(
+                (name for name, source_name in source_names.items() if source == source_name),
+                None,
+            )
+            if target is None:
+                raise ValueError(f"Partición de muestreo desconocida: {source}")
+            partition_map[target].append(index)
+        return _validate_partitions(
+            {name: np.asarray(indices, dtype=int) for name, indices in partition_map.items()},
+            y,
+        )
     if len(rows) < 40:
         raise ValueError(
             "Se necesitan al menos 40 registros para cuatro particiones independientes"
@@ -79,12 +102,18 @@ def split_indices(
         )
         parts = [train, val, cal, test]
     result = dict(zip(("training", "validation", "calibration", "test"), parts))
-    for name, part in result.items():
+    return _validate_partitions(result, y)
+
+
+def _validate_partitions(
+    partitions: dict[str, np.ndarray], y: np.ndarray
+) -> dict[str, np.ndarray]:
+    for name, part in partitions.items():
         if len(part) < 2 or len(np.unique(y[part])) != 2:
             raise ValueError(
                 f"La partición {name} necesita ambas clases; amplía los datos o revisa la separación"
             )
-    return result
+    return partitions
 
 
 def threshold_metrics(y, probabilities, threshold):
@@ -142,9 +171,13 @@ def train_model_bundle(
         feature_configuration = validate_feature_definition(
             feature_configuration, forbidden_paths=(record.target_field,)
         )
-    y = target_vector(rows, record.target_field, record.positive_labels)
+    feature_rows = [
+        {key: value for key, value in row.items() if key != _MATURE_SAMPLE_PARTITION_FIELD}
+        for row in rows
+    ]
+    y = target_vector(feature_rows, record.target_field, record.positive_labels)
     partitions = split_indices(rows, y, config)
-    train_rows = [rows[i] for i in partitions["training"]]
+    train_rows = [feature_rows[i] for i in partitions["training"]]
     X, vocab = build_feature_frame(
         train_rows,
         record.feature_transforms,
@@ -164,7 +197,7 @@ def train_model_bundle(
         if name == "training":
             continue
         frame, _ = build_feature_frame(
-            [rows[i] for i in indices],
+            [feature_rows[i] for i in indices],
             record.feature_transforms,
             rule_vocab=vocab,
             historical_features=record.historical_features,

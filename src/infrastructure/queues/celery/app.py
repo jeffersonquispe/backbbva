@@ -59,6 +59,14 @@ def periodic_schedule(
             "schedule": OPERATIONAL_STATE_INTERVAL_SECONDS,
             "options": {"expires": OPERATIONAL_STATE_INTERVAL_SECONDS},
         },
+        # H6: evaluate configured sampler intervals in Bogotá time. The task
+        # uses persisted state to enforce weekly defaults, cooldown, and retry
+        # idempotency before materializing a snapshot.
+        "sample-mature-datasets": {
+            "task": "datasets.sample_mature",
+            "schedule": crontab(hour=4, minute=15),
+            "options": {"expires": 24 * 60 * 60},
+        },
     }
 
 
