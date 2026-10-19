@@ -32,6 +32,8 @@ class DatasetSamplerState:
 
 @dataclass(frozen=True)
 class MatureSamplerSchemaMapping:
+    initial_mark_field: str = ""
+    initial_marking_date_field: str = ""
     target_field: str = ""
     marking_date_field: str = ""
     label_value_mapping: dict[str, str] | None = None

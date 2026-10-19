@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from src.application.errors import ValidationError
@@ -32,6 +33,18 @@ class InMemorySchemas:
                     data_source=AlertSchemaDataSource.ARIA,
                     type=AlertSchemaFieldType.STRING,
                     is_label=True,
+                ),
+                AlertSchemaField(
+                    id="initial-mark",
+                    field="first_review",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.STRING,
+                ),
+                AlertSchemaField(
+                    id="initial-marked-at",
+                    field="first_reviewed_at",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.DATETIME,
                 ),
                 AlertSchemaField(
                     id="marked-at",
@@ -110,8 +123,14 @@ def test_schema_configuration_exposes_label_and_date_fields_but_not_sensitive_fi
     ).execute()
 
     assert [item["field"] for item in result["target_fields"]] == ["marcacion_final"]
+    assert [item["field"] for item in result["initial_mark_fields"]] == [
+        "first_review",
+        "customer_band",
+    ]
+    assert result["initial_marking_date_fields"][0]["field"] == "first_reviewed_at"
     assert [item["field"] for item in result["marking_date_fields"]] == [
-        "fecha_ultima_marcacion"
+        "first_reviewed_at",
+        "fecha_ultima_marcacion",
     ]
     assert result["mapping"]["target_field"] == ""
 
@@ -127,6 +146,8 @@ def test_update_persists_mapping_and_emits_diff_and_audit():
 
     result = use_case.execute(
         MatureSamplerSchemaMapping(
+            initial_mark_field="first_review",
+            initial_marking_date_field="first_reviewed_at",
             target_field="marcacion_final",
             marking_date_field="fecha_ultima_marcacion",
             label_value_mapping={"Fraude": "fraud", "No fraude": "no_fraud"},
@@ -155,16 +176,22 @@ def test_update_rejects_fields_outside_schema_and_incomplete_class_mapping():
 
     for proposed in (
         MatureSamplerSchemaMapping(
+            initial_mark_field="first_review",
+            initial_marking_date_field="first_reviewed_at",
             target_field="invented_label",
             marking_date_field="fecha_ultima_marcacion",
             label_value_mapping={"fraude": "fraud", "no fraude": "no_fraud"},
         ),
         MatureSamplerSchemaMapping(
+            initial_mark_field="first_review",
+            initial_marking_date_field="first_reviewed_at",
             target_field="marcacion_final",
             marking_date_field="private_date",
             label_value_mapping={"fraude": "fraud", "no fraude": "no_fraud"},
         ),
         MatureSamplerSchemaMapping(
+            initial_mark_field="first_review",
+            initial_marking_date_field="first_reviewed_at",
             target_field="marcacion_final",
             marking_date_field="fecha_ultima_marcacion",
             label_value_mapping={"fraude": "fraud"},
@@ -191,3 +218,63 @@ def test_update_allows_clearing_unconfigured_schema_mapping():
     saved = use_case.execute(MatureSamplerSchemaMapping(), changed_by="manager@example.com")
 
     assert saved == MatureSamplerSchemaMapping()
+
+
+def test_schema_field_renames_refresh_options_and_reject_stale_mapping_names():
+    schemas = InMemorySchemas()
+    schemas.active = replace(
+        schemas.active,
+        fields=[
+            replace(
+                field,
+                field={
+                    "first_review": "review_stage_initial",
+                    "first_reviewed_at": "review_timestamp_initial",
+                    "marcacion_final": "fraud_outcome_current",
+                    "fecha_ultima_marcacion": "review_timestamp_latest",
+                }.get(field.field, field.field),
+            )
+            for field in schemas.active.fields
+        ],
+    )
+    mapping = InMemoryMapping()
+    reader = GetMatureSamplerSchemaConfigurationUseCase(
+        schemas, FixedSettings(), mapping
+    )
+    result = reader.execute()
+
+    assert "review_stage_initial" in [
+        field["field"] for field in result["initial_mark_fields"]
+    ]
+    assert "fraud_outcome_current" in [
+        field["field"] for field in result["target_fields"]
+    ]
+    updater = UpdateMatureSamplerSchemaConfigurationUseCase(
+        schemas, FixedSettings(), mapping, InMemoryChanges(), InMemoryAudit()
+    )
+    updated = updater.execute(
+        MatureSamplerSchemaMapping(
+            initial_mark_field="review_stage_initial",
+            initial_marking_date_field="review_timestamp_initial",
+            target_field="fraud_outcome_current",
+            marking_date_field="review_timestamp_latest",
+            label_value_mapping={"Fraude": "fraud", "No fraude": "no_fraud"},
+        ),
+        changed_by="manager@example.com",
+    )
+    assert updated.target_field == "fraud_outcome_current"
+    try:
+        updater.execute(
+            MatureSamplerSchemaMapping(
+                initial_mark_field="first_review",
+                initial_marking_date_field="first_reviewed_at",
+                target_field="marcacion_final",
+                marking_date_field="fecha_ultima_marcacion",
+                label_value_mapping={"Fraude": "fraud", "No fraude": "no_fraud"},
+            ),
+            changed_by="manager@example.com",
+        )
+    except ValidationError:
+        pass
+    else:
+        raise AssertionError("Los nombres anteriores deben rechazarse tras renombrar el esquema")

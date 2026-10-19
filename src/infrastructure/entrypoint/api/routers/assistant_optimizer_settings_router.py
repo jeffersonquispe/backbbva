@@ -188,6 +188,8 @@ def update_sampler_schema_configuration(
     try:
         use_case.execute(
             MatureSamplerSchemaMapping(
+                initial_mark_field=request.initial_mark_field,
+                initial_marking_date_field=request.initial_marking_date_field,
                 target_field=request.target_field,
                 marking_date_field=request.marking_date_field,
                 label_value_mapping=request.label_value_mapping,

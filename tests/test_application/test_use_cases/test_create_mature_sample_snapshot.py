@@ -63,6 +63,20 @@ class InMemorySchemas:
                     is_label=True,
                 ),
                 AlertSchemaField(
+                    id="initial-mark",
+                    field="reviewstatus_first",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.STRING,
+                    is_alert=True,
+                ),
+                AlertSchemaField(
+                    id="initial-date",
+                    field="fecha_primer_marcacion",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.DATETIME,
+                    is_alert=True,
+                ),
+                AlertSchemaField(
                     id="marked-on",
                     field="marked_on",
                     data_source=AlertSchemaDataSource.ARIA,
@@ -98,6 +112,8 @@ class FixedSamplerSettings:
 class FixedSchemaMapping:
     def get(self):
         return MatureSamplerSchemaMapping(
+            initial_mark_field="reviewstatus_first",
+            initial_marking_date_field="fecha_primer_marcacion",
             target_field="outcome",
             marking_date_field="marked_on",
             label_value_mapping={"fraud": "fraud", "no fraud": "no_fraud"},
@@ -170,9 +186,11 @@ def _alert(day: date, *, label: Mark, risk: str) -> AlertRecord:
         updated_at=created,
         input={
             "risk_band": risk,
-            "outcome": label.value.replace("_", " "),
+            "reviewstatus_first": label.value.replace("_", " "),
+            "fecha_primer_marcacion": created.isoformat(),
             "marked_on": created.isoformat(),
         },
+        labels={"outcome": label.value.replace("_", " ")},
         schema_version=3,
         metrics=AlertMetricsSnapshot(fraud_label=label),
     )
@@ -211,5 +229,15 @@ def test_snapshot_materializes_four_partitions_and_is_idempotent() -> None:
     all_rows = datasets.rows[snapshot.dataset_refs["all"]]
     assert len(all_rows) == 2
     assert all(row["fraud_label"] in {"fraud", "no_fraud"} for row in all_rows)
-    assert all(set(row) == {"risk_band", "fraud_label", "__aria_partition"} for row in all_rows)
+    assert all(
+        set(row)
+        == {
+            "risk_band",
+            "reviewstatus_first",
+            "fecha_primer_marcacion",
+            "fraud_label",
+            "__aria_partition",
+        }
+        for row in all_rows
+    )
     assert state.value.last_snapshot_id == snapshot.snapshot_id

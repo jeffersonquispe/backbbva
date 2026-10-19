@@ -94,6 +94,8 @@ class DynamoMatureSamplerSchemaMappingRepository(MatureSamplerSchemaMappingRepos
             return MatureSamplerSchemaMapping()
         value = from_dynamodb(item)
         return MatureSamplerSchemaMapping(
+            initial_mark_field=str(value.get("initial_mark_field", "")),
+            initial_marking_date_field=str(value.get("initial_marking_date_field", "")),
             target_field=str(value.get("target_field", "")),
             marking_date_field=str(value.get("marking_date_field", "")),
             label_value_mapping=dict(value.get("label_value_mapping") or {}),
@@ -106,6 +108,8 @@ class DynamoMatureSamplerSchemaMappingRepository(MatureSamplerSchemaMappingRepos
             Item=to_dynamodb(
                 {
                     "state_id": "schema_mapping",
+                    "initial_mark_field": mapping.initial_mark_field,
+                    "initial_marking_date_field": mapping.initial_marking_date_field,
                     "target_field": mapping.target_field,
                     "marking_date_field": mapping.marking_date_field,
                     "label_value_mapping": mapping.label_value_mapping or {},

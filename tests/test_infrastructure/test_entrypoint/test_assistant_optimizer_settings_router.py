@@ -74,9 +74,17 @@ class InMemorySamplerFieldPool:
 class InMemorySamplerSchemaConfiguration:
     def __init__(self):
         self.configuration = {
+            "initial_mark_fields": [
+                {"field": "schema_initial_mark", "type": "string", "description": ""}
+            ],
+            "initial_marking_date_fields": [
+                {"field": "schema_initial_at", "type": "datetime", "description": ""}
+            ],
             "target_fields": [{"field": "schema_label", "type": "string", "description": ""}],
             "marking_date_fields": [{"field": "schema_marked_at", "type": "datetime", "description": ""}],
             "mapping": {
+                "initial_mark_field": "",
+                "initial_marking_date_field": "",
                 "target_field": "",
                 "marking_date_field": "",
                 "label_value_mapping": {},
@@ -93,6 +101,8 @@ class InMemorySamplerSchemaConfigurationUpdater:
 
     def execute(self, proposed, *, changed_by):
         self.configuration.configuration["mapping"] = {
+            "initial_mark_field": proposed.initial_mark_field,
+            "initial_marking_date_field": proposed.initial_marking_date_field,
             "target_field": proposed.target_field,
             "marking_date_field": proposed.marking_date_field,
             "label_value_mapping": proposed.label_value_mapping,
@@ -220,12 +230,15 @@ def test_manager_can_configure_target_label_date_and_value_mapping():
     response = client.put(
         "/assistant-optimizer-settings/sampler/schema-configuration",
         json={
+            "initial_mark_field": "schema_initial_mark",
+            "initial_marking_date_field": "schema_initial_at",
             "target_field": "schema_label",
             "marking_date_field": "schema_marked_at",
             "label_value_mapping": {"f": "fraud", "n": "no_fraud"},
         },
     )
     assert response.status_code == 200
+    assert response.json()["mapping"]["initial_mark_field"] == "schema_initial_mark"
     assert response.json()["mapping"]["target_field"] == "schema_label"
     assert response.json()["mapping"]["label_value_mapping"] == {
         "f": "fraud",

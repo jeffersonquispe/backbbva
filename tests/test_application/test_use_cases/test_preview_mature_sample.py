@@ -66,6 +66,8 @@ class InMemorySamplerState:
 class FixedSchemaMapping:
     def get(self):
         return MatureSamplerSchemaMapping(
+            initial_mark_field="reviewstatus_first",
+            initial_marking_date_field="fecha_primer_marcacion",
             target_field="outcome",
             marking_date_field="marked_on",
             label_value_mapping={"fraud": "fraud", "no fraud": "no_fraud"},
@@ -101,6 +103,22 @@ class InMemoryAlertSchemas:
                     type=AlertSchemaFieldType.STRING,
                     is_alert=True,
                     is_label=True,
+                ),
+                AlertSchemaField(
+                    id="first-review",
+                    field="reviewstatus_first",
+                    field_name="reviewstatus_first",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.STRING,
+                    is_alert=True,
+                ),
+                AlertSchemaField(
+                    id="first-marked-on",
+                    field="fecha_primer_marcacion",
+                    field_name="fecha_primer_marcacion",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.DATETIME,
+                    is_alert=True,
                 ),
                 AlertSchemaField(
                     id="marked-on",
@@ -150,9 +168,11 @@ def _alert(
         input={
             "risk_band": "high",
             "device_type": "mobile",
-            "outcome": label.value.replace("_", " "),
+            "reviewstatus_first": label.value.replace("_", " "),
+            "fecha_primer_marcacion": created.isoformat(),
             "marked_on": created.isoformat(),
         },
+        labels={"outcome": label.value.replace("_", " ")},
         metrics=AlertMetricsSnapshot(
             fraud_label=label, fraud_reviewed_at=reviewed_at
         ),

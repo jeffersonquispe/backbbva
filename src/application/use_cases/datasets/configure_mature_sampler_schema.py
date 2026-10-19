@@ -28,6 +28,11 @@ from src.domain.datasets.mature_sample_entities import MatureSamplerSchemaMappin
 
 FINAL_LABELS = {"fraud", "no_fraud"}
 DATE_FIELD_TYPES = {AlertSchemaFieldType.DATE, AlertSchemaFieldType.DATETIME}
+MARK_FIELD_TYPES = {
+    AlertSchemaFieldType.STRING,
+    AlertSchemaFieldType.NUMBER,
+    AlertSchemaFieldType.BOOL,
+}
 
 
 class GetMatureSamplerSchemaConfigurationUseCase:
@@ -47,6 +52,16 @@ class GetMatureSamplerSchemaConfigurationUseCase:
             self._sampler_settings.get().sampler_compatible_schema_versions,
         )
         return {
+            "initial_mark_fields": [
+                _field_option(field)
+                for field in fields
+                if not field.is_label and field.type in MARK_FIELD_TYPES
+            ],
+            "initial_marking_date_fields": [
+                _field_option(field)
+                for field in fields
+                if not field.is_label and field.type in DATE_FIELD_TYPES
+            ],
             "target_fields": [_field_option(field) for field in fields if field.is_label],
             "marking_date_fields": [
                 _field_option(field)
@@ -84,18 +99,37 @@ class UpdateMatureSamplerSchemaConfigurationUseCase:
             self._sampler_settings.get().sampler_compatible_schema_versions,
         )
         target_pool = {field.field for field in fields if field.is_label}
+        initial_mark_pool = {
+            field.field
+            for field in fields
+            if not field.is_label and field.type in MARK_FIELD_TYPES
+        }
         date_pool = {
             field.field
             for field in fields
             if not field.is_label and field.type in DATE_FIELD_TYPES
         }
         raw_mapping = proposed.label_value_mapping or {}
-        clearing = not proposed.target_field and not proposed.marking_date_field and not raw_mapping
+        clearing = not any(
+            (
+                proposed.initial_mark_field,
+                proposed.initial_marking_date_field,
+                proposed.target_field,
+                proposed.marking_date_field,
+                raw_mapping,
+            )
+        )
         if not clearing:
+            if proposed.initial_mark_field not in initial_mark_pool:
+                raise ValidationError("La marca inicial debe pertenecer al esquema compatible")
+            if proposed.initial_marking_date_field not in date_pool:
+                raise ValidationError("La fecha inicial debe ser date/datetime del esquema compatible")
             if proposed.target_field not in target_pool:
                 raise ValidationError("El campo objetivo debe ser una etiqueta del esquema compatible")
             if proposed.marking_date_field not in date_pool:
                 raise ValidationError("La fecha de marcación debe ser date/datetime del esquema compatible")
+            if proposed.initial_marking_date_field == proposed.marking_date_field:
+                raise ValidationError("Las fechas inicial y de última marcación deben ser distintas")
         if len(raw_mapping) > 50 or (not clearing and not raw_mapping):
             raise ValidationError("Configura entre 1 y 50 valores de etiqueta")
         normalized: dict[str, str] = {}
@@ -110,6 +144,8 @@ class UpdateMatureSamplerSchemaConfigurationUseCase:
         if not clearing and set(normalized.values()) != FINAL_LABELS:
             raise ValidationError("El mapeo debe incluir las clases fraud y no_fraud")
         updated_mapping = MatureSamplerSchemaMapping(
+            initial_mark_field=proposed.initial_mark_field,
+            initial_marking_date_field=proposed.initial_marking_date_field,
             target_field=proposed.target_field,
             marking_date_field=proposed.marking_date_field,
             label_value_mapping=normalized,
@@ -177,6 +213,8 @@ def _field_option(field: AlertSchemaField) -> dict[str, str]:
 
 def _mapping_payload(mapping: MatureSamplerSchemaMapping) -> dict[str, Any]:
     return {
+        "initial_mark_field": mapping.initial_mark_field,
+        "initial_marking_date_field": mapping.initial_marking_date_field,
         "target_field": mapping.target_field,
         "marking_date_field": mapping.marking_date_field,
         "label_value_mapping": dict(mapping.label_value_mapping or {}),

@@ -63,8 +63,10 @@ class PreviewMatureSampleUseCase:
         today = as_of or now.date()
         settings = self._sampler_settings.get()
         mapping = self._schema_mapping.get()
-        if not mapping.target_field or not mapping.marking_date_field or not mapping.label_value_mapping:
-            raise ValueError("Configura la etiqueta objetivo, su mapeo y la fecha de marcación")
+        if not _schema_mapping_is_configured(mapping):
+            raise ValueError(
+                "Configura la marca inicial, sus fechas y la etiqueta vigente con su mapeo"
+            )
         self._validate_schema_mapping(mapping, settings.sampler_compatible_schema_versions)
         maturity = self._operational_settings.get().maturing_days
         period_end = today - timedelta(days=maturity)
@@ -143,7 +145,9 @@ class PreviewMatureSampleUseCase:
                 f"compatible: {', '.join(sorted(unsupported))}"
             )
 
-    def _validate_schema_mapping(self, mapping, compatible_versions: tuple[str, ...]) -> None:
+    def _validate_schema_mapping(
+        self, mapping, compatible_versions: tuple[str, ...]
+    ) -> None:
         versions = self._schemas.list_versions()
         if compatible_versions:
             selected = {int(value) for value in compatible_versions}
@@ -159,6 +163,25 @@ class PreviewMatureSampleUseCase:
             for field in version.fields
             if field.is_alert and not field.is_sensible
         ]
+        if not any(
+            field.field == mapping.initial_mark_field
+            and not field.is_label
+            and field.type
+            in {
+                AlertSchemaFieldType.STRING,
+                AlertSchemaFieldType.NUMBER,
+                AlertSchemaFieldType.BOOL,
+            }
+            for field in fields
+        ):
+            raise ValueError("La marca inicial no pertenece al esquema compatible")
+        if not any(
+            field.field == mapping.initial_marking_date_field
+            and field.type in {AlertSchemaFieldType.DATE, AlertSchemaFieldType.DATETIME}
+            and not field.is_label
+            for field in fields
+        ):
+            raise ValueError("La fecha inicial no pertenece al esquema compatible")
         if not any(field.field == mapping.target_field and field.is_label for field in fields):
             raise ValueError("El campo objetivo no pertenece al esquema compatible")
         if not any(
@@ -168,6 +191,8 @@ class PreviewMatureSampleUseCase:
             for field in fields
         ):
             raise ValueError("La fecha de marcación no pertenece al esquema compatible")
+        if mapping.initial_marking_date_field == mapping.marking_date_field:
+            raise ValueError("Las fechas inicial y de última marcación deben ser distintas")
 
     def _active_triggers(
         self,
@@ -296,3 +321,13 @@ def _population_stability_index(
             current_share / previous_share
         )
     return score
+
+
+def _schema_mapping_is_configured(mapping) -> bool:
+    return bool(
+        mapping.initial_mark_field
+        and mapping.initial_marking_date_field
+        and mapping.target_field
+        and mapping.marking_date_field
+        and mapping.label_value_mapping
+    )
