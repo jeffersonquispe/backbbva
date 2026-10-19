@@ -426,7 +426,7 @@ local-docker-build:  ## Build local API, worker and MCP images. Vars: LOCAL_DOCK
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-worker-training mcp
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-beat aria-worker-training mcp
 
 .PHONY: local-api-build
 local-api-build:  ## Build only the local API image from the current backend source.
@@ -440,7 +440,7 @@ local-worker-refresh:  ## Recreate local alert/test/training workers and MCP fro
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		up -d --force-recreate aria-worker-main aria-worker-test aria-worker-training mcp
+		up -d --force-recreate aria-worker-main aria-agent-worker aria-agent-beat aria-worker-test aria-worker-training mcp
 
 .PHONY: local-test-queue-purge
 local-test-queue-purge:  ## Purge queued test-run tasks after stopping the local test worker.
@@ -458,11 +458,11 @@ local-e2e-logs:  ## Show recent local API and E2E worker logs.
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		logs --tail=120 --no-color api aria-worker-main aria-worker-test
+		logs --tail=120 --no-color api aria-worker-main aria-agent-worker aria-agent-beat aria-worker-test
 
 .PHONY: local-worker-stats
 local-worker-stats:  ## Show a point-in-time CPU/RAM reading for local worker services.
-	@$(DOCKER) stats --no-stream aria-worker-main aria-worker-training aria-worker-test aria-worker-scheduler aria-worker-simulator
+	@$(DOCKER) stats --no-stream aria-worker-main aria-agent-worker aria-agent-beat aria-worker-training aria-worker-test aria-worker-scheduler aria-worker-simulator
 
 .PHONY: local-docker-run
 local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, default ../frontend_mockup). LLM/other app config comes from config/$(LOCAL_DOCKER_ENV)/config.cfg, mounted read-only - edit it and re-run this to pick up changes. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
@@ -477,7 +477,7 @@ local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, defau
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		restart api aria-worker-main aria-worker-training mcp
+		restart api aria-worker-main aria-agent-worker aria-agent-beat aria-worker-training mcp
 	@if [ -d "$(FRONTEND_DIR)" ]; then \
 		$(MAKE) -C $(FRONTEND_DIR) run; \
 	else \
@@ -621,7 +621,7 @@ e2e-observability:  ## Rebuild API/worker/web and run real dashboards, metrics a
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-beat
 	@$(MAKE) -C ../frontend_mockup build
 	@$(MAKE) local-docker-run
 	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
@@ -629,12 +629,25 @@ e2e-observability:  ## Rebuild API/worker/web and run real dashboards, metrics a
 		LOCAL_DOCKER_ENV=$(LOCAL_DOCKER_ENV) \
 		$(PYTHON) scripts/e2e_observability_local.py
 
+.PHONY: e2e-agent-local
+e2e-agent-local:  ## Run real assistant/optimizer API and Celery lifecycle E2E through nginx localhost:80.
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-beat
+	@$(MAKE) local-docker-run
+	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+		LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
+		LOCAL_DOCKER_ENV=$(LOCAL_DOCKER_ENV) \
+		LOCAL_DYNAMODB_PORT=$(LOCAL_DYNAMODB_PORT) \
+		$(PYTHON) scripts/e2e_agent_local.py
+
 .PHONY: e2e-all-local
 e2e-all-local:  ## Rebuild the local stack and run the full real-API Playwright E2E suite through nginx localhost:80.
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-beat
 	@$(MAKE) -C ../frontend_mockup build
 	@CELERY_STUCK_TASK_TIMEOUT_SECONDS=120 $(MAKE) local-docker-run
 	@CELERY_STUCK_TASK_TIMEOUT_SECONDS=120 E2E_FULL_SUITE=1 E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
@@ -651,7 +664,7 @@ e2e-real:  ## Run real E2E from zero (default) or resume at a numbered E2E_FROM 
 	@$(MAKE) -C ../frontend_mockup run
 	@if test -z "$(E2E_FROM)" -o "$(E2E_FROM)" = "0"; then \
 		E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) $(PYTHON) scripts/e2e_api_clean.py --yes && \
-		$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) restart api aria-worker-main && \
+		$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) restart api aria-worker-main aria-agent-worker aria-agent-beat && \
 		$(MAKE) -C ../frontend_mockup down && $(MAKE) -C ../frontend_mockup run && \
 		$(MAKE) e2e-seed E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 			E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \

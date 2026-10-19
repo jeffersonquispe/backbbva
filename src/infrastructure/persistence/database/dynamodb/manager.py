@@ -48,6 +48,16 @@ from src.infrastructure.persistence.database.dynamodb.repositories.variable_cata
     DynamoVariableCatalogRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.schemas import (
+    AGENT_BUDGET_LEDGER_TABLE,
+    AGENT_CONFIRMATIONS_TABLE,
+    AGENT_ITERATIONS_TABLE,
+    AGENT_PACKAGES_TABLE,
+    AGENT_PROMPT_ACTIVE_TABLE,
+    AGENT_PROMPTS_TABLE,
+    AGENT_RUNS_TABLE,
+    AGENT_SESSIONS_TABLE,
+    AGENT_TOOL_CALLS_TABLE,
+    AGENT_VERIFICATIONS_TABLE,
     ALERT_FIELD_MAPPINGS_TABLE,
     ALERT_REASONING_EVALUATIONS_TABLE,
     ALERT_SCHEMA_PRESENCE_REPORTS_TABLE,
@@ -428,6 +438,17 @@ def ensure_all_tables() -> None:
     # Assistant and optimizer settings singleton plus append-only history.
     create_table(ASSISTANT_OPTIMIZER_SETTINGS_TABLE)
     create_table(ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE)
+    # Agent orchestration tables (kept together for the H3 backbone).
+    create_table(AGENT_SESSIONS_TABLE)
+    create_table(AGENT_ITERATIONS_TABLE)
+    create_table(AGENT_RUNS_TABLE)
+    create_table(AGENT_TOOL_CALLS_TABLE)
+    create_table(AGENT_BUDGET_LEDGER_TABLE)
+    create_table(AGENT_VERIFICATIONS_TABLE)
+    create_table(AGENT_PACKAGES_TABLE)
+    create_table(AGENT_CONFIRMATIONS_TABLE)
+    create_table(AGENT_PROMPTS_TABLE)
+    create_table(AGENT_PROMPT_ACTIVE_TABLE)
 
 
 def seed_defaults() -> None:

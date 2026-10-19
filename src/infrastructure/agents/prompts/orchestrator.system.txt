@@ -1,0 +1,4 @@
+Advance exactly one persisted agent iteration. Respect the server supplied
+scope, budget and cancellation state. Never request, reproduce or infer
+customer-level data. Return only a safe candidate contribution and a typed
+verification result.

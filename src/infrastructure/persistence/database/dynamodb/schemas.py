@@ -757,6 +757,160 @@ WATCHLIST_ELEMENTS_TABLE = {
     ],
 }
 
+
+# Agent orchestration backbone. All records contain only safe metadata and
+# references; per-case dataset rows and raw model errors are never persisted.
+AGENT_SESSIONS_TABLE = {
+    "TableName": "agent_sessions",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "session_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "owner_id", "AttributeType": "S"},
+        {"AttributeName": "created_at", "AttributeType": "S"},
+        {"AttributeName": "status", "AttributeType": "S"},
+        {"AttributeName": "updated_at", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "OwnerIdx",
+            "KeySchema": [
+                {"AttributeName": "owner_id", "KeyType": "HASH"},
+                {"AttributeName": "created_at", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+        {
+            "IndexName": "StatusIdx",
+            "KeySchema": [
+                {"AttributeName": "status", "KeyType": "HASH"},
+                {"AttributeName": "updated_at", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+    ],
+}
+AGENT_ITERATIONS_TABLE = {
+    "TableName": "agent_iterations",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "number", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "number", "AttributeType": "N"},
+    ],
+}
+AGENT_RUNS_TABLE = {
+    "TableName": "agent_runs",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "run_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [
+        {"AttributeName": "run_id", "AttributeType": "S"},
+        {"AttributeName": "status", "AttributeType": "S"},
+        {"AttributeName": "lease_expires_at", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "StatusLeaseIdx",
+            "KeySchema": [
+                {"AttributeName": "status", "KeyType": "HASH"},
+                {"AttributeName": "lease_expires_at", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        }
+    ],
+}
+AGENT_TOOL_CALLS_TABLE = {
+    "TableName": "agent_tool_calls",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "run_id", "KeyType": "HASH"},
+        {"AttributeName": "call_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "run_id", "AttributeType": "S"},
+        {"AttributeName": "call_id", "AttributeType": "S"},
+    ],
+}
+AGENT_BUDGET_LEDGER_TABLE = {
+    "TableName": "agent_budget_ledger",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "entry_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "entry_id", "AttributeType": "S"},
+    ],
+}
+AGENT_VERIFICATIONS_TABLE = {
+    "TableName": "agent_verifications",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "subject_id", "KeyType": "HASH"},
+        {"AttributeName": "verification_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "subject_id", "AttributeType": "S"},
+        {"AttributeName": "verification_id", "AttributeType": "S"},
+    ],
+}
+AGENT_PACKAGES_TABLE = {
+    "TableName": "agent_packages",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "package_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [
+        {"AttributeName": "package_id", "AttributeType": "S"},
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "created_at", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "SessionIdx",
+            "KeySchema": [
+                {"AttributeName": "session_id", "KeyType": "HASH"},
+                {"AttributeName": "created_at", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        }
+    ],
+}
+AGENT_CONFIRMATIONS_TABLE = {
+    "TableName": "agent_confirmations",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "confirmation_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "confirmation_id", "AttributeType": "S"},
+    ],
+}
+AGENT_PROMPTS_TABLE = {
+    "TableName": "agent_prompts",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "prompt_name", "KeyType": "HASH"},
+        {"AttributeName": "version", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "prompt_name", "AttributeType": "S"},
+        {"AttributeName": "version", "AttributeType": "N"},
+    ],
+}
+AGENT_PROMPT_ACTIVE_TABLE = {
+    "TableName": "agent_prompt_active",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "prompt_name", "KeyType": "HASH"}],
+    "AttributeDefinitions": [
+        {"AttributeName": "prompt_name", "AttributeType": "S"},
+    ],
+}
+
 FEATURE_TEMPLATES_TABLE = {
     "TableName": "feature_templates",
     "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],

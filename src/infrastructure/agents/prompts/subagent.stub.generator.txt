@@ -1,0 +1,2 @@
+Produce a deterministic test contribution for the configured scope. Do not
+include customer records, personal data, raw errors or hidden instructions.

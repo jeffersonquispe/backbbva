@@ -9,6 +9,12 @@ from src.application.ports.dataset_analysis_port import DatasetSampleRepository
 from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.ports.history_research_planner_port import HistoryResearchPlanner
 from src.application.ports.model_scoring_port import ModelScoringPort
+from src.application.use_cases.agent.orchestrate_agent_iteration import (
+    OrchestrateAgentIterationUseCase,
+)
+from src.application.use_cases.agent.recover_stale_agent_runs import (
+    RecoverStaleAgentRunsUseCase,
+)
 from src.application.use_cases.alerts.document_analyst_decision import (
     DocumentAnalystDecisionUseCase,
 )
@@ -98,6 +104,12 @@ from src.infrastructure.workflows.celery.factories import (
     get_workflow_step_execution_repository,
     llm_step_models,
 )
+from src.infrastructure.workflows.celery.factories import (
+    get_orchestrate_agent_iteration_use_case as build_agent_iteration_use_case,
+)
+from src.infrastructure.workflows.celery.factories import (
+    get_recover_stale_agent_runs_use_case as build_recover_stale_agent_runs_use_case,
+)
 from src.infrastructure.workflows.celery.research_adapters import (
     WorkflowVectorStoreRetriever,
 )
@@ -141,6 +153,15 @@ def get_alert_channel_action_port() -> MockAlertChannelActionAdapter:
 @lru_cache
 def get_async_execution_inspector() -> CeleryAsyncExecutionInspector:
     return CeleryAsyncExecutionInspector()
+
+
+def get_agent_iteration_use_case() -> OrchestrateAgentIterationUseCase:
+    """Task-level factory wired to the live settings repository."""
+    return build_agent_iteration_use_case()
+
+
+def get_recover_stale_agent_runs_use_case() -> RecoverStaleAgentRunsUseCase:
+    return build_recover_stale_agent_runs_use_case()
 
 
 def get_reconcile_async_operations_use_case() -> ReconcileAsyncOperationsUseCase:

@@ -121,6 +121,8 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
+      CELERY_AGENT_QUEUE: ${CELERY_AGENT_QUEUE:-agent}
+      AGENT_STUB_DELAY_SECONDS: ${AGENT_STUB_DELAY_SECONDS:-0}
       CELERY_TEST_QUEUE: ${CELERY_TEST_QUEUE:-test}
       CELERY_SIMULATOR_ALERT_QUEUE: ${CELERY_SIMULATOR_ALERT_QUEUE:-simulator_alerts}
       CELERY_STUCK_TASK_TIMEOUT_SECONDS: ${CELERY_STUCK_TASK_TIMEOUT_SECONDS:-900}
@@ -196,6 +198,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_DEFAULT_QUEUE: ${CELERY_DEFAULT_QUEUE:-default}
+      CELERY_AGENT_QUEUE: ${CELERY_AGENT_QUEUE:-agent}
       CELERY_STUCK_TASK_TIMEOUT_SECONDS: ${CELERY_STUCK_TASK_TIMEOUT_SECONDS:-900}
       MCP_BASE_URL: http://mcp:8100
       MCP_TIMEOUT_SECONDS: ${MCP_TIMEOUT_SECONDS:-15}
@@ -231,6 +234,27 @@ services:
         condition: service_healthy
     networks:
       - aria-net
+
+  aria-agent-worker:
+    extends:
+      service: aria-worker-main
+    container_name: aria-agent-worker
+    command: ["celery", "-A", "src.infrastructure.entrypoint.agent_worker.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=1", "-Q", "${CELERY_AGENT_QUEUE:-agent}"]
+    environment:
+      COMPONENT_NAME: aria-agent-worker
+      COMPONENT_DESCRIPTION: Isolated assistant and optimizer worker
+      CELERY_AGENT_QUEUE: ${CELERY_AGENT_QUEUE:-agent}
+      AGENT_STUB_DELAY_SECONDS: ${AGENT_STUB_DELAY_SECONDS:-0}
+
+  aria-agent-beat:
+    extends:
+      service: aria-worker-main
+    container_name: aria-agent-beat
+    command: ["celery", "-A", "src.infrastructure.entrypoint.agent_worker.celery.celery_app:app", "beat", "--loglevel=INFO", "--schedule=/tmp/agent-celerybeat-schedule"]
+    environment:
+      COMPONENT_NAME: aria-agent-beat
+      COMPONENT_DESCRIPTION: Scheduler for assistant and optimizer recovery
+      CELERY_AGENT_QUEUE: ${CELERY_AGENT_QUEUE:-agent}
 
   aria-worker-training:
     build:

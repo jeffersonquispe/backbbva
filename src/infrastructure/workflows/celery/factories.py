@@ -3,10 +3,14 @@ from __future__ import annotations
 from functools import lru_cache
 from uuid import UUID
 
+from src.application.ports.agent_subagent_port import AgentSubagent
 from src.application.ports.alert_port import AlertRepository
 from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.alert_schema_presence_report_port import (
     AlertSchemaPresenceReportRepository,
+)
+from src.application.ports.assistant_optimizer_settings_port import (
+    AssistantOptimizerSettingsPort,
 )
 from src.application.ports.async_operation_port import AsyncOperationRepository
 from src.application.ports.configuration_port import ConfigurationRepository
@@ -31,6 +35,12 @@ from src.application.ports.workflow_port import WorkflowExecutionRepository
 from src.application.ports.workflow_status_port import WorkflowStatusReporter
 from src.application.ports.workflow_step_execution_port import (
     WorkflowStepExecutionRepository,
+)
+from src.application.use_cases.agent.orchestrate_agent_iteration import (
+    OrchestrateAgentIterationUseCase,
+)
+from src.application.use_cases.agent.recover_stale_agent_runs import (
+    RecoverStaleAgentRunsUseCase,
 )
 from src.application.use_cases.alert_schema.analyze_presence import (
     AnalyzeAlertSchemaPresenceUseCase,
@@ -86,6 +96,15 @@ from src.application.use_cases.operations.live_operations_capacity import (
     LiveOperationsCapacity,
 )
 from src.application.use_cases.research.research_tool import BoundedResearchTool
+from src.infrastructure.agents.factories import (
+    get_agent_budget_ledger_repository,
+    get_agent_iteration_repository,
+    get_agent_package_repository,
+    get_agent_run_repository,
+    get_agent_session_repository,
+    get_agent_verification_repository,
+)
+from src.infrastructure.agents.stub_subagent import StubAgentSubagent
 from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.core.runtime.system_clock import get_clock
@@ -134,6 +153,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import (
     DynamoAlertSchemaRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.assistant_optimizer_settings_repository import (
+    DynamoAssistantOptimizerSettingsRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
@@ -756,5 +778,40 @@ def get_record_operational_state_use_case():
         operations_capacity=get_live_operations_capacity(),
         monitoring=get_monitoring(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        clock=get_clock(),
+    )
+
+
+@lru_cache
+def get_assistant_optimizer_settings_repository() -> AssistantOptimizerSettingsPort:
+    """Shared live settings adapter for agent API and worker composition."""
+    return DynamoAssistantOptimizerSettingsRepository()
+
+
+def get_orchestrate_agent_iteration_use_case(
+    settings: AssistantOptimizerSettingsPort | None = None,
+    subagent: AgentSubagent | None = None,
+) -> OrchestrateAgentIterationUseCase:
+    """Compose the agent tick with the live Dynamo settings repository."""
+    return OrchestrateAgentIterationUseCase(
+        sessions=get_agent_session_repository(),
+        iterations=get_agent_iteration_repository(),
+        runs=get_agent_run_repository(),
+        budget=get_agent_budget_ledger_repository(),
+        packages=get_agent_package_repository(),
+        verifications=get_agent_verification_repository(),
+        settings=settings or get_assistant_optimizer_settings_repository(),
+        subagent=subagent
+        or StubAgentSubagent(genai_config.AGENT_STUB_DELAY_SECONDS),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
+
+
+def get_recover_stale_agent_runs_use_case() -> RecoverStaleAgentRunsUseCase:
+    return RecoverStaleAgentRunsUseCase(
+        sessions=get_agent_session_repository(),
+        iterations=get_agent_iteration_repository(),
+        runs=get_agent_run_repository(),
         clock=get_clock(),
     )
