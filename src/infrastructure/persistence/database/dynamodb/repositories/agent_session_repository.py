@@ -109,6 +109,16 @@ class DynamoAgentSessionRepository:
         attributes = result.get("Attributes")
         return _from_item(attributes) if attributes else None
 
+    def increment_message_seq(self, session_id: str) -> int:
+        result = self._table.update_item(
+            Key={"session_id": session_id},
+            UpdateExpression="ADD message_seq :one, rev :one",
+            ConditionExpression="attribute_exists(session_id)",
+            ExpressionAttributeValues={":one": 1},
+            ReturnValues="UPDATED_NEW",
+        )
+        return int(result["Attributes"]["message_seq"])
+
 
 def _to_item(session: AgentSession) -> dict[str, Any]:
     item = asdict(session)
@@ -140,4 +150,5 @@ def _from_item(item: dict[str, Any]) -> AgentSession:
             else None
         ),
         rev=int(item.get("rev", 0)),
+        message_seq=int(item.get("message_seq", 0)),
     )

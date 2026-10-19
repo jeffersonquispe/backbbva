@@ -642,6 +642,21 @@ e2e-agent-local:  ## Run real assistant/optimizer API and Celery lifecycle E2E t
 		LOCAL_DYNAMODB_PORT=$(LOCAL_DYNAMODB_PORT) \
 		$(PYTHON) scripts/e2e_agent_local.py
 
+.PHONY: e2e-agent-chat-local
+e2e-agent-chat-local:  ## Run real Playwright chat/masking/idempotency E2E through nginx localhost:80.
+	@set -euo pipefail; \
+	lock=/tmp/aria-e2e.lock; \
+	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
+	trap 'rmdir "$$lock"' EXIT; \
+	$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		build $(LOCAL_DOCKER_BUILD_ARGS) api; \
+	$(MAKE) local-docker-run; \
+	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
+	node scripts/e2e_agent_chat_local.mjs
+
 .PHONY: e2e-all-local
 e2e-all-local:  ## Rebuild the local stack and run the full real-API Playwright E2E suite through nginx localhost:80.
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \

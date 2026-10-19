@@ -80,7 +80,7 @@ def _configured_table_names() -> set[str]:
         value["TableName"]
         for value in vars(schemas).values()
         if isinstance(value, dict) and "TableName" in value
-    }
+    } | AGENT_CHAT_BACKUP_TABLES
 
 
 def _timestamp() -> str:
@@ -393,6 +393,18 @@ def main() -> None:
         prune(args.skip_object_storage)
     elif args.command == "drop":
         drop(args.skip_object_storage)
+
+
+# H4 chat tables are explicit backup catalog entries in addition to the
+# schema-derived catalog above.
+AGENT_CHAT_BACKUP_TABLES = frozenset(
+    {
+        "agent_messages",
+        "agent_insights",
+        "agent_links",
+        "agent_session_summaries",
+    }
+)
 
 
 if __name__ == "__main__":

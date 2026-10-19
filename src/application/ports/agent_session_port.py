@@ -32,6 +32,7 @@ class AgentSession:
     lease_owner: str | None = None
     lease_expires_at: datetime | None = None
     rev: int = 0
+    message_seq: int = 0
 
 
 class AgentSessionRepository(Protocol):
@@ -52,3 +53,5 @@ class AgentSessionRepository(Protocol):
     def acquire_lease(
         self, session_id: str, owner: str, now: datetime, expires_at: datetime
     ) -> AgentSession | None: ...
+
+    def increment_message_seq(self, session_id: str) -> int: ...

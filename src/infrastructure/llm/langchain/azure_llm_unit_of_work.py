@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from langchain_openai import AzureChatOpenAI
 
 from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
@@ -23,13 +25,21 @@ class LangchainAzureLLMUnitOfWorkFactory(LLMUnitOfWorkFactory):
         temperature: float = 0.0,
         max_tokens: int | None = None,
     ) -> LLMUnitOfWork:
+        is_gpt5_deployment = "gpt5" in model.lower().replace("-", "")
+        client_options: dict[str, Any] = {
+            "azure_endpoint": genai_config.OPENAI_ENDPOINT,
+            "api_key": genai_config.OPENAI_KEY,
+            "api_version": genai_config.OPENAI_VERSION,
+            "azure_deployment": model,
+            "temperature": None if is_gpt5_deployment else temperature,
+            "max_tokens": None if is_gpt5_deployment else max_tokens,
+        }
+        if is_gpt5_deployment and max_tokens is not None:
+            client_options["model_kwargs"] = {
+                "max_completion_tokens": max_tokens
+            }
         client = AzureChatOpenAI(
-            azure_endpoint=genai_config.OPENAI_ENDPOINT,
-            api_key=genai_config.OPENAI_KEY,
-            api_version=genai_config.OPENAI_VERSION,
-            azure_deployment=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            **client_options,
         )
         return LangchainChatModelUnitOfWork(
             client=client,
