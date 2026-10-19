@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 import builtins
-from datetime import datetime
 from typing import Protocol
 
 from src.domain.fraud_knowledge.library_entities import (
     ModusOperandiLibraryEntry,
     ModusOperandiPlaybook,
 )
-
-
-class ModusOperandiLibraryRevisionConflict(Exception):
-    pass
 
 
 class ModusOperandiLibraryRepository(Protocol):
@@ -32,7 +27,6 @@ class ModusOperandiLibraryRepository(Protocol):
         active: bool | None = None,
         embedding: builtins.list[float] | None = None,
         playbook: ModusOperandiPlaybook | None = None,
-        expected_updated_at: datetime | None = None,
     ) -> ModusOperandiLibraryEntry | None: ...
 
     def delete(self, entry_id: str) -> None: ...

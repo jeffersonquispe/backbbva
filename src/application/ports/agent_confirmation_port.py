@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
@@ -16,10 +16,6 @@ class AgentConfirmation:
     confirmed_by: str
     confirmed_at: datetime
     status: str = "VALID"
-    role: str = "unknown"
-    base_version: str | None = None
-    verification_states: dict[str, str] = field(default_factory=dict)
-    source_message_id: str | None = None
 
 
 class AgentConfirmationRepository(Protocol):

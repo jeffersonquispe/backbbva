@@ -13,13 +13,7 @@ from src.application.runtime_defaults import (
     DEFAULT_ID_GENERATOR,
     resolve_clock,
 )
-from src.application.use_cases.modus_operandi_library.playbook_validation import (
-    validate_playbook,
-)
-from src.domain.fraud_knowledge.library_entities import (
-    ModusOperandiLibraryEntry,
-    ModusOperandiPlaybook,
-)
+from src.domain.fraud_knowledge.library_entities import ModusOperandiLibraryEntry
 
 
 def embedding_text(*, title: str, narrative: str) -> str:
@@ -49,10 +43,7 @@ class CreateModusOperandiLibraryEntryUseCase:
         narrative: str,
         taxonomy_library_id: str,
         evolved_variables: list[str] | None = None,
-        playbook: ModusOperandiPlaybook | None = None,
     ) -> ModusOperandiLibraryEntry:
-        if playbook is not None:
-            validate_playbook(playbook)
         normalized_title = " ".join(title.split()).casefold()
         for existing in self._entries.list():
             if " ".join(existing.title.split()).casefold() == normalized_title:
@@ -76,6 +67,5 @@ class CreateModusOperandiLibraryEntryUseCase:
                 created_at=now,
                 updated_at=now,
                 embedding=embedding,
-                playbook=playbook,
             )
         )

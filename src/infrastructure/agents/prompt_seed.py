@@ -11,7 +11,6 @@ PROMPT_FILES = {
     "orchestrator.system": "orchestrator.system.txt",
     "subagent.stub.generator": "subagent.stub.generator.txt",
     "agent.chat.system": "agent.chat.system.txt",
-    "agent.modus_operandi.generate": "agent.modus_operandi.generate.txt",
 }
 PROMPT_DIRECTORY = Path(__file__).with_name("prompts")
 
