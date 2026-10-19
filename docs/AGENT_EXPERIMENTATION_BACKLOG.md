@@ -2,9 +2,16 @@
 
 ## Guía de retoma (leer primero)
 
-**Estado (2026-10-18).** Todo lo de este documento es diseño: no hay código,
-tablas ni pantallas implementadas, y nada está commiteado (este archivo y
-`PENDIENTES.md` §8 tienen cambios sin commit). El documento nació el
+**Estado (2026-10-18).** La Wave 0 tiene baseline commiteado (`fc8973a`), los
+worktrees A y B ya existen y el contrato `AssistantOptimizerSettings` con su
+fake en memoria está añadido sin commit en la rama de integración. H0 está
+revisado. H1 está pendiente de aprobación: la suite completa encontró una
+prueba que esperaba 422 pero recibió 401 tras proteger el endpoint; la otra
+falla observada también reproduce en el baseline. H3 de B sigue incompleto:
+lint, arquitectura y pytest pasan, pero falta el worker/E2E y el seed de prompts
+no mapea `name` a la clave DynamoDB `prompt_name`. Las tablas de H3 siguen sin
+integrarse a la rama principal y las pantallas del agente no están implementadas.
+El documento nació el
 2026-10-13 como "agente de optimización" centrado en XGBoost (commit
 `6923c68`) y se reescribió el 2026-10-18 tras una conversación larga con el
 usuario. Hay dos registros paralelos: `PENDIENTES.md` §8 y la memoria
@@ -88,8 +95,10 @@ Revisarlos antes de implementar; el usuario puede corregirlos.
 
 ### Decisiones abiertas
 
-- **2**: otros límites duros además del piso de precisión (escalamiento, coste,
-  latencia) y sus valores iniciales.
+- **2 (decidida 2026-10-18):** tope de **50 USD y 12 horas por sesión**,
+  optimizador apagado por defecto, y parada ante el primer fallo crítico. El
+  escalamiento queda como dato informativo; las renovaciones de presupuesto
+  siguen sujetas a aprobación (B0.2).
 - **3**: volumen e historia de etiquetas maduras disponibles.
 - **4**: cómo se renueva el presupuesto en un ciclo prolongado.
 - **5**: quién aprueba y promueve en el optimizador, y si la aprobación es por
@@ -1363,7 +1372,7 @@ retención, kill switches). Incluye backend y experiencia de usuario.
 |---|---|
 | Asistente | `assistant_enabled`, `assistant_max_message_chars` (8.000), `assistant_max_messages_per_session`, `max_sessions_per_user`, `chat_retention_days` (730) |
 | Optimizador | `optimizer_enabled` (kill switch), `optimizer_max_concurrent_sessions`, `optimizer_max_concurrent_runs`, `optimizer_max_candidates_per_session`, `optimizer_session_budget_ceiling` (tokens, USD, segundos), política de renovación de presupuesto (siempre con aprobación; máximo de renovaciones), iteraciones sin mejora antes de parar |
-| Objetivo y límites | `objective_precision_floor` (piso de precisión; el recall se maximiza), soporte mínimo por segmento, conteo mínimo para publicar agregados, cobertura mínima de alertas maduras para declarar ganador. Otros límites duros: decisión 2 |
+| Objetivo y límites | `objective_precision_floor` (piso de precisión; el recall se maximiza), soporte mínimo por segmento, conteo mínimo para publicar agregados, cobertura mínima de alertas maduras para declarar ganador, parada ante fallo crítico. Coste y duración por sesión: 50 USD y 12 horas; escalamiento informativo (decisión 2) |
 | Maduración del fraude | `maturing_days`, `expected_coverage_pct`, `stable_months` (en `OperationalSettings`) |
 | Muestreo de datos | `sampler_enabled`; disparadores (periodo, volumen N, umbral estadístico, enfriamiento); periodo de muestreo en días; tamaño o margen de error y confianza; estratos; mínimo por estrato; razón de sobremuestreo de fraude; proporciones de particiones; política de semilla; máximo de muestras retenidas; versiones de esquema compatibles |
 
@@ -1426,6 +1435,16 @@ para la muestra del muestreador; qué rol aprueba la activación de
 configuraciones; guías del frontend; estado del aprovisionamiento de tablas en
 OKD. Resultado: una nota en este documento con lo hallado.
 *Depende de:* nada.
+
+**Resultado H0 (2026-10-18, verificado en código):** el worker entrena con
+todas las filas del dataset del modelo; no aplica filtro de madurez. El
+entrenamiento recibe un solo dataset y vuelve a crear las particiones
+`training`, `validation`, `calibration` y `test`, así que no consume sin cambios
+cuatro datasets particionados del catálogo. La solicitud de activación la crea
+`channel_manager`; solo `manager` o `release_manager` aprueban y quien la creó
+no puede aprobarla. En OKD las tablas se aprovisionan dinámicamente por
+`ensure_all_tables()` al iniciar la API cuando existe `DYNAMO_ENDPOINT`; esto
+no confirma el estado de un clúster concreto. H0 no requiere pruebas ni E2E.
 
 ### H1 — Ventana de maduración configurable
 Campos `maturing_days`, `expected_coverage_pct` y `stable_months` en
@@ -1745,9 +1764,10 @@ construye una sola vez.
    maduración del fraude (entidad configurable); las alertas inmaduras no las
    usan el agente ni el reentrenamiento (el monitoreo sí las muestra); métrica principal precisión y recall por conteo. La ventana es única
    (decidido: el comportamiento es casi indistinguible entre canales).
-2. Parcialmente resuelta (2026-10-18): el recall se maximiza con un **piso de
-   precisión configurable**. Falta saber si hay otros límites duros
-   (escalamiento, coste, latencia u otros) y los valores iniciales.
+2. ✅ **Resuelta 2026-10-18:** recall maximizado con piso de precisión
+   configurable; tope de 50 USD y 12 horas por sesión; el optimizador está
+   apagado por defecto y se detiene ante el primer fallo crítico. El
+   escalamiento es informativo.
 3. ¿Qué volumen e historia de etiquetas maduras hay?
 4. ¿Cómo se renueva el presupuesto en un ciclo prolongado?
 5. ¿Qué roles pueden chatear, aprobar y promover? ¿La aprobación es por ítem,
