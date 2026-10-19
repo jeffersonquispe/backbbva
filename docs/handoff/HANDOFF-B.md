@@ -1,6 +1,6 @@
 # Handoff Sesión B — H3
 
-Fecha: 2026-10-18
+Fecha: 2026-10-19
 Worktree: `../aria-wt-B`
 Rama: `feat/agent-B`
 Base tras rebase: `8864dba` (`DEMLGENAIF-141 docs(agent): record H1 and H2 integration results`)
@@ -40,7 +40,7 @@ Base tras rebase: `8864dba` (`DEMLGENAIF-141 docs(agent): record H1 and H2 integ
 - `make e2e-agent-local`: stack reconstruido/levantado; E2E real por nginx **pasó**. El flujo reportó: `Agent E2E por nginx: kill switch, cancelación y recuperación pasaron.` Incluyó fallo intencional del worker con `SIGKILL`, run huérfano FAILED por lease vencido y run posterior SUCCEEDED con paquete.
 - Hubo una ejecución focalizada inicial de pytest sin `API_V0_STR`; falló en colección porque la configuración requiere esa variable. Repetida con la variable, pasó 12/12.
 - `make lint-baseline`: no ejecutado; los baselines permanecieron en cero.
-- No se creó commit ni se hizo push.
+- Commit local de H3: `f55be75` (`DEMLGENAIF-141 feat(agent): complete H3 worker orchestration`); sin push.
 
 ## E2E
 
@@ -60,5 +60,6 @@ Base tras rebase: `8864dba` (`DEMLGENAIF-141 docs(agent): record H1 and H2 integ
 
 ## Qué necesito de A o del integrador
 
-- **A:** H2 ya integrado en `8864dba`; no hay dependencia pendiente para cerrar H3.
-- **Integrador:** revisar el handoff y resolver los conflictos de integración que encuentre. H3 queda listo para revisión; no avanzar a H4 hasta recibir aprobación.
+- **A:** H1+H2 integrados en `c1c9937`; H3 ya consume el repositorio de settings real.
+- **Integrador:** H3 fue integrado sin conflictos en `37e5df4`. La revisión independiente pasó lint (Ruff 0, mypy 0), arquitectura (223) y pytest focalizado (12). `make e2e-agent-local` pasó por nginx con kill switch, cancelación y recuperación tras SIGKILL; `make e2e-observability` pasó (1). Suite completa posterior: 20 pasaron; E01 falló con HTTP 500 al aprobar despliegue, E04/E05 por CSV ausentes en `/private/tmp/aria-e04-partitions` y E10 por discrepancia entre el total esperado y el exportado. Estos fallos no recorren el flujo H3.
+- **Estado:** H3 aceptado. B queda autorizado a iniciar H4 backend; H5 espera el cierre de H4. Frontend FP0/FP1 queda asignado a A junto con H6, con prioridad a H6 si compiten por capacidad.
