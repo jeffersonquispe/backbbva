@@ -2,15 +2,14 @@
 
 ## Guía de retoma (leer primero)
 
-**Estado (2026-10-18).** La Wave 0 tiene baseline commiteado (`fc8973a`), los
-worktrees A y B ya existen y el contrato `AssistantOptimizerSettings` con su
-fake en memoria está añadido sin commit en la rama de integración. H0 está
-revisado. H1 está pendiente de aprobación: la suite completa encontró una
-prueba que esperaba 422 pero recibió 401 tras proteger el endpoint; la otra
-falla observada también reproduce en el baseline. H3 de B sigue incompleto:
-lint, arquitectura y pytest pasan, pero falta el worker/E2E y el seed de prompts
-no mapea `name` a la clave DynamoDB `prompt_name`. Las tablas de H3 siguen sin
-integrarse a la rama principal y las pantallas del agente no están implementadas.
+**Estado (2026-10-18).** Wave 0 quedó registrada (`fc8973a` baseline;
+`7d10905` contrato `AssistantOptimizerSettings` y fake). H0 está revisado. H1
+y H2 de A están integrados en `c1c9937`; lint y arquitectura pasan, las 83
+pruebas backend focalizadas pasan y los E2E reales H1/H2 pasan por nginx. La
+suite E2E completa tras el merge tuvo 23 pasadas y una falla E01 al aprobar un
+despliegue (HTTP 500). H3 de B sigue incompleto: faltan task/worker conectados
+al settings real, despliegue local y E2E por nginx. B debe rebasar sobre
+`c1c9937` y sustituir su fake por el repositorio real; H4 espera el cierre de H3.
 El documento nació el
 2026-10-13 como "agente de optimización" centrado en XGBoost (commit
 `6923c68`) y se reescribió el 2026-10-18 tras una conversación larga con el
