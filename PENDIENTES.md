@@ -84,12 +84,15 @@ Decisiones: **nada de esto vive en la config versionada**. On/off, slots de voic
   - ✅ **Implementado 2026-10-02 (sin commit)**: C1–C5, R1–R9, A1–A4 (A4 sólo con caché de 60 s), F1–F6 (frontend_mockup), T1–T6, Q1–Q4, Q6, O2–O4. 971 tests backend ✓, `make test-integration-metrics` ✓, frontend tsc + 18 tests ✓. Runbook: `docs/OBSERVABILITY_RUNBOOK.md`.
   - **Pendiente**:
     - [ ] Q5 E2E Playwright contra el stack local (requiere reconstruir api/worker/web).
-    - [ ] O5 `/security-review`: permisos, auditoría append-only y revisión de datos sensibles.
+    - [x] O5 revisión de código completada; lineamientos en `docs/SECURITY_GUIDELINES_METRICS.md`.
+      - [ ] OKD: verificar mínimo privilegio para API/worker y denegar `UpdateItem`/`DeleteItem` sobre `fraud_label_reviews` y `audit_log`.
+      - [ ] Negocio/plataforma: definir la retención y confirmar KMS para las notas de fraude y los eventos de auditoría.
+      - [ ] Negocio: confirmar el rol autorizado para `fraud_review` (hoy asignado temporalmente a `manager` y `channel_manager`).
     - [ ] A4 en frío no se cumple (90 d ≈ 1 s con 1/8 del volumen; ~8–10 s extrapolado): paralelizar periodos, una sola pasada de distribuciones y `ProjectionExpression`.
     - [ ] TTL no borra en OKD/LocalStack: falta job de limpieza por `expires_at` o validación contra DynamoDB real. También falta cerrar la retención de meses/años.
     - [ ] OKD: sustituir el endpoint upstream placeholder del Collector y definir el valor operativo de `JUDGE_LLM_MODEL`.
     - [x] Código de tablas `metrics_rollups`, `fraud_label_reviews` y `alert_reasoning_evaluations`, GSIs y `make metrics-backfill` ya están implementados; falta provisionarlos/verificarlos en el entorno OKD.
-    - [ ] Confirmar rol del equipo de fraude (`fraud_review` hoy en manager + channel_manager), palabras de outcome del voicebot, definición de “horario de operación” y catálogo de canal/subcanal crudos para filtros.
+    - [ ] Confirmar palabras de outcome del voicebot, definición de “horario de operación” y catálogo de canal/subcanal crudos para filtros.
 
 ## 7. Esquema de alerta y versionamiento
 
