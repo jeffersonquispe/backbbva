@@ -54,6 +54,8 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     ALERT_SCHEMA_SUGGESTIONS_TABLE,
     ALERT_SCHEMA_VERSIONS_TABLE,
     ALERTS_TABLE,
+    ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE,
+    ASSISTANT_OPTIMIZER_SETTINGS_TABLE,
     ASYNC_OPERATIONS_TABLE,
     AUDIT_LOG_TABLE,
     BACKUPS_TABLE,
@@ -422,6 +424,10 @@ def ensure_all_tables() -> None:
     create_table(VECTOR_STORE_INSTANCE_ASSETS_TABLE)
     create_table(WATCHLIST_TABLE)
     create_table(WATCHLIST_ELEMENTS_TABLE)
+
+    # Assistant and optimizer settings singleton plus append-only history.
+    create_table(ASSISTANT_OPTIMIZER_SETTINGS_TABLE)
+    create_table(ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE)
 
 
 def seed_defaults() -> None:

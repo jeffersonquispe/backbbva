@@ -40,7 +40,12 @@ class FraudMaturationProfileResponse(BaseModel):
     avg_days: float | None
     min_days: float | None
     max_days: float | None
+    p50_days: float | None = None
+    p75_days: float | None = None
+    p90_days: float | None = None
     p95_days: float | None
+    p98_days: float | None = None
+    p99_days: float | None = None
 
 
 class FraudMarkingAnalysisResponse(BaseModel):

@@ -33,6 +33,9 @@ from src.infrastructure.entrypoint.api.routers.analyst_capacity_router import (
 from src.infrastructure.entrypoint.api.routers.analyst_queue_router import (
     router as analyst_queue_router,
 )
+from src.infrastructure.entrypoint.api.routers.assistant_optimizer_settings_router import (
+    router as assistant_optimizer_settings_router,
+)
 from src.infrastructure.entrypoint.api.routers.async_operations_router import (
     router as async_operations_router,
 )
@@ -160,6 +163,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         operational_settings_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        assistant_optimizer_settings_router,
         prefix=genai_config.API_V0_STR,
     )
     app.include_router(

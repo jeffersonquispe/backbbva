@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.application.dtos.operational_settings_dtos import (
     UpdateOperationalSettingsInput,
 )
+from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.operational_settings_port import (
     AmountTier,
     OperationalSettings,
@@ -32,6 +33,10 @@ from src.infrastructure.entrypoint.api.factories.operational_settings_factory im
     get_list_operational_settings_history_use_case,
     get_update_operational_settings_use_case,
 )
+from src.infrastructure.entrypoint.api.metrics_query_cache import (
+    get_metrics_query_cache,
+)
+from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas import (
     AmountTierSchema,
     AnalystCapacitySchema,
@@ -43,12 +48,15 @@ from src.infrastructure.entrypoint.api.schemas import (
     UpdateOperationalSettingsRequest,
 )
 
-# No permission Depends here - intentional, not an oversight: this codebase
-# has no auth/permission system wired anywhere yet;
-# the old auth_port.py was removed in CA-009). changed_by
-# below is captured as free text for traceability only, not a verified
-# identity.
 router = APIRouter(prefix="/operational-settings", tags=["operational-settings"])
+
+
+def _require_settings_editor(user: LocalUser) -> None:
+    if user.role not in (LocalRole.RELEASE_MANAGER, LocalRole.MANAGER):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role is not permitted to update operational settings",
+        )
 
 
 @router.get("", response_model=OperationalSettingsSchema)
@@ -67,17 +75,22 @@ def update_operational_settings(
         UpdateOperationalSettingsUseCase,
         Depends(get_update_operational_settings_use_case),
     ],
+    user: Annotated[LocalUser, Depends(get_current_user)],
 ):
+    _require_settings_editor(user)
     try:
         updated = use_case.execute(
             UpdateOperationalSettingsInput(
                 settings=_from_schema(request.settings),
-                changed_by=request.changed_by,
+                changed_by=user.email,
                 preserve_amount_tiers=request.settings.amount_tiers is None,
             )
         )
     except InvalidAmountTiersError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    get_metrics_query_cache().clear()
     return _to_schema(updated)
 
 
@@ -132,6 +145,9 @@ def _to_schema(settings: OperationalSettings) -> OperationalSettingsSchema:
             for tier in settings.amount_tiers
         ],
         reasoning_evaluation_sample_rate=settings.reasoning_evaluation_sample_rate,
+        maturing_days=settings.maturing_days,
+        expected_coverage_pct=settings.expected_coverage_pct,
+        stable_months=settings.stable_months,
     )
 
 
@@ -174,6 +190,9 @@ def _from_schema(schema: OperationalSettingsSchema) -> OperationalSettings:
             for tier in schema.amount_tiers or []
         ],
         reasoning_evaluation_sample_rate=schema.reasoning_evaluation_sample_rate,
+        maturing_days=schema.maturing_days,
+        expected_coverage_pct=schema.expected_coverage_pct,
+        stable_months=schema.stable_months,
     )
 
 

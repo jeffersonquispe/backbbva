@@ -105,7 +105,12 @@ class FraudMaturationProfile:
     avg_days: float | None = None
     min_days: float | None = None
     max_days: float | None = None
+    p50_days: float | None = None
+    p75_days: float | None = None
+    p90_days: float | None = None
     p95_days: float | None = None
+    p98_days: float | None = None
+    p99_days: float | None = None
 
 
 @dataclass

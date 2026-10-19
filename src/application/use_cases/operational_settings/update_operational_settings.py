@@ -7,6 +7,7 @@ from typing import Any
 from src.application.dtos.operational_settings_dtos import (
     UpdateOperationalSettingsInput,
 )
+from src.application.errors import ValidationError
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.operational_settings_port import (
@@ -36,6 +37,12 @@ class UpdateOperationalSettingsUseCase:
     def execute(self, input: UpdateOperationalSettingsInput) -> OperationalSettings:
         current = self._repository.get()
         proposed = input.settings
+        if not 0 <= proposed.maturing_days <= 365:
+            raise ValidationError("maturing_days debe estar entre 0 y 365")
+        if not 0 <= proposed.expected_coverage_pct <= 100:
+            raise ValidationError("expected_coverage_pct debe estar entre 0 y 100")
+        if not 0 <= proposed.stable_months <= 120:
+            raise ValidationError("stable_months debe estar entre 0 y 120")
         if input.preserve_amount_tiers:
             proposed = dataclasses.replace(proposed, amount_tiers=current.amount_tiers)
         # Raises InvalidAmountTiersError (-> 422 at the router).

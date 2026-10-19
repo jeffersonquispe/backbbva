@@ -31,8 +31,10 @@ os.environ.setdefault("GENAI_ENVIRONMENT", "test")
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.application.dtos.metrics_dtos import MetricsQueryInput
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.metrics_rollup_port import RollupRow
+from src.application.ports.operational_settings_port import OperationalSettings
 from src.application.use_cases.metrics.alert_rollup_contribution import diff
 from src.application.use_cases.metrics.get_agent_metrics import GetAgentMetrics
 from src.application.use_cases.metrics.get_metrics_overview import GetMetricsOverview
@@ -127,6 +129,14 @@ class InMemoryMetricsRollupRepository:
                 RollupRow(key=key, measures={m: list(s) for m, s in measures.items()})
             )
         return result
+
+
+class InMemoryOperationalSettingsRepository:
+    def __init__(self, settings: OperationalSettings) -> None:
+        self.settings = settings
+
+    def get(self) -> OperationalSettings:
+        return self.settings
 
 
 # --- random data ------------------------------------------------------------------
@@ -351,6 +361,29 @@ def _params(from_, to, filters):
     for name, values in filters.items():
         params.extend((name, value) for value in values)
     return params
+
+
+def test_metrics_read_maturity_thresholds_from_operational_settings() -> None:
+    settings = InMemoryOperationalSettingsRepository(
+        OperationalSettings(maturing_days=0, stable_months=0)
+    )
+    use_case = GetMetricsOverview(
+        InMemoryMetricsRollupRepository(),
+        TZ,
+        clock=lambda: NOW,
+        operational_settings_repository=settings,
+    )
+    query = MetricsQueryInput(
+        from_=datetime(2026, 10, 1, 12, tzinfo=UTC),
+        to=datetime(2026, 10, 1, 15, tzinfo=UTC),
+    )
+
+    first = use_case.execute(query)
+    assert all(period.maturation == "stable" for period in first.periods)
+
+    settings.settings = OperationalSettings(maturing_days=4, stable_months=6)
+    second = use_case.execute(query)
+    assert all(period.maturation == "maturing" for period in second.periods)
 
 
 @pytest.mark.parametrize("seed", range(6))

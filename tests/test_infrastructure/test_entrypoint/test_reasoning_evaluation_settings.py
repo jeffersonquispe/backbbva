@@ -3,9 +3,13 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from uuid import UUID
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.operational_settings_port import OperationalSettings
 from src.application.use_cases.operational_settings.update_operational_settings import (
     UpdateOperationalSettingsUseCase,
@@ -13,6 +17,7 @@ from src.application.use_cases.operational_settings.update_operational_settings 
 from src.infrastructure.entrypoint.api.factories.operational_settings_factory import (
     get_update_operational_settings_use_case,
 )
+from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.routers.operational_settings_router import router
 from src.infrastructure.persistence.database.dynamodb.repositories.operational_settings_repository import (
     _from_item,
@@ -40,6 +45,18 @@ class InMemoryOperationalSettingsRepository:
 def _client(repository) -> TestClient:
     app = FastAPI()
     app.include_router(router)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    user = LocalUser(
+        id=UUID("00000000-0000-0000-0000-000000000001"),
+        email="manager@example.com",
+        name="Manager",
+        password_hash="",
+        role=LocalRole.MANAGER,
+        is_active=True,
+        created_at=now,
+        updated_at=now,
+    )
+    app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_update_operational_settings_use_case] = (
         lambda: UpdateOperationalSettingsUseCase(repository)
     )
