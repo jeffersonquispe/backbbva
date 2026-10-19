@@ -5,9 +5,12 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from botocore.exceptions import ClientError
+
 from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryEntry,
     ModusOperandiLibraryRepository,
+    ModusOperandiLibraryRevisionConflict,
     ModusOperandiPlaybook,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
@@ -51,6 +54,7 @@ class DynamoModusOperandiLibraryRepository(ModusOperandiLibraryRepository):
         active: bool | None = None,
         embedding: list[float] | None = None,
         playbook: ModusOperandiPlaybook | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> ModusOperandiLibraryEntry | None:
         current = self.get(entry_id)
         if current is None:
@@ -75,7 +79,20 @@ class DynamoModusOperandiLibraryRepository(ModusOperandiLibraryRepository):
             embedding=embedding if embedding is not None else current.embedding,
             playbook=playbook if playbook is not None else current.playbook,
         )
-        self._table.put_item(Item=_to_item(updated))
+        kwargs: dict[str, Any] = {"Item": _to_item(updated)}
+        if expected_updated_at is not None:
+            kwargs["ConditionExpression"] = "updated_at = :expected"
+            kwargs["ExpressionAttributeValues"] = {
+                ":expected": expected_updated_at.isoformat()
+            }
+        try:
+            self._table.put_item(**kwargs)
+        except ClientError as error:
+            if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                raise ModusOperandiLibraryRevisionConflict(
+                    "modus operandi entry revision changed"
+                ) from error
+            raise
         return updated
 
     def delete(self, entry_id: str) -> None:

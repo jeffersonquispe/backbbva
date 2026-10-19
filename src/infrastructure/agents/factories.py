@@ -26,6 +26,9 @@ from src.application.ports.agent_verification_port import (
 )
 from src.application.ports.personal_data_masker_port import PersonalDataMasker
 from src.infrastructure.agents.llm_chat_responder import LLMChatResponder
+from src.infrastructure.agents.modus_operandi_generator_subagent import (
+    ModusOperandiGeneratorSubagent,
+)
 from src.infrastructure.agents.rule_based_personal_data_masker import (
     RuleBasedPersonalDataMasker,
 )
@@ -131,3 +134,8 @@ def get_agent_chat_responder() -> AgentChatResponder:
         monitoring=get_monitoring(),
         model=model,
     )
+
+
+@lru_cache
+def get_modus_operandi_generator_subagent() -> ModusOperandiGeneratorSubagent:
+    return ModusOperandiGeneratorSubagent(get_agent_chat_responder())
