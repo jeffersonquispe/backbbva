@@ -858,6 +858,24 @@ AGENT_VERIFICATIONS_TABLE = {
         {"AttributeName": "verification_id", "AttributeType": "S"},
     ],
 }
+AGENT_OBJECTIVES_TABLE = {
+    "TableName": "agent_objectives",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "objective_id", "KeyType": "HASH"},
+        {"AttributeName": "version", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "objective_id", "AttributeType": "S"},
+        {"AttributeName": "version", "AttributeType": "N"},
+    ],
+}
+AGENT_OBJECTIVE_ACTIVE_TABLE = {
+    "TableName": "agent_objective_active",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "objective_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "objective_id", "AttributeType": "S"}],
+}
 AGENT_PACKAGES_TABLE = {
     "TableName": "agent_packages",
     "BillingMode": "PAY_PER_REQUEST",

@@ -7,8 +7,15 @@ from src.infrastructure.queues.celery.agent_dispatcher import (
 )
 from src.infrastructure.workflows.celery.task_factories import (
     get_agent_iteration_use_case,
+    get_global_pipeline_evaluation_use_case,
     get_recover_stale_agent_runs_use_case,
 )
+
+
+@app.task(name="optimizer.evaluate_global_pipeline", acks_late=True)
+def evaluate_global_pipeline(snapshot_id: str) -> dict[str, str]:
+    result = get_global_pipeline_evaluation_use_case().execute(snapshot_id=snapshot_id)
+    return {"status": result.status, "subject_id": result.subject_id}
 
 
 @app.task(name="agent.orchestrate_session", acks_late=True)

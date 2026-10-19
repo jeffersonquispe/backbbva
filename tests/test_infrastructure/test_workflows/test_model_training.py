@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from src.application.ports.model_port import FieldTransform, FieldTransformKind
 from src.infrastructure.workflows.celery.model_evaluation import split_indices
@@ -105,20 +106,33 @@ def test_train_xgboost_model_fits_and_reports_metrics() -> None:
     assert np.all((calibrated >= 0.0) & (calibrated <= 1.0))
 
 
-def test_mature_snapshot_partitions_are_consumed_without_resplitting() -> None:
-    partition_names = ("training", "validation", "test", "final")
+def test_mature_snapshot_uses_only_non_final_partitions() -> None:
+    partition_names = ("training", "validation", "test")
     rows = [
         {
             "__aria_partition": partition_names[index // 4],
             "feature": index,
         }
-        for index in range(16)
+        for index in range(12)
     ]
-    labels = np.asarray([index % 2 for index in range(16)])
+    labels = np.asarray([index % 2 for index in range(12)])
 
     partitions = split_indices(rows, labels, config=None)
 
     assert partitions["training"].tolist() == [0, 1, 2, 3]
     assert partitions["validation"].tolist() == [4, 5, 6, 7]
     assert partitions["calibration"].tolist() == [8, 9, 10, 11]
-    assert partitions["test"].tolist() == [12, 13, 14, 15]
+    assert set(partitions) == {"training", "validation", "calibration"}
+
+
+def test_mature_snapshot_rejects_reserved_final_partition() -> None:
+    rows = [
+        {"__aria_partition": partition, "feature": index}
+        for index, partition in enumerate(
+            ["training"] * 4 + ["validation"] * 4 + ["test"] * 4 + ["final"] * 4
+        )
+    ]
+    labels = np.asarray([index % 2 for index in range(16)])
+
+    with pytest.raises(ValueError, match="reservada para evaluación global"):
+        split_indices(rows, labels, config=None)

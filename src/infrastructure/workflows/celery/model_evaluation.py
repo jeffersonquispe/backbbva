@@ -47,15 +47,16 @@ def split_indices(
     rows: list[dict], y: np.ndarray, config: TrainingConfig
 ) -> dict[str, np.ndarray]:
     if rows and all(_MATURE_SAMPLE_PARTITION_FIELD in row for row in rows):
-        partition_map = {name: [] for name in ("training", "validation", "calibration", "test")}
+        partition_map = {name: [] for name in ("training", "validation", "calibration")}
         source_names = {
             "training": "training",
             "validation": "validation",
             "calibration": "test",
-            "test": "final",
         }
         for index, row in enumerate(rows):
             source = row[_MATURE_SAMPLE_PARTITION_FIELD]
+            if source == "final":
+                raise ValueError("La partición final está reservada para evaluación global")
             target = next(
                 (name for name, source_name in source_names.items() if source == source_name),
                 None,
@@ -250,8 +251,11 @@ def train_model_bundle(
         key=lambda m: (m["f1"], m["precision"], m["threshold"]),
     )
     progress("evaluating", 75)
-    test_y = labels["test"]
-    raw = model.predict_proba(matrices["test"])[:, 1]
+    # For ordinary datasets, test is internal. Mature-sample snapshots contain
+    # no final rows, so report the held-out validation partition as provisional.
+    evaluation_partition = "test" if "test" in labels else "validation"
+    test_y = labels[evaluation_partition]
+    raw = model.predict_proba(matrices[evaluation_partition])[:, 1]
     prob = calibrator.transform(raw)
     fixed = threshold_metrics(test_y, prob, chosen["threshold"])
     metrics = {
@@ -279,7 +283,9 @@ def train_model_bundle(
     )
     report = {
         "schema_version": 1,
-        "evaluation_partition": "test",
+        "evaluation_partition": (
+            "test" if evaluation_partition == "test" else "validation-provisional"
+        ),
         "threshold_selection": "validation_f1",
         "threshold": chosen["threshold"],
         "validation_metrics": chosen,

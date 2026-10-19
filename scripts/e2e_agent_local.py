@@ -161,6 +161,28 @@ def create_session(token: str) -> str:
     return session["session_id"]
 
 
+def exercise_versioned_objective_api(token: str) -> None:
+    status, versions = request("GET", "/agent/objectives", token)
+    check(status, 200, "list objective versions", versions)
+    status, active = request("GET", "/agent/objectives/active", token)
+    if status not in {200, 404}:
+        check(status, 200, "read active objective", active)
+    expected_active_version = active["version"] if status == 200 else None
+    status, draft = request("POST", "/agent/objectives", token, {})
+    check(status, 201, "create objective version", draft)
+    if draft["status"] != "DRAFT" or draft["version"] <= len(versions):
+        raise RuntimeError("objective version was not created as a new immutable draft")
+    status, activated = request(
+        "POST",
+        f"/agent/objectives/{draft['version']}/activate",
+        token,
+        {"expected_active_version": expected_active_version},
+    )
+    check(status, 200, "activate objective version", activated)
+    if activated["status"] != "ACTIVE":
+        raise RuntimeError("objective activation did not become active")
+
+
 def update_settings(token: str, settings: dict[str, Any]) -> None:
     status, _ = request(
         "PUT", "/assistant-optimizer-settings", token, {"settings": settings}
@@ -208,6 +230,7 @@ def main() -> int:
         restart_nginx()
         wait_for_nginx_api()
         token, _user_id = manager_token(temporary_bootstrap)
+        exercise_versioned_objective_api(token)
         status, original_settings = request(
             "GET", "/assistant-optimizer-settings", token
         )

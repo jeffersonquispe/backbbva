@@ -54,6 +54,8 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     AGENT_ITERATIONS_TABLE,
     AGENT_LINKS_TABLE,
     AGENT_MESSAGES_TABLE,
+    AGENT_OBJECTIVE_ACTIVE_TABLE,
+    AGENT_OBJECTIVES_TABLE,
     AGENT_PACKAGES_TABLE,
     AGENT_PROMPT_ACTIVE_TABLE,
     AGENT_PROMPTS_TABLE,
@@ -456,6 +458,9 @@ def ensure_all_tables() -> None:
     create_table(AGENT_TOOL_CALLS_TABLE)
     create_table(AGENT_BUDGET_LEDGER_TABLE)
     create_table(AGENT_VERIFICATIONS_TABLE)
+    # H8 global objective versions and the independently keyed active pointer.
+    create_table(AGENT_OBJECTIVES_TABLE)
+    create_table(AGENT_OBJECTIVE_ACTIVE_TABLE)
     create_table(AGENT_PACKAGES_TABLE)
     create_table(AGENT_CONFIRMATIONS_TABLE)
     create_table(AGENT_PROMPTS_TABLE)

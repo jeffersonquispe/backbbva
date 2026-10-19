@@ -9,6 +9,9 @@ from src.application.ports.dataset_analysis_port import DatasetSampleRepository
 from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.ports.history_research_planner_port import HistoryResearchPlanner
 from src.application.ports.model_scoring_port import ModelScoringPort
+from src.application.use_cases.agent.evaluate_global_pipeline import (
+    EvaluateGlobalPipeline,
+)
 from src.application.use_cases.agent.orchestrate_agent_iteration import (
     OrchestrateAgentIterationUseCase,
 )
@@ -62,6 +65,7 @@ from src.domain.configurations.entities import (
     HistoryPandasResearchConfig,
     VectorStoreResearchConfig,
 )
+from src.infrastructure.agents.factories import get_agent_verification_repository
 from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
     MockAlertChannelActionAdapter,
 )
@@ -73,6 +77,9 @@ from src.infrastructure.model_serving.mcp_scoring_client import (
     MCPModelScoringClient,
 )
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
+from src.infrastructure.persistence.database.dynamodb.repositories.agent_objective_repository import (
+    DynamoAgentObjectiveRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.backup_catalog_repository import (
     DynamoBackupCatalogRepository,
 )
@@ -106,6 +113,7 @@ from src.infrastructure.workflows.celery.factories import (
     get_assistant_optimizer_settings_repository,
     get_async_operation_repository,
     get_discard_alert_use_case,
+    get_model_repository,
     get_operational_settings_repository,
     get_reasoning_evaluation_dispatcher,
     get_record_alert_metrics_event_use_case,
@@ -306,6 +314,23 @@ def get_delete_dataset_use_case() -> DeleteDatasetUseCase:
         summary_repository=get_dataset_summary_repository(),
         clock=get_clock(),
         id_generator=get_id_generator(),
+    )
+
+
+@lru_cache
+def get_global_pipeline_evaluation_use_case() -> EvaluateGlobalPipeline:
+    from src.infrastructure.workflows.celery.model_pipeline_evaluator import (
+        StoredModelPipelineEvaluator,
+    )
+
+    return EvaluateGlobalPipeline(
+        snapshots=get_dataset_snapshot_repository(),
+        datasets=get_dataset_repository(),
+        models=get_model_repository(),
+        objectives=DynamoAgentObjectiveRepository(),
+        verifications=get_agent_verification_repository(),
+        evaluator=StoredModelPipelineEvaluator(get_model_object_storage()),
+        clock=get_clock(),
     )
 
 

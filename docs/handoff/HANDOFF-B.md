@@ -208,3 +208,69 @@ Base: `e2d844f` (integración H4)
 - **E2E:** `make e2e-agent-modus-operandi-local` volvió a pasar por Playwright real vía nginx `http://localhost`: create y update, verificaciones, diff, `base_version`, confirmaciones y auditoría. Salida: `Agent H5 E2E por nginx: modus operandi create/update, verificaciones, diff, base_version y auditoría pasaron.` El target esperó el lock compartido, lo tomó y su `trap` lo liberó; la suite compartida volvió a crear el lock al terminar, y se dejó intacto.
 - Durante la primera reproducción con el adaptador separado, create pasó; el E2E alcanzó update y detectó que el mensaje de prueba no precisaba conservar la estrategia y la resolución primaria. Se aclaró la semántica de patch en el prompt y se hizo explícito el playbook a preservar en el mensaje E2E; la ejecución final pasó los dos caminos.
 - **Estado:** corregido y listo para revisión del integrador. El resultado anterior `113fd03` necesita una actualización con esta corrección antes de otro merge; no se inició otro tipo de entidad.
+
+---
+
+## H8 — objetivos versionados y evaluación global — incompleto, pendiente de E2E
+
+Worktree: `../aria-wt-B-H8`
+
+Rama: `feat/agent-B-H8`
+
+Base: `3fe3198`
+
+### Qué quedó hecho
+
+- Se añadió el dominio de objetivos versionados (`DRAFT`, `ACTIVE`, `RETIRED`), endpoints para listar/crear versiones y activar con control de versión esperada, y persistencia DynamoDB con actualización condicional del puntero activo.
+- Se añadió evaluación global para una sola ejecución por snapshot: compara candidato `READY` contra baseline activo exclusivamente en la partición final reservada; excluye filas con etiqueta pendiente y calcula precision, recall, soporte, cobertura e intervalo bootstrap pareado determinista. El resultado agregado queda asociado al registro de verificaciones del snapshot.
+- Se añadió el puerto del evaluador de pipeline, el caso de uso, dispatcher Celery y la tarea `optimizer.evaluate_global_pipeline`, con composición en factories de tareas.
+- La creación de snapshots de muestra madura conserva las features seguras necesarias para inferencia, omite etiquetas y campos de fecha de marcación en el conjunto de entrenamiento; el split `all` no contiene la partición final. El entrenamiento H6 usa train/validation/calibration y excluye `final`.
+- Se amplió `scripts/e2e_agent_local.py` para ejercitar API real de listar, crear y activar un objetivo. En la última ejecución también pasaron los escenarios existentes de kill switch, cancelación y recuperación del worker.
+
+### Archivos tocados
+
+- `src/domain/agents/objective.py`
+- `src/application/ports/{agent_objective_port.py,global_pipeline_evaluation_port.py,model_pipeline_evaluator_port.py,agent_verification_port.py}`
+- `src/application/use_cases/agent/{manage_agent_objective.py,evaluate_global_pipeline.py}`
+- `src/application/use_cases/datasets/create_mature_sample_snapshot.py`
+- `src/infrastructure/entrypoint/api/{fastapi_app.py,schemas/agent_objectives.py,factories/agent_objective_factory.py,routers/agent_objectives_router.py}`
+- `src/infrastructure/entrypoint/agent_worker/celery/tasks.py`
+- `src/infrastructure/persistence/database/dynamodb/{schemas.py,manager.py,repositories/agent_objective_repository.py,repositories/agent_repositories.py,repositories/e2e_state_cleaner.py}`
+- `src/infrastructure/queues/celery/global_pipeline_evaluation_dispatcher.py`
+- `src/infrastructure/workflows/celery/{model_pipeline_evaluator.py,model_evaluation.py,task_factories.py}`
+- `tests/test_application/test_use_cases/{test_agent_objective.py,test_evaluate_global_pipeline.py,test_create_mature_sample_snapshot.py}`
+- `tests/test_infrastructure/test_workflows/test_model_training.py`
+- `scripts/e2e_agent_local.py`
+- `docs/handoff/HANDOFF-B.md`
+
+### Comandos y resultado real
+
+- `RUFF_CACHE_DIR=/tmp/aria-ruff-cache-B-H8 make lint`: **pasó** — Ruff 0 errores (baseline 0), mypy 0 errores (baseline 0).
+- `API_V0_STR=/api/v0 make test-architecture`: **pasó** — 222 passed.
+- `API_V0_STR=/api/v0 GENAI_ENVIRONMENT=test pytest` sobre pruebas focalizadas de objetivos, evaluación global, snapshots y entrenamiento: **pasó** — 236 passed.
+- `ruff check scripts/e2e_agent_local.py`: **pasó**.
+- E2E: primer intento de `make e2e-agent-local` bloqueado por permiso de Buildx para escribir `~/.docker/buildx/activity`. Repetición con permiso concedido: **pasó**, salida `Agent E2E por nginx: kill switch, cancelación y recuperación pasaron.` La prueba usó nginx en `http://localhost` puerto 80, no mockeó API, y tomó/liberó `/tmp/aria-e2e.lock`.
+- La cobertura E2E actual incluye la ruta API de objetivos, pero no ejecuta una evaluación global completa con baseline/candidato y partición final real. Por eso el E2E requerido para el comportamiento principal de H8 queda **bloqueado/no validado** y H8 permanece incompleto; no se declara como pasado.
+- No se ejecutaron `make e2e-all-local` ni `make e2e-observability`. No se ejecutó `make lint-baseline`; baselines no crecieron.
+
+### E2E y bloqueo pendiente
+
+El E2E real de API/workers terminó pasando sus escenarios incluidos. No se logró demostrar a través de nginx la evaluación global solicitada: el stack local no tiene una preparación E2E de datos/modelos que deje un snapshot con partición final reservada y versiones compatibles de baseline y candidato `READY`. Sin esos artefactos el dispatcher no puede completar la comparación real; las pruebas unitarias cubren la lógica, pero no sustituyen ese E2E. H8 no se entrega como terminado hasta preparar esos artefactos y validar el resultado por nginx.
+
+### Desvíos del modelo de datos propuesto
+
+- El puntero activo se guarda en la tabla nueva `agent_objective_active`, separada de `agent_objectives`; el layout transaccional propuesto inicialmente no funcionó en DynamoDB Local. La activación usa escrituras condicionales y compensación a `DRAFT` al detectar conflicto; el retiro de la versión anterior ocurre después de mover el puntero.
+- Se reutiliza `agent_verifications` como almacenamiento agregado de una evaluación global por snapshot; no se agregó tabla de evaluación independiente.
+- Los snapshots maduros incluyen features seguras del caso, sin etiqueta objetivo ni última fecha de marcación en el conjunto usado para entrenar. La partición `final` se conserva por separado para evaluación.
+- Las dos tablas nuevas (`agent_objectives`, `agent_objective_active`) se registraron en `manager.py` y en el grupo explícito del `e2e_state_cleaner.py`; el catálogo de backups y manifiesto OKD requieren confirmación del integrador antes de integrar.
+
+### Supuestos nuevos y dependencias
+
+- El tipo de métrica global queda fijado a precision/recall/soporte/cobertura e intervalo bootstrap pareado; una comparación sin filas finales etiquetadas no se considera válida.
+- Se asume que los artefactos de candidato y baseline quedan publicados con estado `READY` y son compatibles con el snapshot final antes de despachar la evaluación.
+- La evaluación se reserva por snapshot para impedir repeticiones sobre la partición final; resultados y métricas guardan agregados, sin valores por fila ni datos personales.
+
+### Qué necesito de A o del integrador
+
+- **Integrador:** confirmar el contrato/fuente del catálogo de backups y OKD para las dos tablas nuevas, y proporcionar una preparación E2E local reproducible con snapshot final reservado más baseline y candidato `READY` (o el mecanismo ya integrado para generarlos). Después de eso se debe añadir/ejecutar el flujo E2E por nginx para el dispatcher y resultado de evaluación.
+- No se inició H4 ni otro hito; H8 queda pendiente de esa revisión y validación.

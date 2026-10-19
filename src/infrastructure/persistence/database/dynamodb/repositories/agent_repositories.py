@@ -197,6 +197,23 @@ class DynamoAgentVerificationRepository:
         )
         return verification
 
+    def get(self, subject_id: str, verification_id: str) -> AgentVerification | None:
+        item = self._table.get_item(
+            Key={"subject_id": subject_id, "verification_id": verification_id}
+        ).get("Item")
+        return _verification(item) if item else None
+
+    def update(
+        self, verification: AgentVerification, *, expected_status: str
+    ) -> AgentVerification:
+        self._table.put_item(
+            Item=_encode(asdict(verification)),
+            ConditionExpression="#status = :expected",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":expected": expected_status},
+        )
+        return verification
+
     def list_for_subject(self, subject_id: str) -> list[AgentVerification]:
         result = self._table.query(
             KeyConditionExpression=Key("subject_id").eq(subject_id),

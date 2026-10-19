@@ -8,6 +8,8 @@ from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
 from src.infrastructure.persistence.database.dynamodb.schemas import (
+    AGENT_OBJECTIVE_ACTIVE_TABLE,
+    AGENT_OBJECTIVES_TABLE,
     ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE,
     ASSISTANT_OPTIMIZER_SETTINGS_TABLE,
     DATASET_SAMPLER_STATE_TABLE,
@@ -34,7 +36,9 @@ class DynamoE2EStateCleaner(E2EStateCleaner):
             name
             for name in table_names
             if name
-            in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES | MATURE_SAMPLER_TABLE_NAMES
+            in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
+            | MATURE_SAMPLER_TABLE_NAMES
+            | AGENT_OBJECTIVE_TABLE_NAMES
         ]
         agent_chat_tables = [
             name for name in table_names if name in AGENT_CHAT_TABLE_NAMES
@@ -47,6 +51,7 @@ class DynamoE2EStateCleaner(E2EStateCleaner):
             not in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
             | MATURE_SAMPLER_TABLE_NAMES
             | AGENT_CHAT_TABLE_NAMES
+            | AGENT_OBJECTIVE_TABLE_NAMES
         ]
         deleted = 0
         for table_name in (*settings_tables, *agent_chat_tables, *other_tables):
@@ -104,5 +109,13 @@ MATURE_SAMPLER_TABLE_NAMES = frozenset(
     {
         DATASET_SNAPSHOTS_TABLE["TableName"],
         DATASET_SAMPLER_STATE_TABLE["TableName"],
+    }
+)
+
+# H8 global objective versions and active pointer.
+AGENT_OBJECTIVE_TABLE_NAMES = frozenset(
+    {
+        AGENT_OBJECTIVES_TABLE["TableName"],
+        AGENT_OBJECTIVE_ACTIVE_TABLE["TableName"],
     }
 )

@@ -137,6 +137,19 @@ class CreateMatureSampleSnapshotUseCase:
             raise ValueError("Selecciona al menos un campo del esquema para muestrear")
         if SAMPLE_TARGET_FIELD in fields or PARTITION_METADATA_FIELD in fields:
             raise ValueError("La selección contiene un campo reservado del muestreador")
+        feature_fields = tuple(
+            dict.fromkeys(
+                field.field
+                for schema in schemas
+                for field in schema.fields
+                if field.field
+                and field.is_alert
+                and not field.is_sensible
+                and not field.is_label
+                and field.field != schema_mapping.target_field
+                and field.field != schema_mapping.marking_date_field
+            )
+        )
 
         specification = {
             "period_start": period_start.isoformat(),
@@ -226,7 +239,7 @@ class CreateMatureSampleSnapshotUseCase:
                 label_value_mapping,
             ) or "pending"
             row: dict[str, Any] = {
-                field: (alert.input or {}).get(field) for field in fields
+                field: (alert.input or {}).get(field) for field in feature_fields
             }
             row[schema_mapping.initial_mark_field] = alert_field_value(
                 alert, schema_mapping.initial_mark_field
@@ -251,7 +264,7 @@ class CreateMatureSampleSnapshotUseCase:
             **partition_dataset_rows,
             "all": [
                 row
-                for partition in PARTITIONS
+                for partition in PARTITIONS[:-1]
                 for row in rows_by_partition[partition]
             ],
         }
@@ -269,7 +282,7 @@ class CreateMatureSampleSnapshotUseCase:
         columns = list(
             dict.fromkeys(
                 [
-                    *fields,
+                    *feature_fields,
                     schema_mapping.initial_mark_field,
                     schema_mapping.initial_marking_date_field,
                     SAMPLE_TARGET_FIELD,
@@ -284,9 +297,15 @@ class CreateMatureSampleSnapshotUseCase:
                     columns,
                     partition_dataset_rows[partition],
                 )
-            self._write_dataset(dataset_refs["all"], [*columns, PARTITION_METADATA_FIELD], [
-                row for partition in PARTITIONS for row in rows_by_partition[partition]
-            ])
+            self._write_dataset(
+                dataset_refs["all"],
+                [*columns, PARTITION_METADATA_FIELD],
+                [
+                    row
+                    for partition in PARTITIONS[:-1]
+                    for row in rows_by_partition[partition]
+                ],
+            )
             created_at = self._clock.now()
             snapshot = DatasetSnapshot(
                 snapshot_id=snapshot_id,

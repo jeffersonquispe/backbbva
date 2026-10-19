@@ -227,7 +227,10 @@ def test_snapshot_materializes_four_partitions_and_is_idempotent() -> None:
     assert set(snapshot.dataset_refs) == {"training", "validation", "test", "final", "all"}
     assert sum(snapshot.partition_counts.values()) == 2
     all_rows = datasets.rows[snapshot.dataset_refs["all"]]
-    assert len(all_rows) == 2
+    assert len(all_rows) == sum(
+        snapshot.partition_counts[name] for name in ("training", "validation", "test")
+    )
+    assert all(row["__aria_partition"] != "final" for row in all_rows)
     assert all(row["fraud_label"] in {"fraud", "no_fraud"} for row in all_rows)
     assert all(
         set(row)

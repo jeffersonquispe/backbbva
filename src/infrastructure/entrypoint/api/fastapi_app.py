@@ -24,6 +24,9 @@ from src.infrastructure.entrypoint.api.initialization.startup import (
 from src.infrastructure.entrypoint.api.routers.agent_modus_operandi_draft_router import (
     router as agent_modus_operandi_draft_router,
 )
+from src.infrastructure.entrypoint.api.routers.agent_objectives_router import (
+    router as agent_objectives_router,
+)
 from src.infrastructure.entrypoint.api.routers.agent_router import (
     router as agent_router,
 )
@@ -142,6 +145,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_modus_operandi_draft_router, prefix=genai_config.API_V0_STR)
+    app.include_router(agent_objectives_router, prefix=genai_config.API_V0_STR)
     app.include_router(backups_router, prefix=genai_config.API_V0_STR)
     app.include_router(alert_schema_router, prefix=genai_config.API_V0_STR)
     app.include_router(e2e_router, prefix=genai_config.API_V0_STR)
