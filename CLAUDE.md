@@ -201,8 +201,8 @@ and storage details out of application use cases.
 
 ## Business metrics — snapshot + rollups (DynamoDB, not telemetry)
 
-Design: `docs/OBSERVABILITY_STRATEGY.md`; tasks/decisions:
-`docs/OBSERVABILITY_TASKS.md`.
+Design: `docs/OBSERVABILITY_STRATEGY.md`; outstanding deployment, security,
+performance, and business decisions are tracked in `PENDIENTES.md` §6.
 
 - Each alert carries `AlertRecord.metrics: AlertMetricsSnapshot | None`
   (`alert_port.py`). Two labels only: `mark` (`fraud`/`no_fraud`/`pending`,

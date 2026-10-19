@@ -1,4 +1,4 @@
-"""Decision -> mark translation (decision D8, docs/OBSERVABILITY_TASKS.md).
+"""Decision -> mark translation (decision D8, see PENDIENTES.md §6).
 
 mark has three values: fraud, no_fraud, pending. block -> fraud;
 pass / discard -> no_fraud; bidi -> pending; voicebot by its outcome;

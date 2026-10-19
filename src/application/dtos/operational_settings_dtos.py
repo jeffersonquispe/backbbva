@@ -9,7 +9,7 @@ from src.application.ports.operational_settings_port import OperationalSettings
 class UpdateOperationalSettingsInput:
     settings: OperationalSettings
     # Free-text identifier captured for traceability only - this codebase
-    # has no auth/permission system wired anywhere (see AUDIT_FINDINGS.md),
+    # has no auth/permission system wired anywhere,
     # so this is not an enforced/verified identity.
     changed_by: str | None = None
     # True when the caller didn't send amount_tiers at all (e.g. a client

@@ -1,7 +1,7 @@
 # Runbook de observabilidad (O1)
 
 Runbook operativo de la telemetría de ARIA. Contexto y decisiones:
-`docs/OBSERVABILITY_STRATEGY.md` y `docs/OBSERVABILITY_TASKS.md` (§5, M5).
+`docs/OBSERVABILITY_STRATEGY.md`.
 
 ## Telemetría técnica (M5)
 
