@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from src.application.dtos.async_operation_dtos import CreateAsyncOperationInput
 from src.application.errors import ValidationError
 from src.application.ports.assistant_optimizer_settings_port import (
     AssistantOptimizerSettings,
@@ -15,9 +16,17 @@ from src.application.use_cases.assistant_optimizer_settings import (
     ListAssistantOptimizerSettingsChangesUseCase,
     UpdateAssistantOptimizerSettingsUseCase,
 )
+from src.application.use_cases.async_operations.create_async_operation import (
+    CreateAsyncOperationUseCase,
+)
+from src.application.use_cases.datasets.preview_mature_sample import (
+    PreviewMatureSampleUseCase,
+)
 from src.infrastructure.entrypoint.api.factories.assistant_optimizer_settings_factory import (
     get_get_assistant_optimizer_settings_use_case,
     get_list_assistant_optimizer_settings_changes_use_case,
+    get_preview_mature_sample_use_case,
+    get_start_mature_sample_use_case,
     get_update_assistant_optimizer_settings_use_case,
 )
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
@@ -25,6 +34,10 @@ from src.infrastructure.entrypoint.api.schemas.assistant_optimizer_settings impo
     AssistantOptimizerSettingsChangeResponse,
     AssistantOptimizerSettingsRequest,
     AssistantOptimizerSettingsSchema,
+    MatureSamplePreviewResponse,
+)
+from src.infrastructure.entrypoint.api.schemas.async_operations import (
+    AsyncOperationResponse,
 )
 
 router = APIRouter(
@@ -66,12 +79,20 @@ def update_settings(
         Depends(get_update_assistant_optimizer_settings_use_case),
     ],
     user: Annotated[LocalUser, Depends(get_current_user)],
+    field_pool: Annotated[
+        PreviewMatureSampleUseCase,
+        Depends(get_preview_mature_sample_use_case),
+    ],
 ):
     _require_editor(user)
     proposed = AssistantOptimizerSettings(**request.settings.model_dump())
     try:
+        field_pool.validate_selected_fields(
+            proposed.sampler_strata,
+            proposed.sampler_compatible_schema_versions,
+        )
         settings = use_case.execute(proposed, changed_by=user.email)
-    except ValidationError as exc:
+    except (ValidationError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {
         field.name: getattr(settings, field.name)
@@ -93,3 +114,53 @@ def list_changes(
 ):
     _require_editor(user)
     return use_case.execute(limit)
+
+
+@router.post("/sampler/preview", response_model=MatureSamplePreviewResponse)
+def preview_mature_sample(
+    use_case: Annotated[
+        PreviewMatureSampleUseCase,
+        Depends(get_preview_mature_sample_use_case),
+    ],
+    user: Annotated[LocalUser, Depends(get_current_user)],
+):
+    _require_editor(user)
+    try:
+        result = use_case.execute()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return result
+
+
+@router.get("/sampler/fields", response_model=list[str])
+def list_sampler_fields(
+    use_case: Annotated[
+        PreviewMatureSampleUseCase,
+        Depends(get_preview_mature_sample_use_case),
+    ],
+    user: Annotated[LocalUser, Depends(get_current_user)],
+) -> list[str]:
+    _require_editor(user)
+    return use_case.available_fields()
+
+
+@router.post(
+    "/sampler/run",
+    response_model=AsyncOperationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def start_mature_sample(
+    use_case: Annotated[
+        CreateAsyncOperationUseCase,
+        Depends(get_start_mature_sample_use_case),
+    ],
+    user: Annotated[LocalUser, Depends(get_current_user)],
+):
+    _require_editor(user)
+    return use_case.execute(
+        CreateAsyncOperationInput(
+            operation_type="mature_sample.create",
+            payload={"trigger": "manual"},
+            created_by=user.email,
+        )
+    )

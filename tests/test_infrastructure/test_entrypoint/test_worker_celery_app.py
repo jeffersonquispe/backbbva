@@ -19,6 +19,9 @@ def test_periodic_schedule_reconciles_async_operations() -> None:
 
     reconcile_rollups = schedule.pop("reconcile-alert-rollups")
     schedule.pop("record-operational-state")
+    sampler = schedule.pop("sample-mature-datasets")
+    assert sampler["task"] == "datasets.sample_mature"
+    assert sampler["schedule"].hour == {4} and sampler["schedule"].minute == {15}
     metric_cleanup = schedule.pop("cleanup-expired-metric-rollups")
     assert metric_cleanup["task"] == "metrics.cleanup_expired_rollups"
     assert metric_cleanup["schedule"].hour == {4}
@@ -70,3 +73,11 @@ def test_operational_state_is_sampled_every_minute() -> None:
     assert entry["schedule"] == 60
     # A tick not picked up within its interval is dropped, never queued up.
     assert entry["options"] == {"expires": 60}
+
+
+def test_mature_sampler_is_evaluated_daily_by_beat() -> None:
+    entry = app.conf.beat_schedule["sample-mature-datasets"]
+
+    assert entry["task"] == "datasets.sample_mature"
+    assert entry["schedule"].hour == {4} and entry["schedule"].minute == {15}
+    assert entry["options"] == {"expires": 24 * 60 * 60}

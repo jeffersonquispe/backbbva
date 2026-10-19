@@ -10,6 +10,8 @@ from src.infrastructure.persistence.database.dynamodb.client import (
 from src.infrastructure.persistence.database.dynamodb.schemas import (
     ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE,
     ASSISTANT_OPTIMIZER_SETTINGS_TABLE,
+    DATASET_SAMPLER_STATE_TABLE,
+    DATASET_SNAPSHOTS_TABLE,
     USERS_TABLE,
 )
 
@@ -29,12 +31,18 @@ class DynamoE2EStateCleaner(E2EStateCleaner):
             for table_name in page.get("TableNames", [])
         ]
         settings_tables = [
-            name for name in table_names if name in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
+            name
+            for name in table_names
+            if name
+            in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES | MATURE_SAMPLER_TABLE_NAMES
         ]
         other_tables = [
             name
             for name in table_names
-            if name != USERS_TABLE_NAME and name not in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
+            if name != USERS_TABLE_NAME
+            and name
+            not in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
+            | MATURE_SAMPLER_TABLE_NAMES
         ]
         deleted = 0
         for table_name in (*settings_tables, *other_tables):
@@ -74,5 +82,13 @@ ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES = frozenset(
     {
         ASSISTANT_OPTIMIZER_SETTINGS_TABLE["TableName"],
         ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE["TableName"],
+    }
+)
+
+# H6 sampler tables are cleaned alongside the settings state in real E2E runs.
+MATURE_SAMPLER_TABLE_NAMES = frozenset(
+    {
+        DATASET_SNAPSHOTS_TABLE["TableName"],
+        DATASET_SAMPLER_STATE_TABLE["TableName"],
     }
 )

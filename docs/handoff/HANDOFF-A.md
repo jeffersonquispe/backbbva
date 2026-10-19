@@ -246,3 +246,101 @@ Frontend (`../frontend_mockup`):
 - **Necesito del integrador:** reconciliar la diferencia del puerto entre
   `../backend` y `../aria-wt-B`, revisar H2 y resolver los cambios H1/H2 al
   integrar. No se requiere trabajo de B en sus zonas reservadas.
+
+## H6 — Muestreo de datos maduros (implementado, pendiente de revisión)
+
+Base: `83326e2` (incluye H3 integrado en `37e5df4`), rama `feat/agent-A-h6`,
+worktree `../aria-wt-A-h6`. Se recibió luz verde para H6 con prioridad sobre
+FP0/FP1.
+
+### Qué quedó hecho
+
+- Muestreo reproducible y estratificado. Solo entran alertas con etiqueta final
+  (`fraud`/`no_fraud`) y edad suficiente según `OperationalSettings.maturing_days`.
+- **Los campos de estratificación los elige el manager desde el pool del esquema**:
+  `GET .../sampler/fields` obtiene campos de versiones activa/compatibles,
+  filtra sensibles y etiquetas; el servidor valida el PUT y las ejecuciones
+  contra el mismo pool. Las filas materializadas usan esos campos elegidos,
+  sin nombres de columnas de negocio codificados. `fraud_label` es el target
+  fijo reservado y `__aria_partition` es metadato técnico del dataset conjunto.
+- Se materializan cuatro CSV de catálogo (`training`, `validation`, `test`,
+  `final`) y un quinto dataset conjunto para que el trainer lea una sola
+  referencia y respete las particiones sin volverlas a dividir. Los snapshots
+  conservan especificación, periodo, madurez, versiones de esquema, conteos,
+  hash SHA-256, disparador y referencias a datasets; el estado guarda último
+  snapshot y conteos. Hay idempotencia y retención configurable.
+- API de vista previa, pool de campos y ejecución manual; permisos limitados a
+  `manager`/`release_manager`. Celery procesa `async_operations`, y Beat evalúa
+  disparadores periódico, por volumen y PSI estadístico con enfriamiento.
+- `model_evaluation` conserva las cuatro particiones, mapeando `test` del
+  muestreador a `calibration` del entrenador y `final` a su prueba final; quita
+  el marcador técnico de las features.
+- Las tablas nuevas están en `schemas.py` y `manager.py`; también en limpieza
+  E2E. El respaldo enumera dinámicamente las tablas de `schemas.py`; OKD usa
+  aprovisionamiento al iniciar API, igual que el resto de tablas.
+- `AgentSettingsPanel` ofrece selección por checkboxes desde esquema, vista
+  previa agregada y botón para ejecutar. El primer E2E detectó que
+  `sampler_strata` no se incluía en las claves guardadas por sección; se corrigió
+  y se repitió E2E con éxito.
+
+### Archivos tocados
+
+Backend: `src/domain/datasets/{mature_sampling.py,mature_sample_entities.py}`,
+`src/application/dtos/mature_sample_dtos.py`,
+`src/application/ports/{dataset_sampler_state_port.py,dataset_snapshot_port.py}`,
+`src/application/use_cases/datasets/{preview_mature_sample.py,create_mature_sample_snapshot.py}`,
+`src/infrastructure/entrypoint/api/{factories/assistant_optimizer_settings_factory.py,routers/assistant_optimizer_settings_router.py,schemas/assistant_optimizer_settings.py}`,
+`src/infrastructure/entrypoint/worker/celery/tasks.py`,
+`src/infrastructure/persistence/database/dynamodb/{schemas.py,manager.py,repositories/mature_sample_repository.py,repositories/e2e_state_cleaner.py}`,
+`src/infrastructure/queues/celery/{app.py,mature_sample_executor.py}`,
+`src/infrastructure/workflows/celery/{task_factories.py,model_evaluation.py}` y
+pruebas nuevas/actualizadas para dominio, casos de uso, API, worker, limpieza y
+entrenamiento.
+
+Frontend (`../frontend_mockup`):
+`src/lib/api/assistantOptimizerSettings.functions.ts`,
+`src/components/configuracion/AgentSettingsPanel.tsx` y
+`e2e/mature-sampler-real.spec.ts`.
+
+### Comandos ejecutados y resultados reales
+
+- `RUFF_CACHE_DIR=/private/tmp/aria-h6-ruff make lint`: **pasó**, Ruff 0,
+  mypy 0, baseline sin crecimiento.
+- `API_V0_STR=/api/v0 make test-architecture`: **pasó**, 227 pruebas; warning
+  conocido de pytest al no poder escribir `.pytest_cache` en el worktree.
+- `GENAI_ENVIRONMENT=test API_V0_STR=/api/v0 pytest -p no:cacheprovider tests/test_domain/test_mature_sampling.py tests/test_application/test_use_cases/test_preview_mature_sample.py tests/test_application/test_use_cases/test_create_mature_sample_snapshot.py tests/test_infrastructure/test_entrypoint/test_assistant_optimizer_settings_router.py tests/test_infrastructure/test_persistence/test_e2e_state_cleaner.py tests/test_infrastructure/test_entrypoint/test_worker_celery_app.py tests/test_infrastructure/test_workflows/test_model_training.py`:
+  **24 pasaron**, una deprecación de Starlette.
+- En `../frontend_mockup`:
+  `npx eslint src/lib/api/assistantOptimizerSettings.functions.ts src/components/configuracion/AgentSettingsPanel.tsx e2e/mature-sampler-real.spec.ts`
+  y `npx tsc --noEmit`: **pasaron**.
+- `git diff --check`: **pasó**, incluida esta actualización del handoff.
+- `E2E_TEST_FILES=e2e/mature-sampler-real.spec.ts make e2e-all-local`, con lock
+  `/tmp/aria-e2e.lock`, reconstruyó la API/workers/web y se ejecutó a través de
+  nginx `http://localhost:80`, sin mocks. Primera ejecución: falló porque el
+  guardado de sección omitía `sampler_strata`. Tras corregirlo, la repetición
+  pasó **1/1**. La prueba crea una alerta y la etiqueta vía API real, valida el
+  pool de esquema, guarda desde la UI, ejecuta el muestreo, consulta
+  `async_operations` y comprueba hash y referencias/conteos de las cuatro
+  particiones. El lock se liberó en ambas ejecuciones.
+
+### Supuestos y estado
+
+- La API toma fecha de referencia del reloj UTC del worker. La selección fija
+  por periodo produce ID estable; para `random_per_sample`, el seed varía al
+  crear por primera vez el snapshot.
+- El contrato solo tiene una proporción de holdout. Se divide en partes iguales
+  entre `test` y `final`; así quedan cuatro particiones y se conserva la suma
+  configurada de training/validation/test. Confirmar si el producto requiere
+  parámetros separados para calibración y evaluación.
+- Se usa un dataset conjunto con marcador interno más los cuatro CSV separados
+  porque el trainer H0 consume un `dataset_name`; con ese marcador evita el
+  re-split y conoce las cuatro particiones.
+- El E2E previo falló después de cambiar `maturing_days` a cero y antes de
+  alcanzar su `finally`; se restauró manualmente el valor previo conocido (4)
+  en DynamoDB Local. El E2E repetido restaura valores en `finally`.
+- **Estado:** implementación H6 completa, lint/arquitectura/pytest y E2E real
+  verdes tras la corrección; pendiente de revisión del integrador. No iniciar
+  BS.1–BS.8 ni otro hito sin aprobación. FP0/FP1 queda cubierto en esta entrega
+  por el panel y el spec de interacción del muestreador.
+- **Necesito del integrador:** revisar H6 e integrar la rama. No se requiere
+  intervención de B.

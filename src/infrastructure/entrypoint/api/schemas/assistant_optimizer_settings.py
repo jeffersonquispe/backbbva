@@ -44,3 +44,10 @@ class AssistantOptimizerSettingsChangeResponse(BaseModel):
     changed_by: str
     changed_at: datetime
     changes: list[AssistantOptimizerSettingChangeSchema]
+
+
+class MatureSamplePreviewResponse(BaseModel):
+    eligible_alerts: int
+    estimated_sample_size: int
+    counts_by_stratum: dict[str, int]
+    active_triggers: list[str]

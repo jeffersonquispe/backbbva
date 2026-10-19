@@ -939,3 +939,39 @@ ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE = {
         {"AttributeName": "changed_at", "AttributeType": "S"},
     ],
 }
+
+# Immutable manifests for mature data samples and the idempotency/cooldown
+# cursor used by the sampler scheduler (H6 / Fase S).
+DATASET_SNAPSHOTS_TABLE = {
+    "TableName": "dataset_snapshots",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "snapshot_id", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "snapshot_id", "AttributeType": "S"},
+        {"AttributeName": "snapshot_group", "AttributeType": "S"},
+        {"AttributeName": "created_at", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "CreatedAtIdx",
+            "KeySchema": [
+                {"AttributeName": "snapshot_group", "KeyType": "HASH"},
+                {"AttributeName": "created_at", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        }
+    ],
+}
+
+DATASET_SAMPLER_STATE_TABLE = {
+    "TableName": "dataset_sampler_state",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "state_id", "KeyType": "HASH"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "state_id", "AttributeType": "S"},
+    ],
+}
