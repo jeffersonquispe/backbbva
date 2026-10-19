@@ -18,9 +18,7 @@ from src.application.ports.dataset_port import DatasetRepository
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.object_storage_port import ObjectStoragePort
 from src.application.ports.test_run_port import (
-    TestRunRecord,
     TestRunRepository,
-    TestRunStatus,
 )
 from src.application.ports.workflow_executor_port import WorkflowExecutor
 from src.application.ports.workflow_port import WorkflowExecutionRepository
@@ -41,6 +39,7 @@ from src.domain.alerts.entities import (
 from src.domain.configurations.entities import (
     ConfigurationRef,
 )
+from src.domain.test_runs.entities import TestRunRecord, TestRunStatus
 
 
 class StartTestRunUseCase:

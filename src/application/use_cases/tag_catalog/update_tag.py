@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from src.application.errors import NotFoundError
-from src.application.ports.tag_catalog_port import (
-    TagCatalogRepository,
-    TagEntry,
-)
+from src.application.ports.tag_catalog_port import TagCatalogRepository
 from src.domain.configurations.entities import (
     TagCategory,
 )
+from src.domain.tag_catalog.entities import TagEntry
 
 
 class TagNotFoundError(NotFoundError):

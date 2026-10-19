@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 # The 5 columns the dataset card analyzes. integration_point has multiple
 # casings across the reference CSV export (integrationpoint) and the raw

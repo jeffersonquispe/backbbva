@@ -158,7 +158,7 @@ def _resolve_configuration(context: dict[str, Any]):
     # A test run can pin an exact (possibly inactive) ConfigurationRecord
     # via configuration_ref, instead of the implicit get_active() - see
     # ConfigurationRef (configuration_port.py) and TestRunConfig
-    # (test_run_port.py). Unlike the no-ref path below, an explicit ref
+    # (domain/test_runs/entities.py). Unlike the no-ref path below, an explicit ref
     # that doesn't resolve must raise: silently falling back to whatever
     # is currently active would corrupt the meaning of the test, and the
     # caller (the outer Celery task) is expected to surface this as a

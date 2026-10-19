@@ -7,9 +7,6 @@ from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
 from src.application.ports.dataset_analysis_port import (
-    DatasetAnalysisStatus,
-    DatasetOrigin,
-    DatasetSummaryRecord,
     DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
@@ -18,6 +15,11 @@ from src.application.use_cases.datasets.field_extraction import discover_fields
 from src.application.use_cases.test_runs.dataset_sampling import (
     filter_rows,
     sample_percentage,
+)
+from src.domain.datasets.entities import (
+    DatasetAnalysisStatus,
+    DatasetOrigin,
+    DatasetSummaryRecord,
 )
 
 

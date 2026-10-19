@@ -4,9 +4,9 @@ from src.application.errors import NotFoundError
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.similar_case_library_port import (
-    SimilarCaseLibraryEntry,
     SimilarCaseLibraryRepository,
 )
+from src.domain.fraud_knowledge.library_entities import SimilarCaseLibraryEntry
 
 
 class SimilarCaseLibraryEntryNotFoundError(NotFoundError):

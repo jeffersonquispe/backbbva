@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from src.application.ports.test_run_port import TestRunStatus
 from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
 from src.domain.configurations.entities import (
     TestCleanupPolicy,
 )
+from src.domain.test_runs.entities import TestRunStatus
 
 
 @dataclass(frozen=True)

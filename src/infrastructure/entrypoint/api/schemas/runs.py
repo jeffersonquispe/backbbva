@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from src.application.ports.test_run_port import TestRunStatus
+from src.domain.test_runs.entities import TestRunStatus
 from src.domain.workflows.entities import (
     WorkflowStatus,
     WorkflowStepStatus,
@@ -67,7 +67,7 @@ class TestRunResponse(BaseModel):
     # TestRunDetailResponse already relies on below - configuration_ref is
     # None when this run tested the active configuration at dispatch time
     # (today's only behavior before ConfigurationRef existed). See
-    # TestRunConfig.configuration_ref (test_run_port.py).
+    # TestRunConfig.configuration_ref (domain/test_runs/entities.py).
     config: TestRunConfigRequest
 
 

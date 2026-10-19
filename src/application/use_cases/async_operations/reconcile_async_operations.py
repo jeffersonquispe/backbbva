@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from datetime import timedelta
+from uuid import UUID
+
 from src.application.dtos.async_reconciliation_dtos import (
     ReconcileAsyncOperationsInput,
     ReconcileAsyncOperationsOutput,
     ReconciledAsyncOperationOutput,
 )
+from src.application.ports.alert_port import AlertRepository
 from src.application.ports.async_execution_inspector_port import (
     AsyncExecutionInspector,
     AsyncExecutionState,
@@ -14,6 +18,11 @@ from src.application.ports.async_operation_port import (
     AsyncOperationRepository,
     AsyncOperationStatus,
 )
+from src.application.ports.clock_port import Clock
+from src.application.ports.workflow_port import WorkflowExecutionRepository
+from src.application.runtime_defaults import resolve_clock
+from src.domain.alerts.entities import AlertStatus
+from src.domain.workflows.entities import WorkflowStatus
 
 
 class ReconcileAsyncOperationsUseCase:
@@ -21,9 +30,17 @@ class ReconcileAsyncOperationsUseCase:
         self,
         repository: AsyncOperationRepository,
         inspector: AsyncExecutionInspector,
+        workflow_repository: WorkflowExecutionRepository | None = None,
+        alert_repository: AlertRepository | None = None,
+        stuck_timeout_seconds: int = 900,
+        clock: Clock | None = None,
     ) -> None:
         self._repository = repository
         self._inspector = inspector
+        self._workflows = workflow_repository
+        self._alerts = alert_repository
+        self._stuck_timeout = timedelta(seconds=stuck_timeout_seconds)
+        self._clock = resolve_clock(clock)
 
     def execute(
         self,
@@ -35,7 +52,14 @@ class ReconcileAsyncOperationsUseCase:
         for operation in operations:
             previous_status = operation.status
             snapshot = self._inspector.inspect(operation)
-            updated = self._apply_snapshot(operation, snapshot)
+            if self._is_stuck(operation, snapshot):
+                updated = self._fail_stuck_operation(operation)
+                snapshot = type(snapshot)(
+                    state=AsyncExecutionState.FAILED,
+                    detail="Execution exceeded the configured stuck-task timeout",
+                )
+            else:
+                updated = self._apply_snapshot(operation, snapshot)
             current_status = updated.status if updated else previous_status
             reconciled.append(
                 ReconciledAsyncOperationOutput(
@@ -56,6 +80,38 @@ class ReconcileAsyncOperationsUseCase:
             operations=reconciled,
         )
 
+    def _is_stuck(self, operation, snapshot) -> bool:
+        dispatched_at = operation.dispatched_at or operation.created_at
+        age = self._clock.now() - dispatched_at
+        return (
+            snapshot.state
+            in {AsyncExecutionState.QUEUED, AsyncExecutionState.RUNNING}
+            and age >= self._stuck_timeout
+        )
+
+    def _fail_stuck_operation(self, operation: AsyncOperationRecord):
+        error = "Execution exceeded the configured stuck-task timeout"
+        updated = self._repository.update(
+            operation.id, status=AsyncOperationStatus.FAILED, error=error
+        )
+        workflow_id = operation.payload.get("workflow_execution_id")
+        if self._workflows is not None and workflow_id:
+            try:
+                self._workflows.update(
+                    UUID(str(workflow_id)),
+                    status=WorkflowStatus.FAILED,
+                    error=error,
+                    finished_at=self._clock.now(),
+                )
+            except ValueError:
+                pass
+        alert_id = operation.payload.get("alert_id")
+        if self._alerts is not None and alert_id:
+            try:
+                self._alerts.update(UUID(str(alert_id)), status=AlertStatus.FAILED)
+            except ValueError:
+                pass
+        return updated
     def _apply_snapshot(
         self,
         operation: AsyncOperationRecord,

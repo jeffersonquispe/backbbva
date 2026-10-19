@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any
@@ -40,6 +41,12 @@ from src.application.ports.metrics_rollup_port import (
     RollupKey,
     RollupLevel,
     RollupRow,
+)
+from src.application.use_cases.metrics import (
+    alert_rollup_contribution as alert_measures,
+)
+from src.application.use_cases.metrics import (
+    technical_rollup_contribution as tech_measures,
 )
 from src.domain.alerts.exceptions import SnapshotVersionConflictError
 from src.infrastructure.core.config import genai_config
@@ -82,6 +89,53 @@ MAX_ATTRIBUTES_PER_CORRECTION = 100
 _TOLERANCE = 1e-6
 
 _MEASURE_ATTRIBUTE = re.compile(r"^(?P<measure>.+)__h(?P<hour>\d{2})$")
+
+
+def _query_projection(data_type: MetricsDataType) -> dict[str, Any]:
+    if data_type == MetricsDataType.ALERT:
+        measures = {
+            alert_measures.COUNT,
+            alert_measures.AMOUNT_SUM,
+            alert_measures.AMOUNT_COUNT,
+            alert_measures.RESOLUTION_TIME_COUNT,
+            alert_measures.RESOLUTION_TIME_SUM_SECONDS,
+            alert_measures.REVIEWED_COUNT,
+            alert_measures.REVIEWED_CHANGED_COUNT,
+            alert_measures.REVIEWED_CONFIRMED_COUNT,
+            alert_measures.REVIEW_EVENTS,
+            *(name for name, _ in alert_measures.RESOLUTION_TIME_BUCKETS),
+            *(name for name, _ in alert_measures.MATURATION_BUCKETS),
+        }
+    else:
+        measures = {
+            tech_measures.COUNT,
+            tech_measures.SUCCEEDED_COUNT,
+            tech_measures.FAILED_COUNT,
+            tech_measures.RETRY_COUNT,
+            tech_measures.DURATION_COUNT,
+            tech_measures.DURATION_SUM_SECONDS,
+            tech_measures.ERROR_COUNT,
+            tech_measures.INPUT_TOKENS,
+            tech_measures.OUTPUT_TOKENS,
+            tech_measures.OK_COUNT,
+            tech_measures.TIMEOUT_COUNT,
+            tech_measures.HALLUCINATION_COUNT,
+            tech_measures.DATA_USE_CORRECT_COUNT,
+            tech_measures.INVALID_COUNT,
+            *(name for name, _ in tech_measures.DURATION_BUCKETS),
+        }
+    attributes = ["pk", "sk", "dims"]
+    attributes.extend(
+        measure_attribute(measure, hour)
+        for measure in sorted(measures)
+        for hour in range(24)
+    )
+    names = {f"#n{index}": name for index, name in enumerate(attributes)}
+    expression = ", ".join(names)
+    return {
+        "ProjectionExpression": expression,
+        "ExpressionAttributeNames": names,
+    }
 
 
 def partition_key(data_type: MetricsDataType, level: RollupLevel, period: str) -> str:
@@ -176,12 +230,13 @@ class DynamoMetricsRollupRepository:
             name: {str(value) for value in values}
             for name, values in (filters or {}).items()
         }
-        rows: list[RollupRow] = []
-        for period in periods:
+        def query_period(period: str) -> list[RollupRow]:
+            rows_for_period: list[RollupRow] = []
             kwargs: dict[str, Any] = {
                 "KeyConditionExpression": Key("pk").eq(
                     partition_key(data_type, level, period)
-                )
+                ),
+                **_query_projection(data_type),
             }
             while True:
                 response = self._table.query(**kwargs)
@@ -191,11 +246,46 @@ class DynamoMetricsRollupRepository:
                         row.key.dimension(name) in values
                         for name, values in accepted.items()
                     ):
-                        rows.append(row)
+                        rows_for_period.append(row)
                 if "LastEvaluatedKey" not in response:
                     break
                 kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
-        return rows
+            return rows_for_period
+
+        # Period partitions are independent DynamoDB queries. Bounded
+        # concurrency cuts cold long-range latency without unbounded fan-out.
+        if len(periods) < 2:
+            return query_period(periods[0]) if periods else []
+        with ThreadPoolExecutor(max_workers=min(8, len(periods))) as pool:
+            return [row for result in pool.map(query_period, periods) for row in result]
+
+    def delete_expired(self, now_epoch: int, limit: int = 500) -> int:
+        """Delete a bounded batch of expired rows for DynamoDB-compatible
+        stores whose TTL implementation is asynchronous or absent."""
+        if limit <= 0:
+            return 0
+        deleted = 0
+        kwargs: dict[str, Any] = {
+            "FilterExpression": "#expires <= :now",
+            "ProjectionExpression": "#pk, #sk, #expires",
+            "ExpressionAttributeNames": {
+                "#pk": "pk",
+                "#sk": "sk",
+                "#expires": TTL_ATTRIBUTE,
+            },
+            "ExpressionAttributeValues": {":now": now_epoch},
+            "Limit": min(max(limit, 1), 1000),
+        }
+        while True:
+            response = self._table.scan(**kwargs)
+            expired = response.get("Items", [])
+            with self._table.batch_writer() as batch:
+                for item in expired:
+                    batch.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+            deleted += len(expired)
+            if deleted >= limit or "LastEvaluatedKey" not in response:
+                return deleted
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
 
     def correct(
         self,

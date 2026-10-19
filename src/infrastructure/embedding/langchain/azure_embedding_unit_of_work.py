@@ -72,6 +72,8 @@ class LangchainAzureEmbeddingUnitOfWorkFactory(EmbeddingUnitOfWorkFactory):
             api_key=genai_config.OPENAI_KEY,
             api_version=genai_config.OPENAI_VERSION,
             azure_deployment=model,
+            max_retries=5,
+            request_timeout=120,
         )
         return LangchainAzureEmbeddingUnitOfWork(
             client=client,

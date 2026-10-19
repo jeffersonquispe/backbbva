@@ -60,9 +60,14 @@ def get_list_configuration_versions_use_case() -> ListConfigurationVersionsUseCa
 
 
 def get_activate_configuration_use_case() -> ActivateConfigurationUseCase:
+    from src.infrastructure.entrypoint.api.factories.alert_factory import (
+        get_workflow_execution_repository,
+    )
+
     return ActivateConfigurationUseCase(
         get_configuration_repository(),
         get_test_run_repository(),
+        get_workflow_execution_repository(),
     )
 
 

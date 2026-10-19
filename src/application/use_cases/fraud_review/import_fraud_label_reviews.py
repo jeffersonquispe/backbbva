@@ -21,12 +21,12 @@ from src.application.ports.fraud_label_review_import_port import (
     FraudLabelReviewRowResult,
     FraudLabelReviewRowStatus,
 )
-from src.application.ports.fraud_label_review_port import FraudLabelReviewChannel
 from src.application.use_cases.fraud_review.review_fraud_label import (
     ReviewFraudLabel,
     parse_fraud_label,
 )
 from src.domain.alerts.exceptions import AlertNotFoundError, InvalidFraudLabelError
+from src.domain.fraud_review.entities import FraudLabelReviewChannel
 
 REQUIRED_COLUMNS = ("alert_id", "fraud_label")
 MAX_ROWS = 50_000

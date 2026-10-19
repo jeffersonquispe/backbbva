@@ -6,7 +6,7 @@ from uuid import UUID
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
-from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
+from src.domain.fraud_knowledge.library_entities import ModusOperandiPlaybook
 
 # The five actions the analyst decision agent can route an alert to.
 VALID_ANALYST_DECISIONS = (

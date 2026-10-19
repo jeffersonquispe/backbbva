@@ -79,6 +79,7 @@ class StartAlertTestWorkflowUseCase:
     ) -> StartAlertWorkflowOutput:
         now = self._clock.now()
         alert_id = self._id_generator.new_id()
+        workflow_id = self._id_generator.new_id()
         raw_ref = (
             self._raw_payloads.store(str(alert_id), input.payload)
             if self._raw_payloads is not None
@@ -109,6 +110,7 @@ class StartAlertTestWorkflowUseCase:
                 status=AsyncOperationStatus.PENDING,
                 payload={
                     "alert_id": str(alert.id),
+                    "workflow_execution_id": str(workflow_id),
                     "event_id": alert.event_id,
                     "event_type": alert.event_type,
                     "created_by": input.created_by,
@@ -123,7 +125,7 @@ class StartAlertTestWorkflowUseCase:
         )
         workflow = self._workflow_repository.create(
             WorkflowExecutionRecord(
-                id=self._id_generator.new_id(),
+                id=workflow_id,
                 alert_id=alert.id,
                 async_operation_id=operation.id,
                 workflow_name=WORKFLOW_NAME,

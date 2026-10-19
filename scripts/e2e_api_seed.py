@@ -303,20 +303,44 @@ def _schema_seed(manager_token: str, release_token: str) -> tuple[int, int]:
     if proposed is None:
         candidate_fields = [dict(item) for item in active["fields"]]
         candidate_fields = [
-            item for item in candidate_fields if item["id"] != "alertas-json"
+            item
+            for item in candidate_fields
+            if not str(item.get("field_name", "")).startswith("e2e_candidate_marker")
         ]
+        role_field_ids = set(active["field_roles"].values())
+        removed_field = next(
+            (
+                item
+                for item in candidate_fields
+                if item["id"] not in role_field_ids
+                and not item.get("is_mandatory")
+                and not item.get("is_label")
+                and not item.get("is_history")
+            ),
+            None,
+        )
+        if removed_field is None:
+            raise SystemExit("E2E seed: no hay un campo opcional para retirar del esquema")
+        candidate_fields.remove(removed_field)
         for item in candidate_fields:
             if item["id"] == "tipo":
-                item["description"] = "Desenlace real v2"
-        channel = next(item for item in candidate_fields if item["id"] == "channel")
-        candidate_fields.remove(channel)
-        candidate_fields.append({**channel, "id": "channel-candidate"})
-        candidate_fields.append(
-            _optional(
-                "e2e-candidate-marker", "e2e_candidate_marker", "e2e_candidate_marker"
-            )
+                item["description"] = f"Desenlace E2E v{active['version'] + 1}"
+        active_channel_id = active["field_roles"]["channel"]
+        channel = next(
+            item for item in candidate_fields if item["id"] == active_channel_id
         )
-        candidate_roles = {**active["field_roles"], "channel": "channel-candidate"}
+        candidate_fields.remove(channel)
+        candidate_channel_id = f"channel-e2e-v{active['version'] + 1}"
+        candidate_fields.append({**channel, "id": candidate_channel_id})
+        marker_name = f"e2e_candidate_marker_v{active['version'] + 1}"
+        marker_id = marker_name.replace("_", "-")
+        candidate_fields.append(
+            _optional(marker_id, marker_name, marker_name)
+        )
+        candidate_roles = {
+            **active["field_roles"],
+            "channel": candidate_channel_id,
+        }
         draft = _json(
             "POST",
             "/alert-schema/drafts",
@@ -456,6 +480,74 @@ def _upload_fixture(manager_token: str) -> None:
     raise SystemExit("E2E seed: timeout esperando que el fixture quede READY")
 
 
+def _deployment_candidate_seed(
+    manager_token: str, active_configuration: dict
+) -> tuple[str, int]:
+    configurations = _json("GET", "/configurations", manager_token)
+    existing = next(
+        (
+            item
+            for item in configurations
+            if item.get("name") == "E2E Deployment Candidate"
+        ),
+        None,
+    )
+    payload = {
+        "name": "E2E Deployment Candidate",
+        "description": "Inactive configuration exercised by the real E01 E2E flow.",
+        "general": active_configuration["general"],
+        "infra": active_configuration["infra"],
+        "test": active_configuration["test"],
+        "segments": active_configuration.get("segments", {}),
+    }
+    payload["infra"]["max_instances"] = (
+        int(payload["infra"].get("max_instances", 8)) + 1
+    )
+    if existing:
+        payload["configuration_id"] = existing["configuration_id"]
+        payload["based_on_version"] = existing["version"]
+    status, candidate = _request(
+        "POST", "/configurations", manager_token, payload
+    )
+    candidate = _expect(status, {201}, candidate, "/configurations")
+    candidate_id = candidate["configuration_id"]
+    candidate_version = int(candidate["version"])
+
+    status, run = _request(
+        "POST",
+        "/test-runs",
+        manager_token,
+        {
+            "name": f"E2E deployment candidate v{candidate_version}",
+            "dataset_name": DATASET_NAME,
+            "sample_size": 1,
+            "config": {
+                "max_feedback_iterations": 0,
+                "configuration_ref": {
+                    "configuration_id": candidate_id,
+                    "version": candidate_version,
+                },
+            },
+        },
+    )
+    run = _expect(status, {202}, run, "/test-runs")
+    run_id = run["test_run_id"]
+    deadline = time.monotonic() + 240
+    while time.monotonic() < deadline:
+        status, current = _request(
+            "GET", f"/test-runs/{run_id}", manager_token
+        )
+        current = _expect(status, {200}, current, f"/test-runs/{run_id}")
+        if current["status"] == "SUCCEEDED":
+            return candidate_id, candidate_version
+        if current["status"] == "FAILED":
+            raise SystemExit(
+                "E2E seed: la prueba real de configuración para E01 no pudo lanzarse"
+            )
+        time.sleep(2)
+    raise SystemExit("E2E seed: timeout esperando la prueba de configuración E01")
+
+
 def main() -> None:
     if not FIXTURE.is_file():
         raise SystemExit(f"E2E seed: fixture no encontrado: {FIXTURE}")
@@ -487,11 +579,15 @@ def main() -> None:
         "GET", "/configurations/active", manager["access_token"]
     )
     _expect(status, {200}, active_configuration, "/configurations/active")
+    deploy_configuration_id, deploy_version = _deployment_candidate_seed(
+        manager["access_token"], active_configuration
+    )
     print(
         "E2E seed listo: "
         f"schema_active=v{active_version}, schema_candidate=v{candidate_version}, "
         f"dataset={DATASET_NAME}, active_configuration={active_configuration['configuration_id']}"
     )
+    print(f"E2E_DEPLOY_TARGET={deploy_configuration_id}:{deploy_version}")
 
 
 if __name__ == "__main__":

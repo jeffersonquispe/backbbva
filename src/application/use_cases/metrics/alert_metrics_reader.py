@@ -227,6 +227,66 @@ def dimension_buckets(
     return [bucket(v) for v in order] + extra
 
 
+def dimension_distributions(
+    rows: list[PlannedRow], dimensions: Iterable[str]
+) -> dict[str, list[DimensionBucket]]:
+    """Aggregate all dimension distributions in one row pass."""
+    totals_by_dimension: dict[str, dict[str, dict[str, float]]] = {
+        name: {} for name in dimensions
+    }
+    for row in rows:
+        count = row.total(COUNT)
+        amount_sum = row.total(AMOUNT_SUM)
+        amount_count = row.total(AMOUNT_COUNT)
+        decided = row.dimension("mark") in (Mark.FRAUD.value, Mark.NO_FRAUD.value)
+        false_positive = (
+            row.dimension("mark") == Mark.FRAUD.value
+            and row.dimension("fraud_label") == Mark.NO_FRAUD.value
+        )
+        undetected = (
+            row.dimension("mark") == Mark.NO_FRAUD.value
+            and row.dimension("fraud_label") == Mark.FRAUD.value
+        )
+        for name in totals_by_dimension:
+            value = row.dimension(name)
+            bucket = totals_by_dimension[name].setdefault(
+                value,
+                {
+                    "alerts": 0,
+                    "amount_sum": 0,
+                    "amount_count": 0,
+                    "decided": 0,
+                    "false_positives": 0,
+                    "undetected_fraud": 0,
+                },
+            )
+            bucket["alerts"] += count
+            bucket["amount_sum"] += amount_sum
+            bucket["amount_count"] += amount_count
+            bucket["decided"] += count if decided else 0
+            bucket["false_positives"] += count if false_positive else 0
+            bucket["undetected_fraud"] += count if undetected else 0
+    return {
+        name: sorted(
+            (
+                DimensionBucket(
+                    value=value,
+                    alerts=_int(measures["alerts"]),
+                    amount_sum=measures["amount_sum"],
+                    amount_count=_int(measures["amount_count"]),
+                    decided=_int(measures["decided"]),
+                    false_positives=_int(measures["false_positives"]),
+                    undetected_fraud=_int(measures["undetected_fraud"]),
+                )
+                for value, measures in groups.items()
+                if measures["alerts"] != 0
+            ),
+            key=lambda bucket: (-bucket.alerts, bucket.value),
+        )
+        for name, groups in totals_by_dimension.items()
+    }
+
+
 def hourly_profile(rows: list[PlannedRow]) -> list[HourlyProfileSlot]:
     slots = [HourlyProfileSlot(hour=h) for h in range(24)]
     sums: list[dict[str, float]] = [dict() for _ in range(24)]

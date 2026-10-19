@@ -3,9 +3,9 @@ from __future__ import annotations
 from uuid import UUID
 
 from src.application.ports.fraud_label_review_port import (
-    FraudLabelReview,
     FraudLabelReviewRepository,
 )
+from src.domain.fraud_review.entities import FraudLabelReview
 
 
 class ListFraudLabelReviews:

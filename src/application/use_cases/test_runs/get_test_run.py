@@ -5,7 +5,7 @@ from uuid import UUID
 from src.application.dtos.test_run_dtos import TestCaseSummary, TestRunDetail
 from src.application.ports.alert_port import AlertRepository
 from src.application.ports.alert_schema_port import AlertSchemaRepository
-from src.application.ports.test_run_port import TestRunRepository, TestRunStatus
+from src.application.ports.test_run_port import TestRunRepository
 from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
     WorkflowStepExecutionRepository,
@@ -24,6 +24,7 @@ from src.application.use_cases.test_runs.duration_stats import (
     workflow_duration,
 )
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
+from src.domain.test_runs.entities import TestRunStatus
 from src.domain.workflows.entities import (
     WorkflowStatus,
     WorkflowStepExecutionRecord,
@@ -45,8 +46,12 @@ def derive_test_run_status(
     if running or pending:
         return TestRunStatus.RUNNING
     if total == 0:
-        return TestRunStatus.RUNNING
-    return TestRunStatus.FAILED if failed else TestRunStatus.SUCCEEDED
+        return TestRunStatus.SUCCEEDED
+    if succeeded + failed < total:
+        return TestRunStatus.FAILED
+    # A test run reports execution completion, not business success of each
+    # alert classification. Per-case outcomes remain available in `failed`.
+    return TestRunStatus.SUCCEEDED
 
 
 class GetTestRunUseCase:

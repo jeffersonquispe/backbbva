@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, BinaryIO, Protocol
 
-
-@dataclass
-class DatasetRecord:
-    name: str
-    row_count: int
+from src.domain.datasets.entities import DatasetRecord
 
 
 class DatasetRepository(Protocol):

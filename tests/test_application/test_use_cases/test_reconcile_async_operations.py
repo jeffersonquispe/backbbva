@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -19,6 +20,8 @@ from src.application.ports.async_operation_port import (
 from src.application.use_cases.async_operations.reconcile_async_operations import (
     ReconcileAsyncOperationsUseCase,
 )
+from src.domain.alerts.entities import AlertStatus
+from src.domain.workflows.entities import WorkflowStatus
 
 
 class InMemoryAsyncOperationRepository:
@@ -168,3 +171,47 @@ def test_reconcile_keeps_status_when_backend_state_unknown() -> None:
     assert output.updated == 0
     assert repository.get(operation.id).status == AsyncOperationStatus.DISPATCHED
     assert output.operations[0].detail == "missing backend metadata"
+
+
+def test_reconcile_fails_stuck_operation_workflow_and_alert() -> None:
+    workflow_id = uuid4()
+    alert_id = uuid4()
+    operation = _operation(AsyncOperationStatus.RUNNING)
+    operation.payload = {
+        "workflow_execution_id": str(workflow_id),
+        "alert_id": str(alert_id),
+    }
+    operation.dispatched_at = datetime.now(UTC) - timedelta(minutes=20)
+    repository = InMemoryAsyncOperationRepository([operation])
+
+    class WorkflowRepository:
+        updated: dict | None = None
+
+        def update(self, _workflow_id, **changes):
+            self.updated = {"id": _workflow_id, **changes}
+            return SimpleNamespace(status=changes["status"])
+
+    class AlertRepository:
+        updated: tuple | None = None
+
+        def update(self, _alert_id, **changes):
+            self.updated = (_alert_id, changes)
+
+    workflows = WorkflowRepository()
+    alerts = AlertRepository()
+    use_case = ReconcileAsyncOperationsUseCase(
+        repository,
+        StaticInspector(AsyncExecutionSnapshot(state=AsyncExecutionState.RUNNING)),
+        workflow_repository=workflows,
+        alert_repository=alerts,
+        stuck_timeout_seconds=300,
+    )
+
+    output = use_case.execute(ReconcileAsyncOperationsInput(limit=10))
+
+    assert repository.get(operation.id).status == AsyncOperationStatus.FAILED
+    assert workflows.updated["id"] == workflow_id
+    assert workflows.updated["status"] == WorkflowStatus.FAILED
+    assert alerts.updated == (alert_id, {"status": AlertStatus.FAILED})
+    assert output.operations[0].execution_state == AsyncExecutionState.FAILED
+    assert "stuck-task timeout" in output.operations[0].detail

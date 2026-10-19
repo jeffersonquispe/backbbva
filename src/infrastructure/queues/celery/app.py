@@ -29,6 +29,11 @@ def periodic_schedule(
             "task": "test_runs.cleanup",
             "schedule": test_run_cleanup_interval_seconds,
         },
+        # LocalStack and DynamoDB Local retain TTL-expired rows forever.
+        "cleanup-expired-metric-rollups": {
+            "task": "metrics.cleanup_expired_rollups",
+            "schedule": crontab(hour=4, minute=0),
+        },
         # R7 safety net: 02:00 in the app's Celery timezone
         # (OPERATIONS_TIMEZONE, Bogota) - quiet hours, after the day closed.
         "reconcile-alert-rollups": {

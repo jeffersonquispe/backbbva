@@ -1,34 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Protocol
 
 from src.domain.configurations.entities import (
     FlagType,
 )
-
-
-@dataclass
-class FlagLibraryEntry:
-    # Global, config-independent reference data - see taxonomy_library_port.py
-    # for the snapshot-copy rationale. modus_operandi_library_ids is
-    # many-to-many with ModusOperandiLibraryEntry, mirroring
-    # configuration_port.py's Flag (no taxonomy_library_id - a flag's
-    # taxonomy is derived from whichever MO it's attached to).
-    id: str
-    flag_type: FlagType
-    name: str
-    description: str
-    created_at: datetime
-    updated_at: datetime
-    evolved_variables: list[str] = field(default_factory=list)
-    modus_operandi_library_ids: list[str] = field(default_factory=list)
-    active: bool = True
-    # Cached embedding of this entry's text representation (name +
-    # description) - see taxonomy_library_port.py's `embedding` field for
-    # the recycle-on-promote rationale.
-    embedding: list[float] | None = None
+from src.domain.fraud_knowledge.library_entities import FlagLibraryEntry
 
 
 class FlagLibraryRepository(Protocol):

@@ -4,7 +4,6 @@ from src.application.ports.clock_port import Clock
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.modus_operandi_library_port import (
-    ModusOperandiLibraryEntry,
     ModusOperandiLibraryRepository,
 )
 from src.application.ports.monitoring_port import MonitoringPort
@@ -12,6 +11,7 @@ from src.application.runtime_defaults import (
     DEFAULT_ID_GENERATOR,
     resolve_clock,
 )
+from src.domain.fraud_knowledge.library_entities import ModusOperandiLibraryEntry
 
 
 def embedding_text(*, title: str, narrative: str) -> str:

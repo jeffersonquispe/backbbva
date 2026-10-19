@@ -1,19 +1,21 @@
 # Integration & Stress Test Plan
 
-Status: **plan only, nothing implemented yet.** Written 2026-09-03.
+Status: **backlog; partial integration and load-test coverage already exists.**
+Initial inventory written 2026-09-03; task breakdown updated 2026-10-18.
 
 ## Current state (verified)
 
-- All existing tests (`tests/test_application/`, `tests/test_infrastructure/`) are
-  unit tests: hand-written in-memory fakes / `dependency_overrides`, no
-  network calls. Confirmed via grep — no `moto`, `localstack`, `testcontainers`,
-  or real `boto3`/`redis`/`opensearch-py` client usage anywhere in `tests/`.
+- Most tests under `tests/test_application/` and
+  `tests/test_infrastructure/` are isolated tests using in-memory fakes or
+  `dependency_overrides`.
 - `deploy/local/docker/docker-compose.yml` already defines real backing
   services for local dev: `dynamodb` (dynamodb-local), `redis`, `minio`,
-  `opensearch`, plus `api`/`worker` containers. None of these are exercised
-  by the test suite today.
-- No load/stress tooling exists in the repo (`locust`/`k6`/`artillery`: zero
-  hits).
+  `opensearch`, plus `api`/`worker` containers. Some are exercised by
+  `docker_integration` tests for metrics, reservations, vector store, MinIO
+  retention, and event simulation; see focused Makefile targets.
+- Load tooling exists: Locust targets and synthetic metrics load/query
+  benchmarks. The endpoint scenarios and concurrent-write correctness cases
+  proposed below remain gaps.
 - `pytest.ini` at repo root is the one that runs (`testpaths = tests`); the
   `[tool.pytest.ini_options]` block in `deploy/requirements/pyproject.toml`
   is a separate, unused config per CLAUDE.md.
@@ -23,15 +25,13 @@ Status: **plan only, nothing implemented yet.** Written 2026-09-03.
 - Reuse the existing compose stack. No new test-infra dependency
   (testcontainers, moto) — `docker-compose.yml` + `Dockerfile.test` pattern
   already covers it.
-- New tests live under `tests/test_integration/` (real infra) and
-  `tests/test_stress/` (load/concurrency), separate from the existing unit
-  tree. Marked `@pytest.mark.integration` / `@pytest.mark.stress`, registered
-  in `pytest.ini`, **excluded from default `make test`** (unit tests must
-  stay fast, no docker dependency).
-- New Makefile targets: `test-integration` (brings up
-  `dynamodb redis minio opensearch` via compose with `--wait`, runs
-  `pytest -m integration`) and `stress-test` (runs `api` + deps, runs k6
-  scripts against the running container).
+- Keep real-infrastructure tests under `tests/test_integration/`; existing
+  suites use the registered `docker_integration` marker and focused Makefile
+  targets. Inspect `tests/stress/` and existing Locust/synthetic-load targets
+  before adding tools or targets.
+- Integration and stress suites stay out of default `make test`; unit tests
+  must remain fast and Docker independent. Prefer focused targets and only add
+  an aggregate target if task 0.3 finds it useful.
 - Integration tests hit real adapters through the *real* factory functions
   (`infrastructure/entrypoint/api/factories/`), not fakes — that's the point:
   catch wiring/serialization bugs unit tests structurally can't.
@@ -254,3 +254,229 @@ Cases:
   `RecordingLLMUnitOfWorkFactory`-style fake from
   `test_start_alert_test_workflow.py`, or something new; needs a look at
   what that fake currently supports before deciding.
+
+## Task backlog
+
+This section turns the coverage proposal above into reviewable work. A task is
+done when its artifact exists, its focused command passes against the stated
+service, and it can be rerun without damaging shared local data. Keep tasks as
+separate PR-sized changes where practical. Existing coverage should be recorded
+in a matrix, not recreated under a new name.
+
+### 0. Inventory and test-runner foundation
+
+**0.1 Reconcile the plan with the repository.** Review `tests/test_integration/`,
+`tests/stress/`, `pytest.ini`, `tests/README.md`, and related Makefile targets.
+Create a coverage matrix for repositories, routers, services, existing tests,
+commands, and uncovered behavior. Done when every area below is classified as
+covered, partial, or missing, with runnable commands for existing coverage.
+
+**0.2 Document integration conventions.** Use the registered
+`docker_integration` marker unless a concrete need for another marker emerges.
+Document service prerequisites, ports, setup/teardown, shared versus disposable
+stack, and environment variables. Confirm default `make test` remains Docker
+independent. Done when a developer can run a focused group from a clean
+checkout without guessing setup.
+
+**0.3 Decide on an aggregate target.** Decide whether to keep focused targets
+only or add an aggregate target that invokes them. Preserve focused targets;
+an aggregate must avoid starting unrelated services and be documented in
+`tests/README.md`.
+
+### 1. DynamoDB repository integration
+
+**1.1 Build the repository matrix.** Enumerate actual repository modules and
+port methods, reconcile the count in Part 1.1 with the current tree, identify
+coverage already provided by metrics/reservation/vector-store/simulation
+tests, and record each uncovered repo's schema, methods, conditional writes,
+and safe key strategy. Done when every repo has a row and no test assumes
+unsupported CRUD operations.
+
+**1.2 Add isolated table/key setup.** Reuse the local DynamoDB client/schema
+conventions. Create only needed tables/indexes, use UUID-prefixed keys, and
+clean up in fixture teardown. Never clear shared tables. Done when tests pass
+twice and alongside another run without collisions or deleting other data.
+
+**1.3 Add real serialization round-trips.** For each uncovered repository,
+write then read through the real adapter and DynamoDB Local. Include nested
+dataclasses, enums, optional values, datetime/decimal types where applicable;
+assert decoded values. Done when serialization drift fails a focused test.
+
+**1.4 Add applicable contract edges.** Cover missing-key behavior, update
+preservation, deletion, query/list boundaries and pagination only where the
+port supports them. Exercise page boundaries with a controllable small page
+size. Test stale-version conflicts only for adapters that implement them. Done
+when each applicable port behavior has a real-adapter case.
+
+### 2. API assembly and router integration
+
+**2.1 Map routers and dependencies.** Inventory actual routers, endpoints,
+factories, adapters, and external dispatch. Define setup/cleanup and identify
+which routes need a broker or workflow. Done when the router count and test
+strategy match the current app.
+
+**2.2 Establish a real-app fixture.** Use normal app assembly and real adapter
+factories without `dependency_overrides` for the behavior under test. Point
+services at local dependencies and use unique records. Start with one read/write
+route proving route → factory → use case → persistence and cleanup.
+
+**2.3 Add endpoint cases router by router.** For each applicable endpoint,
+cover happy path and follow-up real-store read, validation response, and
+not-found response. Add idempotency only if promised by its contract. Done
+when each router has a focused command and cases for its applicable behavior.
+
+**2.4 Separate enqueue from execution.** For alert review, escalation, and
+action endpoints, define whether HTTP guarantees durable enqueue or completed
+work. Test enqueue with the real broker (task 4) and execution in the workflow
+harness (task 3); do not claim task acceptance proves workflow completion.
+
+### 3. Alert review workflow persistence
+
+**3.1 Verify current workflow contract.** Read current runner, executors,
+transitions, config lookup, and tests before assuming the plan's seven-step
+shape. Confirm current step list, persisted records, and useful assertions. Done
+when proposed cases match current code and test contracts rather than private
+helper details.
+
+**3.2 Build deterministic collaborators.** Reuse/extend a recording LLM fake
+only for LLM calls; keep alert/config/workflow repositories real. Use eager
+Celery only if the execution path actually requires it. Done when external LLM
+nondeterminism is removed while persistence/wiring remains real.
+
+**3.3 Test success and context persistence.** Run one alert through all current
+steps; assert terminal status, outputs, context snapshot, and workflow state
+after a fresh repository read. Done when persisted state agrees with runner
+output.
+
+**3.4 Test feedback limit and escalation.** Force rejection through the
+configured bound and assert terminal/error state plus persisted count. Trigger
+mid-run escalation and assert later steps stop and the reason persists. Done
+when both paths are deterministic and bounded.
+
+**3.5 Test segment selection.** Use a multi-segment configuration and an alert
+that matches a non-default segment; assert the selected segment affects
+persisted context. Done when selecting the first/default segment unconditionally
+would fail the test.
+
+### 4. Celery and Redis integration
+
+**4.1 Map dispatcher contracts.** Inventory dispatchers, tasks, operation
+records, queues, result inspection, and retry semantics. Start with one
+representative task. Done when every dispatcher maps to its expected terminal
+state source.
+
+**4.2 Create disposable broker/worker harness.** Start Redis and a real Celery
+worker using the local compose network or isolated compose project. Use unique
+task IDs/queues; teardown only resources created by the test target. Done when
+a task crosses process boundaries and can be inspected without eager mode.
+
+**4.3 Test success and failure round-trips.** Dispatch and poll with a bounded
+deadline for successful terminal state; dispatch a raising task and assert
+failure plus surfaced error. Add dispatcher-specific cases where payload/result
+contracts differ. Done when success and failure both cross broker and worker.
+
+**4.4 Verify status reader.** Exercise analyst-capacity import dispatch and
+status read through real persistence and broker path. Done when reader output
+matches the worker terminal result.
+
+### 5. OpenSearch and MinIO gaps
+
+**5.1 Audit OpenSearch coverage.** Compare existing vector-store integration
+tests with index/search/repository/relations and fraud-knowledge contracts.
+Distinguish DynamoDB-backed vector-store coverage from OpenSearch coverage.
+Done when each gap names the actual service and adapter involved.
+
+**5.2 Test OpenSearch lifecycle.** With unique document IDs, test ingest/search,
+update (old/new terms), idempotent index setup, and cascade deletion including
+relations. Use adapter-supported refresh behavior, not arbitrary sleeps. Done
+when assertions query OpenSearch and cleanup touches only test-owned data.
+
+**5.3 Audit MinIO coverage.** Retention tests do not prove upload/read behavior.
+Compare current tests with object adapter and CSV repository methods; identify
+missing byte round-trip, delete, and duplicate-key semantics.
+
+**5.4 Test MinIO lifecycle.** Test byte-identical upload/read, a file large
+enough to exercise multipart behavior if applicable, delete idempotency, and
+actual duplicate-key semantics. Use unique object prefixes and cleanup on
+failure. Done when tests run against MinIO and document overwrite/reject
+behavior.
+
+### 6. HTTP load scenarios
+
+**6.1 Audit existing Locust coverage.** Inspect `tests/stress/locustfile.py`
+and current targets before choosing to extend Locust or add k6. Record auth,
+seed data, cleanup, and whether traffic goes through nginx. Do not keep two tools
+for identical scenarios without a reason.
+
+**6.2 Make safe, repeatable fixtures.** Provide disposable alert/operation IDs,
+reset/cleanup, configurable host/users/rate/duration, and a request budget.
+Defaults must not target production. Done when short local runs are repeatable
+without manually finding IDs or mutating shared business data.
+
+**6.3 Measure baselines.** Run each selected profile against rebuilt local
+stack through nginx at `http://localhost`; save summaries with service/machine
+context and repeat to estimate normal variance. Set thresholds from evidence
+before making them gating. Done when the rationale and run are reproducible.
+
+**6.4 Add endpoint profiles.** Add action ramp, async-operation polling, and
+escalation burst after fixtures are safe. Count expected business conflicts
+separately from transport/server errors. Done when a headless target fails on
+threshold regression and writes timestamped results.
+
+### 7. Concurrent-write correctness
+
+**7.1 Define race invariants.** Inspect conditional writes/transactions for
+actions, context updates, and reconciliation. Specify win/conflict/retry/merge
+behavior before asserting it. Use disposable DynamoDB Local resources. Done
+when each case has an explicit invariant.
+
+**7.2 Race alert actions.** Seed one alert, concurrently invoke valid actions,
+then re-read from DynamoDB. Assert a valid final transition and documented
+loser outcomes, with no torn or silently overwritten state. Repeat runs to
+check stability.
+
+**7.3 Race context updates.** Concurrently update one snapshot through the
+real persistence path. Assert every contribution is present or conflicts and
+retries follow the documented contract. Done when in-process serialization
+cannot hide a lost update.
+
+**7.4 Burst queue dispatch.** After task 4, enqueue a configurable batch (start
+small and increase), track each task to terminal state with a finite deadline,
+and report IDs stuck pending/running. Done when all owned tasks are accounted
+for and test data/messages are cleaned up.
+
+### 8. CI and completion evidence
+
+**8.1 Decide CI policy.** Check Jenkins Docker/Compose capability and runtime;
+choose PR, scheduled, or merge-to-main execution separately for focused
+integration and heavier broker/load suites. Do not gate on unstable load
+thresholds. Done when CI invokes documented Make targets.
+
+**8.2 Publish run guide.** Update `tests/README.md` with startup, target
+commands, env vars, cleanup, expected duration, and troubleshooting. Link the
+coverage matrix and identify suites excluded from default `make test`. Done
+when an unfamiliar developer can run a focused group and stop only resources
+it started.
+
+**8.3 Record evidence per change.** Run required lint, architecture and
+relevant unit tests for code changes, plus focused integration against the real
+service. For behavior changes, follow the repo's Playwright E2E requirement
+through nginx at `http://localhost`; adapter tests do not replace it when
+user-facing behavior changed. Record commands/outcomes. If infrastructure
+blocks a required run, name the blocker and leave that task incomplete.
+
+## Recommended execution order
+
+1. Inventory and conventions (0.1–0.3).
+2. DynamoDB coverage matrix and missing repository cases (1.1–1.4).
+3. OpenSearch/MinIO audits and service-level gaps (5.1–5.4); these can proceed
+   independently after harness conventions are set.
+4. Verify workflow contract and add workflow cases (3.1–3.5); build broker
+   harness and queue cases (4.1–4.4).
+5. Expand API coverage by router (2.1–2.4), reusing adapter coverage and
+   separating enqueue from execution semantics.
+6. Add concurrency cases (7.1–7.4) once persistence and queue contracts are
+   known.
+7. Add load profiles (6.1–6.4) only after safe fixtures exist and baseline
+   latency has been measured.
+8. Decide CI scheduling and maintain docs/evidence (8.1–8.3) as slices land.

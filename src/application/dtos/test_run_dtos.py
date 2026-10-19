@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from src.application.ports.test_run_port import TestRunConfig, TestRunStatus
+from src.domain.test_runs.entities import TestRunConfig, TestRunStatus
 from src.domain.workflows.entities import (
     WorkflowStatus,
 )

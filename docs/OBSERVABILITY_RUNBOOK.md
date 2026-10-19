@@ -201,6 +201,13 @@ que 90 × 1.5k (135k alertas) toma ~2 h; la medición se hizo con 3 días a
   job de limpieza por `expires_at`, o DynamoDB real. Las consultas siguen
   correctas en todos los casos.
 
+- **Limpieza compatible con LocalStack/OKD**: Celery Beat ejecuta
+  `metrics.cleanup_expired_rollups` diariamente a las 04:00 Bogotá. Borra en
+  lotes las filas de día y marcadores con `expires_at <= now`; DynamoDB real
+  puede adelantarse mediante TTL. El adaptador usa un `Scan` proyectado sólo a
+  claves y vencimiento, así que el coste de lectura crece con el tamaño total
+  de `metrics_rollups`; medirlo en OKD antes de fijar el volumen esperado.
+
 ### Costo (O3) — modelo on-demand de DynamoDB
 
 Por ítem escrito en una transacción: 2 WCU por KB (redondeado hacia arriba);

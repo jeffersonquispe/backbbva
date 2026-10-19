@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from src.application.ports.modus_operandi_library_port import (
-    ModusOperandiLibraryEntry,
     ModusOperandiLibraryRepository,
 )
+from src.domain.fraud_knowledge.library_entities import ModusOperandiLibraryEntry
 
 
 class ListModusOperandiLibraryEntriesUseCase:

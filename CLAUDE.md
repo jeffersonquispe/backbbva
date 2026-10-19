@@ -48,8 +48,11 @@ Two established shapes, don't invent a third:
    `monitoring_port.py` (`MonitoringPort.start`),
    `llm_unit_of_work_port.py` (`LLMUnitOfWorkFactory.create`).
 
-Every port file is self-contained: dataclass records + enum(s) + the
-Protocol/ABC, all in one file. No separate "models" module.
+Keep boundary-only request/result records beside their port contract. Stable
+business entities and state enums live under `src/domain/<context>/`; port
+modules may import and re-export those types for compatibility, while
+application use cases should import them directly from the domain. Do not add
+a separate application-level `models` module.
 
 ## Adding a new adapter for an existing port
 
@@ -115,6 +118,24 @@ credentials stay in the `builder` stage) — a change to one (system packages
 like `libgomp1`, CMD, ports) must be mirrored in the other.
 
 ## Testing conventions
+
+### Required Playwright E2E for every change
+
+- Every new feature or behavior change must update its relevant Playwright E2E
+  coverage and run that scenario against the rebuilt local stack through nginx
+  at `http://localhost` (port 80). The app is served at `/`; browser API
+  requests must use the same-origin `/api/...` proxy path. E2E scenarios load
+  real data through the API and must not mock or fulfill API requests.
+- Unit tests and standalone API smoke checks do not replace the real E2E. A
+  change is not complete until the relevant E2E passes.
+- If credentials, Docker, external services, or missing fixture data block the
+  run, report the exact blocker and leave the change explicitly incomplete; do
+  not mark E2E as passed based on a different scenario.
+- Backend observability E2E: `make e2e-observability`. It covers the real
+  dashboard and monitor pages, their metrics API reads, HTTP audit recording,
+  and expired metrics-rollup cleanup against the local DynamoDB-compatible
+  service. Extend this scenario when those contracts change.
+- Full real API browser suite: `make e2e-all-local`.
 
 - **Hand-written in-memory fakes**, local to the test file. No
   `unittest.mock`, no shared `conftest.py` (none exists in the repo).

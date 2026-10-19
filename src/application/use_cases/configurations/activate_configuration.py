@@ -8,10 +8,13 @@ from src.application.errors import (
 from src.application.ports.configuration_port import (
     ConfigurationRepository,
 )
-from src.application.ports.test_run_port import TestRunRepository, TestRunStatus
+from src.application.ports.test_run_port import TestRunRepository
+from src.application.ports.workflow_port import WorkflowExecutionRepository
 from src.domain.configurations.entities import (
     ConfigurationRecord,
 )
+from src.domain.test_runs.entities import TestRunStatus
+from src.domain.workflows.entities import WorkflowStatus
 
 
 class ConfigurationNotFoundError(NotFoundError):
@@ -31,9 +34,11 @@ class ActivateConfigurationUseCase:
         self,
         configuration_repository: ConfigurationRepository,
         test_run_repository: TestRunRepository,
+        workflow_repository: WorkflowExecutionRepository | None = None,
     ) -> None:
         self._configurations = configuration_repository
         self._test_runs = test_run_repository
+        self._workflows = workflow_repository
 
     def execute(
         self,
@@ -60,10 +65,30 @@ class ActivateConfigurationUseCase:
             raise ConfigurationActivationConflictError(str(exc)) from exc
 
     def _has_succeeded_test_run(self, configuration_id: str, version: int) -> bool:
-        return any(
-            run.status == TestRunStatus.SUCCEEDED
-            and run.config.configuration_ref is not None
-            and run.config.configuration_ref.configuration_id == configuration_id
-            and run.config.configuration_ref.version == version
-            for run in self._test_runs.list()
-        )
+        for run in self._test_runs.list():
+            ref = run.config.configuration_ref
+            if (
+                ref is None
+                or ref.configuration_id != configuration_id
+                or ref.version != version
+            ):
+                continue
+            if self._workflows is None:
+                if run.status == TestRunStatus.SUCCEEDED:
+                    return True
+                continue
+
+            workflows = self._workflows.list_by_test_run(run.id)
+            if any(
+                workflow.status
+                in {
+                    WorkflowStatus.PENDING,
+                    WorkflowStatus.RUNNING,
+                    WorkflowStatus.DISPATCHED,
+                }
+                for workflow in workflows
+            ):
+                continue
+            if len(workflows) == run.total:
+                return True
+        return False

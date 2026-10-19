@@ -13,7 +13,7 @@ from src.domain.configurations.entities import (
 class ResolutionMethod:
     # Flat catalog, mirrors marcacion_catalog_port.py's MarcacionCategory -
     # `resolution_tag` is the fixed dimension the executor branches on (see
-    # ModusOperandiPlaybook in modus_operandi_library_port.py: its primary
+    # ModusOperandiPlaybook in domain/fraud_knowledge/library_entities.py: its primary
     # method uses the 3 routing tags, its fallbacks also allow
     # BLOCK_SOFT/BLOCK_HARD), `value` is the admin-editable display name,
     # same relationship as MarcacionCategory.value -> RiskLabel. Same catalog

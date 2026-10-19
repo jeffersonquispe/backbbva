@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import uuid4
@@ -38,6 +40,7 @@ from src.infrastructure.entrypoint.api.schemas import (
 router = APIRouter(
     prefix="/configuration-deploy-requests", tags=["configuration deploy requests"]
 )
+logger = logging.getLogger(__name__)
 
 
 def _require_role(user: LocalUser, *roles: LocalRole) -> None:
@@ -98,7 +101,12 @@ def preview_deploy_request(
         current_configuration_id=current.configuration_id if current else None,
         current_version=current.version if current else None,
         changes=[
-            ConfigurationChangeResponse(**change) for change in preview["changes"]
+            ConfigurationChangeResponse(
+                path=change.path,
+                previous=change.previous,
+                proposed=change.proposed,
+            )
+            for change in preview["changes"]
         ],
     )
 
@@ -123,7 +131,7 @@ def create_deploy_request(
         current_version=current.version if current else None,
         title=request.title.strip(),
         message=request.message.strip(),
-        changes=preview["changes"],
+        changes=[asdict(change) for change in preview["changes"]],
         requested_by=user.name,
         requested_by_id=str(user.id),
         requested_at=datetime.now(UTC),
@@ -188,6 +196,9 @@ def approve_deploy_request(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ConfigurationActivationConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("Unexpected error activating configuration for deployment")
+        raise
     try:
         approved = requests.approve(
             request_id, user.name, datetime.now(UTC), str(user.id)
@@ -197,5 +208,10 @@ def approve_deploy_request(
             raise HTTPException(
                 status_code=409, detail="Deploy request has already been processed"
             ) from exc
+        logger.exception("Unexpected DynamoDB error approving deployment request")
         raise
-    return _response(approved)
+    try:
+        return _response(approved)
+    except Exception:
+        logger.exception("Unexpected error serializing approved deployment request")
+        raise

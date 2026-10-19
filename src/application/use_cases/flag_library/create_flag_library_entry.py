@@ -3,7 +3,6 @@ from __future__ import annotations
 from src.application.ports.clock_port import Clock
 from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.flag_library_port import (
-    FlagLibraryEntry,
     FlagLibraryRepository,
 )
 from src.application.ports.id_generator_port import IdGenerator
@@ -15,6 +14,7 @@ from src.application.runtime_defaults import (
 from src.domain.configurations.entities import (
     FlagType,
 )
+from src.domain.fraud_knowledge.library_entities import FlagLibraryEntry
 
 
 def embedding_text(*, name: str, description: str) -> str:

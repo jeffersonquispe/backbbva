@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from src.application.ports.taxonomy_library_port import (
-    TaxonomyLibraryEntry,
     TaxonomyLibraryRepository,
 )
+from src.domain.fraud_knowledge.library_entities import TaxonomyLibraryEntry
 
 
 class ListTaxonomyLibraryEntriesUseCase:

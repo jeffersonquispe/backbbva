@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
-from src.application.ports.tag_catalog_port import (
-    TagCatalogRepository,
-    TagEntry,
-)
+from src.application.ports.tag_catalog_port import TagCatalogRepository
 from src.application.runtime_defaults import (
     DEFAULT_ID_GENERATOR,
     resolve_clock,
@@ -13,6 +10,7 @@ from src.application.runtime_defaults import (
 from src.domain.configurations.entities import (
     TagCategory,
 )
+from src.domain.tag_catalog.entities import TagEntry
 
 
 class CreateTagUseCase:

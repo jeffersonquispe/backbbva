@@ -4,13 +4,13 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
-from src.application.ports.dataset_analysis_port import DatasetAnalysisStatus
 from src.domain.alerts.entities import (
     AlertOrigin,
 )
 from src.domain.configurations.entities import (
     ConfigurationRef,
 )
+from src.domain.datasets.entities import DatasetAnalysisStatus
 
 
 @dataclass
@@ -19,7 +19,7 @@ class StartAlertWorkflowInput:
     created_by: str | None = None
     # Set when this alert is dispatched as part of a batch test run - links
     # the WorkflowExecutionRecord back to its TestRunRecord (see
-    # test_run_port.py) and carries the run's prompt/model overrides
+    # domain/test_runs/entities.py) and carries the run's prompt/model overrides
     # through to alert_review_workflow.py's per-step config_overrides read.
     test_run_id: UUID | None = None
     config_overrides: dict[str, Any] = field(default_factory=dict)

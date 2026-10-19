@@ -35,6 +35,7 @@ class GetMetricsOverview:
             self._rollups, input, self._clock.now(), self._timezone_name
         )
         rows = read.rows
+        distributions = reader.dimension_distributions(rows, ALERT_DIMENSIONS)
         return MetricsOverviewOutput(
             range=read.range,
             periods=reader.periods(read),
@@ -45,8 +46,6 @@ class GetMetricsOverview:
             ),
             fraud_quality=reader.fraud_quality(rows),
             resolution_time=reader.resolution_time(rows),
-            distributions={
-                name: reader.dimension_buckets(rows, name) for name in ALERT_DIMENSIONS
-            },
+            distributions=distributions,
             hourly_profile=reader.hourly_profile(rows),
         )

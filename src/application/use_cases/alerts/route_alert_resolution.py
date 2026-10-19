@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from src.application.ports.clock_port import Clock
-from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
 )
@@ -18,6 +17,7 @@ from src.domain.configurations.entities import (
     ResolutionTag,
     ShortageBehavior,
 )
+from src.domain.fraud_knowledge.library_entities import ModusOperandiPlaybook
 
 # Fallback tag -> (executor decision, block mode). handle_by_aria is never a
 # valid fallback (validate_playbook rejects it); treated as a soft block if

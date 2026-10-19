@@ -35,6 +35,7 @@ from src.infrastructure.entrypoint.worker.celery.celery_app import app
 from src.infrastructure.workflows.celery.factories import (
     get_async_operation_repository,
     get_evaluate_alert_reasoning_use_case,
+    get_metrics_rollup_maintenance_repository,
     get_model_repository,
     get_model_storage,
     get_operational_settings_repository,
@@ -552,6 +553,15 @@ def reconcile_alert_rollups() -> dict:
         "months_checked": output.months_checked,
         "snapshots_backfilled": output.snapshots_backfilled,
     }
+
+
+@app.task(name="metrics.cleanup_expired_rollups")
+def cleanup_expired_metric_rollups() -> dict[str, int]:
+    """Prune expired day rollups and idempotency markers in bounded batches."""
+    deleted = get_metrics_rollup_maintenance_repository().delete_expired(
+        int(datetime.now(UTC).timestamp())
+    )
+    return {"deleted": deleted}
 
 
 # T3/T5: one sample of the operational gauges per Beat tick (60 s, see

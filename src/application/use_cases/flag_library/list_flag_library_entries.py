@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from src.application.ports.flag_library_port import (
-    FlagLibraryEntry,
     FlagLibraryRepository,
 )
+from src.domain.fraud_knowledge.library_entities import FlagLibraryEntry
 
 
 class ListFlagLibraryEntriesUseCase:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from src.application.ports.test_run_port import TestRunRecord, TestRunRepository
+from src.application.ports.test_run_port import TestRunRepository
 from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
 )
@@ -12,6 +12,7 @@ from src.application.use_cases.test_runs.get_test_run import (
     _RUNNING,
     derive_test_run_status,
 )
+from src.domain.test_runs.entities import TestRunRecord
 from src.domain.workflows.entities import (
     WorkflowStatus,
 )

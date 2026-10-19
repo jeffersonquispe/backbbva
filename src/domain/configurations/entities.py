@@ -33,7 +33,7 @@ class ResolutionTag(StrEnum):
     # Fixed dimension a ResolutionMethod catalog entry maps onto (see
     # resolution_method_catalog_port.py). The executor branches on it when
     # it applies a modus operandi playbook's fallback chain (see
-    # ModusOperandiPlaybook in modus_operandi_library_port.py).
+    # ModusOperandiPlaybook in domain/fraud_knowledge/library_entities.py).
     SCALE_TO_ANALYST = "scale_to_analyst"
     SEND_TO_VOICEBOT = "send_to_voicebot"
     HANDLE_BY_ARIA = "handle_by_aria"

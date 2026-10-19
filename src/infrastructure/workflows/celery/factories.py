@@ -231,6 +231,12 @@ def get_metrics_rollup_repository() -> MetricsRollupRepository:
 
 
 @lru_cache
+def get_metrics_rollup_maintenance_repository() -> DynamoMetricsRollupRepository:
+    """Concrete maintenance adapter for bounded expired-row cleanup."""
+    return DynamoMetricsRollupRepository(timezone_name=genai_config.OPERATIONS_TIMEZONE)
+
+
+@lru_cache
 def get_configuration_repository() -> ConfigurationRepository:
     return DynamoConfigurationRepository()
 

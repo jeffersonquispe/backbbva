@@ -5,13 +5,13 @@ from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.similar_case_library_port import (
-    SimilarCaseLibraryEntry,
     SimilarCaseLibraryRepository,
 )
 from src.application.runtime_defaults import (
     DEFAULT_ID_GENERATOR,
     resolve_clock,
 )
+from src.domain.fraud_knowledge.library_entities import SimilarCaseLibraryEntry
 
 
 class CreateSimilarCaseLibraryEntryUseCase:

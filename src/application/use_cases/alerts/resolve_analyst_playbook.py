@@ -9,12 +9,12 @@ from src.application.ports.fraud_knowledge_port import (
 )
 from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryRepository,
-    ModusOperandiPlaybook,
 )
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
     VectorStoreNotPromotedError,
 )
+from src.domain.fraud_knowledge.library_entities import ModusOperandiPlaybook
 
 # How many of the closest modus-operandi matches to check for a written
 # playbook before giving up - the Library can have modus operandi entries

@@ -616,6 +616,32 @@ e2e-fraud-review:  ## Run E08 fraud marking, correction and audit-history E2E th
 	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 		$(PYTHON) scripts/e2e_fraud_review_local.py
 
+.PHONY: e2e-observability
+e2e-observability:  ## Rebuild API/worker/web and run real dashboards, metrics audit, and TTL cleanup Playwright E2E through nginx.
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main
+	@$(MAKE) -C ../frontend_mockup build
+	@$(MAKE) local-docker-run
+	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+		LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
+		LOCAL_DOCKER_ENV=$(LOCAL_DOCKER_ENV) \
+		$(PYTHON) scripts/e2e_observability_local.py
+
+.PHONY: e2e-all-local
+e2e-all-local:  ## Rebuild the local stack and run the full real-API Playwright E2E suite through nginx localhost:80.
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main
+	@$(MAKE) -C ../frontend_mockup build
+	@CELERY_STUCK_TASK_TIMEOUT_SECONDS=120 $(MAKE) local-docker-run
+	@CELERY_STUCK_TASK_TIMEOUT_SECONDS=120 E2E_FULL_SUITE=1 E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+		LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
+		LOCAL_DOCKER_ENV=$(LOCAL_DOCKER_ENV) \
+		$(PYTHON) scripts/e2e_observability_local.py
+
 .PHONY: e2e-real
 e2e-real:  ## Run real E2E from zero (default) or resume at a numbered E2E_FROM checkpoint (1-6).
 	@test -n "$(E2E_MANAGER_EMAIL)" -a -n "$(E2E_MANAGER_PASSWORD)" -a -n "$(E2E_RELEASE_MANAGER_EMAIL)" -a -n "$(E2E_RELEASE_MANAGER_PASSWORD)" || (echo "ERROR: set E2E_MANAGER_EMAIL/E2E_MANAGER_PASSWORD/E2E_RELEASE_MANAGER_EMAIL/E2E_RELEASE_MANAGER_PASSWORD"; exit 1)

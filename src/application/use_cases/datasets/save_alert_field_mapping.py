@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-from src.application.ports.clock_port import Clock
-from src.application.runtime_defaults import DEFAULT_CLOCK, resolve_clock
-
-
-
-from datetime import datetime, timezone
-
 from src.application.dtos.alert_field_mapping_dtos import (
     SaveAlertFieldMappingInput,
     SaveAlertFieldMappingOutput,
@@ -15,6 +8,8 @@ from src.application.ports.alert_field_mapping_port import (
     AlertFieldMapping,
     AlertFieldMappingRepository,
 )
+from src.application.ports.clock_port import Clock
+from src.application.runtime_defaults import resolve_clock
 
 
 class SaveAlertFieldMappingUseCase:

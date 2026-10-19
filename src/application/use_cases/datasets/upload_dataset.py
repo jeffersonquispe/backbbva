@@ -12,8 +12,6 @@ from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
 from src.application.ports.dataset_analysis_port import (
-    DatasetAnalysisStatus,
-    DatasetSummaryRecord,
     DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
@@ -22,6 +20,7 @@ from src.application.runtime_defaults import (
     DEFAULT_ID_GENERATOR,
     resolve_clock,
 )
+from src.domain.datasets.entities import DatasetAnalysisStatus, DatasetSummaryRecord
 
 
 class UploadDatasetUseCase:

@@ -192,10 +192,8 @@ def test_get_test_run_sums_tokens_across_every_case_and_step() -> None:
 
 def test_get_test_run_derives_status_from_cases_not_stored_field() -> None:
     # TestRunRecord.status is only ever written once, at dispatch time, and
-    # never updated again as cases finish - regression test for that
-    # staleness: a run stuck at the stored RUNNING must report FAILED once
-    # every case is terminal and at least one failed, and SUCCEEDED once
-    # every case is terminal and none failed.
+    # never updated again as cases finish - a run reports execution
+    # completion regardless of individual case outcomes.
     now = datetime.now(UTC)
 
     def _run(run_id: UUID, total: int) -> TestRunRecord:
@@ -212,6 +210,7 @@ def test_get_test_run_derives_status_from_cases_not_stored_field() -> None:
 
     failed_run_id = uuid.uuid4()
     succeeded_run_id = uuid.uuid4()
+    launch_failed_run_id = uuid.uuid4()
     workflows = [
         _workflow(WorkflowStatus.SUCCEEDED, failed_run_id),
         _workflow(WorkflowStatus.FAILED, failed_run_id),
@@ -220,7 +219,11 @@ def test_get_test_run_derives_status_from_cases_not_stored_field() -> None:
     ]
     use_case = GetTestRunUseCase(
         test_run_repository=InMemoryTestRunRepository(
-            [_run(failed_run_id, 2), _run(succeeded_run_id, 2)]
+            [
+                _run(failed_run_id, 2),
+                _run(succeeded_run_id, 2),
+                _run(launch_failed_run_id, 3),
+            ]
         ),
         workflow_repository=InMemoryWorkflowExecutionRepository(workflows),
         step_repository=InMemoryWorkflowStepExecutionRepository([]),
@@ -230,9 +233,13 @@ def test_get_test_run_derives_status_from_cases_not_stored_field() -> None:
     succeeded_detail = use_case.execute(succeeded_run_id)
 
     assert failed_detail is not None
-    assert failed_detail.status == TestRunStatus.FAILED
+    assert failed_detail.status == TestRunStatus.SUCCEEDED
+    assert failed_detail.failed == 1
     assert succeeded_detail is not None
     assert succeeded_detail.status == TestRunStatus.SUCCEEDED
+    launch_failed_detail = use_case.execute(launch_failed_run_id)
+    assert launch_failed_detail is not None
+    assert launch_failed_detail.status == TestRunStatus.FAILED
 
 
 def test_get_test_run_computes_duration_stats_per_step_and_overall() -> None:

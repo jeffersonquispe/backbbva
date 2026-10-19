@@ -28,7 +28,6 @@ from src.application.ports.alert_port import (
 )
 from src.application.ports.clock_port import Clock
 from src.application.ports.fraud_label_review_port import (
-    FraudLabelReview,
     FraudLabelReviewRepository,
 )
 from src.application.ports.id_generator_port import IdGenerator
@@ -51,6 +50,7 @@ from src.domain.alerts.entities import (
     Mark,
 )
 from src.domain.alerts.exceptions import AlertNotFoundError, InvalidFraudLabelError
+from src.domain.fraud_review.entities import FraudLabelReview
 
 REVIEWABLE_LABELS = frozenset({Mark.FRAUD, Mark.NO_FRAUD})
 MAX_NOTE_LENGTH = 2000

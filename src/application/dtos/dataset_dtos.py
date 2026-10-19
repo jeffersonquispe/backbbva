@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, BinaryIO
 from uuid import UUID
 
-from src.application.ports.dataset_analysis_port import (
+from src.domain.datasets.entities import (
     DatasetAnalysisStatus,
     DatasetOrigin,
 )

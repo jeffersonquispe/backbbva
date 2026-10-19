@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from src.application.ports.similar_case_library_port import (
-    SimilarCaseLibraryEntry,
     SimilarCaseLibraryRepository,
 )
+from src.domain.fraud_knowledge.library_entities import SimilarCaseLibraryEntry
 
 
 class ListSimilarCaseLibraryEntriesUseCase:

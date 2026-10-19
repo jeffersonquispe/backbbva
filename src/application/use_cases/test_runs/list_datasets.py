@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from src.application.ports.dataset_analysis_port import DatasetSummaryRepository
-from src.application.ports.dataset_port import DatasetRecord, DatasetRepository
+from src.application.ports.dataset_port import DatasetRepository
+from src.domain.datasets.entities import DatasetRecord
 
 
 class ListDatasetsUseCase:
