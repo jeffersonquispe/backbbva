@@ -192,7 +192,7 @@ async function main() {
   if (!current || current.title !== title || !current.playbook) throw new Error("la confirmación no aplicó el modus operandi y el playbook");
 
   const updatedTitle = `${title} actualizado`;
-  const updateMessage = `Edita el modus operandi ${created.entity_id}. Nuevo título exacto: ${updatedTitle}. Nueva narrativa: suplantación digital con validación reforzada. Conserva taxonomía ${taxonomyId}, variables canal y dispositivo, y fallbacks scale_to_analyst y block_soft.`;
+  const updateMessage = `Edita el modus operandi ${created.entity_id}. Nuevo título exacto: ${updatedTitle}. Nueva narrativa: suplantación digital con validación reforzada. Conserva exactamente la taxonomía ${taxonomyId}, las variables canal y dispositivo y este playbook sin cambios: ${JSON.stringify(current.playbook)}.`;
   await sendSourceMessage(sessionId, clientIds.update, updateMessage);
   const updatePackage = await generateDraft(sessionId, clientIds.update, "update", created.entity_id);
   const updateItem = assertVerifiedDraft(updatePackage, "update", current.updated_at);

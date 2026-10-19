@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from src.application.ports.local_auth_port import LocalUser
 from src.application.use_cases.agent.draft_modus_operandi import (
     AgentDraftConflictError,
+    AgentDraftGenerationUnavailableError,
     AgentDraftNotFoundError,
     AgentDraftPolicyError,
     ConfirmModusOperandiDraftInput,
@@ -63,6 +64,10 @@ def generate_modus_operandi_draft(
         raise HTTPException(status_code=404, detail={"code": "DRAFT_SOURCE_NOT_FOUND"}) from error
     except AgentDraftPolicyError as error:
         raise HTTPException(status_code=409, detail={"code": "DRAFT_POLICY"}) from error
+    except AgentDraftGenerationUnavailableError as error:
+        raise HTTPException(
+            status_code=503, detail={"code": "DRAFT_GENERATION_UNAVAILABLE"}
+        ) from error
     except Exception as error:
         raise HTTPException(status_code=503, detail={"code": "DRAFT_GENERATION_UNAVAILABLE"}) from error
     return _package_response(result.package, result.verifications)

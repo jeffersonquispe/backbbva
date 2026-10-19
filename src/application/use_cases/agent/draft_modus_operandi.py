@@ -75,6 +75,10 @@ class AgentDraftPolicyError(Exception):
     pass
 
 
+class AgentDraftGenerationUnavailableError(Exception):
+    pass
+
+
 class AgentDraftConflictError(Exception):
     pass
 
@@ -179,7 +183,9 @@ class GenerateModusOperandiDraftUseCase:
             )
         )
         if generated.error_code is not None:
-            raise AgentDraftPolicyError("entity generator is unavailable")
+            raise AgentDraftGenerationUnavailableError(
+                "entity generator returned an invalid response"
+            )
         draft_data = generated.contribution.get("draft")
         if not isinstance(draft_data, dict):
             draft_data = {}
