@@ -19,7 +19,7 @@ integradora H6: lint Ruff/mypy 0/0, arquitectura 233/233, pytest focalizado
 20/20 y Playwright real por nginx 1/1. El merge conservó la limpieza E2E de
 tablas del chat H4 y del muestreador H6. Los baselines de lint no crecieron.
 
-Quedan pendientes decisiones 5–8 y las decisiones técnicas B0.2–B0.4 antes de
+Quedan pendientes decisiones 7–8 y las decisiones técnicas B0.2–B0.4 antes de
 H8. H7 en adelante no está autorizado por estas integraciones. FP0/FP1 de la
 pestaña del muestreador se integraron en frontend (`c8eb74c`, `8cf3d2e`) y el
 E2E del panel pasó; FP1b/FP2/FP3 del panel conversacional siguen por confirmar.
@@ -136,9 +136,12 @@ Revisarlos antes de implementar; el usuario puede corregirlos.
   autorización añade presupuesto al límite vigente y se registra en auditoría.
   Al agotar el nuevo tope vuelve a pausarse. No hay renovación automática; el
   máximo de ampliaciones se controla con `optimizer_max_budget_renewals`.
-- **5**: quién aprueba y promueve en el optimizador, y si la aprobación es por
-  ítem, por paquete o ambas.
-- **6**: cortes por dimensión y conteos mínimos aceptables del diagnóstico.
+- **5 (decidida 2026-10-19):** el `channel_manager` aprueba o rechaza el
+  paquete de resultados completo. La promoción a producción es un paso aparte
+  y requiere aprobación de `manager` o `release_manager`.
+- **6 (decidida 2026-10-19):** los diagnósticos agregados se muestran por
+  segmento; solo se publican métricas de un segmento cuando contiene al menos
+  30 casos.
 - **7**: qué insights persisten entre sesiones y cuáles caducan.
 - **8**: qué subagente del optimizador va primero.
 - **B0.2, B0.3 y B0.4**: política de datos y presupuesto, contrato de salida
@@ -1818,10 +1821,11 @@ construye una sola vez.
    el `channel_manager` puede autorizar ampliaciones adicionales, una por una.
    Cada ampliación queda auditada, no es automática y respeta
    `optimizer_max_budget_renewals`.
-5. ¿Qué roles pueden chatear, aprobar y promover? ¿La aprobación es por ítem,
-   por paquete o ambas?
-6. ¿Qué cortes por dimensión y qué conteos mínimos son aceptables para el
-   diagnóstico agregado?
+5. ✅ **Resuelta 2026-10-19:** el `channel_manager` aprueba/rechaza el paquete
+   completo del optimizador. La promoción a producción requiere aprobación de
+   `manager` o `release_manager` y sigue separada de aprobar el paquete.
+6. ✅ **Resuelta 2026-10-19:** mostrar diagnósticos a nivel de segmento; ocultar
+   las métricas de cualquier segmento con menos de 30 casos.
 7. ¿Qué insights persisten entre sesiones y cuáles caducan?
 8. Para el loop de optimización: ¿qué subagente va primero, tras el modo
    asistente?
