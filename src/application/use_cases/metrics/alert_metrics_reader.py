@@ -28,6 +28,9 @@ from src.application.ports.metrics_rollup_port import (
     RollupLevel,
     RollupRow,
 )
+from src.application.ports.operational_settings_port import (
+    OperationalSettingsRepository,
+)
 from src.application.use_cases.metrics.alert_rollup_contribution import (
     AMOUNT_COUNT,
     AMOUNT_SUM,
@@ -84,12 +87,21 @@ def read_alert_rollups(
     input: MetricsQueryInput,
     now: datetime,
     timezone_name: str,
+    operational_settings: OperationalSettingsRepository | None = None,
 ) -> AlertRollupRead:
     """Raises ValueError for a naive/inverted range or an unknown filter."""
     to = input.to or now
     from_ = input.from_ or (to - DEFAULT_RANGE)
     filters = normalize_filters(input.filters)
-    reads = plan(from_, to, now, timezone_name)
+    settings = operational_settings.get() if operational_settings else None
+    reads = plan(
+        from_,
+        to,
+        now,
+        timezone_name,
+        maturing_days=settings.maturing_days if settings else 4,
+        stable_months=settings.stable_months if settings else 6,
+    )
     by_level: dict[str, dict[str, PlannedRead]] = {}
     for read in reads:
         by_level.setdefault(read.level.value, {})[read.period] = read

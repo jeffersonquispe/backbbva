@@ -763,3 +763,25 @@ FEATURE_TEMPLATES_TABLE = {
     "AttributeDefinitions": [{"AttributeName": "id", "AttributeType": "S"}],
     "BillingMode": "PAY_PER_REQUEST",
 }
+
+# Assistant and optimizer runtime configuration. The two tables are managed
+# by ensure_all_tables() for local and OKD DynamoDB Local deployments.
+ASSISTANT_OPTIMIZER_SETTINGS_TABLE = {
+    "TableName": "assistant_optimizer_settings",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "record_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "record_id", "AttributeType": "S"}],
+}
+
+ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE = {
+    "TableName": "assistant_optimizer_settings_changes",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "record_id", "KeyType": "HASH"},
+        {"AttributeName": "changed_at", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "record_id", "AttributeType": "S"},
+        {"AttributeName": "changed_at", "AttributeType": "S"},
+    ],
+}

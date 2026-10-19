@@ -67,6 +67,7 @@ def get_metrics_overview_use_case() -> CachedMetricsQuery:
             rollup_repository=get_metrics_rollup_repository(),
             timezone_name=genai_config.OPERATIONS_TIMEZONE,
             clock=get_clock(),
+            operational_settings_repository=get_operational_settings_repository(),
         ),
         get_metrics_query_cache(),
     )
@@ -80,6 +81,7 @@ def get_agent_metrics_use_case() -> CachedMetricsQuery:
             rollup_repository=get_metrics_rollup_repository(),
             timezone_name=genai_config.OPERATIONS_TIMEZONE,
             clock=get_clock(),
+            operational_settings_repository=get_operational_settings_repository(),
         ),
         get_metrics_query_cache(),
     )
@@ -106,6 +108,7 @@ def get_technical_metrics_use_case() -> CachedMetricsQuery:
             rollup_repository=get_metrics_rollup_repository(),
             timezone_name=genai_config.OPERATIONS_TIMEZONE,
             clock=get_clock(),
+            operational_settings_repository=get_operational_settings_repository(),
         ),
         get_metrics_query_cache(),
     )

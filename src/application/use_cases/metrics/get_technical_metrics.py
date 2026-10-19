@@ -37,6 +37,9 @@ from src.application.ports.metrics_rollup_port import (
     RollupLevel,
     RollupRow,
 )
+from src.application.ports.operational_settings_port import (
+    OperationalSettingsRepository,
+)
 from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.metrics import technical_rollup_contribution as m
 from src.application.use_cases.metrics.alert_metrics_reader import DEFAULT_RANGE
@@ -79,10 +82,12 @@ class GetTechnicalMetrics:
         rollup_repository: MetricsRollupRepository,
         timezone_name: str,
         clock: Clock | None = None,
+        operational_settings_repository: OperationalSettingsRepository | None = None,
     ) -> None:
         self._rollups = rollup_repository
         self._timezone_name = timezone_name
         self._clock = resolve_clock(clock)
+        self._operational_settings = operational_settings_repository
 
     def execute(self, input: MetricsQueryInput) -> TechnicalMetricsOutput:
         """Raises ValidationError for an invalid range or unknown filter."""
@@ -90,7 +95,19 @@ class GetTechnicalMetrics:
         to = input.to or now
         from_ = input.from_ or (to - DEFAULT_RANGE)
         filters = normalize_technical_filters(input.filters)
-        reads = plan(from_, to, now, self._timezone_name)
+        settings = (
+            self._operational_settings.get()
+            if self._operational_settings is not None
+            else None
+        )
+        reads = plan(
+            from_,
+            to,
+            now,
+            self._timezone_name,
+            maturing_days=settings.maturing_days if settings else 4,
+            stable_months=settings.stable_months if settings else 6,
+        )
         rows = {
             data_type: self._read(data_type, reads, filters)
             for data_type in _EXTRA_DIMENSIONS

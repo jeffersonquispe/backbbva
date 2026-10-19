@@ -1,0 +1,248 @@
+# HANDOFF — Sesión A
+
+## H0 — Verificaciones previas
+
+Revisión del código en `a5843c74` (rama `feat/agent-A`), sin cambios de
+comportamiento.
+
+### Hallazgos H0
+
+1. **Dataset de entrenamiento y madurez.** El caso de uso de inicio valida que
+   el modelo esté en borrador y despacha el trabajo, pero no filtra filas por
+   madurez (`src/application/use_cases/models/start_model_training.py:44-83`).
+   El worker obtiene todas las filas del dataset asociado al modelo
+   (`src/infrastructure/workflows/celery/model_training.py:288-301`). No se
+   observa un filtro de madurez en ese recorrido. El análisis de marcado de
+   datasets sí calcula duración hasta la maduración y actualmente expone
+   `p95_days` (`src/application/use_cases/datasets/analyze_fraud_marking.py:186-194`),
+   pero es análisis, no un filtro aplicado al entrenamiento.
+
+2. **Compatibilidad con cuatro particiones del catálogo.** El entrenamiento
+   lee un solo `model.dataset_name` mediante `get_rows`
+   (`src/infrastructure/workflows/celery/model_training.py:288-301`). Después,
+   el evaluador divide esas filas internamente en `training`, `validation`,
+   `calibration` y `test` (`src/infrastructure/workflows/celery/model_evaluation.py:71-87`).
+   Por tanto, el flujo actual no consume sin cambios una referencia a cuatro
+   datasets ya particionados: si se le entrega una partición como dataset,
+   volverá a subdividirla. La nomenclatura actual también usa `calibration`,
+   mientras que Fase S propone `final`.
+
+3. **Rol que aprueba activar una configuración.** En las solicitudes de
+   despliegue, `channel_manager` crea la solicitud
+   (`src/infrastructure/entrypoint/api/routers/configuration_deploy_requests_router.py:106-120`)
+   y la aprobación está restringida a `manager` o `release_manager`; además,
+   quien solicitó no puede aprobar su propia solicitud
+   (`src/infrastructure/entrypoint/api/routers/configuration_deploy_requests_router.py:145-165`).
+
+4. **Aprovisionamiento de tablas en OKD.** OKD incluye el servicio DynamoDB
+   Local bajo `storage/db/dynamodb` en la composición Kustomize
+   (`deploy/okd/iac_celery/kustomization.yaml:1-8`); las tablas no tienen
+   manifiestos individuales. La API ejecuta `ensure_all_tables()` al iniciar
+   cuando `DYNAMO_ENDPOINT` está configurado
+   (`src/infrastructure/entrypoint/api/initialization/tables.py:17-29`,
+   `src/infrastructure/entrypoint/api/fastapi_app.py:116-128`), y `manager.py`
+   declara el conjunto de tablas existentes (`src/infrastructure/persistence/database/dynamodb/manager.py:361-420`).
+   Esto documenta aprovisionamiento dinámico por la aplicación, pero no prueba
+   que Argo CD haya sincronizado los recursos ni que las tablas estén creadas
+   en un clúster OKD concreto. Para confirmarlo se necesita inspección del
+   clúster. Las tablas nuevas de la propuesta todavía no están en el código
+   base revisado.
+
+### Estado de H0
+
+- **Qué quedó hecho:** las cuatro preguntas de código quedaron verificadas y
+  documentadas arriba.
+- **Archivos tocados:** `docs/handoff/HANDOFF-A.md` únicamente.
+- **Comandos ejecutados:** lectura de `CLAUDE.md`, secciones requeridas del
+  backlog y guías del frontend; búsquedas `rg` y lecturas `nl -ba` de los
+  archivos citados. Sin pruebas, porque H0 no construye ni cambia comportamiento.
+- **E2E:** no aplica a H0, que es una verificación sin construcción.
+- **Supuestos nuevos:** no se infiere el estado vivo del clúster desde los
+  manifiestos del repositorio.
+- **Pendiente del integrador:** aprobar H0 antes de iniciar H1, según el flujo
+  de hitos acordado. No iniciar H6 hasta recibir luz verde explícita después
+  de que H1 y H2 estén mergeados.
+
+## H1 — Ventana de maduración configurable
+
+### Qué quedó hecho
+
+- `OperationalSettings` expone `maturing_days` (4),
+  `expected_coverage_pct` (98.0) y `stable_months` (6). La API valida los
+  rangos en servidor; la actualización registra el diff y su autor en el
+  historial. El endpoint de escritura permite `manager` y `release_manager`.
+- `range_planner` usa parámetros configurables en lugar de
+  `MATURING_DAYS`/`MAY_VARY_MONTHS`. Los lectores de métricas obtienen los
+  ajustes actuales y se invalida la caché de métricas al guardarlos.
+- El análisis de marcado incluye p50, p75, p90, p95, p98 y p99. El panel de
+  Operación permite editar y guardar los tres ajustes; el resumen de dataset
+  muestra esos percentiles.
+- Se agregó E2E real que inicia sesión por API, opera la UI en nginx, verifica
+  persistencia e historial, y restaura los valores originales.
+
+### Archivos tocados
+
+Backend: `src/application/ports/operational_settings_port.py`,
+`src/application/use_cases/operational_settings/update_operational_settings.py`,
+`src/application/use_cases/metrics/{range_planner,alert_metrics_reader,get_agent_metrics,get_metrics_overview,get_technical_metrics}.py`,
+`src/application/use_cases/datasets/analyze_fraud_marking.py`,
+`src/application/dtos/dataset_dtos.py`,
+`src/infrastructure/entrypoint/api/{factories/metrics_factory.py,routers/operational_settings_router.py,schemas/datasets.py,schemas/operational_settings.py}`,
+`src/infrastructure/persistence/database/dynamodb/repositories/operational_settings_repository.py`
+y las pruebas correspondientes en `tests/test_application` y
+`tests/test_infrastructure` para ajustes, métricas, análisis, API y DynamoDB.
+Este handoff también se actualiza.
+
+Frontend (árbol `../frontend_mockup`):
+`src/lib/api/operations.functions.ts`,
+`src/components/configuracion/OperationsPanel.tsx`,
+`src/lib/api/datasets.functions.ts`,
+`src/components/datasets/DatasetSummaryTab.tsx` y
+`e2e/operational-settings-real.spec.ts`.
+
+### Verificación
+
+- `RUFF_CACHE_DIR=/private/tmp/aria-h1-ruff make lint`: pasó; Ruff 0 errores,
+  mypy 102 errores con baseline 102 (sin crecimiento).
+- `API_V0_STR=/api/v0 make test-architecture`: 214 pasaron.
+- `GENAI_ENVIRONMENT=test API_V0_STR=/api/v0 pytest -p no:cacheprovider` con
+  los siete módulos tocados de ajustes, planner, análisis, repositorio, router
+  y métricas: 65 pasaron.
+- `git diff --check`: pasó.
+- `npx eslint` sobre los cuatro módulos frontend y el spec E2E: pasó.
+  `npx tsc --noEmit`: pasó. El `npm run lint` completo del mockup falla por
+  1297 errores Prettier existentes y archivos generados bajo `docs/assets`; el
+  lint focalizado de estos cambios sí pasa.
+- `make e2e-all-local` (suite completa real por `http://localhost`): 16 pasaron,
+  3 omitidos y 4 fallaron en flujos preexistentes (raw-access-audit 404,
+  despliegue de configuración 500 y fixture de entidades 500). En esa primera
+  ejecución la imagen API no contenía aún los cambios H1, por lo que la prueba
+  nueva también falló. Tras reconstruir el stack y corregir el helper para
+  sembrar el token antes de iniciar la app, `E2E_TEST_FILES=e2e/operational-settings-real.spec.ts
+  make e2e-all-local`: 1 pasó por nginx, sin mocks de API. El lock
+  `/tmp/aria-e2e.lock` se liberó al terminar.
+
+### Supuestos y pendientes
+
+- Como la guía no fijaba límites numéricos, servidor y UI aceptan
+  `maturing_days` de 0 a 365, `expected_coverage_pct` mayor que 0 y hasta 100,
+  y `stable_months` de 0 a 120. Se eligieron percentiles p50/p75/p90/p95/p98/p99
+  para conservar p95 y dar contexto alrededor de la cobertura objetivo 98%.
+- Se atribuye el cambio al correo del usuario autenticado; el cliente no
+  determina el autor.
+- **Estado:** implementación H1 completa y E2E focalizado pasado; pendiente de
+  revisión/aprobación del integrador. No iniciar H2 ni H6 antes de esa
+  aprobación; H6 requiere además H1 y H2 mergeados y luz verde explícita.
+- **Necesito del integrador:** revisar y aprobar H1 para merge. El contrato de
+  `assistant_optimizer_settings_port.py` no se modificó ni se adelantó trabajo
+  H2. No se requiere una acción de B para esta entrega.
+
+### Revisión del integrador — corrección de autenticación
+
+- En `tests/test_infrastructure/test_entrypoint/test_reasoning_evaluation_settings.py`,
+  el cliente de prueba ahora inyecta un usuario `manager` válido mediante
+  `get_current_user`. La petición fuera de rango alcanza la validación y
+  devuelve 422; el valor cero sigue aceptándose con 200.
+- Verificaciones repetidas tras la corrección:
+  `RUFF_CACHE_DIR=/private/tmp/aria-h1-ruff make lint` pasó (Ruff 0 errores,
+  mypy 102 con baseline 102); `API_V0_STR=/api/v0 make test-architecture`
+  pasó (214); el pytest focalizado de los ocho módulos H1 pasó (67, 2 warnings).
+  El módulo corregido por separado también pasó (2). `git diff --check` pasó.
+- No se reprodujo otra falla en el pytest focalizado. Según lo indicado por el
+  integrador, la falla observada en la ejecución previa ya existía en
+  `fc8973a`; no se atribuye a H1.
+- **Estado:** H1 sigue completo. Lint, arquitectura y pytest focalizado están
+  verdes. A queda autorizado para iniciar H2 según la aprobación explícita del
+  integrador; H6 continúa esperando que H1 y H2 estén mergeados y luz verde.
+
+## H2 — Configuración del asistente y el optimizador
+
+### Qué quedó hecho
+
+- Añadido el puerto de settings del integrador sin cambios en sus campos ni
+  defaults. `AssistantOptimizerSettings` conserva las propiedades de
+  maduración del contrato, pero el repositorio H2 no las persiste: son
+  propiedad de `OperationalSettings`.
+- Añadidos el adaptador DynamoDB del singleton y el historial append-only, con
+  tabla de cambios indexada por `record_id` y `changed_at`. El caso de uso
+  calcula el diff; registra autor/hora y escribe la auditoría usando `AuditPort`.
+- API `GET/PUT /api/v0/assistant-optimizer-settings` y
+  `GET /api/v0/assistant-optimizer-settings/changes`. Todas requieren usuario
+  `manager` o `release_manager`; el autor proviene del usuario autenticado.
+  Se validan límites numéricos, política de semilla, listas y suma de las tres
+  proporciones de partición (train + validation + test = 1).
+- Las tablas se incluyen en `schemas.py` (el respaldo enumera dinámicamente
+  todas las tablas declaradas ahí), `manager.ensure_all_tables()` y la limpieza
+  E2E. En OKD no hay manifiestos individuales de tablas DynamoDB: el mismo
+  aprovisionamiento dinámico al iniciar la API cubre DynamoDB Local.
+- Añadida la pestaña “Asistente y optimizador” a manager y release manager, con
+  el componente independiente `AgentSettingsPanel`, guardado por sección,
+  historial, restauración de defaults, controles de límites y confirmación
+  explicada al apagar interruptores/subir topes. La pestaña no aparece para
+  `channel_manager`.
+- E2E Playwright real con nginx que guarda desde la UI, confirma la persistencia
+  y autor en historial y restaura la configuración previa.
+
+### Archivos tocados
+
+H2 backend: `src/application/ports/assistant_optimizer_settings_port.py`
+(copiado sin modificación del contrato en `../backend`),
+`src/application/ports/assistant_optimizer_settings_changes_port.py`,
+`src/application/use_cases/assistant_optimizer_settings.py`,
+`src/infrastructure/persistence/database/dynamodb/repositories/assistant_optimizer_settings_repository.py`,
+`src/infrastructure/persistence/database/dynamodb/{schemas.py,manager.py,repositories/e2e_state_cleaner.py}`,
+`src/infrastructure/entrypoint/api/{fastapi_app.py,factories/assistant_optimizer_settings_factory.py,routers/assistant_optimizer_settings_router.py,schemas/assistant_optimizer_settings.py}`
+y pruebas nuevas bajo `tests/test_application` y `tests/test_infrastructure`.
+H1 continúa sin commit en la misma rama de trabajo.
+
+Frontend (`../frontend_mockup`):
+`src/lib/api/assistantOptimizerSettings.functions.ts`,
+`src/components/configuracion/AgentSettingsPanel.tsx`,
+`src/data/configs.ts`, `src/routes/configuracion.tsx` y
+`e2e/assistant-optimizer-settings-real.spec.ts`.
+
+### Comandos ejecutados y resultados
+
+- `RUFF_CACHE_DIR=/private/tmp/aria-h2-ruff make lint`: pasó; Ruff 0 errores,
+  mypy 102 errores con baseline 102.
+- `API_V0_STR=/api/v0 make test-architecture`: 217 pasaron; dos avisos del
+  pytest cache por no poder escribir `.pytest_cache` en el worktree.
+- `GENAI_ENVIRONMENT=test API_V0_STR=/api/v0 pytest -p no:cacheprovider` con
+  pruebas de H1, puerto H2, caso de uso H2, repositorio H2, limpiador E2E y
+  router H2: 87 pasaron, 2 warnings ya identificados (colección de
+  `TestCleanupPolicy` y deprecación Starlette).
+- `npx eslint src/lib/api/assistantOptimizerSettings.functions.ts src/components/configuracion/AgentSettingsPanel.tsx src/data/configs.ts e2e/assistant-optimizer-settings-real.spec.ts`:
+  pasó. `npx tsc --noEmit`: pasó.
+- `npx eslint src/routes/configuracion.tsx`: falla con 339 errores Prettier
+  distribuidos por el archivo de ruta de 2.700+ líneas; no se autoformateó ese
+  archivo. La compilación TypeScript y el E2E real confirman que la pestaña
+  añadida funciona.
+- `E2E_TEST_FILES=e2e/assistant-optimizer-settings-real.spec.ts make e2e-all-local`:
+  primer intento sandbox bloqueado al escribir
+  `~/.docker/buildx/activity/.tmp-default...` (`operation not permitted`);
+  repetido con permiso para Docker, pasó 1/1 por `http://localhost`.
+  Repetido tras el ajuste final del panel, pasó 1/1 otra vez. No se usaron
+  mocks de API. `/tmp/aria-e2e.lock` fue liberado al terminar.
+- `git diff --check`: pasó.
+
+### Supuestos, discrepancias y estado
+
+- Los rangos concretos de los parámetros sin límites establecidos en la guía
+  son los que valida `_validate` en el caso de uso y presenta la UI. La guía sí
+  fija 8.000 caracteres por mensaje y 730 días de retención; esos topes quedan
+  aplicados. Las proporciones de partición se limitan a valores positivos que
+  suman 1.
+- La versión del puerto en `../aria-wt-B` tiene defaults distintos para el
+  tope monetario/duración y no incluye `optimizer_stop_on_critical_failure`.
+  La implementación A copió literalmente la versión del contrato ubicada en
+  `../backend`; el integrador debe reconciliar esa divergencia entre worktrees.
+- La guía requiere historial/diff/auditoría, mientras el contrato del puerto
+  entregado declara solamente `get/update`. Para no alterar el contrato, A
+  agregó `AssistantOptimizerSettingsChangesPort` para la entidad separada de
+  historial y mantuvo los cambios al settings port en cero.
+- **Estado:** H2 implementado y checks backend verdes; E2E real pasó. Pendiente
+  de revisión e integración. No iniciar H6 hasta que H2 se integre y el usuario
+  dé luz verde explícita.
+- **Necesito del integrador:** reconciliar la diferencia del puerto entre
+  `../backend` y `../aria-wt-B`, revisar H2 y resolver los cambios H1/H2 al
+  integrar. No se requiere trabajo de B en sus zonas reservadas.

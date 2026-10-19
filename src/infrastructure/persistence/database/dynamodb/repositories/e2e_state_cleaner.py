@@ -7,7 +7,11 @@ from src.application.ports.e2e_state_cleaner_port import (
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
-from src.infrastructure.persistence.database.dynamodb.schemas import USERS_TABLE
+from src.infrastructure.persistence.database.dynamodb.schemas import (
+    ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE,
+    ASSISTANT_OPTIMIZER_SETTINGS_TABLE,
+    USERS_TABLE,
+)
 
 USERS_TABLE_NAME = USERS_TABLE["TableName"]
 
@@ -24,10 +28,16 @@ class DynamoE2EStateCleaner(E2EStateCleaner):
             for page in client.get_paginator("list_tables").paginate()
             for table_name in page.get("TableNames", [])
         ]
+        settings_tables = [
+            name for name in table_names if name in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
+        ]
+        other_tables = [
+            name
+            for name in table_names
+            if name != USERS_TABLE_NAME and name not in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
+        ]
         deleted = 0
-        for table_name in table_names:
-            if table_name == USERS_TABLE_NAME:
-                continue
+        for table_name in (*settings_tables, *other_tables):
             table = resource.Table(table_name)
             key_names = [item["AttributeName"] for item in table.key_schema]
             expression_names = {
@@ -57,3 +67,12 @@ class DynamoE2EStateCleaner(E2EStateCleaner):
             preserved_tables=[USERS_TABLE_NAME],
             table_count=len(table_names),
         )
+
+
+# H2 tables are explicitly scheduled for cleanup before the remaining tables.
+ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES = frozenset(
+    {
+        ASSISTANT_OPTIMIZER_SETTINGS_TABLE["TableName"],
+        ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE["TableName"],
+    }
+)

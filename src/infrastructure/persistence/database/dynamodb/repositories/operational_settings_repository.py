@@ -91,6 +91,7 @@ def _to_item(settings: OperationalSettings) -> dict[str, Any]:
     payload["reasoning_evaluation_sample_rate"] = Decimal(
         str(payload["reasoning_evaluation_sample_rate"])
     )
+    payload["expected_coverage_pct"] = Decimal(str(payload["expected_coverage_pct"]))
     return {"record_id": SETTINGS_RECORD_ID, **payload}
 
 
@@ -165,6 +166,9 @@ def _from_item(item: dict[str, Any]) -> OperationalSettings:
         reasoning_evaluation_sample_rate=float(
             item.get("reasoning_evaluation_sample_rate", 0.05)
         ),
+        maturing_days=int(item.get("maturing_days", 4)),
+        expected_coverage_pct=float(item.get("expected_coverage_pct", 98.0)),
+        stable_months=int(item.get("stable_months", 6)),
     )
 
 

@@ -190,7 +190,12 @@ class AnalyzeFraudMarkingUseCase:
                 avg_days=round(sum(duration_sample) / len(duration_sample), 2),
                 min_days=round(duration_sample[0], 2),
                 max_days=round(duration_sample[-1], 2),
+                p50_days=round(_percentile(duration_sample, 50), 2),
+                p75_days=round(_percentile(duration_sample, 75), 2),
+                p90_days=round(_percentile(duration_sample, 90), 2),
                 p95_days=round(_percentile(duration_sample, 95), 2),
+                p98_days=round(_percentile(duration_sample, 98), 2),
+                p99_days=round(_percentile(duration_sample, 99), 2),
             )
         else:
             maturation = FraudMaturationProfile(sample_size=0)

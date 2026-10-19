@@ -37,9 +37,8 @@ Behaviors chosen at the edges (all documented in ``plan``'s docstring):
    last day (Dec 31) is outside the 90-day window is read as one ``year``
    row instead of 12 month rows. Partial years are never read as years.
 6. **Maturation** is computed from the youngest date the row aggregates
-   (``min(period end, local today)``): age < 4 days -> ``maturing``; date
-   after ``local today - 6 calendar months`` -> ``may_vary``; else
-   ``stable``.
+   (``min(period end, local today)``), using the configured day and month
+   thresholds passed to ``plan``.
 """
 
 from __future__ import annotations
@@ -63,8 +62,6 @@ class Maturation(str, Enum):
     STABLE = "stable"
 
 
-MATURING_DAYS = 4
-MAY_VARY_MONTHS = 6
 ALL_HOURS: tuple[int, ...] = tuple(range(24))
 
 
@@ -93,6 +90,8 @@ def plan(
     to: datetime,
     now: datetime,
     tz: tzinfo | str,
+    maturing_days: int = 4,
+    stable_months: int = 6,
 ) -> list[PlannedRead]:
     """Return the rollup rows to read for ``[from_, to)``, in chronological order.
 
@@ -100,8 +99,8 @@ def plan(
     timezone (a ``tzinfo`` or an IANA name). Raises ``ValueError`` when
     ``from_ > to`` or a datetime is naive. ``from_ == to`` returns ``[]``.
 
-    See the module docstring for the boundary rules (slot inclusion, 90-day
-    window, partial months, years, maturation).
+    See the module docstring for boundary rules (slot inclusion, 90-day
+    window, partial months, years, and maturation).
     """
     for name, value in (("from_", from_), ("to", to), ("now", now)):
         if value.tzinfo is None or value.utcoffset() is None:
@@ -143,7 +142,7 @@ def plan(
                 period_end=end,
                 hours=ALL_HOURS,
                 partial=False,
-                maturation=_maturation(end, today),
+                maturation=_maturation(end, today, maturing_days, stable_months),
             )
         )
 
@@ -160,7 +159,9 @@ def plan(
                 period_end=end,
                 hours=ALL_HOURS,
                 partial=not _fully_covered(start, end, covered),
-                maturation=_maturation(min(end, today), today),
+                maturation=_maturation(
+                    min(end, today), today, maturing_days, stable_months
+                ),
             )
         )
 
@@ -175,7 +176,7 @@ def plan(
                 period_end=day,
                 hours=hours,
                 partial=False,
-                maturation=_maturation(day, today),
+                maturation=_maturation(day, today, maturing_days, stable_months),
             )
         )
 
@@ -225,10 +226,12 @@ def _fully_covered(
     return True
 
 
-def _maturation(youngest: date, today: date) -> Maturation:
-    if (today - youngest).days < MATURING_DAYS:
+def _maturation(
+    youngest: date, today: date, maturing_days: int, stable_months: int
+) -> Maturation:
+    if (today - youngest).days < maturing_days:
         return Maturation.MATURING
-    if youngest > _subtract_months(today, MAY_VARY_MONTHS):
+    if youngest > _subtract_months(today, stable_months):
         return Maturation.MAY_VARY
     return Maturation.STABLE
 

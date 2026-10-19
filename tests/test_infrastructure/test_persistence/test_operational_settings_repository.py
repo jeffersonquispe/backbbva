@@ -73,6 +73,9 @@ def test_item_round_trips_through_to_item_and_from_item() -> None:
         analyst_enabled=False,
         voicebot_enabled=False,
         max_instances=12,
+        maturing_days=8,
+        expected_coverage_pct=97.5,
+        stable_months=9,
     )
 
     restored = _from_item(_to_item(settings))

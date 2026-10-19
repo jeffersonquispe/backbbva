@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
+from uuid import UUID
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.operational_settings_port import (
     AmountTier,
     OperationalSettings,
@@ -18,6 +21,7 @@ from src.application.use_cases.operational_settings.update_operational_settings 
 from src.infrastructure.entrypoint.api.factories.operational_settings_factory import (
     get_update_operational_settings_use_case,
 )
+from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.routers.operational_settings_router import (
     router,
 )
@@ -40,9 +44,24 @@ class InMemoryOperationalSettingsRepository:
         return list(reversed(self.history))[:limit]
 
 
-def _client(repository: InMemoryOperationalSettingsRepository) -> TestClient:
+def _client(
+    repository: InMemoryOperationalSettingsRepository,
+    role: LocalRole = LocalRole.MANAGER,
+) -> TestClient:
     app = FastAPI()
     app.include_router(router)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    user = LocalUser(
+        id=UUID("00000000-0000-0000-0000-000000000001"),
+        email="manager@example.com",
+        name="Manager",
+        password_hash="",
+        role=role,
+        is_active=True,
+        created_at=now,
+        updated_at=now,
+    )
+    app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_update_operational_settings_use_case] = (
         lambda: UpdateOperationalSettingsUseCase(repository)
     )
@@ -89,3 +108,48 @@ def test_request_without_amount_tiers_keeps_current_ones() -> None:
     )
     assert response.status_code == 200
     assert response.json()["amount_tiers"][0]["code"] == "all"
+
+
+def test_maturation_settings_round_trip_and_record_diff() -> None:
+    repository = InMemoryOperationalSettingsRepository(OperationalSettings())
+    response = _client(repository).put(
+        "/operational-settings",
+        json={
+            "settings": {
+                "maturing_days": 10,
+                "expected_coverage_pct": 97.5,
+                "stable_months": 8,
+            },
+            "changed_by": "manager",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["maturing_days"] == 10
+    assert response.json()["expected_coverage_pct"] == 97.5
+    assert response.json()["stable_months"] == 8
+    assert {change.path for change in repository.history[0].changes} == {
+        "maturing_days",
+        "expected_coverage_pct",
+        "stable_months",
+    }
+
+
+def test_maturation_settings_out_of_range_return_422() -> None:
+    repository = InMemoryOperationalSettingsRepository(OperationalSettings())
+    response = _client(repository).put(
+        "/operational-settings", json={"settings": {"maturing_days": 366}}
+    )
+
+    assert response.status_code == 422
+    assert repository.history == []
+
+
+def test_channel_manager_cannot_update_operational_settings() -> None:
+    repository = InMemoryOperationalSettingsRepository(OperationalSettings())
+    response = _client(repository, LocalRole.CHANNEL_MANAGER).put(
+        "/operational-settings", json={"settings": {"maturing_days": 5}}
+    )
+
+    assert response.status_code == 403
+    assert repository.history == []

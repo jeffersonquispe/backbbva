@@ -189,9 +189,14 @@ def test_maturation_profile_computes_avg_min_max_p95_in_days() -> None:
     assert maturation.min_days == round(1 / 24, 2)
     assert maturation.max_days == 1.0
     assert maturation.avg_days == round((1 + 3 + 24) / 3 / 24, 2)
+    assert maturation.p50_days == round(3 / 24, 2)
+    assert maturation.p75_days == round(13.5 / 24, 2)
+    assert maturation.p90_days == round(19.8 / 24, 2)
     # linear-interpolation percentile: rank = 0.95 * (3 - 1) = 1.9 -> between
     # sorted[1]=3 and sorted[2]=24, 0.9 of the way across.
     assert maturation.p95_days == round((3 + (24 - 3) * 0.9) / 24, 2)
+    assert maturation.p98_days == round((3 + (24 - 3) * 0.96) / 24, 2)
+    assert maturation.p99_days == round((3 + (24 - 3) * 0.98) / 24, 2)
 
 
 def test_rows_with_unparseable_or_missing_timestamps_are_excluded_from_maturation() -> (

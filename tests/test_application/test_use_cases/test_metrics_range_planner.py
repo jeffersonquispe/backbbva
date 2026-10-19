@@ -208,6 +208,35 @@ def test_maturation_thresholds():
     }
 
 
+def test_maturation_thresholds_are_configurable():
+    reads = plan(
+        bog(2026, 9, 26),
+        bog(2026, 9, 29),
+        NOW,
+        BOG,
+        maturing_days=6,
+        stable_months=5,
+    )
+    assert {r.period: r.maturation for r in reads} == {
+        "2026-09-26": Maturation.MATURING,
+        "2026-09-27": Maturation.MATURING,
+        "2026-09-28": Maturation.MATURING,
+    }
+
+    month = plan(
+        bog(2026, 3, 1),
+        bog(2026, 5, 1),
+        NOW,
+        BOG,
+        maturing_days=4,
+        stable_months=5,
+    )
+    assert {r.period: r.maturation for r in month} == {
+        "2026-03": Maturation.STABLE,
+        "2026-04": Maturation.STABLE,
+    }
+
+
 def test_to_in_future_is_clamped_to_now():
     reads = plan(bog(2026, 10, 1), bog(2026, 10, 3), NOW, BOG)
 

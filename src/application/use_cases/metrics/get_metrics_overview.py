@@ -11,6 +11,9 @@ from src.application.ports.metrics_rollup_port import (
     ALERT_DIMENSIONS,
     MetricsRollupRepository,
 )
+from src.application.ports.operational_settings_port import (
+    OperationalSettingsRepository,
+)
 from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.metrics import alert_metrics_reader as reader
 from src.domain.alerts.entities import (
@@ -24,15 +27,21 @@ class GetMetricsOverview:
         rollup_repository: MetricsRollupRepository,
         timezone_name: str,
         clock: Clock | None = None,
+        operational_settings_repository: OperationalSettingsRepository | None = None,
     ) -> None:
         self._rollups = rollup_repository
         self._timezone_name = timezone_name
         self._clock = resolve_clock(clock)
+        self._operational_settings = operational_settings_repository
 
     def execute(self, input: MetricsQueryInput) -> MetricsOverviewOutput:
         """Raises ValueError for a naive/inverted range or unknown filter."""
         read = reader.read_alert_rollups(
-            self._rollups, input, self._clock.now(), self._timezone_name
+            self._rollups,
+            input,
+            self._clock.now(),
+            self._timezone_name,
+            self._operational_settings,
         )
         rows = read.rows
         distributions = reader.dimension_distributions(rows, ALERT_DIMENSIONS)

@@ -102,6 +102,42 @@ def test_update_operational_settings_records_no_changes_when_nothing_differs() -
     assert repository.history[0].changes == []
 
 
+def test_update_maturation_settings_records_each_field_in_history() -> None:
+    repository = InMemoryOperationalSettingsRepository()
+    proposed = replace(
+        repository.get(),
+        maturing_days=7,
+        expected_coverage_pct=97.5,
+        stable_months=9,
+    )
+
+    UpdateOperationalSettingsUseCase(repository).execute(
+        UpdateOperationalSettingsInput(settings=proposed, changed_by="manager")
+    )
+
+    assert repository.history[0].changes == [
+        SettingChange("expected_coverage_pct", 98.0, 97.5),
+        SettingChange("maturing_days", 4, 7),
+        SettingChange("stable_months", 6, 9),
+    ]
+
+
+def test_update_rejects_out_of_range_maturation_settings() -> None:
+    repository = InMemoryOperationalSettingsRepository()
+    proposed = replace(repository.get(), maturing_days=366)
+
+    try:
+        UpdateOperationalSettingsUseCase(repository).execute(
+            UpdateOperationalSettingsInput(settings=proposed)
+        )
+    except ValueError as exc:
+        assert "maturing_days" in str(exc)
+    else:
+        raise AssertionError("expected ValidationError")
+
+    assert repository.history == []
+
+
 def test_list_operational_settings_history_returns_most_recent_first() -> None:
     repository = InMemoryOperationalSettingsRepository()
     older = OperationalSettingsChange(
