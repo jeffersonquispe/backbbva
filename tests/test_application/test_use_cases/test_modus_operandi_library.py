@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from src.application.ports.embedding_port import EmbeddingResult, EmbeddingUnitOfWork
@@ -60,10 +62,17 @@ class InMemoryModusOperandiLibraryRepository:
         active: bool | None = None,
         embedding: list[float] | None = None,
         playbook: ModusOperandiPlaybook | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> ModusOperandiLibraryEntry | None:
         current = self.items.get(entry_id)
         if current is None:
             return None
+        if expected_updated_at is not None and current.updated_at != expected_updated_at:
+            from src.application.ports.modus_operandi_library_port import (
+                ModusOperandiLibraryRevisionConflict,
+            )
+
+            raise ModusOperandiLibraryRevisionConflict()
         updated = ModusOperandiLibraryEntry(
             id=current.id,
             title=title if title is not None else current.title,
