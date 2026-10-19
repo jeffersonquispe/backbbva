@@ -2,16 +2,19 @@
 
 ## Objetivo
 
-Completar la cobertura E2E real de las tareas C1–C6 del documento
-`docs/ALERT_SCHEMA_GOVERNANCE.md`, usando Playwright contra la plataforma
-local completa y la API real expuesta por nginx.
+Especificación del alcance E2E real C1–C6 para gobernanza del esquema de
+alertas. La implementación y ejecución de los seis escenarios está completada;
+el seguimiento de la activación y verificación operativa en OKD está en
+`PENDIENTES.md`.
 
 El trabajo debe partir del mapeo ya construido en:
 
 - `../frontend_mockup/e2e/alert-schema-real-api.spec.ts`
 - `../frontend_mockup/e2e/fixtures/muestra_total_aria_head5.csv`
 
-Si durante la ejecución se detectan campos incorrectos o incompatibilidades,
+La especificación original se basó en el diseño de `docs/ALERT_SCHEMA_GOVERNANCE.md`,
+retirado tras trasladar sus pendientes operativos a `PENDIENTES.md`. Si durante
+la ejecución se detectan campos incorrectos o incompatibilidades,
 se ajusta el seed y se documenta el cambio. No se debe relajar la
 obligatoriedad de los siete roles del sistema para hacer pasar una prueba.
 

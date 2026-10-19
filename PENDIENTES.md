@@ -93,8 +93,11 @@ Decisiones: **nada de esto vive en la config versionada**. On/off, slots de voic
 
 ## 7. Esquema de alerta y versionamiento
 
-- [ ] Diseño, gobierno, tareas (E1–E15) y pendientes en `docs/ALERT_SCHEMA_GOVERNANCE.md` (2026-10-09).
-  - Estado 2026-10-13: E1–E17 y A1–A4 hechos (backend commiteado en `b943cff`). Pendiente: commit del frontend (A5), v1 real (B1/B2), `db_backup.py` (B3), E2E C1–C6 (C1, C4 y C5 parciales; spec en `docs/ALERT_SCHEMA_E2E_DELEGATION.md`) y despliegue OKD (D1–D4).
+- [ ] **Gobernanza del esquema de alertas** — E1–E17, A1–A5 y E2E automatizados C1–C6 completados; alcance E2E documentado en `docs/ALERT_SCHEMA_E2E_DELEGATION.md`. Para cerrar la puesta en marcha:
+  - [ ] **Cargar y activar la v1 en OKD** por Configuración → Esquema: propone `manager`/`release_manager` y aprueba otra persona distinta (B2/D4).
+  - [ ] **Verificar en el clúster** la existencia de `alert_schema_versions`, `alert_schema_presence_reports`, `alert_schema_suggestions` y `backups` (D1); bucket, permisos y retención de payload crudo, salida del agente y auditoría del Evento original (D2); y ejecución diaria del análisis de presencia por `aria-worker-scheduler` (D3).
+  - [ ] **Verificación manual C1–C6 con la v1 real activa en OKD.** Los E2E automatizados pasan con el esquema de su propio seed y no sustituyen esta comprobación.
+  - Referencia para el alcance E2E: `docs/ALERT_SCHEMA_E2E_DELEGATION.md`.
 
 ---
 
