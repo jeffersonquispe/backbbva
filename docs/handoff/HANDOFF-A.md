@@ -376,7 +376,9 @@ Frontend (`../frontend_mockup`):
 - **Archivos frontend tocados:**
   `../frontend_mockup/src/lib/api/assistantOptimizerSettings.functions.ts`,
   `../frontend_mockup/src/components/configuracion/AgentSettingsPanel.tsx` y
-  `../frontend_mockup/e2e/mature-sampler-real.spec.ts`.
+  `../frontend_mockup/e2e/mature-sampler-real.spec.ts`, más el montaje de la
+  pestaña en `../frontend_mockup/src/routes/configuracion.tsx` y su clave en
+  `../frontend_mockup/src/data/configs.ts`.
 - **Comandos y resultados reales:**
   `RUFF_CACHE_DIR=/private/tmp/aria-h6-adjustment-ruff make lint`: pasó,
   Ruff 0 y mypy 0, baseline sin crecimiento.
@@ -408,5 +410,6 @@ Frontend (`../frontend_mockup`):
   lint/tipos frontend y E2E real pasaron. Pendiente de revisión/integración; no
   empezar otro hito.
 - **Necesito del integrador:** integrar el ajuste backend y coordinar la
-  integración de los tres archivos frontend señalados. No se requiere acción
-  de B; el puerto contractual permanece intacto.
+  integración frontend. Commits listos: backend `bda9603`, frontend
+  `a0313e9` (componente/API/E2E) y `c8eb74c` (montaje de pestaña). No se
+  requiere acción de B; el puerto contractual permanece intacto.
