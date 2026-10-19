@@ -351,16 +351,20 @@ Frontend (`../frontend_mockup`):
 - **Necesito del integrador:** revisar H6 e integrar la rama. No se requiere
   intervención de B.
 
-### Ajuste H6 antes de integración — objetivo y fecha desde el esquema
+### Ajuste H6 antes de integración — marcas y fechas desde el esquema
 
-- **Qué quedó hecho:** el manager selecciona un campo etiqueta y una fecha
-  `date`/`datetime` de las versiones compatibles del esquema y define valores
-  fuente que se normalizan a `fraud` o `no_fraud`. El servidor excluye campos
-  sensibles, valida que ambas selecciones pertenezcan al pool, exige las dos
-  clases canónicas y registra diff/historial/auditoría. Preview y snapshots
-  leen la etiqueta desde `AlertRecord.labels` y la fecha del campo seleccionado
-  en la entrada; el volumen de disparador también usa la etiqueta mapeada. El
-  mapeo vive como fila `schema_mapping` de la tabla ya existente
+- **Qué quedó hecho:** el manager selecciona del esquema los cuatro campos:
+  marca inicial, fecha inicial, etiqueta vigente y fecha de última marcación.
+  Los pools admiten campos de marca compatibles y fechas `date`/`datetime`;
+  se excluyen campos sensibles. El servidor valida pertenencia y tipos,
+  requiere fechas distintas, exige un mapeo fuente explícito para `fraud` y
+  `no_fraud`, y registra diff/historial/auditoría. Preview y snapshots leen la
+  etiqueta vigente desde `AlertRecord.labels` y la fecha de última marcación
+  desde el campo de entrada elegido; los snapshots también materializan los
+  campos seleccionados de marca inicial y fecha inicial con sus nombres de
+  esquema. Se agregó una prueba que simula renombres del esquema, expone las
+  nuevas opciones y rechaza los nombres obsoletos. El mapeo vive como fila
+  `schema_mapping` de la tabla ya existente
   `dataset_sampler_state`: no se añade tabla ni se cambia el contrato del
   integrador `assistant_optimizer_settings_port.py`.
 - **Archivos backend tocados:**
@@ -390,26 +394,33 @@ Frontend (`../frontend_mockup`):
   tests/test_application/test_use_cases/test_preview_mature_sample.py
   tests/test_application/test_use_cases/test_create_mature_sample_snapshot.py
   tests/test_infrastructure/test_entrypoint/test_assistant_optimizer_settings_router.py`:
-  19 pasaron, 1 warning de deprecación Starlette.
+  20 pasaron, 1 warning de deprecación Starlette.
   En `../frontend_mockup`, `npx eslint --fix` sobre API, componente y E2E,
-  `npx eslint` focalizado y `npx tsc --noEmit`: pasaron.
+  `npx eslint` focalizado y `npx tsc --noEmit`: pasaron. La pestaña expone
+  selectores para los cuatro campos y el spec obtiene las opciones de la API,
+  sin fijar nombres de columnas.
   `E2E_TEST_FILES=e2e/mature-sampler-real.spec.ts make e2e-all-local`, con
   lock `/tmp/aria-e2e.lock`: reconstruyó API/workers y frontend nginx; el
   Playwright real por `http://localhost:80` pasó 1/1, sin mocks de API. El
-  test configura vía API y UI los campos del esquema, crea y revisa una alerta,
+  test selecciona los cuatro campos desde las opciones reales de la API,
+  configura el mapeo, crea y revisa una alerta,
   ejecuta el snapshot, consulta la operación y verifica referencias y conteos
   de las cuatro particiones. El lock fue liberado; la limpieza restauró el
   mapping y los ajustes operacionales/sampler originales.
   `git diff --check`: pasó.
 - **Supuestos nuevos:** los valores origen se normalizan con `strip` y
   `casefold`; el manager debe mapear explícitamente al menos un valor de cada
-  clase. Se permite borrar toda la configuración de mapping (queda vacía y el
+  clase. Los campos iniciales se copian al dataset snapshot con los nombres
+  seleccionados en el esquema; la etiqueta objetivo de entrenamiento conserva
+  el nombre canónico `fraud_label`. Se permite borrar toda la configuración
+  de mapping (queda vacía y el
   muestreador no puede ejecutar hasta configurarla de nuevo), para restaurar
   un estado inicialmente no configurado.
 - **Estado:** ajuste de H6 implementado; lint, arquitectura, pytest focalizado,
   lint/tipos frontend y E2E real pasaron. Pendiente de revisión/integración; no
   empezar otro hito.
 - **Necesito del integrador:** integrar el ajuste backend y coordinar la
-  integración frontend. Commits listos: backend `bda9603`, frontend
-  `a0313e9` (componente/API/E2E) y `c8eb74c` (montaje de pestaña). No se
-  requiere acción de B; el puerto contractual permanece intacto.
+  integración frontend. Commits de este ajuste: backend `d1414ee`, frontend
+  `8cf3d2e`; commits previos de H6: backend `bda9603` y frontend `a0313e9`
+  (componente/API/E2E), `c8eb74c` (montaje de pestaña). No se requiere acción
+  de B; el puerto contractual permanece intacto.
