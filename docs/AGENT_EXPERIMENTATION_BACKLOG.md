@@ -9,7 +9,15 @@ pruebas backend focalizadas pasan y los E2E reales H1/H2 pasan por nginx. La
 suite E2E completa tras el merge tuvo 23 pasadas y una falla E01 al aprobar un
 despliegue (HTTP 500). H3 de B sigue incompleto: faltan task/worker conectados
 al settings real, despliegue local y E2E por nginx. B debe rebasar sobre
-`c1c9937` y sustituir su fake por el repositorio real; H4 espera el cierre de H3.
+`c1c9937` y sustituir su fake por el repositorio real; H3 quedó integrado en
+`37e5df4`. La verificación independiente pasó (lint, arquitectura 223, pytest
+H3 12) y el E2E específico de H3 por nginx pasó; `e2e-observability` también
+pasó. El E2E completo posterior tuvo 20 pasadas y 4 fallas fuera de H3: E01
+aprobación devuelve HTTP 500; E04/E05 no encuentran los CSV de
+`/private/tmp/aria-e04-partitions`; E10 tiene discrepancia entre ejecuciones
+esperadas y exportadas. A queda autorizado a iniciar H6 y B a iniciar H4.
+H5 depende de H4. Frontend FP0/FP1 se asigna a A en paralelo, manteniendo H6
+como prioridad si hay choque de carga.
 El documento nació el
 2026-10-13 como "agente de optimización" centrado en XGBoost (commit
 `6923c68`) y se reescribió el 2026-10-18 tras una conversación larga con el
