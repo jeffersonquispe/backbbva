@@ -911,6 +911,93 @@ AGENT_PROMPT_ACTIVE_TABLE = {
     ],
 }
 
+# H4 chat data. User-visible content is already irreversibly masked; only
+# message metadata and safe text are persisted. The key is client message id
+# for conditional idempotency, with SessionSeqIdx for after_seq reads.
+AGENT_MESSAGES_TABLE = {
+    "TableName": "agent_messages",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "client_message_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "client_message_id", "AttributeType": "S"},
+        {"AttributeName": "seq", "AttributeType": "N"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "SessionSeqIdx",
+            "KeySchema": [
+                {"AttributeName": "session_id", "KeyType": "HASH"},
+                {"AttributeName": "seq", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+    ],
+}
+AGENT_INSIGHTS_TABLE = {
+    "TableName": "agent_insights",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "insight_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "insight_id", "AttributeType": "S"},
+        {"AttributeName": "scope_key", "AttributeType": "S"},
+        {"AttributeName": "status", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "ScopeStatusIdx",
+            "KeySchema": [
+                {"AttributeName": "scope_key", "KeyType": "HASH"},
+                {"AttributeName": "status", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+    ],
+}
+AGENT_LINKS_TABLE = {
+    "TableName": "agent_links",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "link_key", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "link_key", "AttributeType": "S"},
+        {"AttributeName": "dst_key", "AttributeType": "S"},
+        {"AttributeName": "src_key", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "DstIdx",
+            "KeySchema": [
+                {"AttributeName": "dst_key", "KeyType": "HASH"},
+                {"AttributeName": "src_key", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+    ],
+}
+AGENT_SESSION_SUMMARIES_TABLE = {
+    "TableName": "agent_session_summaries",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "version", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "version", "AttributeType": "N"},
+    ],
+}
+
 FEATURE_TEMPLATES_TABLE = {
     "TableName": "feature_templates",
     "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],

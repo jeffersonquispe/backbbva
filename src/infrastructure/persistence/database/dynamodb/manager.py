@@ -50,11 +50,15 @@ from src.infrastructure.persistence.database.dynamodb.repositories.variable_cata
 from src.infrastructure.persistence.database.dynamodb.schemas import (
     AGENT_BUDGET_LEDGER_TABLE,
     AGENT_CONFIRMATIONS_TABLE,
+    AGENT_INSIGHTS_TABLE,
     AGENT_ITERATIONS_TABLE,
+    AGENT_LINKS_TABLE,
+    AGENT_MESSAGES_TABLE,
     AGENT_PACKAGES_TABLE,
     AGENT_PROMPT_ACTIVE_TABLE,
     AGENT_PROMPTS_TABLE,
     AGENT_RUNS_TABLE,
+    AGENT_SESSION_SUMMARIES_TABLE,
     AGENT_SESSIONS_TABLE,
     AGENT_TOOL_CALLS_TABLE,
     AGENT_VERIFICATIONS_TABLE,
@@ -449,6 +453,18 @@ def ensure_all_tables() -> None:
     create_table(AGENT_CONFIRMATIONS_TABLE)
     create_table(AGENT_PROMPTS_TABLE)
     create_table(AGENT_PROMPT_ACTIVE_TABLE)
+    # H4 chat, insight lifecycle, trace links, and immutable summaries.
+    create_table(AGENT_MESSAGES_TABLE)
+    create_table(AGENT_INSIGHTS_TABLE)
+    create_table(AGENT_LINKS_TABLE)
+    create_table(AGENT_SESSION_SUMMARIES_TABLE)
+    for chat_schema in (
+        AGENT_MESSAGES_TABLE,
+        AGENT_INSIGHTS_TABLE,
+        AGENT_LINKS_TABLE,
+        AGENT_SESSION_SUMMARIES_TABLE,
+    ):
+        enable_ttl(chat_schema, "expires_at")
 
 
 def seed_defaults() -> None:

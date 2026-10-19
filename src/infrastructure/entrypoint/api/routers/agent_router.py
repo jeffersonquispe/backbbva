@@ -5,30 +5,52 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.application.ports.local_auth_port import LocalRole, LocalUser
+from src.application.use_cases.agent.chat_with_agent import (
+    AgentChatNotFoundError,
+    AgentChatPolicyError,
+    AgentMessageLimitError,
+    AgentMessageTooLongError,
+    ChatWithAgentInput,
+)
 from src.application.use_cases.agent.create_agent_session import (
     AgentPromptMissingError,
     AgentSessionPolicyError,
     CreateAgentSessionInput,
+)
+from src.application.use_cases.agent.manage_agent_insight import (
+    AgentInsightNotFoundError,
+    AgentInsightStateError,
 )
 from src.application.use_cases.agent.manage_agent_session import (
     AgentSessionNotFoundError,
     AgentSessionStateError,
 )
 from src.infrastructure.agents.factories import (
+    get_agent_link_repository,
+    get_agent_message_repository,
     get_agent_package_repository,
     get_agent_session_repository,
+    get_agent_session_summary_repository,
 )
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.agent_factory import (
     get_assistant_optimizer_settings_port,
+    get_chat_with_agent_use_case,
     get_create_agent_session_use_case,
+    get_manage_agent_insight_use_case,
     get_manage_agent_session_use_case,
 )
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas.agent import (
+    AgentChatTurnResponse,
+    AgentInsightResponse,
+    AgentLinkResponse,
+    AgentMessageResponse,
     AgentPackageSummaryResponse,
     AgentSessionResponse,
+    AgentSessionSummaryResponse,
     CreateAgentSessionRequest,
+    SendAgentMessageRequest,
 )
 from src.infrastructure.queues.celery.agent_dispatcher import (
     enqueue_agent_session_tick,
@@ -49,10 +71,7 @@ def create_session(
     settings=Depends(get_assistant_optimizer_settings_port),
     _: LocalUser = _CONFIGURATION_ACCESS,
 ):
-    if (
-        request.mode == "optimization"
-        and user.role != LocalRole.CHANNEL_MANAGER
-    ):
+    if request.mode == "optimization" and user.role != LocalRole.CHANNEL_MANAGER:
         raise HTTPException(status_code=403, detail={"code": "ROLE_NOT_ALLOWED"})
     use_case = get_create_agent_session_use_case(settings)
     try:
@@ -65,7 +84,9 @@ def create_session(
             )
         )
     except AgentSessionPolicyError as error:
-        raise HTTPException(status_code=409, detail={"code": "SESSION_POLICY"}) from error
+        raise HTTPException(
+            status_code=409, detail={"code": "SESSION_POLICY"}
+        ) from error
     except AgentPromptMissingError as error:
         raise HTTPException(
             status_code=503, detail={"code": "AGENT_PROMPT_NOT_READY"}
@@ -155,6 +176,145 @@ def get_package(
     return package
 
 
+@router.post("/sessions/{session_id}/messages", response_model=AgentChatTurnResponse)
+def send_message(
+    session_id: str,
+    request: SendAgentMessageRequest,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    try:
+        return get_chat_with_agent_use_case().execute(
+            ChatWithAgentInput(
+                session_id=session_id,
+                owner_id=str(user.id),
+                client_message_id=request.client_message_id,
+                content=request.content,
+            )
+        )
+    except AgentChatNotFoundError as error:
+        raise HTTPException(
+            status_code=404, detail={"code": "SESSION_NOT_FOUND"}
+        ) from error
+    except AgentMessageTooLongError as error:
+        raise HTTPException(
+            status_code=413, detail={"code": "MESSAGE_TOO_LONG"}
+        ) from error
+    except AgentMessageLimitError as error:
+        raise HTTPException(
+            status_code=409, detail={"code": "MESSAGE_LIMIT"}
+        ) from error
+    except AgentChatPolicyError as error:
+        raise HTTPException(status_code=409, detail={"code": "CHAT_POLICY"}) from error
+    except Exception as error:
+        # Provider errors can contain request data; return only a safe code.
+        raise HTTPException(
+            status_code=503, detail={"code": "CHAT_UNAVAILABLE"}
+        ) from error
+
+
+@router.get(
+    "/sessions/{session_id}/messages", response_model=list[AgentMessageResponse]
+)
+def list_messages(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+    after_seq: int = 0,
+    limit: int = 50,
+):
+    _owned_session(session_id, str(user.id))
+    if after_seq < 0 or not 1 <= limit <= 50:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_PAGE"})
+    return get_agent_message_repository().list_after_seq(session_id, after_seq, limit)
+
+
+@router.get(
+    "/sessions/{session_id}/insights", response_model=list[AgentInsightResponse]
+)
+def list_insights(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    try:
+        return get_manage_agent_insight_use_case().list_for_owner(
+            session_id, str(user.id)
+        )
+    except AgentInsightNotFoundError as error:
+        raise HTTPException(
+            status_code=404, detail={"code": "SESSION_NOT_FOUND"}
+        ) from error
+
+
+@router.post(
+    "/sessions/{session_id}/insights/{insight_id}/confirm",
+    response_model=AgentInsightResponse,
+)
+def confirm_insight(
+    session_id: str,
+    insight_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    return _change_insight("confirm", session_id, insight_id, str(user.id))
+
+
+@router.post(
+    "/sessions/{session_id}/insights/{insight_id}/reject",
+    response_model=AgentInsightResponse,
+)
+def reject_insight(
+    session_id: str,
+    insight_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    return _change_insight("reject", session_id, insight_id, str(user.id))
+
+
+@router.get("/sessions/{session_id}/links", response_model=list[AgentLinkResponse])
+def list_links(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+    source_type: str = "message",
+    source_id: str = "",
+):
+    _owned_session(session_id, str(user.id))
+    if not source_id:
+        raise HTTPException(status_code=422, detail={"code": "SOURCE_REQUIRED"})
+    return get_agent_link_repository().list_from(session_id, source_type, source_id)
+
+
+@router.get(
+    "/sessions/{session_id}/summary",
+    response_model=AgentSessionSummaryResponse | None,
+)
+def get_session_summary(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    _owned_session(session_id, str(user.id))
+    return get_agent_session_summary_repository().get_latest(session_id)
+
+
+def _change_insight(method: str, session_id: str, insight_id: str, owner_id: str):
+    try:
+        return getattr(get_manage_agent_insight_use_case(), method)(
+            session_id, insight_id, owner_id
+        )
+    except AgentInsightNotFoundError as error:
+        raise HTTPException(
+            status_code=404, detail={"code": "INSIGHT_NOT_FOUND"}
+        ) from error
+    except AgentInsightStateError as error:
+        raise HTTPException(
+            status_code=409, detail={"code": "INSIGHT_STATE"}
+        ) from error
+
+
 def _control_session(method: str, session_id: str, owner_id: str, settings):
     use_case = get_manage_agent_session_use_case(settings)
     try:
@@ -163,9 +323,13 @@ def _control_session(method: str, session_id: str, owner_id: str, settings):
             enqueue_agent_session_tick(session_id)
         return session
     except AgentSessionNotFoundError as error:
-        raise HTTPException(status_code=404, detail={"code": "SESSION_NOT_FOUND"}) from error
+        raise HTTPException(
+            status_code=404, detail={"code": "SESSION_NOT_FOUND"}
+        ) from error
     except AgentSessionStateError as error:
-        raise HTTPException(status_code=409, detail={"code": "SESSION_STATE"}) from error
+        raise HTTPException(
+            status_code=409, detail={"code": "SESSION_STATE"}
+        ) from error
 
 
 def _owned_session(session_id: str, owner_id: str):

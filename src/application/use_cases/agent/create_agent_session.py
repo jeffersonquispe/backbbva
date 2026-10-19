@@ -14,7 +14,11 @@ from src.application.ports.assistant_optimizer_settings_port import (
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
 
-REQUIRED_PROMPTS = ("orchestrator.system", "subagent.stub.generator")
+REQUIRED_PROMPTS = (
+    "orchestrator.system",
+    "subagent.stub.generator",
+    "agent.chat.system",
+)
 OPEN_STATUSES = {
     AgentSessionStatus.DRAFT,
     AgentSessionStatus.ACTIVE,

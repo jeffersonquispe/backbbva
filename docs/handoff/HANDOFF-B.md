@@ -1,4 +1,4 @@
-# Handoff Sesión B — H3
+# Handoff Sesión B — H3 y H4
 
 Fecha: 2026-10-19
 Worktree: `../aria-wt-B`
@@ -63,3 +63,74 @@ Base tras rebase: `8864dba` (`DEMLGENAIF-141 docs(agent): record H1 and H2 integ
 - **A:** H1+H2 integrados en `c1c9937`; H3 ya consume el repositorio de settings real.
 - **Integrador:** H3 fue integrado sin conflictos en `37e5df4`. La revisión independiente pasó lint (Ruff 0, mypy 0), arquitectura (223) y pytest focalizado (12). `make e2e-agent-local` pasó por nginx con kill switch, cancelación y recuperación tras SIGKILL; `make e2e-observability` pasó (1). Suite completa posterior: 20 pasaron; E01 falló con HTTP 500 al aprobar despliegue, E04/E05 por CSV ausentes en `/private/tmp/aria-e04-partitions` y E10 por discrepancia entre el total esperado y el exportado. Estos fallos no recorren el flujo H3.
 - **Estado:** H3 aceptado. B queda autorizado a iniciar H4 backend; H5 espera el cierre de H4. Frontend FP0/FP1 queda asignado a A junto con H6, con prioridad a H6 si compiten por capacidad.
+
+---
+
+## H4 backend — implementación lista para revisión
+
+Worktree: `../aria-wt-B-H4`
+
+Rama: `feat/agent-B-H4`
+
+Base: `83326e2` (incluye integración H3 `37e5df4`)
+
+### Qué quedó hecho
+
+- Añadidos mensajes de chat idempotentes por `client_message_id`, insights con estados propuesto/confirmado/activo/rechazado/resultado terminal, enlaces mensaje→insight y resúmenes de sesión versionados.
+- Se implementó `PersonalDataMasker` como puerto y adaptador por reglas para cédulas, NIT, celulares, cuentas, tarjetas, emails e IP. El texto se enmascara antes de persistirlo y antes de enviarlo al LLM; también se redactan propuestas y contenido de salida.
+- El caso de uso verifica propietario, estado, switch `assistant_enabled` y límite de caracteres proveniente de settings. Contextualiza con resumen, insights activos y mensajes recientes; guarda el resumen extractivo acotado a 4000 caracteres.
+- Se añadieron endpoints para enviar/listar mensajes, listar y confirmar/rechazar insights, consultar enlaces y resumen. Confirmar insight es una acción explícita de API; el chat no activa propuestas por un “sí”.
+- Se añadió el prompt versionado `agent.chat.system`, su seed, tablas DynamoDB registradas en `manager.py`, catálogo explícito de backup y limpieza E2E.
+- La API responde con error seguro `CHAT_UNAVAILABLE` si el proveedor/modelo LLM no está configurado. La suite de Playwright de chat usa navegador real y `/api/v0` por nginx; no simula respuestas API.
+- La integración Azure reconoce deployments GPT-5 y usa `max_completion_tokens` sin forzar `temperature`; GPT-5.2 rechazaba `max_tokens` con `400 unsupported_parameter`. Se añadió esquema explícito para serializar enlaces de dominio.
+
+### Archivos tocados
+
+- `src/application/ports/{agent_chat_responder_port,agent_insight_port,agent_link_port,agent_message_port,agent_session_summary_port,personal_data_masker_port}.py`
+- `src/application/ports/agent_session_port.py`
+- `src/application/use_cases/agent/{chat_with_agent,manage_agent_insight,create_agent_session}.py`
+- `src/infrastructure/agents/{factories,llm_chat_responder,prompt_seed,rule_based_personal_data_masker}.py`
+- `src/infrastructure/llm/langchain/azure_llm_unit_of_work.py`
+- `src/infrastructure/agents/prompts/agent.chat.system.txt`
+- `src/infrastructure/entrypoint/api/{factories/agent_factory.py,routers/agent_router.py,schemas/agent.py}`
+- `src/infrastructure/persistence/database/dynamodb/{schemas.py,manager.py,repositories/agent_chat_repositories.py,repositories/agent_session_repository.py,repositories/e2e_state_cleaner.py}`
+- `scripts/db_backup.py`, `scripts/e2e_agent_chat_local.mjs`, `Makefile`
+- `tests/test_application/test_use_cases/test_chat_with_agent.py`
+- `tests/test_infrastructure/test_agents/{test_llm_chat_responder.py,test_personal_data_masker.py}`
+- `tests/test_infrastructure/test_llm/test_azure_llm_unit_of_work.py`
+- `tests/test_infrastructure/test_entrypoint/test_agent_schemas.py`
+- `docs/handoff/HANDOFF-B.md`
+
+### Comandos y resultado real
+
+- `RUFF_CACHE_DIR=/tmp/aria-ruff-cache-B-H4 make lint`: **pasó** — Ruff 0 errores (baseline 0), mypy 0 errores (baseline 0). La ejecución inicial sin `RUFF_CACHE_DIR` fue bloqueada al crear `.ruff_cache` por permisos del worktree; los resultados no se aceptaron hasta repetir y pasar.
+- `API_V0_STR=/api/v0 make test-architecture`: **pasó** — 225 passed. pytest dio un aviso de permisos al crear `.pytest_cache` en el worktree.
+- `API_V0_STR=/api/v0 GENAI_ENVIRONMENT=test pytest tests/test_infrastructure/test_llm/test_azure_llm_unit_of_work.py tests/test_infrastructure/test_agents/test_llm_chat_responder.py tests/test_application/test_use_cases/test_chat_with_agent.py tests/test_infrastructure/test_agents/test_personal_data_masker.py tests/test_infrastructure/test_agents/test_prompt_dynamodb_mapping.py tests/test_infrastructure/test_entrypoint/test_agent_schemas.py`: **pasó** — 13 passed; un aviso de permisos al crear `.pytest_cache`.
+- `make e2e-agent-chat-local`: **pasó** — reconstruyó el API, usó Playwright real contra `http://localhost` por nginx y completó máscara, inyección, reintento, insight, enlace y resumen. Salida: `Agent chat E2E Playwright por nginx: máscara, inyección, reintento, insight, enlace y resumen pasaron.` El target obtuvo `/tmp/aria-e2e.lock` y su `trap` lo liberó.
+- Durante el diagnóstico, el primer E2E con configuración presente identificó el parámetro Azure `max_tokens` como incompatible (`400 unsupported_parameter`); el ajuste GPT-5 se probó con una llamada inocua y luego con la suite E2E completa.
+- `node --check scripts/e2e_agent_chat_local.mjs` y `git diff --check`: **pasaron**.
+- `node --check scripts/e2e_agent_chat_local.mjs`: **pasó**.
+- `git diff --check`: **pasó**.
+- No se ejecutó `make lint-baseline`; los baselines siguen en cero.
+
+### E2E
+
+**Pasó.** E2E real por nginx en `http://localhost` (puerto 80), sin mocks de API. Verificó reintento con el mismo `client_message_id` sin duplicar mensajes, enmascarado de señuelos de datos colombianos en respuestas/logs, resistencia a inyección, insight pendiente hasta confirmación API, relación mensaje→insight y resumen versionado. El lock se liberó.
+
+### Desvíos del modelo de datos propuesto
+
+- `message_seq` es contador atómico en `agent_sessions` (incremento `ADD` más `rev`) y no contador separado; evita que actualizaciones stale reinicien el orden.
+- La clave primaria de idempotencia de mensaje es `(session_id, client_message_id)`; el orden cronológico se consulta por índice GSI de secuencia.
+- Los resúmenes son append-only, extractivos y acotados a 4000 caracteres; no hay carryover automático entre sesiones. Insights requieren confirmación explícita en la sesión correspondiente.
+- TTL persiste como epoch numérico. DynamoDB Local rechaza `UpdateTimeToLive` con `ValidationException` en estas tablas, por lo que el borrado automático por TTL no pudo validarse localmente.
+- Las cuatro tablas nuevas se registran en `manager.py`, backup y cleaner; no se modificó un manifiesto OKD independiente porque el despliegue usa el registro compartido de tablas. Revisar con integrador que ese registro sea la fuente efectiva para OKD.
+
+### Supuestos nuevos y dependencias
+
+- El chat depende de la configuración LLM local real; no se introdujo stub para forzar el E2E.
+- La confirmación de insight es una llamada API auditada separada y nunca se infiere de texto conversacional.
+- Frontend FP0/FP1 sigue a cargo de A. No se inició H5.
+
+### Qué necesito de A o del integrador
+
+- **Integrador:** revisar H4 y el desvío de catálogo OKD. El E2E real ya pasó; H5 queda pendiente de aceptación/revisión del integrador.

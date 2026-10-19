@@ -31,13 +31,18 @@ class DynamoE2EStateCleaner(E2EStateCleaner):
         settings_tables = [
             name for name in table_names if name in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
         ]
+        agent_chat_tables = [
+            name for name in table_names if name in AGENT_CHAT_TABLE_NAMES
+        ]
         other_tables = [
             name
             for name in table_names
-            if name != USERS_TABLE_NAME and name not in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
+            if name != USERS_TABLE_NAME
+            and name not in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
+            and name not in AGENT_CHAT_TABLE_NAMES
         ]
         deleted = 0
-        for table_name in (*settings_tables, *other_tables):
+        for table_name in (*settings_tables, *agent_chat_tables, *other_tables):
             table = resource.Table(table_name)
             key_names = [item["AttributeName"] for item in table.key_schema]
             expression_names = {
@@ -74,5 +79,15 @@ ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES = frozenset(
     {
         ASSISTANT_OPTIMIZER_SETTINGS_TABLE["TableName"],
         ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE["TableName"],
+    }
+)
+
+# H4 tables are explicitly grouped for local E2E cleanup.
+AGENT_CHAT_TABLE_NAMES = frozenset(
+    {
+        "agent_messages",
+        "agent_insights",
+        "agent_links",
+        "agent_session_summaries",
     }
 )

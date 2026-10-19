@@ -10,6 +10,7 @@ from src.infrastructure.agents.factories import get_agent_prompt_repository
 PROMPT_FILES = {
     "orchestrator.system": "orchestrator.system.txt",
     "subagent.stub.generator": "subagent.stub.generator.txt",
+    "agent.chat.system": "agent.chat.system.txt",
 }
 PROMPT_DIRECTORY = Path(__file__).with_name("prompts")
 
