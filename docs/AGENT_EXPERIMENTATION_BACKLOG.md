@@ -19,7 +19,7 @@ integradora H6: lint Ruff/mypy 0/0, arquitectura 233/233, pytest focalizado
 20/20 y Playwright real por nginx 1/1. El merge conservó la limpieza E2E de
 tablas del chat H4 y del muestreador H6. Los baselines de lint no crecieron.
 
-Quedan pendientes decisiones 7–8 y las decisiones técnicas B0.2–B0.4 antes de
+Queda pendiente la decisión 8 y las decisiones técnicas B0.2–B0.4 antes de
 H8. H7 en adelante no está autorizado por estas integraciones. FP0/FP1 de la
 pestaña del muestreador se integraron en frontend (`c8eb74c`, `8cf3d2e`) y el
 E2E del panel pasó; FP1b/FP2/FP3 del panel conversacional siguen por confirmar.
@@ -669,12 +669,16 @@ trazabilidad completa hasta el efecto que produjo.
 **Backend**
 
 El agente propone insights extraídos de la conversación y **los devuelve al
-usuario para confirmar** ("entendí X, alcance Y") antes de volverlos activos.
+usuario para confirmar** ("entendí X, alcance Y") antes de usarlos como
+preferencias, restricciones o instrucciones activas. Los hallazgos estadísticos
+derivados de datos elegibles siguen el ciclo de evidencia de B2.5/B2.6 y no
+requieren confirmación caso por caso ni confirmación humana para guardarse.
 Las restricciones se validan contra los límites duros; si chocan, se explica y
 no se aplican.
 
-**Aceptación:** ningún insight afecta al loop sin confirmación; los rechazados
-quedan registrados.
+**Aceptación:** ninguna instrucción conversacional no confirmada afecta al loop;
+los hallazgos de datos se identifican como evidencia del optimizador, con su
+procedencia, y nunca como decisiones humanas.
 
 ### B4.4 — Cierre del ciclo insight → evidencia
 **Backend**
@@ -691,9 +695,13 @@ resultado.
 **Backend**
 
 Resumen versionado de cada sesión (decisiones, aprendizajes, pendientes).
-Definir qué se arrastra entre sesiones (preferencias y restricciones vigentes)
-y qué caduca. Los insights de una sesión no se aplican a otra sin
-reconfirmación explícita.
+Los hallazgos agregados respaldados por datos se guardan en `optimizer_insights`
+y se recuperan para sesiones futuras por segmento. Cada sesión los reevalúa con
+la nueva muestra y puede mantenerlos, refutarlos o marcarlos obsoletos. Las
+propuestas conversacionales de `agent_insights` no se arrastran como
+instrucciones sin confirmación explícita. La evidencia de casos elegibles puede
+respaldar un hallazgo sin confirmación humana individual; persistirlo no lo
+aprueba ni autoriza cambios en producción.
 
 ### B4.6 — Entrada no confiable
 **Backend + seguridad**
@@ -1055,6 +1063,30 @@ descubrimiento de patrones (B2.6).
 - Atributos: `kind`, dimensión (segmento, canal, subcanal, etapa, ruta),
   métricas agregadas con su conteo (nunca por debajo del mínimo acordado),
   periodo, `source` (rollups #22, judge, entrenamiento), `opaque_refs`.
+
+**`optimizer_insights`** — hallazgos agregados que pueden retomarse entre
+sesiones. Es distinto de `agent_insights`, que representa afirmaciones o
+propuestas conversacionales ligadas a una sesión.
+- Clave: `insight_id` (global, estable).
+- Atributos: `statement`, `kind` (`PATTERN`, `HYPOTHESIS`), `scope_key`
+  (segmento estable), `status` (`SUPPORTED`, `REFUTED`, `STALE`, `RETIRED`),
+  `evidence_summary` (métricas agregadas y `sample_count`), periodo observado,
+  `dataset_snapshot_ids`, `finding_ids`, versión de esquema y mapping de
+  etiquetas, `origin_session_id`/`origin_run_id`, `created_at`,
+  `last_evaluated_at`, `review_after`, `supersedes_id`, `rev`.
+- Índices: `ScopeStatusIdx` (`scope_key`, `status`) para recuperar el contexto
+  de una sesión por segmento; `StatusReviewIdx` (`status`, `review_after`) para
+  localizar hallazgos que deben reevaluarse.
+- Solo persiste evidencia agregada y referencias opacas a snapshots/findings;
+  no guarda filas, identificadores ni datos personales de alertas. Solo se
+  publica cuando el segmento tiene al menos 30 casos. Ese umbral permite
+  mostrar el agregado, pero por sí solo no declara estadísticamente válido el
+  patrón.
+- Al abrir una sesión, se cargan hallazgos `SUPPORTED` del mismo segmento como
+  contexto etiquetado “respaldado por datos”, junto con su muestra y periodo.
+  No equivalen a una confirmación humana, no ejecutan acciones y se vuelven a
+  evaluar con la muestra nueva. Si la evidencia contradice el patrón, se
+  registra `REFUTED`; si sus datos/versiones ya no son comparables, `STALE`.
 
 #### Runtime: subagentes y ejecución
 
@@ -1826,7 +1858,14 @@ construye una sola vez.
    `manager` o `release_manager` y sigue separada de aprobar el paquete.
 6. ✅ **Resuelta 2026-10-19:** mostrar diagnósticos a nivel de segmento; ocultar
    las métricas de cualquier segmento con menos de 30 casos.
-7. ¿Qué insights persisten entre sesiones y cuáles caducan?
+7. ✅ **Resuelta 2026-10-19:** crear `optimizer_insights` para guardar y
+   recuperar hallazgos agregados respaldados por datos, separados de los
+   insights conversacionales por sesión. No requieren confirmación humana caso
+   por caso; se guardan con segmento, periodo, tamaño de muestra, versión de
+   esquema/mapping y referencias al snapshot/hallazgo. Solo se publican con al
+   menos 30 casos por segmento, se reevalúan en cada sesión nueva y pueden
+   quedar `SUPPORTED`, `REFUTED`, `STALE` o `RETIRED`. Persistir un hallazgo no
+   lo aprueba ni promueve a producción.
 8. Para el loop de optimización: ¿qué subagente va primero, tras el modo
    asistente?
 9. ✅ **Resuelta 2026-10-18.** Modo asistente: solo texto pegado, sin
