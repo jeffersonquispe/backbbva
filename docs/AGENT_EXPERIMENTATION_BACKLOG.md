@@ -2,22 +2,44 @@
 
 ## Guía de retoma (leer primero)
 
-**Estado (2026-10-18).** Wave 0 quedó registrada (`fc8973a` baseline;
-`7d10905` contrato `AssistantOptimizerSettings` y fake). H0 está revisado. H1
-y H2 de A están integrados en `c1c9937`; lint y arquitectura pasan, las 83
-pruebas backend focalizadas pasan y los E2E reales H1/H2 pasan por nginx. La
-suite E2E completa tras el merge tuvo 23 pasadas y una falla E01 al aprobar un
-despliegue (HTTP 500). H3 de B sigue incompleto: faltan task/worker conectados
-al settings real, despliegue local y E2E por nginx. B debe rebasar sobre
-`c1c9937` y sustituir su fake por el repositorio real; H3 quedó integrado en
-`37e5df4`. La verificación independiente pasó (lint, arquitectura 223, pytest
-H3 12) y el E2E específico de H3 por nginx pasó; `e2e-observability` también
-pasó. El E2E completo posterior tuvo 20 pasadas y 4 fallas fuera de H3: E01
-aprobación devuelve HTTP 500; E04/E05 no encuentran los CSV de
-`/private/tmp/aria-e04-partitions`; E10 tiene discrepancia entre ejecuciones
-esperadas y exportadas. A queda autorizado a iniciar H6 y B a iniciar H4.
-H5 depende de H4. Frontend FP0/FP1 se asigna a A en paralelo, manteniendo H6
-como prioridad si hay choque de carga.
+**Estado (2026-10-19).** Wave 0 y H1–H4 permanecen integrados. H5 corregido
+quedó integrado en `ad78bef` después de restaurar la primera entrega revertida
+(`fc6d33a`) e incorporar el generador JSON estructurado (`8c1dcdc`). La causa
+del `409 DRAFT_POLICY` post-merge anterior era el contrato de chat incompatible
+con la salida JSON del generador; la corrección separa ambos adaptadores y
+clasifica una salida inválida como indisponibilidad de generación. Verificación
+integradora H5: lint Ruff/mypy 0/0, arquitectura 227/227, pytest focalizado
+18/18 y E2E real reconstruido por nginx pasó create/update, verificaciones,
+diff, base_version y auditoría.
+
+H6 quedó integrado en `a08e019`. La selección configurable cubre los cuatro
+campos del esquema: marca inicial, fecha inicial, etiqueta vigente y fecha de
+última marcación; también configura el mapeo a fraude/no fraude. Verificación
+integradora H6: lint Ruff/mypy 0/0, arquitectura 233/233, pytest focalizado
+20/20 y Playwright real por nginx 1/1. El merge conservó la limpieza E2E de
+tablas del chat H4 y del muestreador H6. Los baselines de lint no crecieron.
+
+Quedan pendientes decisiones 5–8 y las decisiones técnicas B0.2–B0.4 antes de
+H8. H7 en adelante no está autorizado por estas integraciones. FP0/FP1 de la
+pestaña del muestreador se integraron en frontend (`c8eb74c`, `8cf3d2e`) y el
+E2E del panel pasó; FP1b/FP2/FP3 del panel conversacional siguen por confirmar.
+La suite completa anterior conserva cuatro fallos ajenos a estos hitos (E01,
+E04/E05 y E10), documentados abajo.
+
+**Fuente de etiquetas y volumen (aclaración del usuario, 2026-10-19).** Hoy la
+marca vigente está en `tipo`: `ris`/`risk-suspect` se normaliza a fraude y
+`no-risk` a no fraude. Una remarcación reemplaza ese valor y actualiza la fecha
+de última marcación; la marca y fecha iniciales permanecen inmutables. El
+volumen disponible es de unos 50.000 registros maduros por mes, con 2–4 % de
+fraude (aprox. 1.000–2.000); aunque existe historia de cinco años, solo se
+pueden obtener unos seis meses. El muestreador debe usar ese horizonte
+disponible. No se presupone que los nombres de campos sean fijos: en la
+configuración, el manager seleccionará los campos desde el pool publicado por
+el esquema y definirá/revisará el mapeo de valores de etiqueta. La marca vigente
+y su fecha de maduración deben seleccionarse por separado de la marca/fecha
+iniciales. `fraud_label_reviews` no se considera historial completo del origen
+hasta confirmar que captura todas las remarcaciones externas; eso no bloquea el
+muestreo del estado vigente.
 El documento nació el
 2026-10-13 como "agente de optimización" centrado en XGBoost (commit
 `6923c68`) y se reescribió el 2026-10-18 tras una conversación larga con el
@@ -104,10 +126,16 @@ Revisarlos antes de implementar; el usuario puede corregirlos.
 
 - **2 (decidida 2026-10-18):** tope de **50 USD y 12 horas por sesión**,
   optimizador apagado por defecto, y parada ante el primer fallo crítico. El
-  escalamiento queda como dato informativo; las renovaciones de presupuesto
-  siguen sujetas a aprobación (B0.2).
-- **3**: volumen e historia de etiquetas maduras disponibles.
-- **4**: cómo se renueva el presupuesto en un ciclo prolongado.
+  escalamiento queda como dato informativo.
+- **3 (decidida 2026-10-19):** unos 50.000 registros maduros al mes, 2–4 %
+  fraude; existen cinco años, pero solo se pueden obtener unos seis meses. El
+  manager selecciona los campos desde el pool definido por el esquema y
+  configura el mapeo de valores de etiqueta.
+- **4 (decidida 2026-10-19):** al alcanzar el tope vigente, la sesión se pausa.
+  El `channel_manager` puede autorizar topes adicionales explícitos; cada
+  autorización añade presupuesto al límite vigente y se registra en auditoría.
+  Al agotar el nuevo tope vuelve a pausarse. No hay renovación automática; el
+  máximo de ampliaciones se controla con `optimizer_max_budget_renewals`.
 - **5**: quién aprueba y promueve en el optimizador, y si la aprobación es por
   ítem, por paquete o ambas.
 - **6**: cortes por dimensión y conteos mínimos aceptables del diagnóstico.
@@ -1159,8 +1187,9 @@ verificación (B4.4).
 **`agent_budget_ledger`**
 - Clave: `session_id` + `ts#entry_id`.
 - Atributos: `entry_type` (`ALLOCATE`, `SPEND`, `RENEW`, `DENY`), montos por
-  recurso, `actor`, `reason`. Las renovaciones (B0.2) exigen aprobación
-  humana. El tope se impone con una escritura condicional sobre
+  recurso, `actor`, `reason`. Cada ampliación requiere aprobación explícita
+  del `channel_manager` y se registra como `RENEW`; la sesión pausada continúa
+  solo tras esa autorización. El tope se impone con una escritura condicional sobre
   `agent_sessions.budget_spent` (gasto + delta ≤ límite), no con una
   instrucción al LLM.
 
@@ -1381,7 +1410,7 @@ retención, kill switches). Incluye backend y experiencia de usuario.
 | Optimizador | `optimizer_enabled` (kill switch), `optimizer_max_concurrent_sessions`, `optimizer_max_concurrent_runs`, `optimizer_max_candidates_per_session`, `optimizer_session_budget_ceiling` (tokens, USD, segundos), política de renovación de presupuesto (siempre con aprobación; máximo de renovaciones), iteraciones sin mejora antes de parar |
 | Objetivo y límites | `objective_precision_floor` (piso de precisión; el recall se maximiza), soporte mínimo por segmento, conteo mínimo para publicar agregados, cobertura mínima de alertas maduras para declarar ganador, parada ante fallo crítico. Coste y duración por sesión: 50 USD y 12 horas; escalamiento informativo (decisión 2) |
 | Maduración del fraude | `maturing_days`, `expected_coverage_pct`, `stable_months` (en `OperationalSettings`) |
-| Muestreo de datos | `sampler_enabled`; disparadores (periodo, volumen N, umbral estadístico, enfriamiento); periodo de muestreo en días; tamaño o margen de error y confianza; estratos; mínimo por estrato; razón de sobremuestreo de fraude; proporciones de particiones; política de semilla; máximo de muestras retenidas; versiones de esquema compatibles |
+| Muestreo de datos | `sampler_enabled`; disparadores (periodo, volumen N, umbral estadístico, enfriamiento); periodo de muestreo en días; tamaño o margen de error y confianza; estratos; mínimo por estrato; razón de sobremuestreo de fraude; proporciones de particiones; política de semilla; máximo de muestras retenidas; versiones de esquema compatibles; por esquema, selección de campos de marca vigente, fecha de última marcación, marca inicial y fecha inicial desde el pool de campos del esquema, más mapeo configurable de valores a fraude/no fraude |
 
 Los valores del objetivo y del muestreo son **valores por defecto y topes**: al
 crear una sesión se copian dentro de la versión del objetivo y de cada muestra,
@@ -1775,8 +1804,20 @@ construye una sola vez.
    configurable; tope de 50 USD y 12 horas por sesión; el optimizador está
    apagado por defecto y se detiene ante el primer fallo crítico. El
    escalamiento es informativo.
-3. ¿Qué volumen e historia de etiquetas maduras hay?
-4. ¿Cómo se renueva el presupuesto en un ciclo prolongado?
+3. ✅ **Resuelta 2026-10-19 (volumen e historia disponibles):** unos 50.000
+   registros maduros/mes, con 2–4 % de fraude; existen cinco años de historia,
+   pero la extracción disponible cubre unos seis meses. El muestreador usará
+   como máximo esos seis meses disponibles y excluirá etiquetas no clasificables
+   o pendientes. La marca vigente y su fecha de última marcación determinan la
+   clase y madurez; la marca/fecha iniciales son inmutables. El mapeo no
+   codificará nombres de columnas: el manager los seleccionará del pool del
+   esquema y configurará los valores de fraude/no fraude. Queda por confirmar
+   si `fraud_label_reviews` captura toda remarcación de origen; no se necesita
+   ese historial para muestrear el estado vigente.
+4. ✅ **Resuelta 2026-10-19:** al agotarse el tope vigente se pausa la sesión;
+   el `channel_manager` puede autorizar ampliaciones adicionales, una por una.
+   Cada ampliación queda auditada, no es automática y respeta
+   `optimizer_max_budget_renewals`.
 5. ¿Qué roles pueden chatear, aprobar y promover? ¿La aprobación es por ítem,
    por paquete o ambas?
 6. ¿Qué cortes por dimensión y qué conteos mínimos son aceptables para el
