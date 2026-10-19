@@ -146,6 +146,9 @@ class Config(BaseSettings):
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"
     CELERY_DEFAULT_QUEUE: str = "default"
+
+    CELERY_AGENT_QUEUE: str = "agent"
+    AGENT_STUB_DELAY_SECONDS: float = 0.0
     # Test runs use a dedicated queue and worker so batch CSV work cannot
     # consume production workflow capacity.
     CELERY_TEST_QUEUE: str = "test"

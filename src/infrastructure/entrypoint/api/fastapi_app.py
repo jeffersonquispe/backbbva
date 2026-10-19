@@ -21,6 +21,9 @@ from src.infrastructure.entrypoint.api.initialization.cors import (
 from src.infrastructure.entrypoint.api.initialization.startup import (
     run_startup_initializers,
 )
+from src.infrastructure.entrypoint.api.routers.agent_router import (
+    router as agent_router,
+)
 from src.infrastructure.entrypoint.api.routers.alert_schema_router import (
     router as alert_schema_router,
 )
@@ -134,6 +137,7 @@ def create_app() -> FastAPI:
     configure_cors(app)
     app.include_router(health_router)
     app.include_router(auth_router, prefix=genai_config.API_V0_STR)
+    app.include_router(agent_router, prefix=genai_config.API_V0_STR)
     app.include_router(backups_router, prefix=genai_config.API_V0_STR)
     app.include_router(alert_schema_router, prefix=genai_config.API_V0_STR)
     app.include_router(e2e_router, prefix=genai_config.API_V0_STR)

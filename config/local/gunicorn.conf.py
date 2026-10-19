@@ -9,7 +9,6 @@ from opentelemetry.sdk.metrics.export import (
 )
 from opentelemetry.sdk.resources import (
     SERVICE_INSTANCE_ID,
-    SERVICE_NAME,
     Resource,
 )
 from opentelemetry.sdk.trace import TracerProvider
@@ -21,8 +20,12 @@ from opentelemetry.sdk.trace.export import (
 # TAKE CARE: I have added the alias cfg to config since within the config
 # file there can be the config attribute which is expected to be a path.
 from src.infrastructure.core.config import genai_config as cfg
-from src.infrastructure.persistence.database.dynamodb.manager import ensure_all_tables as ensure_dynamodb_tables
-from src.infrastructure.persistence.search_engine.opensearch.manager import ensure_opensearch_tables
+from src.infrastructure.persistence.database.dynamodb.manager import (
+    ensure_all_tables as ensure_dynamodb_tables,
+)
+from src.infrastructure.persistence.search_engine.opensearch.manager import (
+    ensure_opensearch_tables,
+)
 
 bind = "0.0.0.0:8000"
 workers = 1

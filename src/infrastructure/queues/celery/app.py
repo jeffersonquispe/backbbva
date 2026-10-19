@@ -90,4 +90,33 @@ def create_celery_app(name: str = "aria-worker") -> Celery:
     return app
 
 
+def create_agent_celery_app(name: str = "aria-agent-worker") -> Celery:
+    """Build the isolated Celery app used only by the assistant agent."""
+    register_audit_signals()
+    agent_app = Celery(
+        name,
+        broker=genai_config.CELERY_BROKER_URL,
+        backend=genai_config.CELERY_RESULT_BACKEND,
+    )
+    agent_app.conf.update(
+        task_default_queue=genai_config.CELERY_AGENT_QUEUE,
+        task_serializer="json",
+        accept_content=["json"],
+        result_serializer="json",
+        timezone=genai_config.OPERATIONS_TIMEZONE,
+        enable_utc=True,
+        worker_prefetch_multiplier=1,
+        task_acks_late=True,
+        beat_schedule={
+            "agent-recover-stale-runs": {
+                "task": "agent.recover_stale_runs",
+                "schedule": 30.0,
+            }
+        },
+    )
+    agent_app.autodiscover_tasks(["src.infrastructure.entrypoint.agent_worker.celery"])
+    return agent_app
+
+
 app = create_celery_app()
+agent_app = create_agent_celery_app()
