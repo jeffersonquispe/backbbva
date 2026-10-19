@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -86,7 +87,9 @@ class VectorStoreInstanceRepository(Protocol):
 
     def update(self, instance: VectorStoreInstance) -> VectorStoreInstance: ...
 
-    def list_assets(self, instance_id: str) -> list[VectorStoreInstanceAsset]: ...
+    def list_assets(
+        self, instance_id: str
+    ) -> builtins.list[VectorStoreInstanceAsset]: ...
 
     def add_asset(
         self, asset: VectorStoreInstanceAsset

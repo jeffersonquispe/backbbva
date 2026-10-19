@@ -4,9 +4,9 @@ from functools import lru_cache
 from uuid import UUID
 
 from src.application.ports.alert_port import AlertRepository
-from src.application.ports.alert_schema_port import (
+from src.application.ports.alert_schema_port import AlertSchemaRepository
+from src.application.ports.alert_schema_presence_report_port import (
     AlertSchemaPresenceReportRepository,
-    AlertSchemaRepository,
 )
 from src.application.ports.async_operation_port import AsyncOperationRepository
 from src.application.ports.configuration_port import ConfigurationRepository
@@ -27,11 +27,11 @@ from src.application.ports.vector_store_instance_port import (
     VectorStoreInstanceRepository,
 )
 from src.application.ports.watchlist_port import WatchlistRepository
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRepository,
+from src.application.ports.workflow_port import WorkflowExecutionRepository
+from src.application.ports.workflow_status_port import WorkflowStatusReporter
+from src.application.ports.workflow_step_execution_port import (
     WorkflowStepExecutionRepository,
 )
-from src.application.ports.workflow_status_port import WorkflowStatusReporter
 from src.application.use_cases.alert_schema.analyze_presence import (
     AnalyzeAlertSchemaPresenceUseCase,
 )

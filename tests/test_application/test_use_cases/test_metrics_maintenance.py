@@ -187,7 +187,7 @@ class StaticSettings:
         return OperationalSettings()
 
 
-class FakeLifecycleReader(AlertLifecycleReader):
+class InMemoryLifecycleReader(AlertLifecycleReader):
     def __init__(self) -> None:
         self.facts: dict[UUID, AlertLifecycleFacts] = {}
         self.reads: list[UUID] = []
@@ -212,7 +212,7 @@ class RecordingMonitoring(MonitoringPort):
 def env():
     alerts = InMemoryAlertRepository()
     rollups = InMemoryMetricsRollupRepository(alerts)
-    reader = FakeLifecycleReader()
+    reader = InMemoryLifecycleReader()
     recorder = RecordAlertMetricsEvent(
         alert_repository=alerts,
         rollup_repository=rollups,

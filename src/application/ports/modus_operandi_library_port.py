@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from typing import Protocol
 
 from src.domain.fraud_knowledge.library_entities import (
@@ -22,9 +23,9 @@ class ModusOperandiLibraryRepository(Protocol):
         title: str | None = None,
         narrative: str | None = None,
         taxonomy_library_id: str | None = None,
-        evolved_variables: list[str] | None = None,
+        evolved_variables: builtins.list[str] | None = None,
         active: bool | None = None,
-        embedding: list[float] | None = None,
+        embedding: builtins.list[float] | None = None,
         playbook: ModusOperandiPlaybook | None = None,
     ) -> ModusOperandiLibraryEntry | None: ...
 

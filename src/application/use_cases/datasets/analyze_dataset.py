@@ -5,11 +5,9 @@ from collections import Counter
 from collections.abc import Callable
 
 from src.application.ports.clock_port import Clock
-from src.application.ports.dataset_analysis_port import (
-    DatasetSampleRepository,
-    DatasetSummaryRepository,
-)
+from src.application.ports.dataset_analysis_port import DatasetSampleRepository
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.datasets.field_extraction import (
     ANALYSIS_FIELDS,
@@ -159,7 +157,7 @@ class AnalyzeDatasetUseCase:
                 "processed_rows": 0,
                 "total_rows": expected_rows,
             })
-        counters = {field: Counter() for field in ANALYSIS_FIELDS}
+        counters: dict[str, Counter[str]] = {field: Counter() for field in ANALYSIS_FIELDS}
         sample_limit = 5_000
         samples: list[DatasetSampleRecord] = []
         randomizer = random.Random(dataset_name)

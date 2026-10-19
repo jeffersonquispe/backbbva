@@ -7,9 +7,9 @@ from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
     DatasetOrigin,
     DatasetSummaryRecord,
-    DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.use_cases.datasets.create_empty_dataset import (
     CreateEmptyDatasetUseCase,
 )

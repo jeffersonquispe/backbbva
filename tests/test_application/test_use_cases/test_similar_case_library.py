@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.application.ports.embedding_port import (
-    EmbeddingResult,
-    EmbeddingUnitOfWork,
+from src.application.ports.embedding_port import EmbeddingResult, EmbeddingUnitOfWork
+from src.application.ports.embedding_unit_of_work_factory_port import (
     EmbeddingUnitOfWorkFactory,
 )
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.ports.similar_case_library_port import SimilarCaseLibraryEntry
 from src.application.use_cases.similar_case_library.create_similar_case_library_entry import (
     CreateSimilarCaseLibraryEntryUseCase,

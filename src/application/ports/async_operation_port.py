@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -42,7 +43,7 @@ class AsyncOperationRepository(Protocol):
         limit: int = 100,
     ) -> list[AsyncOperationRecord]: ...
 
-    def list_active(self, limit: int = 100) -> list[AsyncOperationRecord]: ...
+    def list_active(self, limit: int = 100) -> builtins.list[AsyncOperationRecord]: ...
 
     def update(
         self,

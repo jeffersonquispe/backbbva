@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from opensearchpy import OpenSearch
 
-from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
     FraudKnowledgeSearchPort,

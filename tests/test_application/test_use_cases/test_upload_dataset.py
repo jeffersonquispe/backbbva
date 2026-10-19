@@ -12,9 +12,9 @@ from src.application.ports.dataset_analysis_dispatcher_port import (
 from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
     DatasetSummaryRecord,
-    DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.use_cases.datasets.upload_dataset import UploadDatasetUseCase
 
 

@@ -27,7 +27,7 @@ from src.infrastructure.entrypoint.api.routers import alert_schema_router, alert
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 
 
-class FakeStorage:
+class InMemoryStorage:
     def __init__(self, payload: dict):
         self.payload = payload
         self.audit: list[tuple[str, str]] = []
@@ -42,7 +42,7 @@ class FakeStorage:
         return ObjectStorageRef("test", key, f"test://{key}")
 
 
-class FakeAlertRepository:
+class InMemoryAlertRepository:
     def __init__(self, alert: AlertRecord):
         self.alert = alert
 
@@ -106,12 +106,12 @@ def _raw_client(
     user: LocalUser,
     alert: AlertRecord,
     schema: AlertSchemaVersion,
-    storage: FakeStorage,
+    storage: InMemoryStorage,
 ) -> TestClient:
     app = FastAPI()
     app.include_router(alerts_router.router)
     app.dependency_overrides[get_current_user] = lambda: user
-    alerts_router.get_alert_repository = lambda: FakeAlertRepository(alert)
+    alerts_router.get_alert_repository = lambda: InMemoryAlertRepository(alert)
     alerts_router.get_alert_schema_repository = lambda: SimpleNamespace(
         get=lambda _: schema
     )
@@ -122,14 +122,14 @@ def _raw_client(
 def test_raw_endpoint_requires_schema_permission() -> None:
     alert = _alert()
     client = _raw_client(
-        _user(LocalRole.CHANNEL_MANAGER), alert, _schema(), FakeStorage({})
+        _user(LocalRole.CHANNEL_MANAGER), alert, _schema(), InMemoryStorage({})
     )
     assert client.get(f"/alerts/{alert.id}/raw").status_code == 403
 
 
 def test_raw_endpoint_redacts_aric_nested_list_and_audits_access() -> None:
     alert = _alert()
-    storage = FakeStorage(
+    storage = InMemoryStorage(
         {
             "payment": {
                 "card": {"number": [{"value": "1234567890123456"}]},
@@ -156,12 +156,12 @@ def test_raw_endpoint_returns_404_without_a_payload_reference() -> None:
     alert = _alert()
     alert = replace(alert, raw_payload_ref=None)
     client = _raw_client(
-        _user(LocalRole.RELEASE_MANAGER), alert, _schema(), FakeStorage({})
+        _user(LocalRole.RELEASE_MANAGER), alert, _schema(), InMemoryStorage({})
     )
     assert client.get(f"/alerts/{alert.id}/raw").status_code == 404
 
 
-class FakeSchemaUseCase:
+class InMemorySchemaUseCase:
     def __init__(self, value):
         self.value = value
 
@@ -174,10 +174,10 @@ def _schema_client(role: LocalRole, schema: AlertSchemaVersion | None) -> TestCl
     app.include_router(alert_schema_router.router)
     app.dependency_overrides[get_current_user] = lambda: _user(role)
     alert_schema_router.get_get_active_alert_schema_use_case = (
-        lambda: FakeSchemaUseCase(schema)
+        lambda: InMemorySchemaUseCase(schema)
     )
     alert_schema_router.get_list_alert_schema_versions_use_case = (
-        lambda: FakeSchemaUseCase([schema] if schema else [])
+        lambda: InMemorySchemaUseCase([schema] if schema else [])
     )
     return TestClient(app)
 

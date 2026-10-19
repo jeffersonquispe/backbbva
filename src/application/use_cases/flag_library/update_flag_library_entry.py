@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from src.application.errors import NotFoundError
-from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.application.ports.flag_library_port import (
     FlagLibraryRepository,
 )

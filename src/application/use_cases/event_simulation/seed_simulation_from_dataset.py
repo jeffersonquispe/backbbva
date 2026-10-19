@@ -70,8 +70,9 @@ class SeedSimulationFromDatasetUseCase:
             and not (isinstance(value, str) and not value.strip())
         ]
         if field.type == AlertSchemaFieldType.NUMBER:
-            numeric = [_as_number(value) for value in values]
-            numeric = [value for value in numeric if value is not None]
+            numeric = [
+                number for value in values if (number := _as_number(value)) is not None
+            ]
             if not numeric:
                 return _synthetic_generator(field)
             return _numeric_generator(numeric)

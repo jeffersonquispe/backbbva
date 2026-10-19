@@ -25,4 +25,6 @@ class StopSimulationUseCase:
         if scenario.status == ScenarioStatus.COMPLETED:
             return scenario
         updated = self._scenarios.update(scenario_id, status=ScenarioStatus.COMPLETED)
+        if updated is None:
+            raise NotFoundError(f"Scenario {scenario_id} not found")
         return updated

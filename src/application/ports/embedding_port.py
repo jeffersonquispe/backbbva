@@ -3,8 +3,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from src.application.ports.monitoring_port import MonitoringPort
-
 
 @dataclass(frozen=True)
 class EmbeddingResult:
@@ -22,14 +20,3 @@ class EmbeddingUnitOfWork(ABC):
 
     @abstractmethod
     def embed(self, texts: list[str]) -> EmbeddingResult: ...
-
-
-class EmbeddingUnitOfWorkFactory(ABC):
-    @abstractmethod
-    def create(
-        self,
-        *,
-        model: str,
-        monitoring: MonitoringPort,
-        operation_name: str,
-    ) -> EmbeddingUnitOfWork: ...

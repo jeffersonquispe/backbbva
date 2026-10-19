@@ -14,7 +14,7 @@ from src.application.dtos.research_dtos import (
     ResearchSource,
     ResearchStatus,
 )
-from src.application.ports.research_port import HistoryResearchPlanner
+from src.application.ports.history_research_planner_port import HistoryResearchPlanner
 from src.domain.configurations.entities import (
     HistoryPandasResearchConfig,
 )

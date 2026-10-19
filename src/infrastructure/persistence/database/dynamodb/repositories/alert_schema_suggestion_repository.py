@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from src.application.ports.alert_schema_port import (
-    AlertSchemaSuggestion,
+from src.application.ports.alert_schema_port import AlertSchemaSuggestion
+from src.application.ports.alert_schema_suggestion_port import (
     AlertSchemaSuggestionRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (

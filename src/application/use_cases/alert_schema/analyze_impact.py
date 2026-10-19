@@ -21,7 +21,7 @@ def _contains(value: Any, names: set[str]) -> bool:
         )
     if isinstance(value, (list, tuple, set)):
         return any(_contains(item, names) for item in value)
-    if is_dataclass(value):
+    if is_dataclass(value) and not isinstance(value, type):
         return _contains(asdict(value), names)
     if isinstance(value, Enum):
         return _contains(value.value, names)

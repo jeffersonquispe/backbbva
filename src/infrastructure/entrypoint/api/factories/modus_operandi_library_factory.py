@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryRepository,
 )

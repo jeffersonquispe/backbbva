@@ -6,9 +6,11 @@ from celery.result import AsyncResult
 from src.application.ports.fraud_label_review_import_port import (
     FraudLabelReviewImportResult,
     FraudLabelReviewImportStatus,
-    FraudLabelReviewImportStatusReader,
     FraudLabelReviewRowResult,
     FraudLabelReviewRowStatus,
+)
+from src.application.ports.fraud_label_review_import_status_reader_port import (
+    FraudLabelReviewImportStatusReader,
 )
 from src.infrastructure.queues.celery.app import app
 

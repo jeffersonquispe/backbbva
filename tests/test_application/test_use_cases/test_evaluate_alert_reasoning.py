@@ -17,14 +17,15 @@ from src.application.ports.alert_reasoning_evaluation_port import (
     AlertReasoningEvaluationRecord,
     ReasoningEvaluationStatus,
 )
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
 from src.application.ports.llm_unit_of_work_port import (
     LLMInvocationResult,
     LLMMessage,
     LLMUnitOfWork,
-    LLMUnitOfWorkFactory,
 )
 from src.application.ports.metrics_rollup_port import MetricsDataType, RollupLevel
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.metrics.evaluate_alert_reasoning import (
     EvaluateAlertReasoning,
     is_sampled_for_evaluation,

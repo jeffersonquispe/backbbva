@@ -6,6 +6,8 @@ from celery.result import AsyncResult
 from src.application.ports.analyst_capacity_import_port import (
     AnalystCapacityImportResult,
     AnalystCapacityImportStatus,
+)
+from src.application.ports.analyst_capacity_import_status_reader_port import (
     AnalystCapacityImportStatusReader,
 )
 from src.domain.configurations.entities import (

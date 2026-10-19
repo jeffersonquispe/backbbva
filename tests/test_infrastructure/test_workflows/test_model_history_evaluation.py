@@ -178,14 +178,14 @@ def test_workflow_persists_bundle_and_report():
 
     rows, record = rows_and_record()
 
-    class FakeModels:
+    class InMemoryModels:
         def get(self, model_id):
             return record
 
         def update(self, model):
             pass
 
-    class FakeDatasets:
+    class InMemoryDatasets:
         def get_rows(self, dataset_name):
             return rows
 
@@ -203,7 +203,7 @@ def test_workflow_persists_bundle_and_report():
         def put_bytes(self, *args, **kwargs):
             self.puts.append(kwargs)
 
-    models, datasets = FakeModels(), FakeDatasets()
+    models, datasets = InMemoryModels(), InMemoryDatasets()
     operations, storage = RecordingOperations(), RecordingStorage()
     result = run_model_training(
         str(record.id),

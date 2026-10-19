@@ -52,9 +52,9 @@ from src.application.ports.monitoring_port import (
     ATTR_WORKFLOW_STEP,
     WORKFLOW_TOTAL_STEP,
     MonitoringPort,
-    MonitoringSpan,
     span_dimension_attributes,
 )
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.ports.object_storage_port import ObjectStoragePort
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
@@ -62,13 +62,13 @@ from src.application.ports.operational_settings_port import (
 from src.application.ports.reasoning_evaluation_dispatcher_port import (
     ReasoningEvaluationDispatcher,
 )
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRepository,
-    WorkflowStepExecutionRepository,
-)
+from src.application.ports.workflow_port import WorkflowExecutionRepository
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
+)
+from src.application.ports.workflow_step_execution_port import (
+    WorkflowStepExecutionRepository,
 )
 from src.application.runtime_defaults import (
     DEFAULT_ID_GENERATOR,

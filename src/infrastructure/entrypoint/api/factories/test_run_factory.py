@@ -3,7 +3,9 @@ from __future__ import annotations
 from functools import lru_cache
 
 from src.application.ports.test_run_port import TestRunRepository
-from src.application.ports.workflow_port import WorkflowStepExecutionRepository
+from src.application.ports.workflow_step_execution_port import (
+    WorkflowStepExecutionRepository,
+)
 from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
 from src.application.use_cases.test_runs.get_test_case_detail import (
     GetTestCaseDetailUseCase,

@@ -9,8 +9,8 @@ from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservationRepository,
 )
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRepository,
+from src.application.ports.workflow_port import WorkflowExecutionRepository
+from src.application.ports.workflow_step_execution_port import (
     WorkflowStepExecutionRepository,
 )
 from src.application.runtime_defaults import resolve_clock

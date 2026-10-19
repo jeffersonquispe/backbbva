@@ -5,7 +5,8 @@ from typing import Any
 
 from src.application.dtos.escalate_alert_dtos import EscalateAlertToAnalystInput
 from src.application.ports.aric_alert_port import AricAlertPort, AricAlertSignals
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.alerts.escalate_alert_to_analyst import (
     EscalateAlertToAnalystUseCase,
 )

@@ -46,7 +46,7 @@ Two established shapes, don't invent a third:
    Examples: `workflow_executor_port.py` (`WorkflowExecutor.start`),
    `async_execution_inspector_port.py` (`AsyncExecutionInspector.inspect`),
    `monitoring_port.py` (`MonitoringPort.start`),
-   `llm_unit_of_work_port.py` (`LLMUnitOfWorkFactory.create`).
+   `llm_unit_of_work_factory_port.py` (`LLMUnitOfWorkFactory.create`).
 
 Keep boundary-only request/result records beside their port contract. Stable
 business entities and state enums live under `src/domain/<context>/`; port

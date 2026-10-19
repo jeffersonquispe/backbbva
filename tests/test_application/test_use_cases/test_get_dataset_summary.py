@@ -3,9 +3,9 @@ from __future__ import annotations
 from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
     DatasetSummaryRecord,
-    DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRecord
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.use_cases.datasets.get_dataset_summary import (
     GetDatasetSummaryUseCase,
 )

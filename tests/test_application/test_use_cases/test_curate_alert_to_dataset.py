@@ -18,9 +18,9 @@ from src.application.ports.dataset_analysis_dispatcher_port import (
 from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
     DatasetSummaryRecord,
-    DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.ports.feedback_port import FeedbackRecord, FeedbackRepository
 from src.application.ports.workflow_port import (
     WorkflowExecutionRepository,
@@ -63,7 +63,7 @@ class InMemoryAlertRepository(AlertRepository):
         self._alerts.pop(alert_id, None)
 
 
-class FakeDatasetRepository(DatasetRepository):
+class InMemoryDatasetRepository(DatasetRepository):
     def __init__(self, new_total: int = 1, missing_name: str | None = None) -> None:
         self.new_total = new_total
         self.missing_name = missing_name
@@ -202,7 +202,7 @@ def _execution(
 def _make_use_case(
     *,
     alerts: InMemoryAlertRepository,
-    datasets: FakeDatasetRepository,
+    datasets: InMemoryDatasetRepository,
     summaries: InMemoryDatasetSummaryRepository | None = None,
     dispatcher: RecordingDatasetAnalysisDispatcher | None = None,
     feedback: InMemoryFeedbackRepository | None = None,
@@ -224,7 +224,7 @@ def _make_use_case(
 def test_curate_appends_canonical_input_labels_and_schema_version() -> None:
     alert = _alert({"eventId": "e-1", "object": {"triggeredRules": "RULE_A"}})
     alerts = InMemoryAlertRepository({alert.id: alert})
-    datasets = FakeDatasetRepository(new_total=6)
+    datasets = InMemoryDatasetRepository(new_total=6)
     use_case, feedback = _make_use_case(alerts=alerts, datasets=datasets)
 
     output = use_case.execute(
@@ -271,7 +271,7 @@ def test_curate_keeps_labels_as_distinct_schema_field_columns() -> None:
         labels={"fraud_label": "fraud"},
     )
     alerts = InMemoryAlertRepository({alert.id: alert})
-    datasets = FakeDatasetRepository(new_total=1)
+    datasets = InMemoryDatasetRepository(new_total=1)
     use_case, _ = _make_use_case(alerts=alerts, datasets=datasets)
 
     use_case.execute(
@@ -297,7 +297,7 @@ def test_curate_auto_detects_configuration_from_workflow_execution() -> None:
     execution_id = uuid4()
     alert = _alert({"eventId": "e-1"}, workflow_execution_id=execution_id)
     alerts = InMemoryAlertRepository({alert.id: alert})
-    datasets = FakeDatasetRepository()
+    datasets = InMemoryDatasetRepository()
     executions = InMemoryWorkflowExecutionRepository(
         {
             execution_id: _execution(
@@ -333,7 +333,7 @@ def test_curate_auto_detects_configuration_stored_on_the_alert() -> None:
         configuration_version=3,
     )
     alerts = InMemoryAlertRepository({alert.id: alert})
-    datasets = FakeDatasetRepository()
+    datasets = InMemoryDatasetRepository()
     executions = InMemoryWorkflowExecutionRepository(
         {execution_id: _execution(execution_id, None)}
     )
@@ -359,7 +359,7 @@ def test_curate_auto_detects_configuration_stored_on_the_alert() -> None:
 def test_curate_raises_value_error_when_configuration_cannot_be_determined() -> None:
     alert = _alert({"eventId": "e-1"})  # no workflow_execution_id
     alerts = InMemoryAlertRepository({alert.id: alert})
-    datasets = FakeDatasetRepository()
+    datasets = InMemoryDatasetRepository()
     use_case, feedback = _make_use_case(alerts=alerts, datasets=datasets)
 
     with pytest.raises(ValueError, match="selecciónala manualmente"):
@@ -377,7 +377,7 @@ def test_curate_raises_value_error_when_configuration_cannot_be_determined() -> 
 
 def test_curate_raises_not_found_error_when_alert_missing() -> None:
     alerts = InMemoryAlertRepository()
-    datasets = FakeDatasetRepository()
+    datasets = InMemoryDatasetRepository()
     use_case, feedback = _make_use_case(alerts=alerts, datasets=datasets)
 
     with pytest.raises(NotFoundError):
@@ -398,7 +398,7 @@ def test_curate_raises_not_found_error_when_alert_missing() -> None:
 def test_curate_propagates_file_not_found_when_dataset_missing() -> None:
     alert = _alert({"eventId": "e-1"})
     alerts = InMemoryAlertRepository({alert.id: alert})
-    datasets = FakeDatasetRepository(missing_name="ghost")
+    datasets = InMemoryDatasetRepository(missing_name="ghost")
     use_case, feedback = _make_use_case(alerts=alerts, datasets=datasets)
 
     with pytest.raises(FileNotFoundError):

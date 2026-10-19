@@ -34,7 +34,9 @@ from src.application.ports.metrics_rollup_port import (
     MetricsRollupRepository,
     RollupApplyMarker,
 )
-from src.application.ports.workflow_port import WorkflowStepExecutionRepository
+from src.application.ports.workflow_step_execution_port import (
+    WorkflowStepExecutionRepository,
+)
 from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.metrics.technical_rollup_contribution import (
     is_finished,

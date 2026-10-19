@@ -3,6 +3,8 @@ from __future__ import annotations
 from src.application.ports.analyst_capacity_import_port import (
     AnalystCapacityImportResult,
     AnalystCapacityImportStatus,
+)
+from src.application.ports.analyst_capacity_import_status_reader_port import (
     AnalystCapacityImportStatusReader,
 )
 from src.application.use_cases.analyst_capacity.get_analyst_capacity_import import (
@@ -13,7 +15,7 @@ from src.domain.configurations.entities import (
 )
 
 
-class StubAnalystCapacityImportStatusReader(AnalystCapacityImportStatusReader):
+class InMemoryAnalystCapacityImportStatusReader(AnalystCapacityImportStatusReader):
     def __init__(self, result: AnalystCapacityImportResult) -> None:
         self._result = result
         self.read_task_ids: list[str] = []
@@ -27,7 +29,7 @@ def test_get_returns_ready_result_from_reader() -> None:
     profile = DayProfile(
         id="imp-1", name="Día regular", description="", hourly=[4] * 24
     )
-    reader = StubAnalystCapacityImportStatusReader(
+    reader = InMemoryAnalystCapacityImportStatusReader(
         AnalystCapacityImportResult(
             status=AnalystCapacityImportStatus.READY,
             profiles=[profile],
@@ -45,7 +47,7 @@ def test_get_returns_ready_result_from_reader() -> None:
 
 
 def test_get_passes_through_failed_result() -> None:
-    reader = StubAnalystCapacityImportStatusReader(
+    reader = InMemoryAnalystCapacityImportStatusReader(
         AnalystCapacityImportResult(
             status=AnalystCapacityImportStatus.FAILED,
             error="Hoja 'Perfiles' no tiene perfiles.",

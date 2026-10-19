@@ -14,8 +14,8 @@ from src.application.ports.clock_port import Clock
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
-from src.application.ports.dataset_analysis_port import DatasetSummaryRepository
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.ports.feedback_port import FeedbackRecord, FeedbackRepository
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.workflow_port import WorkflowExecutionRepository

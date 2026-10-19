@@ -19,8 +19,8 @@ from src.application.ports.resource_reservation_port import (
     ReservedResource,
     ResourceReservation,
 )
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRepository,
+from src.application.ports.workflow_port import WorkflowExecutionRepository
+from src.application.ports.workflow_step_execution_port import (
     WorkflowStepExecutionRepository,
 )
 from src.domain.alerts.entities import (

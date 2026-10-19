@@ -7,10 +7,8 @@ from src.application.ports.llm_unit_of_work_port import (
     LLMMessage,
     LLMMessageRole,
 )
-from src.application.ports.monitoring_port import (
-    MonitoringPort,
-    MonitoringSpan,
-)
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.infrastructure.llm.langchain._chat_model_unit_of_work import (
     LangchainChatModelUnitOfWork,
 )

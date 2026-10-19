@@ -6,8 +6,8 @@ from src.application.dtos.test_run_dtos import DeleteTestRunsInput, DeleteTestRu
 from src.application.ports.alert_port import AlertRepository
 from src.application.ports.async_operation_port import AsyncOperationRepository
 from src.application.ports.test_run_port import TestRunRepository
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRepository,
+from src.application.ports.workflow_port import WorkflowExecutionRepository
+from src.application.ports.workflow_step_execution_port import (
     WorkflowStepExecutionRepository,
 )
 

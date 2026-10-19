@@ -4,13 +4,13 @@ import logging
 import queue
 import threading
 
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRepository,
-    WorkflowStepExecutionRepository,
-)
+from src.application.ports.workflow_port import WorkflowExecutionRepository
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
+)
+from src.application.ports.workflow_step_execution_port import (
+    WorkflowStepExecutionRepository,
 )
 
 logger = logging.getLogger(__name__)

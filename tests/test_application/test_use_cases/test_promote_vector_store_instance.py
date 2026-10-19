@@ -6,9 +6,8 @@ from threading import Event, Thread
 
 import pytest
 
-from src.application.ports.embedding_port import (
-    EmbeddingResult,
-    EmbeddingUnitOfWork,
+from src.application.ports.embedding_port import EmbeddingResult, EmbeddingUnitOfWork
+from src.application.ports.embedding_unit_of_work_factory_port import (
     EmbeddingUnitOfWorkFactory,
 )
 from src.application.ports.flag_library_port import FlagLibraryEntry
@@ -18,7 +17,8 @@ from src.application.ports.fraud_knowledge_port import (
     ModusOperandiDocument,
 )
 from src.application.ports.modus_operandi_library_port import ModusOperandiLibraryEntry
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.ports.similar_case_library_port import SimilarCaseLibraryEntry
 from src.application.ports.taxonomy_library_port import TaxonomyLibraryEntry
 from src.application.ports.vector_store_instance_port import (

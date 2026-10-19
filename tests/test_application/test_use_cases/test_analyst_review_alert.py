@@ -8,14 +8,15 @@ from src.application.dtos.analyst_review_alert_dtos import AnalystReviewAlertInp
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
 from src.application.ports.llm_unit_of_work_port import (
     LLMInvocationResult,
     LLMMessage,
     LLMUnitOfWork,
-    LLMUnitOfWorkFactory,
 )
 from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.ports.operations_capacity_port import (
     ChannelCapacity,
     OperationsCapacityPort,

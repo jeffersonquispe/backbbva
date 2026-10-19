@@ -50,7 +50,9 @@ def select_transaction_history(
     replayed/historical alerts aren't windowed against wall-clock "now".
     """
     rows = [
-        dataclasses.asdict(entry) if dataclasses.is_dataclass(entry) else dict(entry)
+        dataclasses.asdict(entry)
+        if dataclasses.is_dataclass(entry) and not isinstance(entry, type)
+        else dict(entry)
         for entry in entries
     ]
     timed = [(parse_event_time(row.get("event_time")), row) for row in rows]

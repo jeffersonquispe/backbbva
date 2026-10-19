@@ -6,10 +6,10 @@ from opentelemetry.sdk.trace import TracerProvider
 from src.application.ports.monitoring_port import (
     WORKFLOW_TOTAL_STEP,
     MonitoringPort,
-    MonitoringSpan,
     OperationalStateSnapshot,
     ResearchCallOutcome,
 )
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.infrastructure.monitoring.opentelemetry.meter import (
     build_meter_provider,
 )

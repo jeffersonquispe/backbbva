@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from src.application.errors import NotFoundError
-from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.taxonomy_library_port import (
     TaxonomyLibraryRepository,

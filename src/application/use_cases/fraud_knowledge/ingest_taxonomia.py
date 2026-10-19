@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.application.ports.fraud_knowledge_port import TaxonomiaDocument
 from src.application.ports.fraud_knowledge_repository_port import (
     FraudKnowledgeRepository,
@@ -58,4 +60,6 @@ class IngestTaxonomiaUseCase:
             vector_store_id=data.vector_store_id,
             vector_store_version=data.vector_store_version,
         )
-        return self._repository.create(document)
+        created = self._repository.create(document)
+        assert isinstance(created, TaxonomiaDocument)
+        return created

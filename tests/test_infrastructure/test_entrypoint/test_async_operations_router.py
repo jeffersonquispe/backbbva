@@ -25,7 +25,7 @@ from src.infrastructure.entrypoint.api.routers.async_operations_router import (
 )
 
 
-class FakeGetAsyncOperationUseCase:
+class InMemoryGetAsyncOperationUseCase:
     def __init__(self, operation: AsyncOperationOutput | None) -> None:
         self._operation = operation
 
@@ -33,7 +33,7 @@ class FakeGetAsyncOperationUseCase:
         return self._operation
 
 
-class FakeReconcileAsyncOperationsUseCase:
+class InMemoryReconcileAsyncOperationsUseCase:
     def execute(
         self,
         input: ReconcileAsyncOperationsInput,
@@ -57,10 +57,10 @@ def _client(operation: AsyncOperationOutput | None) -> TestClient:
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_get_async_operation_use_case] = (
-        lambda: FakeGetAsyncOperationUseCase(operation)
+        lambda: InMemoryGetAsyncOperationUseCase(operation)
     )
     app.dependency_overrides[get_reconcile_async_operations_use_case] = (
-        lambda: FakeReconcileAsyncOperationsUseCase()
+        lambda: InMemoryReconcileAsyncOperationsUseCase()
     )
     return TestClient(app)
 

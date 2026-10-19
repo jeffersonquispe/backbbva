@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import operator
+from collections.abc import Callable
 
 # Pure arithmetic evaluator for the "calculator" tool switch (Classification
 # /Adversarial ClassificationConfig.calculator_enabled): lets an LLM agent
@@ -11,7 +12,7 @@ import operator
 # model's output - only a whitelisted subset of ast node types is walked,
 # so the agent can't smuggle arbitrary code through the tool.
 
-_BINARY_OPERATORS = {
+_BINARY_OPERATORS: dict[type[ast.operator], Callable[[float, float], float]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
@@ -20,7 +21,7 @@ _BINARY_OPERATORS = {
     ast.Mod: operator.mod,
     ast.FloorDiv: operator.floordiv,
 }
-_UNARY_OPERATORS = {
+_UNARY_OPERATORS: dict[type[ast.unaryop], Callable[[float], float]] = {
     ast.UAdd: operator.pos,
     ast.USub: operator.neg,
 }

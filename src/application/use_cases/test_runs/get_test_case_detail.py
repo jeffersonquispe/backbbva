@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRepository,
+from src.application.ports.workflow_port import WorkflowExecutionRepository
+from src.application.ports.workflow_step_execution_port import (
     WorkflowStepExecutionRepository,
 )
 from src.domain.workflows.entities import (

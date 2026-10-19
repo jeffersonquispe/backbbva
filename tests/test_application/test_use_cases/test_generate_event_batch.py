@@ -7,11 +7,11 @@ from datetime import UTC, datetime
 import pytest
 
 from src.application.dtos.simulation_dtos import GenerateEventBatchInput
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
 from src.application.ports.llm_unit_of_work_port import (
     LLMInvocationResult,
     LLMMessage,
     LLMUnitOfWork,
-    LLMUnitOfWorkFactory,
 )
 from src.application.ports.simulation_scenario_port import (
     FieldGenerator,
@@ -49,7 +49,7 @@ class RecordingLLMUnitOfWorkFactory(LLMUnitOfWorkFactory):
         return uow
 
 
-class StubDatasetReaderGateway:
+class InMemoryDatasetReaderGateway:
     def __init__(self, row: dict | None) -> None:
         self.row = row
         self.requested_datasets: list[str] = []
@@ -208,7 +208,7 @@ def test_seed_recreation_field_pulls_a_real_row_and_rewrites_it() -> None:
         rate_schedule=[RateInterval(0, 60, events_per_minute=6000)],
     )
     llm_factory = RecordingLLMUnitOfWorkFactory(response="rewritten description")
-    dataset_reader = StubDatasetReaderGateway(row={"description": "original text"})
+    dataset_reader = InMemoryDatasetReaderGateway(row={"description": "original text"})
     use_case = GenerateEventBatchUseCase(
         llm_unit_of_work_factory=llm_factory,
         monitoring=object(),

@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from uuid import UUID
 
-from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
     ModusOperandiDocument,
@@ -73,6 +75,7 @@ class IngestSimilarCaseUseCase:
             taxonomia_id=data.taxonomia_id,
         )
         created = self._repository.create(document)
+        assert isinstance(created, SimilarCaseDocument)
 
         self._repository.update(
             replace(

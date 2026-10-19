@@ -55,7 +55,7 @@ def _scenario(**overrides) -> SimulationScenarioRecord:
     return SimulationScenarioRecord(**defaults)
 
 
-class FakeCreateUseCase:
+class InMemoryCreateUseCase:
     def __init__(self, result: SimulationScenarioRecord | Exception) -> None:
         self.result = result
 
@@ -65,7 +65,7 @@ class FakeCreateUseCase:
         return self.result
 
 
-class FakeGetUseCase:
+class InMemoryGetUseCase:
     def __init__(self, result: SimulationScenarioRecord | None) -> None:
         self.result = result
 
@@ -73,7 +73,7 @@ class FakeGetUseCase:
         return self.result
 
 
-class FakeListUseCase:
+class InMemoryListUseCase:
     def __init__(self, results: list[SimulationScenarioRecord]) -> None:
         self.results = results
 
@@ -81,7 +81,7 @@ class FakeListUseCase:
         return self.results
 
 
-class FakeUpdateUseCase:
+class InMemoryUpdateUseCase:
     def __init__(self, result: SimulationScenarioRecord | Exception) -> None:
         self.result = result
 
@@ -91,7 +91,7 @@ class FakeUpdateUseCase:
         return self.result
 
 
-class FakeDeleteUseCase:
+class InMemoryDeleteUseCase:
     def __init__(self, error: Exception | None = None) -> None:
         self.error = error
         self.deleted: UUID | None = None
@@ -102,7 +102,7 @@ class FakeDeleteUseCase:
         self.deleted = scenario_id
 
 
-class FakeLifecycleUseCase:
+class InMemoryLifecycleUseCase:
     def __init__(self, result: SimulationScenarioRecord | Exception) -> None:
         self.result = result
 
@@ -112,7 +112,7 @@ class FakeLifecycleUseCase:
         return self.result
 
 
-class FakeStatusUseCase:
+class InMemoryStatusUseCase:
     def __init__(self, result: SimulationStatusOutput | Exception) -> None:
         self.result = result
 
@@ -122,7 +122,7 @@ class FakeStatusUseCase:
         return self.result
 
 
-class FakeGenerateBatchUseCase:
+class InMemoryGenerateBatchUseCase:
     def generate_preview(self, field_specs, count, seed=None) -> list[dict]:
         return [{"channel": "app"} for _ in range(count)]
 
@@ -131,15 +131,15 @@ def _client(overrides: dict | None = None) -> TestClient:
     app = FastAPI()
     app.include_router(router)
     defaults = {
-        get_create_simulation_scenario_use_case: lambda: FakeCreateUseCase(_scenario()),
-        get_get_simulation_scenario_use_case: lambda: FakeGetUseCase(None),
-        get_list_simulation_scenarios_use_case: lambda: FakeListUseCase([]),
-        get_update_simulation_scenario_use_case: lambda: FakeUpdateUseCase(_scenario()),
-        get_delete_simulation_scenario_use_case: lambda: FakeDeleteUseCase(),
-        get_start_simulation_use_case: lambda: FakeLifecycleUseCase(_scenario()),
-        get_pause_simulation_use_case: lambda: FakeLifecycleUseCase(_scenario()),
-        get_stop_simulation_use_case: lambda: FakeLifecycleUseCase(_scenario()),
-        get_get_simulation_status_use_case: lambda: FakeStatusUseCase(
+        get_create_simulation_scenario_use_case: lambda: InMemoryCreateUseCase(_scenario()),
+        get_get_simulation_scenario_use_case: lambda: InMemoryGetUseCase(None),
+        get_list_simulation_scenarios_use_case: lambda: InMemoryListUseCase([]),
+        get_update_simulation_scenario_use_case: lambda: InMemoryUpdateUseCase(_scenario()),
+        get_delete_simulation_scenario_use_case: lambda: InMemoryDeleteUseCase(),
+        get_start_simulation_use_case: lambda: InMemoryLifecycleUseCase(_scenario()),
+        get_pause_simulation_use_case: lambda: InMemoryLifecycleUseCase(_scenario()),
+        get_stop_simulation_use_case: lambda: InMemoryLifecycleUseCase(_scenario()),
+        get_get_simulation_status_use_case: lambda: InMemoryStatusUseCase(
             SimulationStatusOutput(
                 scenario_id=uuid4(),
                 status=ScenarioStatus.RUNNING,
@@ -148,7 +148,7 @@ def _client(overrides: dict | None = None) -> TestClient:
                 error=None,
             )
         ),
-        get_generate_event_batch_use_case: lambda: FakeGenerateBatchUseCase(),
+        get_generate_event_batch_use_case: lambda: InMemoryGenerateBatchUseCase(),
     }
     defaults.update(overrides or {})
     app.dependency_overrides.update(defaults)
@@ -171,7 +171,7 @@ _CREATE_PAYLOAD = {
 def test_create_scenario_returns_201_with_body() -> None:
     scenario = _scenario(name="my-scenario")
     response = _client(
-        {get_create_simulation_scenario_use_case: lambda: FakeCreateUseCase(scenario)}
+        {get_create_simulation_scenario_use_case: lambda: InMemoryCreateUseCase(scenario)}
     ).post("/scenarios", json=_CREATE_PAYLOAD)
 
     assert response.status_code == 201
@@ -184,7 +184,7 @@ def test_create_scenario_returns_201_with_body() -> None:
 def test_create_scenario_maps_validation_error_to_400() -> None:
     response = _client(
         {
-            get_create_simulation_scenario_use_case: lambda: FakeCreateUseCase(
+            get_create_simulation_scenario_use_case: lambda: InMemoryCreateUseCase(
                 ValidationError("target_dataset_name is required")
             )
         }
@@ -201,7 +201,7 @@ def test_get_scenario_returns_404_when_missing() -> None:
 def test_get_scenario_returns_scenario_when_found() -> None:
     scenario = _scenario()
     response = _client(
-        {get_get_simulation_scenario_use_case: lambda: FakeGetUseCase(scenario)}
+        {get_get_simulation_scenario_use_case: lambda: InMemoryGetUseCase(scenario)}
     ).get(f"/scenarios/{scenario.id}")
 
     assert response.status_code == 200
@@ -211,7 +211,7 @@ def test_get_scenario_returns_scenario_when_found() -> None:
 def test_list_scenarios_returns_all_results() -> None:
     scenarios = [_scenario(name="a"), _scenario(name="b")]
     response = _client(
-        {get_list_simulation_scenarios_use_case: lambda: FakeListUseCase(scenarios)}
+        {get_list_simulation_scenarios_use_case: lambda: InMemoryListUseCase(scenarios)}
     ).get("/scenarios")
 
     assert response.status_code == 200
@@ -222,7 +222,7 @@ def test_list_scenarios_returns_all_results() -> None:
 def test_update_scenario_maps_not_found_to_404() -> None:
     response = _client(
         {
-            get_update_simulation_scenario_use_case: lambda: FakeUpdateUseCase(
+            get_update_simulation_scenario_use_case: lambda: InMemoryUpdateUseCase(
                 NotFoundError("not found")
             )
         }
@@ -234,7 +234,7 @@ def test_update_scenario_maps_not_found_to_404() -> None:
 def test_update_scenario_maps_conflict_to_400() -> None:
     response = _client(
         {
-            get_update_simulation_scenario_use_case: lambda: FakeUpdateUseCase(
+            get_update_simulation_scenario_use_case: lambda: InMemoryUpdateUseCase(
                 ConflictError("Cannot edit a RUNNING scenario")
             )
         }
@@ -244,7 +244,7 @@ def test_update_scenario_maps_conflict_to_400() -> None:
 
 
 def test_delete_scenario_returns_204() -> None:
-    fake = FakeDeleteUseCase()
+    fake = InMemoryDeleteUseCase()
     scenario_id = uuid4()
     response = _client({get_delete_simulation_scenario_use_case: lambda: fake}).delete(
         f"/scenarios/{scenario_id}"
@@ -257,7 +257,7 @@ def test_delete_scenario_returns_204() -> None:
 def test_delete_scenario_maps_conflict_to_400() -> None:
     response = _client(
         {
-            get_delete_simulation_scenario_use_case: lambda: FakeDeleteUseCase(
+            get_delete_simulation_scenario_use_case: lambda: InMemoryDeleteUseCase(
                 ConflictError("Cannot delete a RUNNING scenario")
             )
         }
@@ -270,9 +270,9 @@ def test_start_pause_stop_return_updated_scenario() -> None:
     running = _scenario(status=ScenarioStatus.RUNNING)
     client = _client(
         {
-            get_start_simulation_use_case: lambda: FakeLifecycleUseCase(running),
-            get_pause_simulation_use_case: lambda: FakeLifecycleUseCase(running),
-            get_stop_simulation_use_case: lambda: FakeLifecycleUseCase(running),
+            get_start_simulation_use_case: lambda: InMemoryLifecycleUseCase(running),
+            get_pause_simulation_use_case: lambda: InMemoryLifecycleUseCase(running),
+            get_stop_simulation_use_case: lambda: InMemoryLifecycleUseCase(running),
         }
     )
 
@@ -285,7 +285,7 @@ def test_start_pause_stop_return_updated_scenario() -> None:
 def test_start_scenario_maps_not_found_to_404() -> None:
     response = _client(
         {
-            get_start_simulation_use_case: lambda: FakeLifecycleUseCase(
+            get_start_simulation_use_case: lambda: InMemoryLifecycleUseCase(
                 NotFoundError("not found")
             )
         }
@@ -304,7 +304,7 @@ def test_get_scenario_status_returns_progress() -> None:
         error=None,
     )
     response = _client(
-        {get_get_simulation_status_use_case: lambda: FakeStatusUseCase(status_output)}
+        {get_get_simulation_status_use_case: lambda: InMemoryStatusUseCase(status_output)}
     ).get(f"/scenarios/{scenario_id}/status")
 
     assert response.status_code == 200
@@ -316,7 +316,7 @@ def test_get_scenario_status_returns_progress() -> None:
 def test_preview_scenario_returns_generated_rows_without_persisting() -> None:
     scenario = _scenario()
     response = _client(
-        {get_get_simulation_scenario_use_case: lambda: FakeGetUseCase(scenario)}
+        {get_get_simulation_scenario_use_case: lambda: InMemoryGetUseCase(scenario)}
     ).post(f"/scenarios/{scenario.id}/preview", params={"count": 3})
 
     assert response.status_code == 200

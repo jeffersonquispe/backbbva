@@ -14,7 +14,7 @@ from src.infrastructure.entrypoint.api.routers.configurations_router import (
 )
 
 
-class FakePreviewConfigurationUseCase:
+class InMemoryPreviewConfigurationUseCase:
     received: CreateConfigurationInput | None = None
 
     def execute(self, input: CreateConfigurationInput) -> ConfigurationPreviewOutput:
@@ -28,7 +28,7 @@ class FakePreviewConfigurationUseCase:
 
 
 def test_configuration_test_endpoint_returns_preview_without_saving() -> None:
-    fake = FakePreviewConfigurationUseCase()
+    fake = InMemoryPreviewConfigurationUseCase()
     app = FastAPI()
     app.include_router(configuration_test_router)
     app.dependency_overrides[get_test_configuration_use_case] = lambda: fake
@@ -78,7 +78,7 @@ def _request_with_rubric(scores: list[float]) -> dict:
 
 
 def test_configuration_request_rejects_rubric_not_summing_to_100() -> None:
-    fake = FakePreviewConfigurationUseCase()
+    fake = InMemoryPreviewConfigurationUseCase()
     app = FastAPI()
     app.include_router(configuration_test_router)
     app.dependency_overrides[get_test_configuration_use_case] = lambda: fake
@@ -94,7 +94,7 @@ def test_configuration_request_rejects_rubric_not_summing_to_100() -> None:
 
 
 def test_configuration_request_accepts_rubric_summing_to_100() -> None:
-    fake = FakePreviewConfigurationUseCase()
+    fake = InMemoryPreviewConfigurationUseCase()
     app = FastAPI()
     app.include_router(configuration_test_router)
     app.dependency_overrides[get_test_configuration_use_case] = lambda: fake

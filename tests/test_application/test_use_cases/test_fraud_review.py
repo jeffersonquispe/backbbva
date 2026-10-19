@@ -24,7 +24,8 @@ from src.application.ports.fraud_label_review_port import (
     FraudLabelReviewChannel,
 )
 from src.application.ports.metrics_rollup_port import RollupLevel
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.ports.operational_settings_port import OperationalSettings
 from src.application.use_cases.fraud_review.import_fraud_label_reviews import (
     ImportFraudLabelReviews,

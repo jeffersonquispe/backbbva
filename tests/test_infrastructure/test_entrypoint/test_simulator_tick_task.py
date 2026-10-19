@@ -48,7 +48,7 @@ class InMemorySimulationScenarioRepository:
         raise NotImplementedError
 
 
-class StubGenerateEventBatchUseCase:
+class InMemoryGenerateEventBatchUseCase:
     def __init__(self, output: GenerateEventBatchOutput | Exception) -> None:
         self.output = output
         self.calls: list[Any] = []
@@ -110,7 +110,7 @@ def _wire(
     monkeypatch, scenario, *, batch_output, event_sink=None, dispatch_gateway=None
 ):
     repo = InMemorySimulationScenarioRepository(scenario)
-    generate_batch = StubGenerateEventBatchUseCase(batch_output)
+    generate_batch = InMemoryGenerateEventBatchUseCase(batch_output)
     apply_async = RecordingApplyAsync()
 
     monkeypatch.setattr(

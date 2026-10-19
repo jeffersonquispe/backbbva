@@ -8,11 +8,8 @@ from src.application.dtos.simulation_dtos import (
 )
 from src.application.errors import ValidationError
 from src.application.ports.dataset_reader_gateway_port import DatasetReaderGateway
-from src.application.ports.llm_unit_of_work_port import (
-    LLMMessage,
-    LLMMessageRole,
-    LLMUnitOfWorkFactory,
-)
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
+from src.application.ports.llm_unit_of_work_port import LLMMessage, LLMMessageRole
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.simulation_scenario_port import FieldGenerator, GeneratorKind
 from src.application.use_cases.event_simulation.field_generation import (
@@ -133,6 +130,10 @@ class GenerateEventBatchUseCase:
         return self._invoke_llm(generator, prompt)
 
     def _invoke_llm(self, generator: FieldGenerator, prompt: str) -> str:
+        if self._llm_factory is None or self._monitoring is None:
+            raise ValidationError(
+                "LLM field requires an LLMUnitOfWorkFactory + MonitoringPort"
+            )
         uow = self._llm_factory.create(
             model=generator.model or _DEFAULT_MODEL,
             monitoring=self._monitoring,

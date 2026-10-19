@@ -25,8 +25,6 @@ class Config(BaseSettings):
 
     DEFAULT_LOGGING_LEVEL: str = "INFO"
 
-    GENAI_APPLICATION: str = "aria"
-
     GENAI_ENVIRONMENT: str
 
     # Selects infrastructure-specific capacity behavior. Docker Compose uses

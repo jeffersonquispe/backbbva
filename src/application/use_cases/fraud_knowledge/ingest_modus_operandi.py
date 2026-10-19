@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
     ModusOperandiDocument,
@@ -71,4 +73,6 @@ class IngestModusOperandiUseCase:
             flags=[],
             library_id=data.library_id,
         )
-        return self._repository.create(document)
+        created = self._repository.create(document)
+        assert isinstance(created, ModusOperandiDocument)
+        return created

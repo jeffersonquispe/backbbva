@@ -4,11 +4,8 @@ from src.application.dtos.generate_agent_text_dtos import (
     GenerateAgentTextInput,
     GenerateAgentTextOutput,
 )
-from src.application.ports.llm_unit_of_work_port import (
-    LLMMessage,
-    LLMMessageRole,
-    LLMUnitOfWorkFactory,
-)
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
+from src.application.ports.llm_unit_of_work_port import LLMMessage, LLMMessageRole
 from src.application.ports.monitoring_port import MonitoringPort
 
 # Shared single-shot "system prompt + already-rendered user prompt -> text"

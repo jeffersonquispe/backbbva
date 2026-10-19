@@ -5,13 +5,14 @@ import uuid
 from src.application.dtos.document_analyst_decision_dtos import (
     DocumentAnalystDecisionInput,
 )
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
 from src.application.ports.llm_unit_of_work_port import (
     LLMInvocationResult,
     LLMMessage,
     LLMUnitOfWork,
-    LLMUnitOfWorkFactory,
 )
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.ports.object_storage_port import (
     ObjectStoragePort,
     ObjectStorageRef,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from typing import Protocol
 
 from src.domain.fraud_knowledge.library_entities import TaxonomyLibraryEntry
@@ -19,10 +20,10 @@ class TaxonomyLibraryRepository(Protocol):
         code: str | None = None,
         name: str | None = None,
         description: str | None = None,
-        variables: list[str] | None = None,
-        examples: list[str] | None = None,
+        variables: builtins.list[str] | None = None,
+        examples: builtins.list[str] | None = None,
         active: bool | None = None,
-        embedding: list[float] | None = None,
+        embedding: builtins.list[float] | None = None,
     ) -> TaxonomyLibraryEntry | None: ...
 
     def delete(self, entry_id: str) -> None: ...

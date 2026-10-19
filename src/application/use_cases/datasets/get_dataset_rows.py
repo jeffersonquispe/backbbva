@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from src.application.dtos.dataset_dtos import GetDatasetRowsInput, GetDatasetRowsOutput
-from src.application.ports.dataset_analysis_port import DatasetSummaryRepository
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 
 
 class GetDatasetRowsUseCase:

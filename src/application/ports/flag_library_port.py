@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from typing import Protocol
 
 from src.domain.configurations.entities import (
@@ -22,10 +23,10 @@ class FlagLibraryRepository(Protocol):
         flag_type: FlagType | None = None,
         name: str | None = None,
         description: str | None = None,
-        evolved_variables: list[str] | None = None,
-        modus_operandi_library_ids: list[str] | None = None,
+        evolved_variables: builtins.list[str] | None = None,
+        modus_operandi_library_ids: builtins.list[str] | None = None,
         active: bool | None = None,
-        embedding: list[float] | None = None,
+        embedding: builtins.list[float] | None = None,
     ) -> FlagLibraryEntry | None: ...
 
     def delete(self, entry_id: str) -> None: ...

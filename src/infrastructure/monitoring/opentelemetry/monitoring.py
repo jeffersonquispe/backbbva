@@ -10,10 +10,10 @@ from opentelemetry.trace import Span, Status, StatusCode, Tracer
 
 from src.application.ports.monitoring_port import (
     MonitoringPort,
-    MonitoringSpan,
     OperationalStateSnapshot,
     ResearchCallOutcome,
 )
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.monitoring.opentelemetry.meter import AriaInstruments
 

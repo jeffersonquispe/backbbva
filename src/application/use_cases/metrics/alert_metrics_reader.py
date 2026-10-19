@@ -98,9 +98,9 @@ def read_alert_rollups(
         for row in repository.query(
             MetricsDataType.ALERT, RollupLevel(level), list(periods), filters or None
         ):
-            read = periods.get(row.key.period)
-            if read is not None:
-                rows.append(PlannedRow(read=read, row=row))
+            planned = periods.get(row.key.period)
+            if planned is not None:
+                rows.append(PlannedRow(read=planned, row=row))
     versions = sorted(
         {r.dimension("schema_version") for r in rows if r.total(COUNT) != 0}
     )

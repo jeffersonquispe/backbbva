@@ -13,15 +13,15 @@ from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
     DatasetOrigin,
     DatasetSummaryRecord,
-    DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.use_cases.datasets.append_dataset_rows import (
     AppendDatasetRowsUseCase,
 )
 
 
-class FakeDatasetRepository(DatasetRepository):
+class InMemoryDatasetRepository(DatasetRepository):
     def __init__(self, new_total: int = 5, missing_name: str | None = None) -> None:
         self.new_total = new_total
         self.missing_name = missing_name
@@ -76,7 +76,7 @@ class RecordingDatasetAnalysisDispatcher(DatasetAnalysisDispatcher):
 
 
 def test_append_dataset_rows_with_no_prior_summary_uses_defaults() -> None:
-    datasets = FakeDatasetRepository(new_total=3)
+    datasets = InMemoryDatasetRepository(new_total=3)
     summaries = InMemoryDatasetSummaryRepository()
     dispatcher = RecordingDatasetAnalysisDispatcher()
     use_case = AppendDatasetRowsUseCase(
@@ -109,7 +109,7 @@ def test_append_dataset_rows_with_no_prior_summary_uses_defaults() -> None:
 
 
 def test_append_dataset_rows_preserves_provenance_from_prior_summary() -> None:
-    datasets = FakeDatasetRepository(new_total=10)
+    datasets = InMemoryDatasetRepository(new_total=10)
     summaries = InMemoryDatasetSummaryRepository()
     dispatcher = RecordingDatasetAnalysisDispatcher()
     original_uploaded_at = datetime(2026, 1, 1, tzinfo=UTC)
@@ -152,7 +152,7 @@ def test_append_dataset_rows_preserves_provenance_from_prior_summary() -> None:
 
 
 def test_append_dataset_rows_propagates_file_not_found_when_dataset_missing() -> None:
-    datasets = FakeDatasetRepository(missing_name="ghost")
+    datasets = InMemoryDatasetRepository(missing_name="ghost")
     summaries = InMemoryDatasetSummaryRepository()
     dispatcher = RecordingDatasetAnalysisDispatcher()
     use_case = AppendDatasetRowsUseCase(

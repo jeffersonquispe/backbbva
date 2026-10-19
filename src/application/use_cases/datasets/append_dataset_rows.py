@@ -10,10 +10,8 @@ from src.application.ports.clock_port import Clock
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
-from src.application.ports.dataset_analysis_port import (
-    DatasetSummaryRepository,
-)
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.runtime_defaults import DEFAULT_CLOCK, resolve_clock
 from src.domain.datasets.entities import (
     DatasetAnalysisStatus,

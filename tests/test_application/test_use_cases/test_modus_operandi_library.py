@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import pytest
 
-from src.application.ports.embedding_port import (
-    EmbeddingResult,
-    EmbeddingUnitOfWork,
+from src.application.ports.embedding_port import EmbeddingResult, EmbeddingUnitOfWork
+from src.application.ports.embedding_unit_of_work_factory_port import (
     EmbeddingUnitOfWorkFactory,
 )
 from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryEntry,
     ModusOperandiPlaybook,
 )
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.modus_operandi_library.create_modus_operandi_library_entry import (
     CreateModusOperandiLibraryEntryUseCase,
 )

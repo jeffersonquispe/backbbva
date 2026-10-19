@@ -1,6 +1,6 @@
 from src.application.dtos.alert_schema_dtos import CreateAlertSchemaSuggestionInput
-from src.application.ports.alert_schema_port import (
-    AlertSchemaSuggestion,
+from src.application.ports.alert_schema_port import AlertSchemaSuggestion
+from src.application.ports.alert_schema_suggestion_port import (
     AlertSchemaSuggestionRepository,
 )
 from src.application.ports.clock_port import Clock

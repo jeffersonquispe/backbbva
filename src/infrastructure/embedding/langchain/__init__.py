@@ -1,6 +1,8 @@
 from functools import lru_cache
 
-from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.infrastructure.embedding.langchain.azure_embedding_unit_of_work import (
     LangchainAzureEmbeddingUnitOfWorkFactory,
 )

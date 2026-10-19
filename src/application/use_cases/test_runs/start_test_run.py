@@ -87,11 +87,12 @@ class StartTestRunUseCase:
             )
         if self._configurations is not None:
             ref = input.config.configuration_ref
-            config = (
-                self._configurations.get(ref.configuration_id, ref.version)
-                if ref
-                else self._configurations.get_active()
-            )
+            if ref is None:
+                config = self._configurations.get_active()
+            elif ref.version is None:
+                config = self._configurations.get_latest_version(ref.configuration_id)
+            else:
+                config = self._configurations.get(ref.configuration_id, ref.version)
             if config is None and ref is not None:
                 raise NotFoundError("Configuration version not found")
             if config is not None:

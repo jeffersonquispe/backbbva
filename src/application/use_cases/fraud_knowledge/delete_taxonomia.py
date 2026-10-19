@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from src.application.ports.fraud_knowledge_port import DocumentType
+from src.application.ports.fraud_knowledge_port import (
+    DocumentType,
+    ModusOperandiDocument,
+    TaxonomiaDocument,
+)
 from src.application.ports.fraud_knowledge_repository_port import (
     FraudKnowledgeRepository,
 )
@@ -22,7 +26,7 @@ class DeleteTaxonomiaUseCase:
 
     def execute(self, taxonomia_id: UUID) -> None:
         document = self._repository.get(taxonomia_id)
-        if document is None or document.type != DocumentType.TAXONOMIA:
+        if not isinstance(document, TaxonomiaDocument):
             raise ValueError(f"taxonomia {taxonomia_id} not found")
 
         # ponytail: O(n) scan over all modus_operandi to find children —
@@ -31,7 +35,8 @@ class DeleteTaxonomiaUseCase:
         children = [
             doc
             for doc in self._repository.list(DocumentType.MODUS_OPERANDI)
-            if doc.taxonomia_id == taxonomia_id
+            if isinstance(doc, ModusOperandiDocument)
+            and doc.taxonomia_id == taxonomia_id
         ]
         for child in children:
             self._delete_modus_operandi.execute(child.id)

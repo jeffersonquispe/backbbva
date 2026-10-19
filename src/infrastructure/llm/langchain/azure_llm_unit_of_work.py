@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from langchain_openai import AzureChatOpenAI
 
-from src.application.ports.llm_unit_of_work_port import (
-    LLMUnitOfWork,
-    LLMUnitOfWorkFactory,
-)
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
+from src.application.ports.llm_unit_of_work_port import LLMUnitOfWork
 from src.application.ports.monitoring_port import MonitoringPort
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.llm.langchain._chat_model_unit_of_work import (

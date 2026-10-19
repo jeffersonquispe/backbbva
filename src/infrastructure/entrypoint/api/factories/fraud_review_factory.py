@@ -6,6 +6,8 @@ from functools import lru_cache
 
 from src.application.ports.fraud_label_review_import_port import (
     FraudLabelReviewImportDispatcher,
+)
+from src.application.ports.fraud_label_review_import_status_reader_port import (
     FraudLabelReviewImportStatusReader,
 )
 from src.application.ports.fraud_label_review_port import FraudLabelReviewRepository

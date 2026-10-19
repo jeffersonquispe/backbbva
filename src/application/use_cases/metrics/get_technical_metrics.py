@@ -156,9 +156,9 @@ class GetTechnicalMetrics:
             for row in self._rollups.query(
                 data_type, RollupLevel(level), list(periods), applicable or None
             ):
-                read = periods.get(row.key.period)
-                if read is not None:
-                    result.append((row, read))
+                planned = periods.get(row.key.period)
+                if planned is not None:
+                    result.append((row, planned))
         return result
 
 

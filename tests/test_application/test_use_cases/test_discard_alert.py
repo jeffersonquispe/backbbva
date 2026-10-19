@@ -3,7 +3,8 @@ from __future__ import annotations
 import uuid
 
 from src.application.dtos.discard_alert_dtos import DiscardAlertInput
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.alerts.discard_alert import DiscardAlertUseCase
 
 

@@ -7,8 +7,10 @@ from typing import Any
 from src.application.ports.alert_schema_port import (
     AlertSchemaPresenceField,
     AlertSchemaPresenceReport,
-    AlertSchemaPresenceReportRepository,
     AlertSchemaUnknownLocation,
+)
+from src.application.ports.alert_schema_presence_report_port import (
+    AlertSchemaPresenceReportRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,

@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from src.application.ports.llm_unit_of_work_port import LLMUnitOfWorkFactory
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
 from src.infrastructure.core.config import genai_config
 
 

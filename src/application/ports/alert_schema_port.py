@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import dataclasses
+from dataclasses import dataclass
 from datetime import date, datetime
 from enum import StrEnum
 from typing import Protocol
@@ -85,16 +86,16 @@ class AlertSchemaField:
 class AlertSchemaVersion:
     version: int
     status: AlertSchemaStatus = AlertSchemaStatus.DRAFT
-    fields: list[AlertSchemaField] = field(default_factory=list)
-    field_roles: dict[str, str] = field(default_factory=dict)
+    fields: list[AlertSchemaField] = dataclasses.field(default_factory=list)
+    field_roles: dict[str, str] = dataclasses.field(default_factory=dict)
     proposed_by: str | None = None
     proposed_at: datetime | None = None
     approved_by: str | None = None
     approved_at: datetime | None = None
     impact_acknowledged: bool = False
     based_on_version: int | None = None
-    comparison: dict[str, object] = field(default_factory=dict)
-    impact: list[dict[str, object]] = field(default_factory=list)
+    comparison: dict[str, object] = dataclasses.field(default_factory=dict)
+    impact: list[dict[str, object]] = dataclasses.field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -115,7 +116,7 @@ class AlertSchemaPresenceField:
     location: str
     present_count: int
     last_seen: datetime | None = None
-    trend: dict[str, object] = field(default_factory=dict)
+    trend: dict[str, object] = dataclasses.field(default_factory=dict)
     example: str | None = None
     distribution: dict[str, object] | None = None
 
@@ -132,24 +133,10 @@ class AlertSchemaPresenceReport:
     generated_at: datetime
     schema_version: int
     alert_count: int
-    fields: list[AlertSchemaPresenceField] = field(default_factory=list)
-    unknown_locations: list[AlertSchemaUnknownLocation] = field(default_factory=list)
-
-
-class AlertSchemaPresenceReportRepository(Protocol):
-    def save(self, report: AlertSchemaPresenceReport) -> AlertSchemaPresenceReport: ...
-    def get(self, report_day: date) -> AlertSchemaPresenceReport | None: ...
-    def get_latest(self) -> AlertSchemaPresenceReport | None: ...
-    def list_before(
-        self, report_day: date, limit: int = 30
-    ) -> list[AlertSchemaPresenceReport]: ...
-
-
-class AlertSchemaSuggestionRepository(Protocol):
-    def create(self, suggestion: AlertSchemaSuggestion) -> AlertSchemaSuggestion: ...
-    def get(self, suggestion_id: str) -> AlertSchemaSuggestion | None: ...
-    def update(self, suggestion: AlertSchemaSuggestion) -> AlertSchemaSuggestion: ...
-    def list(self) -> list[AlertSchemaSuggestion]: ...
+    fields: list[AlertSchemaPresenceField] = dataclasses.field(default_factory=list)
+    unknown_locations: list[AlertSchemaUnknownLocation] = dataclasses.field(
+        default_factory=list
+    )
 
 
 def validate_schema(version: AlertSchemaVersion) -> None:

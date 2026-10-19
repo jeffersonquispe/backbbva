@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 
-from src.application.ports.monitoring_port import MonitoringPort
-
 
 class LLMMessageRole(StrEnum):
     SYSTEM = "system"
@@ -38,16 +36,3 @@ class LLMUnitOfWork(ABC):
 
     @abstractmethod
     def invoke(self, messages: list[LLMMessage]) -> LLMInvocationResult: ...
-
-
-class LLMUnitOfWorkFactory(ABC):
-    @abstractmethod
-    def create(
-        self,
-        *,
-        model: str,
-        monitoring: MonitoringPort,
-        operation_name: str,
-        temperature: float = 0.0,
-        max_tokens: int | None = None,
-    ) -> LLMUnitOfWork: ...

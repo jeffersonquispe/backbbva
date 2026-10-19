@@ -14,15 +14,15 @@ from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
     DatasetOrigin,
     DatasetSummaryRecord,
-    DatasetSummaryRepository,
 )
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.use_cases.datasets.analyze_dataset_on_demand import (
     AnalyzeDatasetOnDemandUseCase,
 )
 
 
-class FakeDatasetRepository(DatasetRepository):
+class InMemoryDatasetRepository(DatasetRepository):
     def __init__(self, existing_names: set[str]) -> None:
         self._existing_names = existing_names
 
@@ -134,7 +134,7 @@ def test_analyze_dataset_on_demand_preserves_existing_summary_fields() -> None:
         )
     )
     use_case = AnalyzeDatasetOnDemandUseCase(
-        dataset_repository=FakeDatasetRepository(existing_names={"ds1"}),
+        dataset_repository=InMemoryDatasetRepository(existing_names={"ds1"}),
         summary_repository=summaries,
         dispatcher=dispatcher,
     )
@@ -169,7 +169,7 @@ def test_analyze_dataset_on_demand_with_no_existing_summary_creates_minimal_pend
     summaries = InMemoryDatasetSummaryRepository()
     dispatcher = RecordingDatasetAnalysisDispatcher()
     use_case = AnalyzeDatasetOnDemandUseCase(
-        dataset_repository=FakeDatasetRepository(existing_names={"brand_new"}),
+        dataset_repository=InMemoryDatasetRepository(existing_names={"brand_new"}),
         summary_repository=summaries,
         dispatcher=dispatcher,
     )
@@ -196,7 +196,7 @@ def test_analyze_dataset_on_demand_returns_the_operation_it_dispatched() -> None
     operations = InMemoryAsyncOperationRepository()
     dispatcher = OperationAwareDispatcher()
     use_case = AnalyzeDatasetOnDemandUseCase(
-        dataset_repository=FakeDatasetRepository(existing_names={"ds"}),
+        dataset_repository=InMemoryDatasetRepository(existing_names={"ds"}),
         summary_repository=InMemoryDatasetSummaryRepository(),
         dispatcher=dispatcher,
         async_operation_repository=operations,
@@ -218,7 +218,7 @@ def test_analyze_dataset_on_demand_raises_file_not_found_for_nonexistent_dataset
     summaries = InMemoryDatasetSummaryRepository()
     dispatcher = RecordingDatasetAnalysisDispatcher()
     use_case = AnalyzeDatasetOnDemandUseCase(
-        dataset_repository=FakeDatasetRepository(existing_names=set()),
+        dataset_repository=InMemoryDatasetRepository(existing_names=set()),
         summary_repository=summaries,
         dispatcher=dispatcher,
     )

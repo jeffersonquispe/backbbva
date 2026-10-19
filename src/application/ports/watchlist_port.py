@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -59,13 +60,13 @@ class WatchlistRepository(Protocol):
     # Values are normalized (strip + casefold) for storage/matching, same
     # normalization CheckWatchlistMembershipUseCase used to do ad hoc.
 
-    def add_elements(self, watchlist_id: str, values: list[str]) -> int:
+    def add_elements(self, watchlist_id: str, values: builtins.list[str]) -> int:
         """Upserts values into the watchlist. Returns the number of
         distinct normalized values submitted (dedup is transparent -
         adding an existing value is a no-op, not an error)."""
         ...
 
-    def remove_elements(self, watchlist_id: str, values: list[str]) -> int:
+    def remove_elements(self, watchlist_id: str, values: builtins.list[str]) -> int:
         """Returns the number of distinct normalized values removed."""
         ...
 
@@ -77,13 +78,15 @@ class WatchlistRepository(Protocol):
         *,
         limit: int = 100,
         cursor: str | None = None,
-    ) -> tuple[list[str], str | None]:
+    ) -> tuple[builtins.list[str], str | None]:
         """Paginated - a gigantic list can't be returned in one response.
         Returns (page of values in their original casing, next cursor or
         None if this was the last page)."""
         ...
 
-    def elements_containing(self, watchlist_ids: list[str], value: str) -> set[str]:
+    def elements_containing(
+        self, watchlist_ids: builtins.list[str], value: str
+    ) -> set[str]:
         """Given a small set of watchlist ids (the active watchlists of one
         list_type - not the elements themselves), returns the subset whose
         element set contains `value`. One batch lookup regardless of how

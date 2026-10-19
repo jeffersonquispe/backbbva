@@ -7,7 +7,7 @@ from src.application.ports.dataset_port import DatasetRepository
 from src.application.use_cases.datasets.get_dataset_rows import GetDatasetRowsUseCase
 
 
-class FakeDatasetRepository(DatasetRepository):
+class InMemoryDatasetRepository(DatasetRepository):
     def __init__(self, page: list[dict[str, Any]], total: int) -> None:
         self.page = page
         self.total = total
@@ -38,7 +38,7 @@ class FakeDatasetRepository(DatasetRepository):
 
 def test_get_dataset_rows_passes_through_offset_and_limit() -> None:
     rows = [{"a": "1"}, {"a": "2"}]
-    datasets = FakeDatasetRepository(page=rows, total=25)
+    datasets = InMemoryDatasetRepository(page=rows, total=25)
     use_case = GetDatasetRowsUseCase(dataset_repository=datasets)
 
     output = use_case.execute(GetDatasetRowsInput(name="ds1", offset=10, limit=2))
@@ -49,7 +49,7 @@ def test_get_dataset_rows_passes_through_offset_and_limit() -> None:
 
 
 def test_get_dataset_rows_uses_default_offset_and_limit() -> None:
-    datasets = FakeDatasetRepository(page=[], total=0)
+    datasets = InMemoryDatasetRepository(page=[], total=0)
     use_case = GetDatasetRowsUseCase(dataset_repository=datasets)
 
     output = use_case.execute(GetDatasetRowsInput(name="empty_ds"))

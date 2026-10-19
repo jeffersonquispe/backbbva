@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
 from src.application.ports.llm_unit_of_work_port import (
     LLMInvocationResult,
     LLMMessage,
     LLMUnitOfWork,
-    LLMUnitOfWorkFactory,
 )
 from src.application.ports.monitoring_port import MonitoringPort
 

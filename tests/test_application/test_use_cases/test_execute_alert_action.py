@@ -10,7 +10,8 @@ from src.application.ports.alert_action_port import (
     AlertActionResult,
     AlertChannelActionPort,
 )
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.alerts.execute_alert_action import (
     ExecuteAlertActionUseCase,
 )

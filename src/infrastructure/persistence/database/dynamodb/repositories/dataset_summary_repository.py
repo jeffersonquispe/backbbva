@@ -7,8 +7,8 @@ from src.application.ports.dataset_analysis_port import (
     DatasetAnalysisStatus,
     DatasetOrigin,
     DatasetSummaryRecord,
-    DatasetSummaryRepository,
 )
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )

@@ -17,17 +17,18 @@ from src.application.ports.fraud_taxonomy_port import (
     FraudTaxonomyPort,
     SimilarFraudTaxonomy,
 )
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
 from src.application.ports.llm_unit_of_work_port import (
     LLMInvocationResult,
     LLMMessage,
     LLMUnitOfWork,
-    LLMUnitOfWorkFactory,
 )
 from src.application.ports.modus_operandi_port import (
     ModusOperandiPort,
     SimilarModusOperandi,
 )
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.alerts.adversarial_review_alert import (
     AdversarialReviewAlertUseCase,
     _build_system_prompt,

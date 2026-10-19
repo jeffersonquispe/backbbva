@@ -25,4 +25,6 @@ class PauseSimulationUseCase:
         if scenario.status != ScenarioStatus.RUNNING:
             return scenario
         updated = self._scenarios.update(scenario_id, status=ScenarioStatus.PAUSED)
+        if updated is None:
+            raise NotFoundError(f"Scenario {scenario_id} not found")
         return updated

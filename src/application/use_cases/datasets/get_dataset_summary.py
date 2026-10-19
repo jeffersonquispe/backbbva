@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from src.application.dtos.dataset_dtos import DatasetSummaryOutput, FieldValueCount
-from src.application.ports.dataset_analysis_port import DatasetSummaryRepository
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.use_cases.datasets.field_extraction import discover_fields
 
 
@@ -38,10 +38,10 @@ class GetDatasetSummaryUseCase:
         if not available_fields and self._datasets is not None:
             try:
                 get_fields = getattr(self._datasets, "get_fields", None)
-                available_fields = (
-                    get_fields(dataset_name) if callable(get_fields) else None
-                )
-                if not isinstance(available_fields, list):
+                discovered = get_fields(dataset_name) if callable(get_fields) else None
+                if isinstance(discovered, list):
+                    available_fields = discovered
+                else:
                     available_fields = discover_fields(
                         self._datasets.get_rows(dataset_name)
                     )

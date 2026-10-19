@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from src.application.ports.embedding_port import (
-    EmbeddingResult,
-    EmbeddingUnitOfWork,
+from src.application.ports.embedding_port import EmbeddingResult, EmbeddingUnitOfWork
+from src.application.ports.embedding_unit_of_work_factory_port import (
     EmbeddingUnitOfWorkFactory,
 )
 from src.application.ports.flag_library_port import FlagLibraryEntry
-from src.application.ports.monitoring_port import MonitoringPort, MonitoringSpan
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.flag_library.create_flag_library_entry import (
     CreateFlagLibraryEntryUseCase,
 )

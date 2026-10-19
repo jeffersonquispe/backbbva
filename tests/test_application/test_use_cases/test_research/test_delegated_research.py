@@ -6,11 +6,8 @@ from src.application.dtos.research_dtos import (
     ResearchSource,
     ResearchStatus,
 )
-from src.application.ports.monitoring_port import (
-    MonitoringPort,
-    MonitoringSpan,
-    ResearchCallOutcome,
-)
+from src.application.ports.monitoring_port import MonitoringPort, ResearchCallOutcome
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.research.delegated_research import (
     ResearchDelegationCoordinator,
     TimeBoundedResearchAgent,

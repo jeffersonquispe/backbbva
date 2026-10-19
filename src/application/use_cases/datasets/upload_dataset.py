@@ -11,10 +11,8 @@ from src.application.ports.clock_port import Clock
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
-from src.application.ports.dataset_analysis_port import (
-    DatasetSummaryRepository,
-)
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.runtime_defaults import (
     DEFAULT_ID_GENERATOR,
@@ -76,7 +74,7 @@ class UploadDatasetUseCase:
             self._dispatcher.dispatch(input.name)
         else:
             self._dispatcher.dispatch(input.name, operation_id)
-        if operation_id is not None:
+        if operation_id is not None and self._operations is not None:
             self._operations.update(operation_id, status=AsyncOperationStatus.DISPATCHED)
         return UploadDatasetOutput(
             name=input.name, status=DatasetAnalysisStatus.PENDING,

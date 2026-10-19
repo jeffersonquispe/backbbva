@@ -9,11 +9,8 @@ from src.application.dtos.analyst_review_alert_dtos import (
     AnalystReviewAlertInput,
     AnalystReviewAlertOutput,
 )
-from src.application.ports.llm_unit_of_work_port import (
-    LLMMessage,
-    LLMMessageRole,
-    LLMUnitOfWorkFactory,
-)
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
+from src.application.ports.llm_unit_of_work_port import LLMMessage, LLMMessageRole
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.operations_capacity_port import (
     OperationsCapacityPort,

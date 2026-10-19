@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import replace
 from uuid import UUID
 
-from src.application.ports.fraud_knowledge_port import DocumentType, FlagDocument
+from src.application.ports.fraud_knowledge_port import (
+    FlagDocument,
+    ModusOperandiDocument,
+)
 from src.application.ports.fraud_knowledge_repository_port import (
     FraudKnowledgeRepository,
 )
@@ -20,7 +23,7 @@ class DeleteModusOperandiUseCase:
 
     def execute(self, modus_operandi_id: UUID) -> None:
         document = self._repository.get(modus_operandi_id)
-        if document is None or document.type != DocumentType.MODUS_OPERANDI:
+        if not isinstance(document, ModusOperandiDocument):
             raise ValueError(f"modus_operandi {modus_operandi_id} not found")
 
         for similar_case_id in document.similar_cases:

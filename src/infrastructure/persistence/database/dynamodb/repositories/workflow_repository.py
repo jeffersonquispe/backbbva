@@ -6,8 +6,8 @@ from uuid import UUID
 
 from boto3.dynamodb.conditions import Key
 
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRepository,
+from src.application.ports.workflow_port import WorkflowExecutionRepository
+from src.application.ports.workflow_step_execution_port import (
     WorkflowStepExecutionRepository,
 )
 from src.domain.workflows.entities import (

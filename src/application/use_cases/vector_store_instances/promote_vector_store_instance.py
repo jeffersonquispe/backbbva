@@ -118,55 +118,55 @@ class PromoteVectorStoreInstanceUseCase:
             for asset in assets:
                 if asset.asset_type != KnowledgeAssetType.TAXONOMY:
                     continue
-                entry = self._taxonomies.get(asset.asset_id)
-                if entry is None:
+                tax_entry = self._taxonomies.get(asset.asset_id)
+                if tax_entry is None:
                     raise NotFoundError(
-                        f"taxonomy library entry {asset.asset_id} no longer exists"
+                        f"taxonomy library tax_entry {asset.asset_id} no longer exists"
                     )
-                created = self._ingest_taxonomia.execute(
+                created_taxonomia = self._ingest_taxonomia.execute(
                     IngestTaxonomiaInput(
                         text=taxonomia_embedding_text(
-                            name=entry.name,
-                            description=entry.description,
-                            examples=entry.examples,
+                            name=tax_entry.name,
+                            description=tax_entry.description,
+                            examples=tax_entry.examples,
                         ),
                         vector_store_id=instance_id,
                         vector_store_version=new_version,
-                        text_embedded=asset.embedding or entry.embedding,
+                        text_embedded=asset.embedding or tax_entry.embedding,
                     )
                 )
-                taxonomia_os_id[entry.id] = created.id
+                taxonomia_os_id[tax_entry.id] = created_taxonomia.id
 
             modus_operandi_os_id: dict[str, UUID] = {}
             for asset in assets:
                 if asset.asset_type != KnowledgeAssetType.MODUS_OPERANDI:
                     continue
-                entry = self._modus_operandi.get(asset.asset_id)
-                if entry is None:
+                mo_entry = self._modus_operandi.get(asset.asset_id)
+                if mo_entry is None:
                     raise NotFoundError(
-                        f"modus operandi library entry {asset.asset_id} no longer exists"
+                        f"modus operandi library mo_entry {asset.asset_id} no longer exists"
                     )
-                taxonomia_id = taxonomia_os_id.get(entry.taxonomy_library_id)
+                taxonomia_id = taxonomia_os_id.get(mo_entry.taxonomy_library_id)
                 if taxonomia_id is None:
                     raise ValidationError(
-                        f"modus operandi {entry.id!r}'s taxonomy {entry.taxonomy_library_id!r} "
+                        f"modus operandi {mo_entry.id!r}'s taxonomy {mo_entry.taxonomy_library_id!r} "
                         "is not included in this vector store instance"
                     )
-                taxonomy_entry = self._taxonomies.get(entry.taxonomy_library_id)
-                created = self._ingest_modus_operandi.execute(
+                taxonomy_entry = self._taxonomies.get(mo_entry.taxonomy_library_id)
+                created_modus_operandi = self._ingest_modus_operandi.execute(
                     IngestModusOperandiInput(
                         text=modus_operandi_embedding_text(
-                            title=entry.title, narrative=entry.narrative
+                            title=mo_entry.title, narrative=mo_entry.narrative
                         ),
                         vector_store_id=instance_id,
                         vector_store_version=new_version,
                         taxonomia_id=taxonomia_id,
                         taxonomia=taxonomy_entry.name if taxonomy_entry else "",
-                        library_id=entry.id,
-                        text_embedded=asset.embedding or entry.embedding,
+                        library_id=mo_entry.id,
+                        text_embedded=asset.embedding or mo_entry.embedding,
                     )
                 )
-                modus_operandi_os_id[entry.id] = created.id
+                modus_operandi_os_id[mo_entry.id] = created_modus_operandi.id
 
             for asset in assets:
                 if asset.asset_type not in (
@@ -174,59 +174,59 @@ class PromoteVectorStoreInstanceUseCase:
                     KnowledgeAssetType.YELLOW_FLAG,
                 ):
                     continue
-                entry = self._flags.get(asset.asset_id)
-                if entry is None:
+                flag_entry = self._flags.get(asset.asset_id)
+                if flag_entry is None:
                     raise NotFoundError(
-                        f"flag library entry {asset.asset_id} no longer exists"
+                        f"flag library flag_entry {asset.asset_id} no longer exists"
                     )
                 # A flag can be attached standalone, without its parent modus
                 # operandi(s) - drop references to whichever parents aren't
                 # part of this vector store rather than failing the promotion.
                 resolved_mo_ids = [
                     modus_operandi_os_id[mid]
-                    for mid in entry.modus_operandi_library_ids
+                    for mid in flag_entry.modus_operandi_library_ids
                     if mid in modus_operandi_os_id
                 ]
                 self._ingest_flag.execute(
                     IngestFlagInput(
                         text=flag_embedding_text(
-                            name=entry.name, description=entry.description
+                            name=flag_entry.name, description=flag_entry.description
                         ),
                         flag_type=DocumentType.RED_FLAG
-                        if entry.flag_type == FlagType.RED
+                        if flag_entry.flag_type == FlagType.RED
                         else DocumentType.YELLOW_FLAG,
                         vector_store_id=instance_id,
                         vector_store_version=new_version,
                         modus_operandi_ids=resolved_mo_ids,
-                        text_embedded=asset.embedding or entry.embedding,
+                        text_embedded=asset.embedding or flag_entry.embedding,
                     )
                 )
 
             for asset in assets:
                 if asset.asset_type != KnowledgeAssetType.SIMILAR_CASE:
                     continue
-                entry = self._similar_cases.get(asset.asset_id)
-                if entry is None:
+                case_entry = self._similar_cases.get(asset.asset_id)
+                if case_entry is None:
                     raise NotFoundError(
-                        f"similar case library entry {asset.asset_id} no longer exists"
+                        f"similar case library case_entry {asset.asset_id} no longer exists"
                     )
                 modus_operandi_id = modus_operandi_os_id.get(
-                    entry.modus_operandi_library_id
+                    case_entry.modus_operandi_library_id
                 )
-                taxonomia_id = taxonomia_os_id.get(entry.taxonomy_library_id)
+                taxonomia_id = taxonomia_os_id.get(case_entry.taxonomy_library_id)
                 if modus_operandi_id is None or taxonomia_id is None:
                     raise ValidationError(
-                        f"similar case {entry.id!r}'s modus operandi {entry.modus_operandi_library_id!r} "
+                        f"similar case {case_entry.id!r}'s modus operandi {case_entry.modus_operandi_library_id!r} "
                         "and/or taxonomy are not included in this vector store instance"
                     )
                 self._ingest_similar_case.execute(
                     IngestSimilarCaseInput(
-                        text=entry.text,
+                        text=case_entry.text,
                         vector_store_id=instance_id,
                         vector_store_version=new_version,
                         modus_operandi_id=modus_operandi_id,
                         taxonomia_id=taxonomia_id,
-                        text_embedded=asset.embedding or entry.embedding,
+                        text_embedded=asset.embedding or case_entry.embedding,
                     )
                 )
 

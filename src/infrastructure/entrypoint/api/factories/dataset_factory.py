@@ -7,11 +7,9 @@ from src.application.ports.alert_field_mapping_port import AlertFieldMappingRepo
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
-from src.application.ports.dataset_analysis_port import (
-    DatasetSampleRepository,
-    DatasetSummaryRepository,
-)
+from src.application.ports.dataset_analysis_port import DatasetSampleRepository
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.use_cases.datasets.analyze_dataset_on_demand import (
     AnalyzeDatasetOnDemandUseCase,
 )

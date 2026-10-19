@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+from typing import cast
 from uuid import UUID
 
 from src.application.dtos.test_run_dtos import TestCaseSummary, TestRunDetail
 from src.application.ports.alert_port import AlertRepository
 from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.test_run_port import TestRunRepository
-from src.application.ports.workflow_port import (
-    WorkflowExecutionRepository,
+from src.application.ports.workflow_port import WorkflowExecutionRepository
+from src.application.ports.workflow_step_execution_port import (
     WorkflowStepExecutionRepository,
 )
 from src.application.use_cases.test_runs.classification_metrics import (
@@ -106,8 +107,8 @@ class GetTestRunUseCase:
             )
             if labels is not None and output is not None:
                 is_fraud = output.get("is_fraud")
-                analyst_cases.append((labels.get(MARCACION_FIELD), is_fraud))
-                ground_truth_cases.append((labels.get(TIPO_FIELD), is_fraud))
+                analyst_cases.append((_label(labels, MARCACION_FIELD), is_fraud))
+                ground_truth_cases.append((_label(labels, TIPO_FIELD), is_fraud))
             elif labels is None and output is not None:
                 # Kept only for direct callers that have not wired the
                 # canonical alert/schema ports. Production wiring always
@@ -164,6 +165,10 @@ def _final_classification_output(
     if not classification_steps:
         return None
     return max(classification_steps, key=lambda s: s.attempt).output
+
+
+def _label(labels: dict[str, object], key: str) -> str | None:
+    return cast(str | None, labels.get(key))
 
 
 def _canonical_evaluation_labels(

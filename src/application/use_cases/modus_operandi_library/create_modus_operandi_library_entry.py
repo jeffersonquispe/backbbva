@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from src.application.ports.clock_port import Clock
-from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryRepository,

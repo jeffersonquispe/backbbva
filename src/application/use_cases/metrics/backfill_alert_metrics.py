@@ -61,7 +61,11 @@ def lifecycle_events(
         )
     ]
 
+    workflow = facts.workflow
+
     def finished(status: AlertStatus, action: str | None = None) -> None:
+        if workflow is None:
+            return
         events.append(
             RecordAlertMetricsEventInput(
                 alert_id=alert.id,
@@ -72,7 +76,6 @@ def lifecycle_events(
             )
         )
 
-    workflow = facts.workflow
     if workflow is not None:
         if workflow.output_status == "skipped":
             finished(AlertStatus.SKIPPED)
@@ -114,7 +117,7 @@ def lifecycle_events(
                 outcome=facts.voicebot_callback.outcome,
             )
         )
-    events.extend(sorted(human, key=lambda event: event.occurred_at))
+    events.extend(sorted(human, key=lambda event: event.occurred_at or alert.created_at))
     return events
 
 

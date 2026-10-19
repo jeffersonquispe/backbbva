@@ -6,6 +6,7 @@ from uuid import UUID
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
     ModusOperandiDocument,
+    SimilarCaseDocument,
 )
 from src.application.ports.fraud_knowledge_repository_port import (
     FraudKnowledgeRepository,
@@ -21,7 +22,7 @@ class DeleteSimilarCaseUseCase:
 
     def execute(self, similar_case_id: UUID) -> None:
         document = self._repository.get(similar_case_id)
-        if document is None or document.type != DocumentType.SIMILAR_CASE:
+        if not isinstance(document, SimilarCaseDocument):
             raise ValueError(f"similar_case {similar_case_id} not found")
 
         parent = self._repository.get(document.modus_operandi_id)

@@ -43,11 +43,11 @@ from src.application.ports.async_operation_port import (
     AsyncOperationRecord,
     AsyncOperationStatus,
 )
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
 from src.application.ports.llm_unit_of_work_port import (
     LLMInvocationResult,
     LLMMessage,
     LLMUnitOfWork,
-    LLMUnitOfWorkFactory,
 )
 from src.application.ports.modus_operandi_library_port import ModusOperandiPlaybook
 from src.application.ports.monitoring_port import WORKFLOW_TOTAL_STEP, MonitoringPort
@@ -726,7 +726,7 @@ _LLM_RESPONSES: dict[str, str] = {
 }
 
 
-class FakeLLMUnitOfWork(LLMUnitOfWork):
+class InMemoryLLMUnitOfWork(LLMUnitOfWork):
     def __init__(self, operation_name: str) -> None:
         self._operation_name = operation_name
 
@@ -737,7 +737,7 @@ class FakeLLMUnitOfWork(LLMUnitOfWork):
         )
 
 
-class FakeLLMUnitOfWorkFactory(LLMUnitOfWorkFactory):
+class InMemoryLLMUnitOfWorkFactory(LLMUnitOfWorkFactory):
     def __init__(self) -> None:
         self.calls: list[str] = []
 
@@ -751,7 +751,7 @@ class FakeLLMUnitOfWorkFactory(LLMUnitOfWorkFactory):
         max_tokens: int | None = None,
     ) -> LLMUnitOfWork:
         self.calls.append(operation_name)
-        return FakeLLMUnitOfWork(operation_name)
+        return InMemoryLLMUnitOfWork(operation_name)
 
 
 class RecordingOpenTelemetryMonitoring(OpenTelemetryMonitoring):
@@ -815,8 +815,8 @@ def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
     action_dispatcher = RecordingAlertActionDispatcher()
     escalation_dispatcher = RecordingAnalystEscalationDispatcher()
     documenter_dispatcher = RecordingAnalystDecisionDocumenter()
-    llm_factory = FakeLLMUnitOfWorkFactory()
-    # Real step use cases get a real MonitoringPort instance. FakeLLMUnitOfWork
+    llm_factory = InMemoryLLMUnitOfWorkFactory()
+    # Real step use cases get a real MonitoringPort instance. InMemoryLLMUnitOfWork
     # never calls monitoring.start() (unlike the real Langchain adapter), so
     # the spans here are the runner's own workflow/step spans (T2) plus the
     # step use cases' (escalation, action, ...).
@@ -1186,7 +1186,7 @@ def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(
     action_dispatcher = RecordingAlertActionDispatcher()
     escalation_dispatcher = RecordingAnalystEscalationDispatcher()
     documenter_dispatcher = RecordingAnalystDecisionDocumenter()
-    llm_factory = FakeLLMUnitOfWorkFactory()
+    llm_factory = InMemoryLLMUnitOfWorkFactory()
     monitoring, exporter = _build_in_memory_monitoring()
 
     # A single enabled segment with an empty filter (vacuously matches any
@@ -1746,7 +1746,7 @@ def test_step_metrics_rows_and_tokens_match_token_usage(monkeypatch):
             output_tokens=15,
         )
 
-    monkeypatch.setattr(FakeLLMUnitOfWork, "invoke", invoke_with_usage)
+    monkeypatch.setattr(InMemoryLLMUnitOfWork, "invoke", invoke_with_usage)
     rollups = InMemoryMarkedRollupRepository()
     # Resolved at call time: the runner's repos are the in-memory ones
     # _run_full_pipeline patches in.

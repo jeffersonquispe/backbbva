@@ -6,10 +6,8 @@ from src.application.ports.clock_port import Clock
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
 )
-from src.application.ports.dataset_analysis_port import (
-    DatasetSummaryRepository,
-)
 from src.application.ports.dataset_port import DatasetRepository
+from src.application.ports.dataset_summary_port import DatasetSummaryRepository
 from src.application.runtime_defaults import resolve_clock
 from src.application.use_cases.datasets.field_extraction import discover_fields
 from src.application.use_cases.test_runs.dataset_sampling import (

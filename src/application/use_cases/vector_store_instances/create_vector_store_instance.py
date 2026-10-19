@@ -56,7 +56,9 @@ class CreateVectorStoreInstanceUseCase:
                 asset_type=asset.asset_type,
                 asset_id=asset.asset_id,
                 asset_version=asset.asset_version,
-                embedding=list(asset.embedding),
+                embedding=(
+                    list(asset.embedding) if asset.embedding is not None else None
+                ),
             )
             for asset in assets
         ]

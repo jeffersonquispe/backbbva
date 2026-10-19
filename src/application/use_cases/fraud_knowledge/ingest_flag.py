@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from uuid import UUID
 
-from src.application.ports.embedding_port import EmbeddingUnitOfWorkFactory
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.application.ports.fraud_knowledge_port import (
     DocumentType,
     FlagDocument,
@@ -70,6 +72,7 @@ class IngestFlagUseCase:
             type=data.flag_type,
         )
         created = self._repository.create(document)
+        assert isinstance(created, FlagDocument)
 
         for parent in parents:
             self._repository.update(replace(parent, flags=[*parent.flags, created.id]))

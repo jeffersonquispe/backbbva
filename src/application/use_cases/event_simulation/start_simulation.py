@@ -36,7 +36,9 @@ class StartSimulationUseCase:
         if scenario.status == ScenarioStatus.RUNNING:
             return scenario
         if scenario.status == ScenarioStatus.COMPLETED:
-            raise ConflictError("Cannot restart a COMPLETED scenario - create a new one")
+            raise ConflictError(
+                "Cannot restart a COMPLETED scenario - create a new one"
+            )
 
         updated = self._scenarios.update(
             scenario_id,
@@ -44,5 +46,7 @@ class StartSimulationUseCase:
             started_at=scenario.started_at or self._clock.now(),
             error=None,
         )
+        if updated is None:
+            raise NotFoundError(f"Scenario {scenario_id} not found")
         self._dispatcher.dispatch(scenario_id)
         return updated

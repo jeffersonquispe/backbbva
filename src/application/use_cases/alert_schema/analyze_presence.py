@@ -5,7 +5,6 @@ import json
 import math
 from collections import Counter
 from datetime import date, datetime, timedelta
-from numbers import Number
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -16,9 +15,11 @@ from src.application.ports.alert_schema_port import (
     AlertSchemaField,
     AlertSchemaPresenceField,
     AlertSchemaPresenceReport,
-    AlertSchemaPresenceReportRepository,
     AlertSchemaRepository,
     AlertSchemaUnknownLocation,
+)
+from src.application.ports.alert_schema_presence_report_port import (
+    AlertSchemaPresenceReportRepository,
 )
 from src.application.ports.clock_port import Clock
 from src.application.ports.object_storage_port import ObjectStoragePort
@@ -133,7 +134,7 @@ def _field_report(
 ) -> AlertSchemaPresenceField:
     count = len(values)
     previous_count = previous.present_count if previous else None
-    trend = {
+    trend: dict[str, object] = {
         "present_count": count,
         "previous_count": previous_count,
         "delta": None if previous_count is None else count - previous_count,
@@ -166,7 +167,7 @@ def _distribution(
         numbers = sorted(
             float(value)
             for value in raw
-            if isinstance(value, Number) and not isinstance(value, bool)
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
         )
         return (
             {

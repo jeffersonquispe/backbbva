@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from src.application.ports.analyst_capacity_import_port import (
     AnalystCapacityImportResult,
+)
+from src.application.ports.analyst_capacity_import_status_reader_port import (
     AnalystCapacityImportStatusReader,
 )
 

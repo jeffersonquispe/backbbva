@@ -39,12 +39,3 @@ class AnalystCapacityImportDispatcher(ABC):
     def dispatch(self, content_b64: str) -> str:
         """Returns the Celery task id to poll via AnalystCapacityImportStatusReader."""
         raise NotImplementedError
-
-
-class AnalystCapacityImportStatusReader(ABC):
-    """Reads back a dispatched import's status/result by task id. Adapter:
-    infrastructure/queues/celery/analyst_capacity_import_status_reader.py.
-    """
-
-    def read(self, task_id: str) -> AnalystCapacityImportResult:
-        raise NotImplementedError

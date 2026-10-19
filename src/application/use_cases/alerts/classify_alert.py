@@ -13,11 +13,8 @@ from src.application.dtos.classify_alert_dtos import (
 )
 from src.application.ports.fraud_similarity_port import SimilarFraudCasePort
 from src.application.ports.fraud_taxonomy_port import FraudTaxonomyPort
-from src.application.ports.llm_unit_of_work_port import (
-    LLMMessage,
-    LLMMessageRole,
-    LLMUnitOfWorkFactory,
-)
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
+from src.application.ports.llm_unit_of_work_port import LLMMessage, LLMMessageRole
 from src.application.ports.modus_operandi_port import ModusOperandiPort
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.watchlist_port import WatchlistRepository
@@ -132,7 +129,11 @@ _INITIAL_PROMPT = "Datos de la alerta y resultados del perfilamiento:\n{data}"
 
 
 def _serializable(value: Any) -> Any:
-    return dataclasses.asdict(value) if dataclasses.is_dataclass(value) else value
+    return (
+        dataclasses.asdict(value)
+        if dataclasses.is_dataclass(value) and not isinstance(value, type)
+        else value
+    )
 
 
 def _alert_context(input: ClassifyAlertInput) -> dict[str, Any]:

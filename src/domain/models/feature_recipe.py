@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import math
 import statistics
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -284,8 +284,9 @@ def validate_feature_definition(
         isinstance(recipes, list) and 0 < len(recipes) <= 200,
         "Provide 1 to 200 recipes",
     )
-    names, ids = set(), set()
-    for recipe in recipes:
+    names: set[Any] = set()
+    ids: set[Any] = set()
+    for recipe in cast("list[Any]", recipes):
         require(isinstance(recipe, dict), "Recipe must be an object")
         for key, seen in [("id", ids), ("name", names)]:
             value = recipe.get(key)
@@ -697,13 +698,14 @@ def _step(value: Any, step: dict, row: dict, mappings: dict, zone: ZoneInfo) -> 
         if not items:
             return 0 if op == "sum" else None
         nums = [_number(item) for item in items]
-        return {
+        reducers: dict[str, Callable[[list[float]], float]] = {
             "sum": sum,
             "mean": statistics.mean,
             "median": statistics.median,
             "min": min,
             "max": max,
-        }[op](nums)
+        }
+        return reducers[op](nums)
     if op == "fill_missing":
         blank = (
             isinstance(value, str)
@@ -814,9 +816,9 @@ def evaluate_feature_definition(
         raise FeatureRecipeValidationError("Input row must be an object")
     mappings = definition.get("mappings", {})
     zone = ZoneInfo(mappings.get("timezone", "UTC"))
-    result = {"values": {}, "features": []}
+    result: dict[str, Any] = {"values": {}, "features": []}
     for recipe in definition["recipes"]:
-        feature = {
+        feature: dict[str, Any] = {
             "id": recipe["id"],
             "name": recipe["name"],
             "value": None,
@@ -828,7 +830,7 @@ def evaluate_feature_definition(
         result["features"].append(feature)
         if not recipe.get("enabled", True):
             continue
-        value = None
+        value: Any = None
         try:
             if recipe["source"] == "history":
                 history = _json_container(_path(row, mappings["history"]))

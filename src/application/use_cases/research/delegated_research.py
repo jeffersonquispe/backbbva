@@ -4,7 +4,7 @@ import contextvars
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from typing import Any
+from typing import Any, cast
 
 from src.application.dtos.research_dtos import (
     ResearchFinding,
@@ -17,10 +17,8 @@ from src.application.ports.monitoring_port import (
     MonitoringPort,
     ResearchCallOutcome,
 )
-from src.application.ports.research_port import (
-    ResearchAgent,
-    VectorStoreRetriever,
-)
+from src.application.ports.research_port import ResearchAgent
+from src.application.ports.vector_store_retriever_port import VectorStoreRetriever
 from src.domain.configurations.entities import (
     VectorStoreResearchConfig,
 )
@@ -60,7 +58,7 @@ class VectorStoreResearchAgent:
                 kept = [
                     hit
                     for hit in hits
-                    if float(hit.get("score", 0)) >= self._config.similarity_threshold
+                    if float(cast(float, hit.get("score", 0))) >= self._config.similarity_threshold
                 ]
                 trace.append({"asset_type": asset_type, "hits": len(kept)})
                 for hit in kept:

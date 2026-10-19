@@ -4,6 +4,8 @@ from functools import lru_cache
 
 from src.application.ports.analyst_capacity_import_port import (
     AnalystCapacityImportDispatcher,
+)
+from src.application.ports.analyst_capacity_import_status_reader_port import (
     AnalystCapacityImportStatusReader,
 )
 from src.application.use_cases.analyst_capacity.get_analyst_capacity_import import (
