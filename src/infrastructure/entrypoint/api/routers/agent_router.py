@@ -25,7 +25,12 @@ from src.application.use_cases.agent.manage_agent_session import (
     AgentSessionNotFoundError,
     AgentSessionStateError,
 )
+from src.application.use_cases.agent.renew_agent_budget import (
+    AgentBudgetRenewalError,
+)
 from src.infrastructure.agents.factories import (
+    get_agent_hypothesis_repository,
+    get_agent_iteration_repository,
     get_agent_link_repository,
     get_agent_message_repository,
     get_agent_package_repository,
@@ -34,15 +39,19 @@ from src.infrastructure.agents.factories import (
 )
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.agent_factory import (
+    get_agent_entity_claim_use_case,
     get_assistant_optimizer_settings_port,
     get_chat_with_agent_use_case,
     get_create_agent_session_use_case,
     get_manage_agent_insight_use_case,
     get_manage_agent_session_use_case,
+    get_renew_agent_budget_use_case,
 )
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas.agent import (
     AgentChatTurnResponse,
+    AgentEntityClaimResponse,
+    AgentHypothesisResponse,
     AgentInsightResponse,
     AgentLinkResponse,
     AgentMessageResponse,
@@ -50,6 +59,7 @@ from src.infrastructure.entrypoint.api.schemas.agent import (
     AgentSessionResponse,
     AgentSessionSummaryResponse,
     CreateAgentSessionRequest,
+    RenewAgentBudgetRequest,
     SendAgentMessageRequest,
 )
 from src.infrastructure.queues.celery.agent_dispatcher import (
@@ -58,6 +68,16 @@ from src.infrastructure.queues.celery.agent_dispatcher import (
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 _CONFIGURATION_ACCESS = Depends(require_permission("configuration"))
+
+
+@router.get("/claims/{entity_key:path}", response_model=list[AgentEntityClaimResponse])
+def list_entity_claims(
+    entity_key: str,
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    if not entity_key or len(entity_key) > 256:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_ENTITY_KEY"})
+    return get_agent_entity_claim_use_case().list_active(entity_key)
 
 
 @router.post(
@@ -92,6 +112,23 @@ def create_session(
             status_code=503, detail={"code": "AGENT_PROMPT_NOT_READY"}
         ) from error
     return session
+
+
+@router.post("/sessions/{session_id}/budget/renew", response_model=AgentSessionResponse)
+def renew_budget(
+    session_id: str,
+    request: RenewAgentBudgetRequest,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    if user.role != LocalRole.CHANNEL_MANAGER:
+        raise HTTPException(status_code=403, detail={"code": "ROLE_NOT_ALLOWED"})
+    try:
+        return get_renew_agent_budget_use_case().execute(
+            session_id, str(user.id), request.additions
+        )
+    except AgentBudgetRenewalError as error:
+        raise HTTPException(status_code=409, detail={"code": "BUDGET_RENEWAL_POLICY"}) from error
 
 
 @router.get("/sessions", response_model=list[AgentSessionResponse])
@@ -161,6 +198,40 @@ def list_session_packages(
 ):
     _owned_session(session_id, str(user.id))
     return get_agent_package_repository().list_for_session(session_id, limit)
+
+
+@router.get(
+    "/sessions/{session_id}/hypotheses",
+    response_model=list[AgentHypothesisResponse],
+)
+def list_session_hypotheses(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    _owned_session(session_id, str(user.id))
+    return get_agent_hypothesis_repository().list_for_session(session_id)
+
+
+@router.get("/sessions/{session_id}/iterations")
+def list_session_iterations(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    _owned_session(session_id, str(user.id))
+    return [
+        {
+            "number": item.number,
+            "status": item.status.value,
+            "started_at": item.started_at,
+            "finished_at": item.finished_at,
+            "hypothesis": item.decision.get("hypothesis"),
+            "decision": item.decision.get("action"),
+            "reason": item.decision.get("reason"),
+        }
+        for item in get_agent_iteration_repository().list_for_session(session_id)
+    ]
 
 
 @router.get("/packages/{package_id}", response_model=AgentPackageSummaryResponse)

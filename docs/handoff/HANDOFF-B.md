@@ -280,3 +280,66 @@ Base: `3fe3198`
 
 - **Integrador:** revisar H8 y sus evidencias; el respaldo/OKD no requiere cambios según la confirmación recibida. No hay dependencia pendiente de A.
 - No se inició otro hito después de H8. Queda listo para revisión; esperar aceptación antes de continuar.
+
+---
+
+## H9 — orquestador del optimizador (backend) — listo para revisión
+
+Worktree: `../aria-wt-B-H9`
+
+Rama: `feat/agent-B-H9`
+
+Base: `40c8c41` (H8 integrado)
+
+### Qué quedó hecho
+
+- El worker mantiene reclamos persistidos por área y lease; el API consulta solo reclamos no vencidos de sesiones activas para avisar interferencia.
+- El loop de optimización crea hipótesis persistidas desde insights activos confirmados o, si no hay, desde el alcance. Prioriza con una regla determinista por tipo de insight y desempata por fecha e ID.
+- Cada hipótesis guarda la verificación que la evaluó y el resultado agregado. Cuando hay evidencia suficiente, el insight de origen pasa a aplicado o refutado y queda un enlace a la verificación; sin métricas suficientes se conserva como no concluyente.
+- El loop añade su estado al resumen versionado de sesión. Detiene la sesión ante un fallo crítico, estancamiento según el recall sujeto al piso de precisión, o falta de hipótesis activas. La política y el kill switch continúan leyéndose desde los settings actuales en cada tick.
+- `channel_manager` puede autorizar renovaciones únicamente con la sesión pausada. El límite de renovaciones se consulta desde settings y cada ampliación añade entradas `RENEW` append-only al ledger. El response expone el contador persistido.
+- El API expone hipótesis e iteraciones con campos seguros, además de reclamos por entidad y renovación de presupuesto.
+- Se amplió el E2E API existente para comprobar el ciclo de kill switch, cancelación y recuperación, y se añadió un E2E Playwright H9 por nginx para hipótesis/evidencia, reclamo, pausa y renovación auditada.
+
+### Diff y archivos tocados
+
+- `src/application/ports/agent_{entity_claim,hypothesis}_port.py`, `src/application/ports/agent_session_port.py` y `src/application/use_cases/agent/{manage_agent_entity_claims,renew_agent_budget,orchestrate_agent_iteration}.py`.
+- `src/infrastructure/persistence/database/dynamodb/{schemas.py,manager.py,repositories/agent_repositories.py,repositories/agent_session_repository.py,repositories/e2e_state_cleaner.py}`.
+- `src/infrastructure/agents/factories.py`, `src/infrastructure/workflows/celery/{factories.py,task_factories.py}` y `src/infrastructure/entrypoint/agent_worker/celery/tasks.py`.
+- `src/infrastructure/entrypoint/api/{factories/agent_factory.py,routers/agent_router.py,schemas/agent.py}`.
+- `tests/test_application/test_use_cases/{test_agent_h9_coordination.py,test_orchestrate_agent_iteration.py}`, `tests/test_infrastructure/test_persistence/test_agent_session_repository.py`.
+- `scripts/e2e_agent_local.py`, `scripts/e2e_agent_h9_local.mjs` y `Makefile` (`e2e-agent-h9-local`).
+- `docs/handoff/HANDOFF-B.md`.
+
+### Comandos y resultado real
+
+- `RUFF_CACHE_DIR=/tmp/aria-ruff-cache-B-H9 make lint`: **pasó** — Ruff 0, mypy 0, ambos baselines 0.
+- `API_V0_STR=/api/v0 make test-architecture`: **pasó** — 240/240.
+- `API_V0_STR=/api/v0 GENAI_ENVIRONMENT=test pytest -q tests/test_application/test_use_cases/test_orchestrate_agent_iteration.py tests/test_application/test_use_cases/test_agent_h9_coordination.py tests/test_infrastructure/test_persistence/test_agent_session_repository.py tests/test_infrastructure/test_entrypoint/test_agent_schemas.py tests/test_infrastructure/test_entrypoint/test_agent_worker_celery_app.py`: **pasó** — 14 pruebas. Pytest emitió un aviso porque el sandbox no permite crear `.pytest_cache` dentro del worktree.
+- `node --check scripts/e2e_agent_h9_local.mjs` y `git diff --check`: **pasaron**.
+- `make e2e-agent-local`, con `/tmp/aria-e2e.lock`: **pasó** — `Agent E2E por nginx: kill switch, cancelación, recuperación, reclamo de alcance y renovación de presupuesto pasaron.` El escenario también consultó por API la hipótesis con su `evidence_id` y su salida `NONCONCLUSIVE`.
+- `make e2e-agent-h9-local`: **pasó** — Playwright real en `http://localhost`, API por el proxy same-origin `/api/v0`, sin mocks. Salida: `H9 Playwright por nginx: hipótesis y evidencia, reclamo de alcance, pausa e incremento auditado de presupuesto pasaron.` El target tomó `/tmp/aria-e2e.lock` y lo liberó.
+- La primera corrida con Docker fue bloqueada por permiso de Buildx para escribir su actividad bajo `~/.docker`. La siguiente detectó un `502` transitorio al recrear el worker porque Compose también recrea API; se añadió espera de salud en el harness. La corrida final reconstruida pasó.
+
+### Estado E2E
+
+**Pasó** por los dos caminos: escenario API de ciclo/recuperación y Playwright del comportamiento H9. Ambos usaron stack local real, nginx en puerto 80 y DynamoDB Local; los requests funcionales entraron por `/api/v0`.
+
+### Desvíos del modelo de datos propuesto
+
+- Se añadieron `agent_hypotheses` con clave `session_id` + `hypothesis_id` para historial y concurrencia por sesión.
+- Se añadieron reclamos en `agent_entity_claims` con clave `entity_key` + `session_id` y GSI `SessionIdx` para heartbeat/liberación por sesión.
+- No se modificó backup ni inicialización OKD: el backup enumera esquemas de `schemas.py` y la API aprovisiona tablas de esos esquemas al arrancar con DynamoDB configurado. El cleaner agrupa explícitamente ambas tablas como H9.
+- La evidencia se guarda como referencia a `agent_verifications`; las métricas siguen siendo agregadas y no hay datos por caso. La renovación usa el ledger existente y el campo nuevo `budget_renewals` en `agent_sessions`.
+
+### Supuestos nuevos y dependencias
+
+- Solo los insights en estado activo alimentan hipótesis; los propuestos sin confirmación no se usan. Prioridad fija por tipo: directiva, hipótesis, restricción, preferencia, observación, decisión y pregunta.
+- Cuando no existen insights activos, se crea una hipótesis inicial determinista según el primer ámbito del alcance ordenado. Al quedarse sin hipótesis activas, la sesión se detiene por `no_signal`.
+- El estancamiento cuenta iteraciones sin mejora con métricas numéricas, usando recall como objetivo y precisión como piso; resultados por debajo del piso no se tratan como mejoras.
+- La interfaz FP4/FP5 no se tocó porque esta sesión trabaja solo backend. No se ejecutaron `make e2e-all-local` ni `make e2e-observability`; no se ejecutó `make lint-baseline` porque los baselines no crecieron.
+
+### Qué necesito de A o del integrador
+
+- **A:** integrar FP4/FP5 de frontend contra los endpoints de progreso, hipótesis, reclamos e incremento de presupuesto, manteniendo el acceso same-origin.
+- **Integrador:** revisar H9 backend y sus dos E2E. No se inició H10 ni se creó commit; esperar revisión antes de avanzar.

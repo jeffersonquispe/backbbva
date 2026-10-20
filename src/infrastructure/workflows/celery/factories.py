@@ -98,10 +98,14 @@ from src.application.use_cases.operations.live_operations_capacity import (
 from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.infrastructure.agents.factories import (
     get_agent_budget_ledger_repository,
+    get_agent_hypothesis_repository,
+    get_agent_insight_repository,
     get_agent_iteration_repository,
+    get_agent_link_repository,
     get_agent_package_repository,
     get_agent_run_repository,
     get_agent_session_repository,
+    get_agent_session_summary_repository,
     get_agent_verification_repository,
 )
 from src.infrastructure.agents.stub_subagent import StubAgentSubagent
@@ -800,6 +804,10 @@ def get_orchestrate_agent_iteration_use_case(
         budget=get_agent_budget_ledger_repository(),
         packages=get_agent_package_repository(),
         verifications=get_agent_verification_repository(),
+        hypotheses=get_agent_hypothesis_repository(),
+        insights=get_agent_insight_repository(),
+        links=get_agent_link_repository(),
+        summaries=get_agent_session_summary_repository(),
         settings=settings or get_assistant_optimizer_settings_repository(),
         subagent=subagent
         or StubAgentSubagent(genai_config.AGENT_STUB_DELAY_SECONDS),
@@ -813,5 +821,21 @@ def get_recover_stale_agent_runs_use_case() -> RecoverStaleAgentRunsUseCase:
         sessions=get_agent_session_repository(),
         iterations=get_agent_iteration_repository(),
         runs=get_agent_run_repository(),
+        clock=get_clock(),
+    )
+
+
+def get_agent_entity_claim_use_case():
+    from src.application.use_cases.agent.manage_agent_entity_claims import (
+        AgentEntityClaimUseCase,
+    )
+    from src.infrastructure.agents.factories import (
+        get_agent_entity_claim_repository,
+        get_agent_session_repository,
+    )
+
+    return AgentEntityClaimUseCase(
+        sessions=get_agent_session_repository(),
+        claims=get_agent_entity_claim_repository(),
         clock=get_clock(),
     )

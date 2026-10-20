@@ -9,6 +9,11 @@ from botocore.exceptions import ClientError
 
 from src.application.ports.agent_budget_ledger_port import AgentBudgetEntry
 from src.application.ports.agent_confirmation_port import AgentConfirmation
+from src.application.ports.agent_entity_claim_port import AgentEntityClaim
+from src.application.ports.agent_hypothesis_port import (
+    AgentHypothesis,
+    AgentHypothesisStatus,
+)
 from src.application.ports.agent_iteration_port import (
     AgentIteration,
     AgentIterationStatus,
@@ -184,6 +189,72 @@ class DynamoAgentBudgetLedgerRepository:
                 return False
             raise
         return True
+
+
+class DynamoAgentEntityClaimRepository:
+    def __init__(self) -> None:
+        self._table = get_dynamodb_resource().Table("agent_entity_claims")
+
+    def claim(self, claim: AgentEntityClaim) -> AgentEntityClaim:
+        self._table.put_item(Item=_encode(asdict(claim)))
+        return claim
+
+    def list_by_entity(self, entity_key: str, limit: int = 50) -> list[AgentEntityClaim]:
+        result = self._table.query(
+            KeyConditionExpression=Key("entity_key").eq(entity_key), Limit=limit
+        )
+        return [_entity_claim(item) for item in result.get("Items", [])]
+
+    def list_by_session(self, session_id: str, limit: int = 100) -> list[AgentEntityClaim]:
+        result = self._table.query(
+            IndexName="SessionIdx",
+            KeyConditionExpression=Key("session_id").eq(session_id),
+            Limit=limit,
+        )
+        return [_entity_claim(item) for item in result.get("Items", [])]
+
+    def release_session(self, session_id: str) -> int:
+        claims = self.list_by_session(session_id, limit=100)
+        for claim in claims:
+            self._table.delete_item(
+                Key={"entity_key": claim.entity_key, "session_id": session_id}
+            )
+        return len(claims)
+
+
+class DynamoAgentHypothesisRepository:
+    def __init__(self) -> None:
+        self._table = get_dynamodb_resource().Table("agent_hypotheses")
+
+    def create(self, hypothesis: AgentHypothesis) -> AgentHypothesis:
+        self._table.put_item(
+            Item=_encode(asdict(hypothesis)),
+            ConditionExpression="attribute_not_exists(session_id) AND attribute_not_exists(hypothesis_id)",
+        )
+        return hypothesis
+
+    def list_for_session(self, session_id: str, limit: int = 100) -> list[AgentHypothesis]:
+        result = self._table.query(
+            KeyConditionExpression=Key("session_id").eq(session_id), Limit=limit
+        )
+        return [_hypothesis(item) for item in result.get("Items", [])]
+
+    def update(self, hypothesis: AgentHypothesis, expected_rev: int) -> AgentHypothesis:
+        item = _encode(asdict(hypothesis))
+        item["rev"] = expected_rev + 1
+        try:
+            self._table.put_item(
+                Item=item,
+                ConditionExpression="rev = :expected AND #status = :active",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":expected": expected_rev,
+                    ":active": AgentHypothesisStatus.ACTIVE.value,
+                },
+            )
+        except ClientError as error:
+            _raise_if_conflict(error)
+        return _hypothesis(item)
 
 
 class DynamoAgentVerificationRepository:
@@ -388,6 +459,21 @@ def _budget(item: dict[str, Any]) -> AgentBudgetEntry:
     row = _decoded(item)
     row["created_at"] = datetime.fromisoformat(row["created_at"])
     return AgentBudgetEntry(**row)
+
+
+def _entity_claim(item: dict[str, Any]) -> AgentEntityClaim:
+    row = _decoded(item)
+    for field in ("claimed_at", "heartbeat_at", "expires_at"):
+        row[field] = datetime.fromisoformat(row[field])
+    return AgentEntityClaim(**row)
+
+
+def _hypothesis(item: dict[str, Any]) -> AgentHypothesis:
+    row = _decoded(item)
+    row["status"] = AgentHypothesisStatus(row["status"])
+    for field in ("created_at", "updated_at"):
+        row[field] = datetime.fromisoformat(row[field])
+    return AgentHypothesis(**row)
 
 
 def _verification(item: dict[str, Any]) -> AgentVerification:

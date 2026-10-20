@@ -50,6 +50,8 @@ from src.infrastructure.persistence.database.dynamodb.repositories.variable_cata
 from src.infrastructure.persistence.database.dynamodb.schemas import (
     AGENT_BUDGET_LEDGER_TABLE,
     AGENT_CONFIRMATIONS_TABLE,
+    AGENT_ENTITY_CLAIMS_TABLE,
+    AGENT_HYPOTHESES_TABLE,
     AGENT_INSIGHTS_TABLE,
     AGENT_ITERATIONS_TABLE,
     AGENT_LINKS_TABLE,
@@ -477,6 +479,10 @@ def ensure_all_tables() -> None:
         AGENT_SESSION_SUMMARIES_TABLE,
     ):
         enable_ttl(chat_schema, "expires_at")
+
+    # H9 optimizer hypotheses and entity coordination.
+    create_table(AGENT_ENTITY_CLAIMS_TABLE)
+    create_table(AGENT_HYPOTHESES_TABLE)
 
 
 def seed_defaults() -> None:

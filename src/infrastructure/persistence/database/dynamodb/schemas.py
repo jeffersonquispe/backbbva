@@ -1080,3 +1080,37 @@ DATASET_SAMPLER_STATE_TABLE = {
         {"AttributeName": "state_id", "AttributeType": "S"},
     ],
 }
+
+# H9 persisted hypotheses and their safe, aggregate evidence references.
+AGENT_HYPOTHESES_TABLE = {
+    "TableName": "agent_hypotheses",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "hypothesis_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "hypothesis_id", "AttributeType": "S"},
+    ],
+}
+
+AGENT_ENTITY_CLAIMS_TABLE = {
+    "TableName": "agent_entity_claims",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "entity_key", "KeyType": "HASH"},
+        {"AttributeName": "session_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "entity_key", "AttributeType": "S"},
+        {"AttributeName": "session_id", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "SessionIdx",
+            "KeySchema": [{"AttributeName": "session_id", "KeyType": "HASH"}],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+    ],
+}

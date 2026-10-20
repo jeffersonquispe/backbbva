@@ -222,6 +222,14 @@ def get_agent_iteration_use_case() -> OrchestrateAgentIterationUseCase:
     return build_agent_iteration_use_case()
 
 
+def get_agent_entity_claim_use_case():
+    from src.infrastructure.workflows.celery.factories import (
+        get_agent_entity_claim_use_case as build_claim_use_case,
+    )
+
+    return build_claim_use_case()
+
+
 def get_recover_stale_agent_runs_use_case() -> RecoverStaleAgentRunsUseCase:
     return build_recover_stale_agent_runs_use_case()
 

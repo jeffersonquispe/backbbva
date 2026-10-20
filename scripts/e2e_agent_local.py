@@ -106,11 +106,11 @@ def wait_for_nginx_api() -> None:
     raise RuntimeError("API did not become healthy through nginx")
 
 
-def manager_token(bootstrap: str) -> tuple[str, str]:
+def user_token(bootstrap: str, role: str, email: str) -> tuple[str, str]:
     password = secrets.token_urlsafe(30)
     status, users = request("GET", "/auth/users", bootstrap=bootstrap)
     check(status, 200, "list users", users)
-    user = next((item for item in users if item["email"] == EMAIL), None)
+    user = next((item for item in users if item["email"] == email), None)
     if user:
         status, _ = request(
             "PUT",
@@ -124,19 +124,23 @@ def manager_token(bootstrap: str) -> tuple[str, str]:
             "POST",
             "/auth/users",
             body={
-                "email": EMAIL,
+                "email": email,
                 "password": password,
                 "name": "Agent E2E Manager",
-                "role": "manager",
+                "role": role,
             },
             bootstrap=bootstrap,
         )
         check(status, 201, "create E2E user", None)
     status, login = request(
-        "POST", "/auth/login", body={"email": EMAIL, "password": password}
+        "POST", "/auth/login", body={"email": email, "password": password}
     )
     check(status, 200, "login", login)
     return login["access_token"], user["id"] if user else login["id"]
+
+
+def manager_token(bootstrap: str) -> tuple[str, str]:
+    return user_token(bootstrap, "manager", EMAIL)
 
 
 def wait_for_session(token: str, session_id: str, status_name: str, timeout: int = 30) -> dict:
@@ -237,8 +241,71 @@ def main() -> int:
         check(status, 200, "read assistant settings", original_settings)
         update_settings(
             token,
-            dict(original_settings, max_sessions_per_user=100),
+            dict(
+                original_settings,
+                max_sessions_per_user=100,
+                optimizer_enabled=True,
+                optimizer_max_budget_renewals=1,
+            ),
         )
+        # H9: a live optimization claim appears through the API and a paused
+        # session can receive one explicit channel-manager budget renewal.
+        channel_token, _ = user_token(
+            temporary_bootstrap,
+            "channel_manager",
+            f"e2e-agent-channel-{secrets.token_hex(6)}@example.com",
+        )
+        status, optimizer = request(
+            "POST",
+            "/agent/sessions",
+            channel_token,
+            {
+                "mode": "optimization",
+                "scope": ["model"],
+                "requested_budget": {"tokens": 3, "seconds": 30, "usd_micros": 30},
+            },
+        )
+        check(status, 201, "create optimizer session", optimizer)
+        optimizer_id = optimizer["session_id"]
+        status, _ = request("POST", f"/agent/sessions/{optimizer_id}/start", channel_token)
+        check(status, 200, "start optimizer session", None)
+        deadline = time.monotonic() + 20
+        claims: list[dict[str, Any]] = []
+        while time.monotonic() < deadline:
+            status, claims = request("GET", "/agent/claims/scope%23model", token)
+            if status == 200 and any(item["session_id"] == optimizer_id for item in claims):
+                break
+            time.sleep(0.2)
+        else:
+            raise RuntimeError("optimizer scope claim did not appear through API")
+        deadline = time.monotonic() + 10
+        hypotheses: list[dict[str, Any]] = []
+        while time.monotonic() < deadline:
+            status, hypotheses = request(
+                "GET", f"/agent/sessions/{optimizer_id}/hypotheses", channel_token
+            )
+            if status == 200 and hypotheses and hypotheses[0].get("evidence_id"):
+                break
+            time.sleep(0.2)
+        else:
+            raise RuntimeError("optimizer hypothesis was not linked to persisted evidence")
+        if hypotheses[0].get("evidence_outcome") != "NONCONCLUSIVE":
+            raise RuntimeError("stub evidence outcome was not classified safely")
+        status, _ = request("POST", f"/agent/sessions/{optimizer_id}/pause", channel_token)
+        check(status, 200, "pause optimizer for renewal", None)
+        status, renewed = request(
+            "POST",
+            f"/agent/sessions/{optimizer_id}/budget/renew",
+            channel_token,
+            {"additions": {"tokens": 5}},
+        )
+        check(status, 200, "renew optimizer budget", renewed)
+        if renewed["budget_limits"].get("tokens") != 8 or renewed["budget_renewals"] != 1:
+            raise RuntimeError("budget renewal did not update the paused session")
+        status, active_claims = request("GET", "/agent/claims/scope%23model", token)
+        check(status, 200, "read claims after pause", active_claims)
+        if any(item["session_id"] == optimizer_id for item in active_claims):
+            raise RuntimeError("paused optimizer still appears as active interference")
         # Kill switch is read by the real Celery task after it is dequeued.
         kill_session = create_session(token)
         compose("stop", "aria-agent-worker")
@@ -267,6 +334,7 @@ def main() -> int:
         # A long-running local stub makes killing the actual worker deterministic.
         os.environ["AGENT_STUB_DELAY_SECONDS"] = "2"
         compose("up", "-d", "--force-recreate", "aria-agent-worker")
+        wait_for_nginx_api()
         recovery_session = create_session(token)
         status, _ = request("POST", f"/agent/sessions/{recovery_session}/start", token)
         check(status, 200, "start recovery session", None)
@@ -287,7 +355,7 @@ def main() -> int:
             raise RuntimeError("recovered session did not produce a package")
         if "SUCCEEDED" not in run_statuses(recovery_session):
             raise RuntimeError("recovered session did not complete a later run")
-        print("Agent E2E por nginx: kill switch, cancelación y recuperación pasaron.")
+        print("Agent E2E por nginx: kill switch, cancelación, recuperación, reclamo de alcance y renovación de presupuesto pasaron.")
         return 0
     finally:
         if token and original_settings is not None:

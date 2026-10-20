@@ -39,6 +39,7 @@ class DynamoE2EStateCleaner(E2EStateCleaner):
             in ASSISTANT_OPTIMIZER_SETTINGS_TABLE_NAMES
             | MATURE_SAMPLER_TABLE_NAMES
             | AGENT_OBJECTIVE_TABLE_NAMES
+            | AGENT_H9_TABLE_NAMES
         ]
         agent_chat_tables = [
             name for name in table_names if name in AGENT_CHAT_TABLE_NAMES
@@ -52,6 +53,7 @@ class DynamoE2EStateCleaner(E2EStateCleaner):
             | MATURE_SAMPLER_TABLE_NAMES
             | AGENT_CHAT_TABLE_NAMES
             | AGENT_OBJECTIVE_TABLE_NAMES
+            | AGENT_H9_TABLE_NAMES
         ]
         deleted = 0
         for table_name in (*settings_tables, *agent_chat_tables, *other_tables):
@@ -101,6 +103,7 @@ AGENT_CHAT_TABLE_NAMES = frozenset(
         "agent_insights",
         "agent_links",
         "agent_session_summaries",
+        "agent_entity_claims",
     }
 )
 
@@ -119,3 +122,6 @@ AGENT_OBJECTIVE_TABLE_NAMES = frozenset(
         AGENT_OBJECTIVE_ACTIVE_TABLE["TableName"],
     }
 )
+
+# H9 optimizer state is cleaned as a distinct milestone-owned group.
+AGENT_H9_TABLE_NAMES = frozenset({"agent_entity_claims", "agent_hypotheses"})

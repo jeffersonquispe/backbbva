@@ -33,6 +33,7 @@ class AgentSession:
     lease_expires_at: datetime | None = None
     rev: int = 0
     message_seq: int = 0
+    budget_renewals: int = 0
 
 
 class AgentSessionRepository(Protocol):

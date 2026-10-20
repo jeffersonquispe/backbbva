@@ -151,4 +151,5 @@ def _from_item(item: dict[str, Any]) -> AgentSession:
         ),
         rev=int(item.get("rev", 0)),
         message_seq=int(item.get("message_seq", 0)),
+        budget_renewals=int(item.get("budget_renewals", 0)),
     )

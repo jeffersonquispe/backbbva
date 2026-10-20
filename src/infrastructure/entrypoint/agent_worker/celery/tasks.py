@@ -6,6 +6,7 @@ from src.infrastructure.queues.celery.agent_dispatcher import (
     enqueue_agent_session_tick,
 )
 from src.infrastructure.workflows.celery.task_factories import (
+    get_agent_entity_claim_use_case,
     get_agent_iteration_use_case,
     get_global_pipeline_evaluation_use_case,
     get_recover_stale_agent_runs_use_case,
@@ -20,6 +21,7 @@ def evaluate_global_pipeline(snapshot_id: str) -> dict[str, str]:
 
 @app.task(name="agent.orchestrate_session", acks_late=True)
 def orchestrate_agent_session(session_id: str) -> dict[str, str]:
+    get_agent_entity_claim_use_case().heartbeat(session_id)
     status = get_agent_iteration_use_case().execute(session_id)
     session = get_agent_session_repository().get(session_id)
     if session is not None and session.status.value == "ACTIVE":

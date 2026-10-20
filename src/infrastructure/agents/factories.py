@@ -9,6 +9,8 @@ from src.application.ports.agent_chat_responder_port import AgentChatResponder
 from src.application.ports.agent_confirmation_port import (
     AgentConfirmationRepository,
 )
+from src.application.ports.agent_entity_claim_port import AgentEntityClaimRepository
+from src.application.ports.agent_hypothesis_port import AgentHypothesisRepository
 from src.application.ports.agent_insight_port import AgentInsightRepository
 from src.application.ports.agent_iteration_port import AgentIterationRepository
 from src.application.ports.agent_link_port import AgentLinkRepository
@@ -47,6 +49,8 @@ from src.infrastructure.persistence.database.dynamodb.repositories.agent_chat_re
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_repositories import (
     DynamoAgentBudgetLedgerRepository,
     DynamoAgentConfirmationRepository,
+    DynamoAgentEntityClaimRepository,
+    DynamoAgentHypothesisRepository,
     DynamoAgentIterationRepository,
     DynamoAgentPackageRepository,
     DynamoAgentPromptRepository,
@@ -82,6 +86,16 @@ def get_agent_tool_call_repository() -> AgentToolCallRepository:
 @lru_cache
 def get_agent_budget_ledger_repository() -> AgentBudgetLedgerRepository:
     return DynamoAgentBudgetLedgerRepository()
+
+
+@lru_cache
+def get_agent_entity_claim_repository() -> AgentEntityClaimRepository:
+    return DynamoAgentEntityClaimRepository()
+
+
+@lru_cache
+def get_agent_hypothesis_repository() -> AgentHypothesisRepository:
+    return DynamoAgentHypothesisRepository()
 
 
 @lru_cache

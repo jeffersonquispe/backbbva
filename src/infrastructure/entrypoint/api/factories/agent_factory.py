@@ -5,14 +5,20 @@ from src.application.use_cases.agent.chat_with_agent import ChatWithAgentUseCase
 from src.application.use_cases.agent.create_agent_session import (
     CreateAgentSessionUseCase,
 )
+from src.application.use_cases.agent.manage_agent_entity_claims import (
+    AgentEntityClaimUseCase,
+)
 from src.application.use_cases.agent.manage_agent_insight import (
     ManageAgentInsightUseCase,
 )
 from src.application.use_cases.agent.manage_agent_session import (
     ManageAgentSessionUseCase,
 )
+from src.application.use_cases.agent.renew_agent_budget import RenewAgentBudgetUseCase
 from src.infrastructure.agents.factories import (
+    get_agent_budget_ledger_repository,
     get_agent_chat_responder,
+    get_agent_entity_claim_repository,
     get_agent_insight_repository,
     get_agent_link_repository,
     get_agent_message_repository,
@@ -75,4 +81,22 @@ def get_manage_agent_insight_use_case() -> ManageAgentInsightUseCase:
         sessions=get_agent_session_repository(),
         insights=get_agent_insight_repository(),
         clock=get_clock(),
+    )
+
+
+def get_agent_entity_claim_use_case() -> AgentEntityClaimUseCase:
+    return AgentEntityClaimUseCase(
+        sessions=get_agent_session_repository(),
+        claims=get_agent_entity_claim_repository(),
+        clock=get_clock(),
+    )
+
+
+def get_renew_agent_budget_use_case() -> RenewAgentBudgetUseCase:
+    return RenewAgentBudgetUseCase(
+        sessions=get_agent_session_repository(),
+        ledger=get_agent_budget_ledger_repository(),
+        settings=get_assistant_optimizer_settings_repository(),
+        clock=get_clock(),
+        ids=get_id_generator(),
     )

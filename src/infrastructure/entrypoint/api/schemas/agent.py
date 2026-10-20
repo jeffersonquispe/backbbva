@@ -14,6 +14,10 @@ class CreateAgentSessionRequest(BaseModel):
     requested_budget: dict[str, int] = Field(default_factory=dict)
 
 
+class RenewAgentBudgetRequest(BaseModel):
+    additions: dict[str, int]
+
+
 class AgentSessionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -25,6 +29,7 @@ class AgentSessionResponse(BaseModel):
     budget_limits: dict[str, int]
     prompt_versions: dict[str, dict[str, str]]
     rev: int
+    budget_renewals: int = 0
 
 
 class AgentPackageSummaryResponse(BaseModel):
@@ -95,6 +100,28 @@ class AgentSessionSummaryResponse(BaseModel):
     covers_seq_from: int
     covers_seq_to: int
     created_at: datetime
+
+
+class AgentEntityClaimResponse(BaseModel):
+    entity_key: str
+    session_id: str
+    claimed_at: datetime
+    heartbeat_at: datetime
+    expires_at: datetime
+    reason: str
+
+
+class AgentHypothesisResponse(BaseModel):
+    hypothesis_id: str
+    statement: str
+    scope: dict[str, str]
+    priority: int
+    status: str
+    source_insight_id: str | None
+    evidence_id: str | None
+    evidence_outcome: str | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class GenerateModusOperandiDraftRequest(BaseModel):
