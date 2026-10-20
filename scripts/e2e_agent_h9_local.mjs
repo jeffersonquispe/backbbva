@@ -110,46 +110,75 @@ async function main() {
       body: {
         mode: "optimization",
         scope: ["model"],
-        requested_budget: { tokens: 3, usd_micros: 30, seconds: 30 },
+        requested_budget: { tokens: 3000, usd_micros: 3000000, seconds: 180 },
       },
     }), 201, "crear sesión de optimización");
+    const activeObjective = expect(await api(page, "GET", "/agent/objectives/active", {
+      token: managerToken,
+    }), 200, "leer objetivo activo");
+    if (
+      session.objective_id !== activeObjective.objective_id ||
+      session.objective_version !== activeObjective.version
+    ) {
+      throw new Error("la sesión no fijó la versión activa del objetivo global");
+    }
     const sessionId = session.session_id;
     expect(await api(page, "POST", `/agent/sessions/${sessionId}/start`, { token: channelToken }), 200, "iniciar optimizador");
 
-    const deadline = Date.now() + 15_000;
+    const deadline = Date.now() + 240_000;
     let claims = [];
     let hypotheses = [];
+    let iterations = [];
+    let packages = [];
     while (Date.now() < deadline) {
       claims = expect(await api(page, "GET", "/agent/claims/scope%23model", { token: managerToken }), 200, "leer reclamo");
       hypotheses = expect(await api(page, "GET", `/agent/sessions/${sessionId}/hypotheses`, { token: channelToken }), 200, "leer hipótesis");
-      if (claims.some((claim) => claim.session_id === sessionId) && hypotheses.some((item) => item.evidence_id)) break;
-      await page.waitForTimeout(200);
+      iterations = expect(await api(page, "GET", `/agent/sessions/${sessionId}/iterations`, { token: channelToken }), 200, "leer iteraciones");
+      packages = expect(await api(page, "GET", `/agent/sessions/${sessionId}/packages`, { token: channelToken }), 200, "leer paquetes de la sesión");
+      if (iterations.some((item) => item.experiment_verified === true) && packages.some((item) => item.status === "VERIFIED")) break;
+      const observed = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "leer estado de sesión");
+      if (["STOPPED", "FAILED", "CANCELLED"].includes(observed.status)) break;
+      await page.waitForTimeout(1000);
     }
     const hypothesis = hypotheses.find((item) => item.evidence_id);
-    if (!hypothesis || hypothesis.evidence_outcome !== "NONCONCLUSIVE") {
-      throw new Error("la hipótesis no conservó el resultado verificable del subagente stub");
+    if (!hypothesis || !["VALIDATED", "REFUTED", "NONCONCLUSIVE"].includes(hypothesis.evidence_outcome)) {
+      throw new Error("la hipótesis no conservó el resultado de la evaluación del especialista");
     }
-    const iterations = expect(await api(page, "GET", `/agent/sessions/${sessionId}/iterations`, { token: channelToken }), 200, "leer iteraciones");
-    if (!iterations.some((item) => item.hypothesis === hypothesis.statement)) {
-      throw new Error("la iteración no conservó la hipótesis priorizada");
+    const iteration = iterations.find((item) => item.hypothesis === hypothesis.statement);
+    if (!iteration) {
+      throw new Error(`la iteración no conservó la hipótesis priorizada: ${JSON.stringify(iterations)}`);
+    }
+    if (
+      iteration.specialist !== "xgboost" ||
+      !iteration.experiment_verified ||
+      iteration.verification_status !== "PASSED"
+    ) {
+      throw new Error(`la selección/verificación del especialista no coincide: ${JSON.stringify(iteration)}`);
+    }
+    if (!packages.some((item) => item.status === "VERIFIED")) {
+      throw new Error("la propuesta del proveedor no quedó verificada");
+    }
+    if (
+      iteration.objective_id !== session.objective_id ||
+      iteration.objective_version !== session.objective_version
+    ) {
+      throw new Error("la iteración no conservó la versión fijada del objetivo");
     }
 
-    const current = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "leer sesión");
+    let current = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "leer sesión");
     if (current.status === "ACTIVE") {
-      expect(await api(page, "POST", `/agent/sessions/${sessionId}/pause`, { token: channelToken }), 200, "pausar para renovar");
+      current = expect(await api(page, "POST", `/agent/sessions/${sessionId}/cancel`, {
+        token: channelToken,
+      }), 200, "cancelar sesión tras verificar propuesta");
     }
-    const renewed = expect(await api(page, "POST", `/agent/sessions/${sessionId}/budget/renew`, {
-      token: channelToken,
-      body: { additions: { tokens: 5 } },
-    }), 200, "autorizar renovación de presupuesto");
-    if (renewed.budget_limits.tokens !== 8 || renewed.budget_renewals !== 1) {
-      throw new Error("la renovación no se reflejó en el presupuesto versionado de la sesión");
+    if (current.status !== "CANCELLED") {
+      throw new Error(`la sesión no se canceló tras validar el paquete candidato: ${current.status}`);
     }
     claims = expect(await api(page, "GET", "/agent/claims/scope%23model", { token: managerToken }), 200, "leer reclamos tras pausar");
     if (claims.some((claim) => claim.session_id === sessionId)) {
-      throw new Error("una sesión pausada sigue apareciendo como interferencia activa");
+      throw new Error("una sesión detenida conserva un reclamo activo");
     }
-    console.log("H9 Playwright por nginx: hipótesis y evidencia, reclamo de alcance, pausa e incremento auditado de presupuesto pasaron.");
+    console.log("H10 Playwright por nginx: objetivo fijado, propuesta XGBoost generada y verificada, cancelación e hipótesis evaluada pasaron.");
   } finally {
     if (managerToken && originalSettings) {
       await api(page, "PUT", "/assistant-optimizer-settings", {

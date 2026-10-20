@@ -343,3 +343,139 @@ Base: `40c8c41` (H8 integrado)
 
 - **A:** integrar FP4/FP5 de frontend contra los endpoints de progreso, hipótesis, reclamos e incremento de presupuesto, manteniendo el acceso same-origin.
 - **Integrador:** revisar H9 backend y sus dos E2E. No se inició H10 ni se creó commit; esperar revisión antes de avanzar.
+
+---
+
+## H10 — enrutamiento y verificación de especialistas (backend) — listo para revisión
+
+Worktree: `../aria-wt-B-H10`
+
+Rama: `feat/agent-B-H10`
+
+Base: `c65cea0` (H9 integrado)
+
+### Qué quedó hecho
+
+- El orquestador selecciona un especialista por hipótesis/área: configuración, Biblioteca, Vector Store o XGBoost. Si el experimento anterior no quedó verificado, dirige el siguiente a Biblioteca para inspección; el selector no impone un ciclo fijo.
+- El resultado de cada iteración registra el nombre del especialista, el estado de verificación y si el experimento quedó verificado. La API expone esos campos agregados en el listado de iteraciones.
+- Una hipótesis solo puede quedar VALIDATED/REFUTED con estado `PASSED`, sin código de error y con métricas requeridas. Los resultados `PENDING_VERIFICATION` se guardan como `NONCONCLUSIVE`.
+- El worker compone cuatro generadores estructurados con prompts versionados y fijados por sesión. Validan el contrato de cada candidato: cambios de configuración sin operación/infra, borradores de entidades con resumen de evidencia, manifiesto y consultas autorizadas de Vector Store, y parámetros XGBoost dentro de rangos aprobados.
+- Se enmascaran hipótesis, alcance y texto generado, y se descartan claves con customer_id, case_id o row_id. Las propuestas válidas se persisten como paquetes PENDING_VERIFICATION; las métricas de propuestas no verificadas no afectan la decisión ni validan hipótesis.
+- Las sesiones de optimización fijan la versión activa del objetivo global H8; el worker recupera esa versión y usa su piso de precisión. Sin objetivo activo no crea la sesión. La referencia queda en sesión y en la iteración.
+- El E2E Playwright real comprueba por nginx que una sesión de modelo selecciona XGBoost y, ante la ausencia de proveedor, el worker falla de forma segura, deja la hipótesis no concluyente y libera el reclamo.
+
+### Diff y archivos tocados
+
+- `src/application/use_cases/agent/orchestrate_agent_iteration.py`
+- `src/application/ports/{agent_session_port.py,agent_subagent_port.py}`, `src/application/use_cases/agent/{create_agent_session.py,manage_agent_objective.py,orchestrate_agent_iteration.py}`, `src/domain/agents/objective.py`
+- `src/infrastructure/agents/{optimizer_specialist_subagent.py,factories.py,prompt_seed.py,llm_structured_agent_generator.py}` y cuatro prompts de especialista
+- `src/infrastructure/agents/stub_subagent.py`
+- `src/infrastructure/workflows/celery/factories.py`
+- `src/infrastructure/entrypoint/api/{factories/agent_factory.py,routers/agent_router.py,schemas/agent.py}`
+- `src/infrastructure/persistence/database/dynamodb/repositories/agent_session_repository.py`
+- `tests/test_application/test_use_cases/{test_create_agent_session.py,test_orchestrate_agent_iteration.py}`
+- `tests/test_infrastructure/test_agents/test_optimizer_specialist_subagent.py`, `tests/test_infrastructure/test_persistence/test_agent_session_repository.py`
+- `scripts/e2e_agent_h9_local.mjs`, `Makefile` (target `e2e-agent-h10-local`)
+- `docs/handoff/HANDOFF-B.md`
+
+### Comandos y resultado real
+
+- `RUFF_CACHE_DIR=/tmp/aria-ruff-cache-B-H10 make lint`: **pasó** — Ruff 0 errores (baseline 0), mypy 0 errores (baseline 0).
+- `PYTEST_ADDOPTS='-p no:cacheprovider' API_V0_STR=/api/v0 make test-architecture`: **pasó** — 240/240, sin advertencia de caché.
+- `API_V0_STR=/api/v0 GENAI_ENVIRONMENT=test pytest -p no:cacheprovider tests/test_application/test_use_cases/test_create_agent_session.py tests/test_application/test_use_cases/test_orchestrate_agent_iteration.py tests/test_infrastructure/test_agents/test_optimizer_specialist_subagent.py tests/test_infrastructure/test_persistence/test_agent_session_repository.py tests/test_infrastructure/test_agents/test_stub_subagent.py tests/test_infrastructure/test_entrypoint/test_agent_schemas.py tests/test_infrastructure/test_agents/test_prompt_dynamodb_mapping.py`: **pasó** — 28/28.
+- `git diff --check`: **pasó**.
+- `make e2e-agent-h10-local`: **pasó** el escenario fail-closed, reconstruyendo el stack y usando nginx. El primer intento con generadores reales acabó en HTTP 409 BUDGET_RENEWAL_POLICY: al no haber modelo LLM configurado, la sesión se detuvo por fallo crítico y el harness intentó renovar un presupuesto terminal. Se ajustó el escenario H10 y la repetición final pasó: objetivo fijado, selección XGBoost, fallo seguro del proveedor, hipótesis no concluyente y liberación del reclamo. El target tomó y liberó `/tmp/aria-e2e.lock`.
+
+### E2E
+
+**Pasó el escenario fail-closed** por Playwright real a `http://localhost:80`, con tráfico API same-origin `/api/v0`, stack reconstruido y sin mocks. El E2E también confirmó que sesión e iteración conservan la versión activa del objetivo. La generación de una propuesta real queda **bloqueada** porque el stack no configura modelo/proveedor LLM; el escenario verifica selección y cierre seguro, no la ejecución completa del especialista.
+
+### Desvíos del modelo de datos propuesto
+
+- No se añadieron tablas ni índices. La propuesta se conserva en `agent_packages` como candidata `PENDING_VERIFICATION`; la selección y el resultado agregado viven en `agent_iterations`/`agent_verifications`. Se añadieron `objective_id` y `objective_version` a `agent_sessions`, tal como contempla el modelo propuesto.
+
+### Supuestos y dependencias pendientes
+
+- Las palabras de alcance configuration/prompt/rubric/threshold/rule, vector/retrieval/embedding y model/xgboost/classifier guían el enrutamiento; áreas desconocidas caen en Biblioteca. Un estado previo no verificado prioriza Biblioteca para el siguiente experimento.
+- **H10 sigue incompleto:** existen propuestas estructuradas con validación de esquema y rangos, pero faltan los ejecutores/evaluadores de dominio: preview y prueba de la versión de configuración, borradores de Biblioteca con verificadores, construcción/consulta de una generación Vector Store candidata y entrenamiento/evaluación de candidato XGBoost sobre dataset autorizado. Ninguna propuesta pendiente puede sustentar una promoción. El E2E de propuestas reales requiere un modelo/proveedor LLM configurado en el stack.
+- No se modificó frontend. No se ejecutaron `make e2e-all-local` ni `make e2e-observability`; el E2E específico H10 sí se ejecutó.
+
+### Qué necesito de A o del integrador
+
+- **A:** sin dependencia para este trabajo backend; FP6/FP7 permanece fuera de este alcance.
+- **Integrador:** revisar este primer corte y confirmar la siguiente entrega backend para completar los ejecutores B5.1–B5.4. No empezar H11 mientras H10 esté incompleto. No se creó commit ni se hizo push.
+
+### Continuación H10 — verificación de propuesta con proveedor configurado (2026-10-20)
+
+- El proveedor se comprobó en runtime solo por presencia de modelo/backend; no se imprimieron valores de configuración. El symlink al `config.cfg` del checkout base no fue visible dentro del montaje Docker del worktree. Para la comprobación local se copió temporalmente el archivo ignorado al worktree; se eliminará al terminar y no forma parte del diff.
+- `docker exec aria-agent-worker python -c ...` con `LLMStructuredAgentGenerator` y un prompt JSON mínimo: **pasó**, respuesta no vacía y con forma JSON (no se guardó ni imprimió el contenido).
+- Invocación focalizada de `OptimizerSpecialistSubagent.execute` para XGBoost en el worker con prompt activo fijado: **pasó la generación** (`proposal=True`, sin error); estado `PENDING_VERIFICATION`. Esto confirma que el proveedor puede generar una propuesta, pero también confirma que falta el evaluador del experimento.
+- `make e2e-agent-h10-local`: el Playwright por nginx volvió a pasar únicamente el recorrido fail-closed. En la ejecución del worker la verificación guardó `xgboost_contract / NOT_VERIFIED / GENERATION_FAILED`; no llegó a paquete verificado. La corrida no demuestra la ruta solicitada. El escaneo de DynamoDB se limitó a `verifier`, `status` y `error_code`; no se leyeron contenidos de propuesta.
+- Desacuerdo observado: la llamada directa al generador y al subagente funcionó, pero el task Celery del E2E registró `GENERATION_FAILED`. No se aisló todavía la diferencia entre ambos contextos.
+
+**Estado en ese corte:** H10 seguía incompleto: persistían los cuatro ejecutores/evaluadores y faltaba comprobar una propuesta `PASSED` con proveedor configurado. La continuación y evidencia de cierre aparecen abajo. No se inició H11.
+
+**Comandos adicionales y resultado:**
+
+- `docker exec aria-agent-worker python -c '<comprobación mínima de proveedor, salida reducida a booleanos>'`: **pasó**.
+- `docker exec aria-agent-worker python -c '<ejecución de especialista XGBoost, salida limitada a estado/error/métricas seguras>'`: **pasó generación**, `PENDING_VERIFICATION`.
+- `docker exec aria-agent-worker python -c '<consulta de verificaciones recientes, columnas verifier/status/error_code>'`: evidencia `GENERATION_FAILED` para la iteración Celery; sin datos de caso ni contenido crudo.
+- No se ejecutaron `make lint`, `make test-architecture` ni pytest en esta continuación porque no se modificó código de aplicación. El E2E específico sí se ejecutó, pero no satisface la aceptación de propuesta verificada.
+
+### Continuación H10 — ejecutores y evaluación con proveedor (2026-10-20)
+
+**Qué quedó hecho**
+
+- Se añadieron ejecutores de dominio para Configuración (preview y versión candidata inactiva), Biblioteca (campos, referencias, duplicados, PII y playbook, sin escribir entidades activas), Vector Store (generación aislada y búsqueda autorizada) y XGBoost (dataset del baseline, entrenamiento de candidato inactivo y comprobación de informe/particiones/métricas).
+- El worker inyecta esos ejecutores a los cuatro especialistas. La salida verificada se persiste como paquete `VERIFIED`; solo `PASSED` sin error marca `experiment_verified=true`.
+- Se corrigió la serialización de `Decimal` en el objetivo cargado desde DynamoDB. Se normaliza `budget.seconds` antes del polling del entrenamiento y se registra únicamente el tipo de excepción en caso de error.
+- El E2E por nginx con proveedor real terminó el flujo principal: fijó objetivo, seleccionó XGBoost, recibió del proveedor una propuesta, entrenó y verificó un modelo candidato, canceló la sesión y comprobó la evaluación de hipótesis. No se activó el candidato.
+
+**Diff y archivos añadidos o modificados en esta continuación**
+
+- `src/application/ports/agent_specialist_executor_port.py`
+- `src/infrastructure/agents/optimizer_specialist_executors.py`, `src/infrastructure/agents/specialist_executor_factory.py`, `src/infrastructure/agents/optimizer_specialist_subagent.py`, `src/infrastructure/agents/factories.py`, `src/infrastructure/agents/llm_structured_agent_generator.py`
+- Prompts versionados: `agent.specialist.{configuration,library,vector_store,xgboost}.txt`
+- `src/application/use_cases/agent/orchestrate_agent_iteration.py`
+- `tests/test_infrastructure/test_agents/test_optimizer_specialist_subagent.py`, `tests/test_infrastructure/test_agents/test_optimizer_specialist_executors.py`
+- `scripts/e2e_agent_h9_local.mjs` (el target H10 sigue usando el E2E Playwright común)
+- `docs/handoff/HANDOFF-B.md`
+
+**Comandos y resultado real**
+
+- `RUFF_CACHE_DIR=/tmp/aria-h10-ruff-cache make lint`: **pasó**, Ruff 0/0 y mypy 0/0.
+- `API_V0_STR=/api/v0 GENAI_ENVIRONMENT=test make test-architecture`: **pasó**, 240/240. Pytest emitió advertencia al no poder crear `.pytest_cache` en el worktree; no fallaron pruebas.
+- `API_V0_STR=/api/v0 GENAI_ENVIRONMENT=test pytest -p no:cacheprovider tests/test_infrastructure/test_agents/test_optimizer_specialist_subagent.py tests/test_application/test_use_cases/test_orchestrate_agent_iteration.py`: **pasó**, 21/21.
+- `make e2e-agent-h10-local`: la primera repetición funcional imprimió el resultado Playwright exitoso, pero Make devolvió error al intentar limpiar un lock tomado por otro proceso. Se esperó a que el proceso de A liberara el lock y se ejecutó el target de nuevo; Playwright volvió a imprimir `H10 Playwright por nginx: objetivo fijado, propuesta XGBoost generada y verificada, cancelación e hipótesis evaluada pasaron.` Esta última ejecución no reportó error de limpieza.
+- `docker exec aria-api python -c ...` (lectura filtrada de ejecución): antes del arreglo se confirmó candidato `TRAINING`; una evaluación focalizada del candidato `READY` pasó con estado `PASSED` y métricas agregadas. No se imprimieron datos de filas.
+- No se ejecutó `make lint-baseline`, porque los baselines no crecieron. Tampoco se ejecutaron `make e2e-all-local` ni `make e2e-observability`.
+
+**E2E: pasó**
+
+La repetición final del target usó Playwright, `http://localhost` a través de nginx, API same-origin `/api/v0`, worker Celery y el proveedor LLM configurado. La propuesta XGBoost entrenó y quedó verificada; la sesión se canceló y liberó el reclamo. La primera corrida tuvo una interferencia de lock en limpieza, pero la repetición posterior terminó sin ese error. El lock quedó libre para la corrida de A.
+
+**Desvíos del modelo de datos propuesto**
+
+- No se añadieron tablas ni índices. El paquete existente ahora puede tener estado `VERIFIED`; conserva el contenido y la salida agregada del ejecutor. La versión candidata de configuración/modelo/Vector Store permanece inactiva o aislada.
+- Para idempotencia, las versiones candidatas usan una clave derivada de sesión e iteración. En Vector Store se crea una instancia distinta y no se promueve la instancia activa.
+
+**Supuestos y pendientes**
+
+- Los ejecutores producen versiones candidatas o borradores; no activan modelos/configuraciones ni escriben entidades de Biblioteca en vivo. La activación y confirmación auditada siguen siendo etapas posteriores.
+- El verificador XGBoost exige dataset igual al baseline autorizado, informe con particiones training/validation/calibration, hash del dataset, selección de umbral por `validation_f1` y candidato inactivo. La partición final nunca selecciona umbral.
+- El E2E real cubre la ruta XGBoost. Cuatro pruebas focalizadas adicionales cubren los validadores de configuración, Biblioteca, Vector Store y XGBoost.
+- El archivo `config/local/config.cfg` se copió temporalmente para montar las credenciales del proveedor en Docker; es ignorado y no forma parte del diff. **Eliminarlo al terminar la última corrida E2E**.
+
+**Qué necesito de A o del integrador**
+
+- **A:** ninguna dependencia para H10 backend.
+- **Integrador:** revisar H10. Las rutas de los cuatro especialistas están ejecutadas y evaluadas; no se inició H11.
+
+### Verificación final H10 (2026-10-20)
+
+- `RUFF_CACHE_DIR=/tmp/aria-h10-ruff-cache make lint`: **pasó**, Ruff 0/0 y mypy 0/0.
+- `API_V0_STR=/api/v0 GENAI_ENVIRONMENT=test make test-architecture`: **pasó**, 240/240 (pytest avisó que el worktree no permite crear `.pytest_cache`; las pruebas terminaron correctamente).
+- `API_V0_STR=/api/v0 GENAI_ENVIRONMENT=test pytest -p no:cacheprovider tests/test_application/test_use_cases/test_create_agent_session.py tests/test_application/test_use_cases/test_orchestrate_agent_iteration.py tests/test_infrastructure/test_agents/test_optimizer_specialist_subagent.py tests/test_infrastructure/test_agents/test_optimizer_specialist_executors.py tests/test_infrastructure/test_persistence/test_agent_session_repository.py tests/test_infrastructure/test_agents/test_stub_subagent.py tests/test_infrastructure/test_entrypoint/test_agent_schemas.py tests/test_infrastructure/test_agents/test_prompt_dynamodb_mapping.py`: **pasó**, 33/33.
+- `make e2e-agent-h10-local`: Playwright real por nginx con proveedor configurado: **pasó** propuesta XGBoost verificada, cancelación y evaluación de hipótesis; la repetición final no reportó error de lock.
+- `git diff --check`: **pasó**.
+- **Estado final:** H10 está implementado y listo para revisión; no se inició H11. No se creó commit ni se hizo push. El archivo ignorado `config/local/config.cfg` temporal ya fue eliminado.

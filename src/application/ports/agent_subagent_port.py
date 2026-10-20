@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from src.domain.agents.objective import AgentObjective
+
 
 @dataclass(frozen=True)
 class AgentSubagentInput:
@@ -11,6 +13,10 @@ class AgentSubagentInput:
     scope: dict[str, Any]
     hypothesis: str
     budget: dict[str, int]
+    prompt_versions: dict[str, dict[str, str]] = field(default_factory=dict)
+    objective_id: str | None = None
+    objective_version: int | None = None
+    objective: AgentObjective | None = None
     cancelled: bool = False
 
 

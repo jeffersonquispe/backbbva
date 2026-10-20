@@ -12,6 +12,10 @@ PROMPT_FILES = {
     "subagent.stub.generator": "subagent.stub.generator.txt",
     "agent.chat.system": "agent.chat.system.txt",
     "agent.modus_operandi.generate": "agent.modus_operandi.generate.txt",
+    "agent.specialist.configuration": "agent.specialist.configuration.txt",
+    "agent.specialist.library": "agent.specialist.library.txt",
+    "agent.specialist.vector_store": "agent.specialist.vector_store.txt",
+    "agent.specialist.xgboost": "agent.specialist.xgboost.txt",
 }
 PROMPT_DIRECTORY = Path(__file__).with_name("prompts")
 

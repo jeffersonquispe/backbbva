@@ -25,6 +25,7 @@ from src.application.ports.agent_iteration_port import (
     AgentIterationStatus,
 )
 from src.application.ports.agent_link_port import AgentLink, AgentLinkRepository
+from src.application.ports.agent_objective_port import AgentObjectiveRepository
 from src.application.ports.agent_package_port import (
     AgentPackage,
     AgentPackageRepository,
@@ -79,6 +80,8 @@ class OrchestrateAgentIterationUseCase:
         insights: AgentInsightRepository | None = None,
         links: AgentLinkRepository | None = None,
         summaries: AgentSessionSummaryRepository | None = None,
+        specialists: dict[str, AgentSubagent] | None = None,
+        objectives: AgentObjectiveRepository | None = None,
     ) -> None:
         self._sessions = sessions
         self._iterations = iterations
@@ -94,6 +97,8 @@ class OrchestrateAgentIterationUseCase:
         self._insights = insights
         self._links = links
         self._summaries = summaries
+        self._specialists = specialists or {}
+        self._objectives = objectives
 
     def execute(self, session_id: str) -> str:
         # Settings are deliberately read on each invocation, never captured in
@@ -102,6 +107,32 @@ class OrchestrateAgentIterationUseCase:
         session = self._sessions.get(session_id)
         if session is None or session.status != AgentSessionStatus.ACTIVE:
             return "not_active"
+        objective = (
+            self._objectives.get(session.objective_id, session.objective_version)
+            if self._objectives is not None
+            and session.objective_id
+            and session.objective_version is not None
+            else None
+        )
+        if (
+            session.objective_id
+            and session.objective_version is not None
+            and objective is None
+        ):
+            self._sessions.update(
+                replace(
+                    session,
+                    status=AgentSessionStatus.STOPPED,
+                    updated_at=self._clock.now(),
+                ),
+                expected_rev=session.rev,
+            )
+            return "stopped_missing_objective"
+        if objective is not None:
+            current_settings = replace(
+                current_settings,
+                objective_precision_floor=objective.precision_floor,
+            )
 
         enabled = (
             current_settings.assistant_enabled
@@ -219,10 +250,16 @@ class OrchestrateAgentIterationUseCase:
 
         number = max((item.number for item in prior), default=0) + 1
         run_id = str(self._ids.new_id())
-        prompt_ref = leased.prompt_versions.get(self._subagent.name, {})
+        selected_subagent = self._select_subagent(leased, hypothesis, prior)
+        prompt_key = (
+            f"agent.specialist.{selected_subagent.name}"
+            if selected_subagent.name in self._specialists
+            else selected_subagent.name
+        )
+        prompt_ref = leased.prompt_versions.get(prompt_key, {})
         if not prompt_ref:
             prompt_ref = {
-                "name": f"subagent.{self._subagent.name}",
+                "name": f"subagent.{selected_subagent.name}",
                 "version": "0",
                 "hash": "stub",
             }
@@ -230,7 +267,7 @@ class OrchestrateAgentIterationUseCase:
             run_id=run_id,
             session_id=session_id,
             iteration_number=number,
-            subagent=self._subagent.name,
+            subagent=selected_subagent.name,
             status=AgentRunStatus.RUNNING,
             prompt_ref={key: str(value) for key, value in prompt_ref.items()},
             created_at=now,
@@ -246,7 +283,7 @@ class OrchestrateAgentIterationUseCase:
         )
         self._iterations.create(iteration)
 
-        output = self._subagent.execute(
+        output = selected_subagent.execute(
             AgentSubagentInput(
                 session_id=session_id,
                 iteration_number=number,
@@ -257,6 +294,10 @@ class OrchestrateAgentIterationUseCase:
                     else "Exercise the configured specialist."
                 ),
                 budget=effective_budget,
+                prompt_versions=leased.prompt_versions,
+                objective_id=leased.objective_id,
+                objective_version=leased.objective_version,
+                objective=objective,
             )
         )
         finished = self._clock.now()
@@ -308,7 +349,12 @@ class OrchestrateAgentIterationUseCase:
             )
         )
         package_id = None
-        if leased.mode == "assistant":
+        has_optimization_proposal = (
+            leased.mode == "optimization"
+            and bool(output.contribution)
+            and output.error_code is None
+        )
+        if leased.mode == "assistant" or has_optimization_proposal:
             package_id = str(self._ids.new_id())
             content = {
                 "subagent": output.subagent,
@@ -323,11 +369,23 @@ class OrchestrateAgentIterationUseCase:
                     package_id=package_id,
                     session_id=session_id,
                     iteration_number=number,
-                    status="SEALED",
+                    status=(
+                        "SEALED"
+                        if leased.mode == "assistant"
+                        else "VERIFIED"
+                        if output.verification_status == "PASSED"
+                        and output.error_code is None
+                        else "PENDING_VERIFICATION"
+                    ),
                     content=content,
                     content_hash=content_hash,
                     created_at=finished,
-                    sealed_at=finished,
+                    sealed_at=(
+                        finished
+                        if leased.mode == "assistant"
+                        or (output.verification_status == "PASSED" and output.error_code is None)
+                        else None
+                    ),
                 )
             )
         verification_id = str(self._ids.new_id())
@@ -335,17 +393,18 @@ class OrchestrateAgentIterationUseCase:
             AgentVerification(
                 verification_id=verification_id,
                 subject_id=package_id or run_id,
-                verifier="stub_contract",
+                verifier=f"{selected_subagent.name}_contract",
                 status=output.verification_status,
                 safe_metrics=output.safe_metrics,
                 error_code=output.error_code,
                 created_at=finished,
             )
         )
+        verified = output.verification_status == "PASSED" and output.error_code is None
         if hypothesis is not None and self._hypotheses is not None:
             precision = output.safe_metrics.get("precision")
             recall = output.safe_metrics.get("recall")
-            if isinstance(precision, (int, float)) and isinstance(recall, (int, float)):
+            if verified and isinstance(precision, (int, float)) and isinstance(recall, (int, float)):
                 outcome = (
                     AgentHypothesisStatus.VALIDATED
                     if precision >= current_settings.objective_precision_floor
@@ -404,13 +463,18 @@ class OrchestrateAgentIterationUseCase:
         decision = _iteration_decision(
             mode=leased.mode,
             prior=prior,
-            metrics=output.safe_metrics,
+            metrics=output.safe_metrics if verified else {},
             verification_id=verification_id,
             error_code=output.error_code,
             settings=current_settings,
         )
         if hypothesis is not None:
             decision["hypothesis"] = hypothesis.statement
+        decision["specialist"] = selected_subagent.name
+        decision["verification_status"] = output.verification_status
+        decision["experiment_verified"] = verified
+        decision["objective_id"] = leased.objective_id
+        decision["objective_version"] = leased.objective_version
         self._iterations.update(
             AgentIteration(
                 session_id=session_id,
@@ -464,6 +528,31 @@ class OrchestrateAgentIterationUseCase:
         return "stopped_by_critical_failure" if decision.get("reason") == "critical_failure" else (
             "stopped_by_stagnation" if decision.get("reason") == "stagnation" else "iteration_completed"
         )
+
+    def _select_subagent(self, session, hypothesis, prior):
+        """Route each tick from the active hypothesis and latest experiment result."""
+        if not self._specialists:
+            return self._subagent
+        area = " ".join(
+            str(value).lower()
+            for value in (
+                (hypothesis.scope if hypothesis else {}).values()
+            )
+        )
+        if not area:
+            area = " ".join(str(value).lower() for value in session.scope.get("areas", []))
+        last = prior[-1].decision if prior else {}
+        if last.get("experiment_verified") is False:
+            selected = "library"
+        elif any(term in area for term in ("vector", "retrieval", "embedding")):
+            selected = "vector_store"
+        elif any(term in area for term in ("model", "xgboost", "classifier")):
+            selected = "xgboost"
+        elif any(term in area for term in ("config", "prompt", "rubric", "threshold", "rule")):
+            selected = "configuration"
+        else:
+            selected = "library"
+        return self._specialists.get(selected, self._subagent)
 
     def _select_hypothesis(self, session, now, prior):
         if session.mode != "optimization" or self._hypotheses is None:

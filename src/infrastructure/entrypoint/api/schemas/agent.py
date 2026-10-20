@@ -27,6 +27,8 @@ class AgentSessionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     scope: dict[str, object] = Field(default_factory=dict)
+    objective_id: str | None = None
+    objective_version: int | None = None
     budget_limits: dict[str, int]
     prompt_versions: dict[str, dict[str, str]]
     rev: int

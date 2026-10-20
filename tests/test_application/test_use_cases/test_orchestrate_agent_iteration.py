@@ -19,6 +19,7 @@ from src.application.ports.agent_iteration_port import (
     AgentIterationStatus,
 )
 from src.application.ports.agent_link_port import AgentLink
+from src.application.ports.agent_objective_port import AgentObjectiveRepository
 from src.application.ports.agent_package_port import AgentPackage
 from src.application.ports.agent_run_port import AgentRun, AgentRunStatus
 from src.application.ports.agent_session_port import (
@@ -46,6 +47,7 @@ from src.application.use_cases.agent.orchestrate_agent_iteration import (
 from src.application.use_cases.agent.recover_stale_agent_runs import (
     RecoverStaleAgentRunsUseCase,
 )
+from src.domain.agents.objective import AgentObjective, AgentObjectiveStatus
 
 NOW = datetime(2026, 10, 18, tzinfo=UTC)
 
@@ -187,6 +189,32 @@ class InMemoryHypotheses:
         return self.items[item.hypothesis_id]
 
 
+class InMemoryObjectives(AgentObjectiveRepository):
+    def __init__(self, objective: AgentObjective) -> None:
+        self.objective = objective
+
+    def create(self, objective):
+        return objective
+
+    def get(self, objective_id, version):
+        return (
+            self.objective
+            if (objective_id, version)
+            == (self.objective.objective_id, self.objective.version)
+            else None
+        )
+
+    def list_versions(self, objective_id):
+        return [self.objective]
+
+    def get_active(self, objective_id):
+        return self.objective
+
+    def activate(self, objective, *, expected_active_version):
+        self.objective = objective
+        return objective
+
+
 class InMemoryInsights:
     def __init__(self, items):
         self.items = {item.insight_id: item for item in items}
@@ -281,6 +309,8 @@ def _use_case(
     hypotheses=None,
     insights=None,
     links=None,
+    specialists=None,
+    objectives=None,
 ):
     repositories = {
         "sessions": sessions_repository or InMemorySessions(session),
@@ -299,6 +329,8 @@ def _use_case(
         hypotheses=hypotheses,
         insights=insights,
         links=links,
+        specialists=specialists,
+        objectives=objectives,
     )
     return use_case, repositories
 
@@ -426,6 +458,229 @@ def test_active_insight_is_ranked_evaluated_and_linked_to_verification() -> None
     assert links.items[0].source_id == "directive-1"
     assert links.items[0].relation == "supported_by"
     assert links.items[0].target_id == verification_id
+
+
+def test_optimizer_routes_to_specialist_for_hypothesis_area() -> None:
+    session = replace(_session("optimization"), scope={"areas": ["vector_store"]})
+    specialists = {
+        name: NamedStubSubagent(name)
+        for name in ("configuration", "library", "vector_store", "xgboost")
+    }
+    use_case, repositories = _use_case(
+        session,
+        InMemorySettings(AssistantOptimizerSettings(optimizer_enabled=True)),
+        specialists=specialists,
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+
+    decision = repositories["iterations"].items[1].decision
+    assert decision["specialist"] == "vector_store"
+    assert decision["experiment_verified"] is True
+
+
+class NamedStubSubagent(InMemoryStubSubagent):
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+class PendingNamedSubagent(NamedStubSubagent):
+    def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
+        return AgentSubagentOutput(
+            subagent=self.name,
+            contribution={"proposal": {"candidate": self.name}},
+            verification_status="PENDING_VERIFICATION",
+        )
+
+
+class UnverifiedMetricSubagent:
+    name = "xgboost"
+
+    def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
+        return AgentSubagentOutput(
+            subagent=self.name,
+            verification_status="PENDING_VERIFICATION",
+            safe_metrics={"precision": 0.99, "recall": 0.99},
+        )
+
+
+def test_unverified_experiment_cannot_validate_hypothesis() -> None:
+    insight = AgentInsight(
+        session_id="s1",
+        insight_id="directive-unverified",
+        kind=AgentInsightKind.HYPOTHESIS,
+        statement="Probar un cambio de modelo",
+        scope={"area": "model"},
+        status=AgentInsightStatus.ACTIVE,
+        proposed_by="user",
+        author_id="u1",
+        source_message_id="m2",
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    hypotheses = InMemoryHypotheses()
+    use_case, repositories = _use_case(
+        _session("optimization"),
+        InMemorySettings(AssistantOptimizerSettings(optimizer_enabled=True)),
+        subagent=UnverifiedMetricSubagent(),
+        hypotheses=hypotheses,
+        insights=InMemoryInsights([insight]),
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+
+    assert next(iter(hypotheses.items.values())).status == AgentHypothesisStatus.NONCONCLUSIVE
+    decision = repositories["iterations"].items[1].decision
+    assert decision["experiment_verified"] is False
+    assert "score" not in decision
+
+
+def test_next_specialist_is_selected_from_prior_experiment_result() -> None:
+    insights = InMemoryInsights(
+        [
+            AgentInsight(
+                session_id="s1",
+                insight_id="first",
+                kind=AgentInsightKind.DIRECTIVE,
+                statement="Probar XGBoost",
+                scope={"area": "model"},
+                status=AgentInsightStatus.ACTIVE,
+                proposed_by="user",
+                author_id="u1",
+                source_message_id="m1",
+                created_at=NOW,
+                updated_at=NOW,
+            ),
+            AgentInsight(
+                session_id="s1",
+                insight_id="second",
+                kind=AgentInsightKind.HYPOTHESIS,
+                statement="Revisar Vector Store",
+                scope={"area": "vector_store"},
+                status=AgentInsightStatus.ACTIVE,
+                proposed_by="user",
+                author_id="u1",
+                source_message_id="m2",
+                created_at=NOW,
+                updated_at=NOW,
+            ),
+        ]
+    )
+    specialists = {
+        name: PendingNamedSubagent(name)
+        for name in ("configuration", "library", "vector_store", "xgboost")
+    }
+    use_case, repositories = _use_case(
+        _session("optimization"),
+        InMemorySettings(AssistantOptimizerSettings(optimizer_enabled=True)),
+        hypotheses=InMemoryHypotheses(),
+        insights=insights,
+        specialists=specialists,
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+    assert use_case.execute("s1") == "iteration_completed"
+
+    assert repositories["iterations"].items[1].decision["specialist"] == "xgboost"
+    assert repositories["iterations"].items[2].decision["specialist"] == "library"
+    assert repositories["iterations"].items[2].decision["experiment_verified"] is False
+
+
+class UnverifiedProposalSubagent:
+    name = "configuration"
+
+    def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
+        return AgentSubagentOutput(
+            subagent=self.name,
+            contribution={
+                "experiment": {
+                    "changes": [{"path": "segments.digital.threshold", "value": 0.4}]
+                },
+                "rationale": "Ajuste candidato",
+            },
+            verification_status="PENDING_VERIFICATION",
+        )
+
+
+def test_optimizer_persists_candidate_package_as_pending_verification() -> None:
+    session = replace(
+        _session("optimization"), scope={"areas": ["configuration"]}
+    )
+    use_case, repositories = _use_case(
+        session,
+        InMemorySettings(AssistantOptimizerSettings(optimizer_enabled=True)),
+        subagent=UnverifiedProposalSubagent(),
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+
+    package = next(iter(repositories["packages"].items.values()))
+    assert package.status == "PENDING_VERIFICATION"
+    assert package.sealed_at is None
+    assert package.content["verification_status"] == "PENDING_VERIFICATION"
+    assert package.content_hash
+    iteration = repositories["iterations"].items[1]
+    assert iteration.package_id == package.package_id
+
+
+def test_optimization_iteration_uses_session_pinned_objective_threshold() -> None:
+    objective = AgentObjective(
+        objective_id="objective-global",
+        version=8,
+        success_label="fraud_label",
+        positive_label="fraud",
+        negative_label="no_fraud",
+        maturing_days=4,
+        expected_coverage_pct=98,
+        stable_months=6,
+        primary_metrics=("precision", "recall"),
+        precision_floor=0.96,
+        minimum_support_per_segment=30,
+        minimum_global_support=30,
+        minimum_count_to_publish_aggregates=30,
+        minimum_mature_alert_coverage_pct=80,
+        unlabeled_rule="exclude_pending_from_precision_and_recall",
+        schema_mapping={},
+        status=AgentObjectiveStatus.ACTIVE,
+        created_by="manager",
+        created_at=NOW,
+    )
+    session = replace(
+        _session("optimization"),
+        objective_id=objective.objective_id,
+        objective_version=objective.version,
+    )
+    insight = AgentInsight(
+        session_id="s1",
+        insight_id="objective-test-insight",
+        kind=AgentInsightKind.HYPOTHESIS,
+        statement="Mejorar recall sin bajar precisión",
+        scope={"area": "model"},
+        status=AgentInsightStatus.ACTIVE,
+        proposed_by="user",
+        author_id="u1",
+        source_message_id="m3",
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    hypotheses = InMemoryHypotheses()
+    use_case, _ = _use_case(
+        session,
+        InMemorySettings(
+            AssistantOptimizerSettings(
+                optimizer_enabled=True,
+                objective_precision_floor=0.5,
+            )
+        ),
+        subagent=MetricSubagent(),
+        hypotheses=hypotheses,
+        insights=InMemoryInsights([insight]),
+        objectives=InMemoryObjectives(objective),
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+
+    assert next(iter(hypotheses.items.values())).status == AgentHypothesisStatus.REFUTED
 
 
 def test_cancelled_session_is_not_enqueued_for_another_tick() -> None:

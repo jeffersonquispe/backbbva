@@ -11,12 +11,19 @@ from src.application.ports.agent_subagent_port import (
 class StubAgentSubagent:
     """Deterministic specialist used to exercise the orchestration contract."""
 
-    def __init__(self, delay_seconds: float = 0.0) -> None:
+    def __init__(
+        self,
+        delay_seconds: float = 0.0,
+        name: str = "stub",
+        verified: bool = True,
+    ) -> None:
         self._delay_seconds = max(0.0, min(delay_seconds, 30.0))
+        self._name = name
+        self._verified = verified
 
     @property
     def name(self) -> str:
-        return "stub"
+        return self._name
 
     def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
         if request.cancelled:
@@ -30,6 +37,6 @@ class StubAgentSubagent:
         return AgentSubagentOutput(
             subagent=self.name,
             contribution={"hypothesis": request.hypothesis, "scope": request.scope},
-            verification_status="PASSED",
+            verification_status="PASSED" if self._verified else "PENDING_VERIFICATION",
             safe_metrics={"steps": 1},
         )

@@ -5,6 +5,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
+GLOBAL_FRAUD_OBJECTIVE_ID = "global_fraud_effectiveness"
+
 
 class AgentObjectiveStatus(StrEnum):
     DRAFT = "DRAFT"

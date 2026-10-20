@@ -15,9 +15,12 @@ from src.application.ports.mature_sampler_schema_mapping_port import (
 from src.application.ports.operational_settings_port import (
     OperationalSettingsRepository,
 )
-from src.domain.agents.objective import AgentObjective, AgentObjectiveStatus
+from src.domain.agents.objective import (
+    GLOBAL_FRAUD_OBJECTIVE_ID,
+    AgentObjective,
+    AgentObjectiveStatus,
+)
 
-GLOBAL_FRAUD_OBJECTIVE_ID = "global_fraud_effectiveness"
 MINIMUM_AGGREGATE_COUNT = 30
 
 
