@@ -657,6 +657,10 @@ e2e-agent-h9-local:  ## Run the H9 optimizer Playwright flow through nginx local
 	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
 	node scripts/e2e_agent_h9_local.mjs
 
+.PHONY: e2e-agent-h10-local
+e2e-agent-h10-local:  ## Run H10 specialist selection and verification through nginx localhost:80.
+	@$(MAKE) e2e-agent-h9-local
+
 .PHONY: e2e-agent-global-pipeline-local
 e2e-agent-global-pipeline-local:  ## Compare READY baseline/candidate over a real reserved final sample through nginx localhost:80.
 	@set -euo pipefail; \

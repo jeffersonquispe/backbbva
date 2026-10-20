@@ -22,6 +22,7 @@ from src.infrastructure.agents.factories import (
     get_agent_insight_repository,
     get_agent_link_repository,
     get_agent_message_repository,
+    get_agent_objective_repository,
     get_agent_prompt_repository,
     get_agent_session_repository,
     get_agent_session_summary_repository,
@@ -44,6 +45,7 @@ def get_create_agent_session_use_case(
     return CreateAgentSessionUseCase(
         sessions=get_agent_session_repository(),
         prompts=get_agent_prompt_repository(),
+        objectives=get_agent_objective_repository(),
         settings=settings,
         clock=get_clock(),
         id_generator=get_id_generator(),

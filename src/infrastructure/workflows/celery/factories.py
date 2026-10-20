@@ -102,11 +102,13 @@ from src.infrastructure.agents.factories import (
     get_agent_insight_repository,
     get_agent_iteration_repository,
     get_agent_link_repository,
+    get_agent_objective_repository,
     get_agent_package_repository,
     get_agent_run_repository,
     get_agent_session_repository,
     get_agent_session_summary_repository,
     get_agent_verification_repository,
+    get_optimizer_agent_specialists,
 )
 from src.infrastructure.agents.stub_subagent import StubAgentSubagent
 from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
@@ -811,6 +813,8 @@ def get_orchestrate_agent_iteration_use_case(
         settings=settings or get_assistant_optimizer_settings_repository(),
         subagent=subagent
         or StubAgentSubagent(genai_config.AGENT_STUB_DELAY_SECONDS),
+        specialists=get_optimizer_agent_specialists(),
+        objectives=get_agent_objective_repository(),
         clock=get_clock(),
         id_generator=get_id_generator(),
     )

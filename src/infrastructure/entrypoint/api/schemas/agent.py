@@ -26,6 +26,8 @@ class AgentSessionResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    objective_id: str | None = None
+    objective_version: int | None = None
     budget_limits: dict[str, int]
     prompt_versions: dict[str, dict[str, str]]
     rev: int

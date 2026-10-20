@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from src.application.ports.agent_objective_port import AgentObjectiveRepository
 from src.application.ports.agent_prompt_port import AgentPromptRepository
 from src.application.ports.agent_session_port import (
     AgentSession,
@@ -13,11 +14,16 @@ from src.application.ports.assistant_optimizer_settings_port import (
 )
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
+from src.domain.agents.objective import GLOBAL_FRAUD_OBJECTIVE_ID
 
 REQUIRED_PROMPTS = (
     "orchestrator.system",
     "subagent.stub.generator",
     "agent.chat.system",
+    "agent.specialist.configuration",
+    "agent.specialist.library",
+    "agent.specialist.vector_store",
+    "agent.specialist.xgboost",
 )
 OPEN_STATUSES = {
     AgentSessionStatus.DRAFT,
@@ -51,12 +57,14 @@ class CreateAgentSessionUseCase:
         sessions: AgentSessionRepository,
         prompts: AgentPromptRepository,
         settings: AssistantOptimizerSettingsPort,
+        objectives: AgentObjectiveRepository | None = None,
         clock: Clock,
         id_generator: IdGenerator,
     ) -> None:
         self._sessions = sessions
         self._prompts = prompts
         self._settings = settings
+        self._objectives = objectives
         self._clock = clock
         self._ids = id_generator
 
@@ -111,6 +119,17 @@ class CreateAgentSessionUseCase:
             }
 
         now = self._clock.now()
+        active_objective = (
+            self._objectives.get_active(GLOBAL_FRAUD_OBJECTIVE_ID)
+            if request.mode == "optimization" and self._objectives is not None
+            else None
+        )
+        if (
+            request.mode == "optimization"
+            and self._objectives is not None
+            and active_objective is None
+        ):
+            raise AgentSessionPolicyError("an active optimizer objective is required")
         session = AgentSession(
             session_id=str(self._ids.new_id()),
             mode=request.mode,
@@ -119,6 +138,8 @@ class CreateAgentSessionUseCase:
             created_at=now,
             updated_at=now,
             scope=request.scope,
+            objective_id=active_objective.objective_id if active_objective else None,
+            objective_version=active_objective.version if active_objective else None,
             budget_limits=budget,
             prompt_versions=prompt_versions,
         )

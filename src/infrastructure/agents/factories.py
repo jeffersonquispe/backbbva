@@ -15,6 +15,7 @@ from src.application.ports.agent_insight_port import AgentInsightRepository
 from src.application.ports.agent_iteration_port import AgentIterationRepository
 from src.application.ports.agent_link_port import AgentLinkRepository
 from src.application.ports.agent_message_port import AgentMessageRepository
+from src.application.ports.agent_objective_port import AgentObjectiveRepository
 from src.application.ports.agent_package_port import AgentPackageRepository
 from src.application.ports.agent_prompt_port import AgentPromptRepository
 from src.application.ports.agent_run_port import AgentRunRepository
@@ -34,6 +35,9 @@ from src.infrastructure.agents.llm_structured_agent_generator import (
 from src.infrastructure.agents.modus_operandi_generator_subagent import (
     ModusOperandiGeneratorSubagent,
 )
+from src.infrastructure.agents.optimizer_specialist_subagent import (
+    OptimizerSpecialistSubagent,
+)
 from src.infrastructure.agents.rule_based_personal_data_masker import (
     RuleBasedPersonalDataMasker,
 )
@@ -45,6 +49,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.agent_chat_re
     DynamoAgentLinkRepository,
     DynamoAgentMessageRepository,
     DynamoAgentSessionSummaryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.agent_objective_repository import (
+    DynamoAgentObjectiveRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_repositories import (
     DynamoAgentBudgetLedgerRepository,
@@ -119,6 +126,11 @@ def get_agent_prompt_repository() -> AgentPromptRepository:
 
 
 @lru_cache
+def get_agent_objective_repository() -> AgentObjectiveRepository:
+    return DynamoAgentObjectiveRepository()
+
+
+@lru_cache
 def get_agent_message_repository() -> AgentMessageRepository:
     return DynamoAgentMessageRepository()
 
@@ -162,3 +174,36 @@ def get_modus_operandi_generator_subagent() -> ModusOperandiGeneratorSubagent:
         model=model,
     )
     return ModusOperandiGeneratorSubagent(generator)
+
+
+@lru_cache
+def get_optimizer_agent_specialists() -> dict[str, OptimizerSpecialistSubagent]:
+    from src.infrastructure.agents.specialist_executor_factory import (
+        get_optimizer_specialist_executors,
+    )
+
+    model = genai_config.REPORT_LLM_MODEL or genai_config.EXECUTOR_LLM_MODEL
+    generator = LLMStructuredAgentGenerator(
+        llm_factory=get_llm_unit_of_work_factory(),
+        monitoring=get_monitoring(),
+        model=model,
+    )
+    prompts = get_agent_prompt_repository()
+    masker = get_personal_data_masker()
+    executors = get_optimizer_specialist_executors()
+    return {
+        name: OptimizerSpecialistSubagent(
+            name=name,
+            prompt_name=f"agent.specialist.{prompt_suffix}",
+            prompts=prompts,
+            generator=generator,
+            masker=masker,
+            executor=executors[name],
+        )
+        for name, prompt_suffix in (
+            ("configuration", "configuration"),
+            ("library", "library"),
+            ("vector_store", "vector_store"),
+            ("xgboost", "xgboost"),
+        )
+    }

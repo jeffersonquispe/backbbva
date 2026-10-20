@@ -227,6 +227,11 @@ def list_session_iterations(
             "started_at": item.started_at,
             "finished_at": item.finished_at,
             "hypothesis": item.decision.get("hypothesis"),
+            "objective_id": item.decision.get("objective_id"),
+            "objective_version": item.decision.get("objective_version"),
+            "specialist": item.decision.get("specialist"),
+            "verification_status": item.decision.get("verification_status"),
+            "experiment_verified": item.decision.get("experiment_verified", False),
             "decision": item.decision.get("action"),
             "reason": item.decision.get("reason"),
         }

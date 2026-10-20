@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from src.application.ports.agent_structured_generator_port import (
     AgentStructuredGenerationInput,
@@ -12,6 +13,8 @@ from src.application.ports.monitoring_port import MonitoringPort
 from src.infrastructure.agents.content_redacting_monitoring import (
     ContentRedactingMonitoring,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class LLMStructuredAgentGenerator(AgentStructuredGenerator):
@@ -36,15 +39,24 @@ class LLMStructuredAgentGenerator(AgentStructuredGenerator):
             },
             ensure_ascii=False,
         )
-        result = self._llm_factory.create(
-            model=self._model,
-            monitoring=ContentRedactingMonitoring(self._monitoring),
-            operation_name="agent_structured_generation",
-            max_tokens=1_200,
-        ).invoke(
-            [
-                LLMMessage(role=LLMMessageRole.SYSTEM, content=request.system_prompt),
-                LLMMessage(role=LLMMessageRole.USER, content=content),
-            ]
-        )
+        try:
+            result = self._llm_factory.create(
+                model=self._model,
+                monitoring=ContentRedactingMonitoring(self._monitoring),
+                operation_name="agent_structured_generation",
+                max_tokens=1_200,
+            ).invoke(
+                [
+                    LLMMessage(role=LLMMessageRole.SYSTEM, content=request.system_prompt),
+                    LLMMessage(role=LLMMessageRole.USER, content=content),
+                ]
+            )
+        except Exception as exc:  # noqa: BLE001 - redact provider error details at this boundary.
+            # The exception type is safe diagnostic metadata; provider messages
+            # can contain request details and must never reach logs or spans.
+            logger.warning(
+                "Structured agent provider call failed (error_type=%s)",
+                type(exc).__name__,
+            )
+            raise RuntimeError("structured agent generation failed") from None
         return result.content

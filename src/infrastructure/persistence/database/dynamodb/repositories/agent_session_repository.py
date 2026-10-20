@@ -141,6 +141,12 @@ def _from_item(item: dict[str, Any]) -> AgentSession:
         created_at=datetime.fromisoformat(item["created_at"]),
         updated_at=datetime.fromisoformat(item["updated_at"]),
         scope=item.get("scope", {}),
+        objective_id=item.get("objective_id"),
+        objective_version=(
+            int(item["objective_version"])
+            if item.get("objective_version") is not None
+            else None
+        ),
         budget_limits=item.get("budget_limits", {}),
         prompt_versions=item.get("prompt_versions", {}),
         lease_owner=item.get("lease_owner"),

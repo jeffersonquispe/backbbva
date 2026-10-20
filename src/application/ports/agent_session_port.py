@@ -27,6 +27,8 @@ class AgentSession:
     created_at: datetime
     updated_at: datetime
     scope: dict[str, Any] = field(default_factory=dict)
+    objective_id: str | None = None
+    objective_version: int | None = None
     budget_limits: dict[str, int] = field(default_factory=dict)
     prompt_versions: dict[str, dict[str, Any]] = field(default_factory=dict)
     lease_owner: str | None = None
