@@ -704,6 +704,26 @@ e2e-agent-modus-operandi-local:  ## Run real Playwright modus operandi draft/con
 	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
 	node scripts/e2e_agent_modus_operandi_local.mjs
 
+.PHONY: test-e2e-agent-optimizer
+test-e2e-agent-optimizer:  ## Run the real FP4/FP5 optimizer Playwright flow through nginx localhost:80.
+	@set -euo pipefail; \
+	lock=/tmp/aria-e2e.lock; \
+	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
+	frontend=../aria-wt-A-fp4-fp5-frontend; \
+	shared_frontend=../frontend_mockup; \
+	cleanup() { \
+		$(MAKE) -C "$$frontend" down >/dev/null 2>&1 || true; \
+		$(MAKE) -C "$$shared_frontend" run >/dev/null 2>&1 || true; \
+		rmdir "$$lock"; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	$(MAKE) -C "$$shared_frontend" down; \
+	$(MAKE) -C "$$frontend" down; \
+	$(MAKE) -C "$$frontend" build; \
+	$(MAKE) local-api-build; \
+	$(MAKE) local-docker-run FRONTEND_DIR="$$frontend"; \
+	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) $(MAKE) -C "$$frontend" test-e2e-agent-optimizer
+
 .PHONY: e2e-all-local
 e2e-all-local:  ## Rebuild the local stack and run the full real-API Playwright E2E suite through nginx localhost:80.
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \

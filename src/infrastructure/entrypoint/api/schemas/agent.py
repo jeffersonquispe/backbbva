@@ -26,6 +26,7 @@ class AgentSessionResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    scope: dict[str, object] = Field(default_factory=dict)
     budget_limits: dict[str, int]
     prompt_versions: dict[str, dict[str, str]]
     rev: int

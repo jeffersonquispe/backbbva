@@ -29,11 +29,13 @@ from src.application.use_cases.agent.renew_agent_budget import (
     AgentBudgetRenewalError,
 )
 from src.infrastructure.agents.factories import (
+    get_agent_budget_ledger_repository,
     get_agent_hypothesis_repository,
     get_agent_iteration_repository,
     get_agent_link_repository,
     get_agent_message_repository,
     get_agent_package_repository,
+    get_agent_run_repository,
     get_agent_session_repository,
     get_agent_session_summary_repository,
 )
@@ -220,6 +222,7 @@ def list_session_iterations(
     _: LocalUser = _CONFIGURATION_ACCESS,
 ):
     _owned_session(session_id, str(user.id))
+    runs = get_agent_run_repository()
     return [
         {
             "number": item.number,
@@ -229,9 +232,34 @@ def list_session_iterations(
             "hypothesis": item.decision.get("hypothesis"),
             "decision": item.decision.get("action"),
             "reason": item.decision.get("reason"),
+            "specialists": sorted(
+                {
+                    run.subagent
+                    for run_id in item.run_ids
+                    if (run := runs.get(run_id)) is not None
+                }
+            ),
         }
         for item in get_agent_iteration_repository().list_for_session(session_id)
     ]
+
+
+@router.get("/sessions/{session_id}/budget")
+def get_session_budget(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    session = _owned_session(session_id, str(user.id))
+    spent: dict[str, int] = {}
+    for entry in get_agent_budget_ledger_repository().list_for_session(session_id):
+        if entry.entry_type == "SPEND":
+            spent[entry.resource] = spent.get(entry.resource, 0) + entry.amount
+    return {
+        "session_id": session_id,
+        "spent": spent,
+        "limits": session.budget_limits,
+    }
 
 
 @router.get("/packages/{package_id}", response_model=AgentPackageSummaryResponse)
