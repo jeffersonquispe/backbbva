@@ -642,6 +642,23 @@ e2e-agent-local:  ## Run real assistant/optimizer API and Celery lifecycle E2E t
 		LOCAL_DYNAMODB_PORT=$(LOCAL_DYNAMODB_PORT) \
 		$(PYTHON) scripts/e2e_agent_local.py
 
+.PHONY: e2e-agent-global-pipeline-local
+e2e-agent-global-pipeline-local:  ## Compare READY baseline/candidate over a real reserved final sample through nginx localhost:80.
+	@set -euo pipefail; \
+	lock=/tmp/aria-e2e.lock; \
+	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
+	trap 'rmdir "$$lock"' EXIT; \
+	$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-training aria-agent-worker; \
+	$(MAKE) local-docker-run; \
+	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
+	LOCAL_DOCKER_ENV=$(LOCAL_DOCKER_ENV) \
+	LOCAL_DYNAMODB_PORT=$(LOCAL_DYNAMODB_PORT) \
+	$(PYTHON) scripts/e2e_global_pipeline_local.py
+
 .PHONY: e2e-agent-chat-local
 e2e-agent-chat-local:  ## Run real Playwright chat/masking/idempotency E2E through nginx localhost:80.
 	@set -euo pipefail; \

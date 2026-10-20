@@ -329,7 +329,7 @@ def get_global_pipeline_evaluation_use_case() -> EvaluateGlobalPipeline:
         models=get_model_repository(),
         objectives=DynamoAgentObjectiveRepository(),
         verifications=get_agent_verification_repository(),
-        evaluator=StoredModelPipelineEvaluator(get_model_object_storage()),
+        evaluator=StoredModelPipelineEvaluator(MCPModelScoringClient()),
         clock=get_clock(),
     )
 
