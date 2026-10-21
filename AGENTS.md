@@ -21,6 +21,15 @@ read it before adding files. Rules every agent must follow:
   dependencies block the run, report the blocker and leave the work explicitly
   incomplete.
 
+- The `frontend_mockup-web-1` container on port 80 is the expected local
+  frontend, not evidence of another session owning the port. Manage it through
+  the Make targets: `make frontend` builds and starts the sibling frontend;
+  `make local-docker-run` starts the backend stack and frontend;
+  `make local-docker-down` stops both while preserving volumes. The frontend
+  repo also provides `make down` to stop its Compose project. Serialize E2E
+  runs with `/tmp/aria-e2e.lock`; do not wait for the default frontend container
+  to disappear before starting a run.
+
 ## Always run before finishing a change
 
 ```bash
