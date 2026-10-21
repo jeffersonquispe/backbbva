@@ -23,8 +23,19 @@ Queda pendiente la decisión 8 y las decisiones técnicas B0.2–B0.4 antes de
 H8. H7 en adelante no está autorizado por estas integraciones. FP0/FP1 de la
 pestaña del muestreador se integraron en frontend (`c8eb74c`, `8cf3d2e`) y el
 E2E del panel pasó; FP1b/FP2/FP3 del panel conversacional siguen por confirmar.
-La suite completa anterior conserva cuatro fallos ajenos a estos hitos (E01,
-E04/E05 y E10), documentados abajo.
+La suite completa `make e2e-all-local` pasó 27/27 por nginx en la revisión
+integradora del 2026-10-20, tras corregir los
+fallos reportados anteriormente. E01 tenía dos errores de backend: la
+transacción de activación enviaba valores tipados a un cliente boto3 que ya los
+serializa, y la aprobación omitía `:pending` de sus valores de expresión. E01
+también tenía el botón flotante del asistente encima del CTA; se desplazó cuando
+la página tiene barra inferior. E06 requería más de 90 segundos para eliminar
+un dataset; su límite de espera E2E ahora es 180 segundos (la tarea terminaba
+correctamente). E05 dependía de particiones CSV que no se generaban antes de
+la suite; `e2e-all-local` ahora prepara los fixtures reales antes de correr.
+Verificación posterior: lint Ruff/mypy 0/0, arquitectura 240/240, pytest de
+repositorios de configuración 22/22 y suite completa 27/27. Los baselines no
+cambiaron.
 
 **Fuente de etiquetas y volumen (aclaración del usuario, 2026-10-19).** Hoy la
 marca vigente está en `tipo`: `ris`/`risk-suspect` se normaliza a fraude y

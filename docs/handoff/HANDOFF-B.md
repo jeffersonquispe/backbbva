@@ -479,3 +479,11 @@ La repetición final del target usó Playwright, `http://localhost` a través de
 - `make e2e-agent-h10-local`: Playwright real por nginx con proveedor configurado: **pasó** propuesta XGBoost verificada, cancelación y evaluación de hipótesis; la repetición final no reportó error de lock.
 - `git diff --check`: **pasó**.
 - **Estado final:** H10 está implementado y listo para revisión; no se inició H11. No se creó commit ni se hizo push. El archivo ignorado `config/local/config.cfg` temporal ya fue eliminado.
+
+### Revisión integradora de regresiones (2026-10-20)
+
+- La suite completa `make e2e-all-local` pasó 27/27 por nginx tras corregir los
+  fallos de E01, E05 y E06. El backend ahora usa valores Python nativos en la
+  transacción de activación y define `:pending` en la aprobación del pedido.
+- Lint Ruff/mypy 0/0, arquitectura 240/240 y pytest focalizado 22/22 pasaron;
+  los baselines no crecieron.

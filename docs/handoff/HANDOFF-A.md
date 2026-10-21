@@ -424,3 +424,13 @@ Frontend (`../frontend_mockup`):
   `8cf3d2e`; commits previos de H6: backend `bda9603` y frontend `a0313e9`
   (componente/API/E2E), `c8eb74c` (montaje de pestaña). No se requiere acción
   de B; el puerto contractual permanece intacto.
+
+## Revisión integradora de regresiones (2026-10-20)
+
+- La suite `make e2e-all-local` completa pasó 27/27 por nginx después de
+  corregir la superposición del launcher sobre el CTA de despliegue y preparar
+  los fixtures CSV de E05. E06 pasó con el timeout de cleanup actualizado a
+  180 s. E01 también pasó en la suite completa.
+- Lint Ruff/mypy 0/0, arquitectura 240/240, pytest focalizado de repositorios
+  de configuración 22/22; `.lint-baseline.json` y los baselines conocidos no
+  crecieron.
