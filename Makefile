@@ -730,6 +730,10 @@ test-e2e-agent-optimizer:  ## Run the real FP4/FP5 optimizer Playwright flow thr
 
 .PHONY: e2e-all-local
 e2e-all-local:  ## Rebuild the local stack and run the full real-API Playwright E2E suite through nginx localhost:80.
+	@$(PYTHON) ../frontend_mockup/scripts/prepare_e04_dataset_partitions.py \
+		--source "$(if $(E2E_DATASET_SOURCE),$(E2E_DATASET_SOURCE),/Users/davidrojas/Downloads/training_dataset_xgboost.csv)" \
+		--schema-sample "$(if $(E2E_DATASET_SCHEMA_SAMPLE),$(E2E_DATASET_SCHEMA_SAMPLE),/Users/davidrojas/Downloads/dataset_ejemplo.csv)" \
+		--output "$(if $(E2E_DATASET_PARTITIONS_DIR),$(E2E_DATASET_PARTITIONS_DIR),/private/tmp/aria-e04-partitions)"
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
