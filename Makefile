@@ -617,12 +617,12 @@ e2e-fraud-review:  ## Run E08 fraud marking, correction and audit-history E2E th
 		$(PYTHON) scripts/e2e_fraud_review_local.py
 
 .PHONY: e2e-observability
-e2e-observability:  ## Rebuild API/worker/web and run real dashboards, metrics audit, and TTL cleanup Playwright E2E through nginx.
-	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+e2e-observability:  ## (E2E_SKIP_BUILD=1 reuses built images) Rebuild API/worker/web and run real dashboards, metrics audit, and TTL cleanup Playwright E2E through nginx.
+	@$(if $(E2E_SKIP_BUILD),echo "E2E_SKIP_BUILD=1: reusing existing backend images",$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-beat
-	@$(MAKE) -C ../frontend_mockup build
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-beat)
+	@$(if $(E2E_SKIP_BUILD),:,$(MAKE) -C ../frontend_mockup build)
 	@$(MAKE) local-docker-run
 	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 		LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
@@ -631,10 +631,10 @@ e2e-observability:  ## Rebuild API/worker/web and run real dashboards, metrics a
 
 .PHONY: e2e-agent-local
 e2e-agent-local:  ## Run real assistant/optimizer API and Celery lifecycle E2E through nginx localhost:80.
-	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+	@$(if $(E2E_SKIP_BUILD),echo "E2E_SKIP_BUILD=1: reusing existing backend images",$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-beat
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-beat)
 	@$(MAKE) local-docker-run
 	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 		LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
@@ -648,6 +648,7 @@ e2e-agent-h9-local:  ## Run the H9 optimizer Playwright flow through nginx local
 	lock=/tmp/aria-e2e.lock; \
 	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
 	trap 'rmdir "$$lock"' EXIT; \
+	$(MAKE) -C ../frontend_mockup build; \
 	$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
@@ -660,6 +661,58 @@ e2e-agent-h9-local:  ## Run the H9 optimizer Playwright flow through nginx local
 .PHONY: e2e-agent-h10-local
 e2e-agent-h10-local:  ## Run H10 specialist selection and verification through nginx localhost:80.
 	@$(MAKE) e2e-agent-h9-local
+
+.PHONY: e2e-agent-h11-local
+e2e-agent-h11-local:  ## Seed a real mature final sample, then evaluate the four pinned components through nginx.
+	@$(MAKE) e2e-agent-global-pipeline-local
+	@set -euo pipefail; \
+	lock=/tmp/aria-e2e.lock; \
+	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
+	trap 'rmdir "$$lock"' EXIT; \
+	$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		build $(LOCAL_DOCKER_BUILD_ARGS) api mcp aria-agent-worker aria-agent-beat; \
+	$(MAKE) local-docker-run; \
+	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
+	node scripts/e2e_agent_h9_local.mjs
+
+.PHONY: e2e-agent-h12-local
+e2e-agent-h12-local:  ## Run H11 plus H12 retrospective/shadow/role/rollback through local nginx.
+	@set -euo pipefail; \
+	H12_E2E_RESULT_PATH=/tmp/aria-h12-h11-result.json $(MAKE) e2e-agent-h11-local; \
+	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
+	H12_E2E_RESULT_PATH=/tmp/aria-h12-h11-result.json \
+	node scripts/e2e_agent_h12_local.mjs
+
+.PHONY: e2e-agent-h12-resume-local
+e2e-agent-h12-resume-local:  ## Rerun H12 against the latest H11 evidence JSON without reseeding/retraining.
+	@$(MAKE) local-docker-build
+	@$(MAKE) local-docker-run
+	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
+	H12_E2E_RESULT_PATH=/tmp/aria-h12-h11-result.json \
+	node scripts/e2e_agent_h12_local.mjs
+
+.PHONY: e2e-agent-h12-full-local
+e2e-agent-h12-full-local:  ## Run real H12 alert traffic through SHADOW, all canary stages, FULL and rollback via nginx.
+	@set -euo pipefail; \
+	H12_E2E_RESULT_PATH=/tmp/aria-h12-h11-result.json $(MAKE) e2e-agent-h11-local; \
+	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
+	H12_E2E_RESULT_PATH=/tmp/aria-h12-h11-result.json \
+	H12_E2E_FULL=1 node scripts/e2e_agent_h12_local.mjs
+
+.PHONY: e2e-agent-h12-full-resume-local
+e2e-agent-h12-full-resume-local:  ## Resume full real-alert H12 rollout using saved H11 evidence.
+	@$(MAKE) local-docker-build
+	@$(MAKE) local-docker-run
+	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
+	H12_E2E_RESULT_PATH=/tmp/aria-h12-h11-result.json \
+	H12_E2E_FULL=1 node scripts/e2e_agent_h12_local.mjs
 
 .PHONY: e2e-agent-global-pipeline-local
 e2e-agent-global-pipeline-local:  ## Compare READY baseline/candidate over a real reserved final sample through nginx localhost:80.
@@ -713,32 +766,29 @@ test-e2e-agent-optimizer:  ## Run the real FP4/FP5 optimizer Playwright flow thr
 	@set -euo pipefail; \
 	lock=/tmp/aria-e2e.lock; \
 	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
-	frontend=../aria-wt-A-fp4-fp5-frontend; \
 	shared_frontend=../frontend_mockup; \
 	cleanup() { \
-		$(MAKE) -C "$$frontend" down >/dev/null 2>&1 || true; \
 		$(MAKE) -C "$$shared_frontend" run >/dev/null 2>&1 || true; \
 		rmdir "$$lock"; \
 	}; \
 	trap cleanup EXIT INT TERM; \
 	$(MAKE) -C "$$shared_frontend" down; \
-	$(MAKE) -C "$$frontend" down; \
-	$(MAKE) -C "$$frontend" build; \
+	$(MAKE) -C "$$shared_frontend" build; \
 	$(MAKE) local-api-build; \
-	$(MAKE) local-docker-run FRONTEND_DIR="$$frontend"; \
-	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) $(MAKE) -C "$$frontend" test-e2e-agent-optimizer
+	$(MAKE) local-docker-run FRONTEND_DIR="$$shared_frontend"; \
+	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) $(MAKE) -C "$$shared_frontend" test-e2e-agent-optimizer
 
 .PHONY: e2e-all-local
-e2e-all-local:  ## Rebuild the local stack and run the full real-API Playwright E2E suite through nginx localhost:80.
+e2e-all-local:  ## (E2E_SKIP_BUILD=1 reuses built images) Rebuild the local stack and run the full real-API Playwright E2E suite through nginx localhost:80.
 	@$(PYTHON) ../frontend_mockup/scripts/prepare_e04_dataset_partitions.py \
 		--source "$(if $(E2E_DATASET_SOURCE),$(E2E_DATASET_SOURCE),/Users/davidrojas/Downloads/training_dataset_xgboost.csv)" \
 		--schema-sample "$(if $(E2E_DATASET_SCHEMA_SAMPLE),$(E2E_DATASET_SCHEMA_SAMPLE),/Users/davidrojas/Downloads/dataset_ejemplo.csv)" \
 		--output "$(if $(E2E_DATASET_PARTITIONS_DIR),$(E2E_DATASET_PARTITIONS_DIR),/private/tmp/aria-e04-partitions)"
-	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+	@$(if $(E2E_SKIP_BUILD),echo "E2E_SKIP_BUILD=1: reusing existing backend images",$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-beat
-	@$(MAKE) -C ../frontend_mockup build
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-beat)
+	@$(if $(E2E_SKIP_BUILD),:,$(MAKE) -C ../frontend_mockup build)
 	@CELERY_STUCK_TASK_TIMEOUT_SECONDS=120 $(MAKE) local-docker-run
 	@CELERY_STUCK_TASK_TIMEOUT_SECONDS=120 E2E_FULL_SUITE=1 E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 		LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \

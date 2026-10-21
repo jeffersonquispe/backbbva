@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from src.application.ports.embedding_port import EmbeddingResult, EmbeddingUnitOfWork
@@ -8,7 +10,10 @@ from src.application.ports.embedding_unit_of_work_factory_port import (
 )
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.monitoring_span_port import MonitoringSpan
-from src.application.ports.taxonomy_library_port import TaxonomyLibraryEntry
+from src.application.ports.taxonomy_library_port import (
+    TaxonomyLibraryEntry,
+    TaxonomyLibraryRevisionConflict,
+)
 from src.application.use_cases.taxonomy_library.create_taxonomy_library_entry import (
     CreateTaxonomyLibraryEntryUseCase,
 )
@@ -52,10 +57,13 @@ class InMemoryTaxonomyLibraryRepository:
         examples: list[str] | None = None,
         active: bool | None = None,
         embedding: list[float] | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> TaxonomyLibraryEntry | None:
         current = self.items.get(entry_id)
         if current is None:
             return None
+        if expected_updated_at is not None and current.updated_at != expected_updated_at:
+            raise TaxonomyLibraryRevisionConflict("taxonomy changed during update")
         updated = TaxonomyLibraryEntry(
             id=current.id,
             code=code if code is not None else current.code,

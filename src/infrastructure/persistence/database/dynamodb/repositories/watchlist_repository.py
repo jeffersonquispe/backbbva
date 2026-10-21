@@ -5,11 +5,13 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Attr, Key
+from botocore.exceptions import ClientError
 
 from src.application.ports.watchlist_port import (
     Watchlist,
     WatchlistRepository,
+    WatchlistRevisionConflict,
     WatchlistType,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
@@ -67,6 +69,7 @@ class DynamoWatchlistRepository(WatchlistRepository):
         name: str | None = None,
         description: str | None = None,
         active: bool | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> Watchlist | None:
         response = self._table.get_item(Key={"id": watchlist_id})
         item = response.get("Item")
@@ -82,7 +85,17 @@ class DynamoWatchlistRepository(WatchlistRepository):
             created_at=current.created_at,
             updated_at=datetime.now(UTC),
         )
-        self._table.put_item(Item=_to_item(updated))
+        put_args: dict[str, Any] = {"Item": _to_item(updated)}
+        if expected_updated_at is not None:
+            put_args.update(
+                ConditionExpression=Attr("updated_at").eq(expected_updated_at.isoformat()),
+            )
+        try:
+            self._table.put_item(**put_args)
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                raise WatchlistRevisionConflict(watchlist_id) from error
+            raise
         updated.element_count = self.count_elements(watchlist_id)
         return updated
 

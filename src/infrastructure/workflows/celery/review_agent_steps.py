@@ -273,6 +273,20 @@ def _score_with_xgboost(
     """
     cache: dict[str, dict[str, Any]] = context.setdefault("_xgboost_results", {})
     model_id = cfg.xgboost_model_id
+    shadow_observer = None
+    routed_model_id = None
+    try:
+        from src.infrastructure.workflows.celery.task_factories import (
+            get_agent_shadow_observer,
+        )
+
+        shadow_observer = get_agent_shadow_observer()
+        routed_model_id = shadow_observer.route_model_id(str(context["alert_id"]))
+        if routed_model_id is not None:
+            model_id = routed_model_id
+    except Exception as exc:  # noqa: BLE001 - release routing fails closed
+        logger.warning("Agent rollout lookup failed; use active model: %s", exc)
+        model_id = cfg.xgboost_model_id
     cache_key = model_id or "active"
     result = cache.get(cache_key)
     if result is None:
@@ -295,6 +309,42 @@ def _score_with_xgboost(
             )
             return None
         cache[cache_key] = result
+    if shadow_observer is not None:
+        active_result = result
+        candidate_prediction = None
+        if routed_model_id is not None and str(result.get("model_id")) == routed_model_id:
+            try:
+                from src.infrastructure.workflows.celery.task_factories import (
+                    get_model_scoring_port,
+                )
+
+                scoring_port = get_model_scoring_port()
+                active_key = cfg.xgboost_model_id or "active"
+                active_result = cache.get(active_key)
+                if active_result is None:
+                    active_result = scoring_port.score_alert(
+                        str(context["alert_id"]), cfg.xgboost_model_id
+                    )
+                    if "error" not in active_result:
+                        cache[active_key] = active_result
+                candidate_prediction = bool(result.get("predicted_positive"))
+            except Exception as exc:  # noqa: BLE001 - shadow never blocks production
+                logger.warning("Baseline comparison scoring failed safely: %s", exc)
+                active_result = {"error": "BASELINE_SCORING_FAILED"}
+        if "error" in active_result:
+            logger.warning(
+                "Canary baseline unavailable; alert continues without XGBoost: %s",
+                active_result["error"],
+            )
+            return None
+        try:
+            shadow_observer.execute(
+                str(context["alert_id"]),
+                bool(active_result.get("predicted_positive")),
+                candidate_prediction,
+            )
+        except Exception as exc:  # noqa: BLE001 - shadow never blocks production
+            logger.warning("Agent shadow scoring failed safely: %s", exc)
     model_id = str(result["model_id"])
     score = float(result["score"])
     if score >= cfg.xgboost_fraud_threshold:

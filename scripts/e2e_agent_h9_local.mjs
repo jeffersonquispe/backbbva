@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeFileSync } from "node:fs";
 import { chromium } from "../../frontend_mockup/node_modules/playwright/index.mjs";
 
 const BASE_URL = (process.env.E2E_BASE_URL || "http://localhost").replace(/\/$/, "");
@@ -116,6 +117,17 @@ async function main() {
     const activeObjective = expect(await api(page, "GET", "/agent/objectives/active", {
       token: managerToken,
     }), 200, "leer objetivo activo");
+    const protectedSegments = activeObjective.schema_mapping?.protected_segments || {};
+    if (
+      !Object.values(protectedSegments).some((values) =>
+        Array.isArray(values) && values.includes("E2E_SUPPORT_29") && values.includes("E2E_SUPPORT_30"),
+      )
+      || activeObjective.minimum_support_per_segment !== 30
+    ) {
+      throw new Error(
+        `el objetivo activo no fijó los segmentos y el mínimo del fixture: ${JSON.stringify({ protectedSegments, minimum_support_per_segment: activeObjective.minimum_support_per_segment })}`,
+      );
+    }
     if (
       session.objective_id !== activeObjective.objective_id ||
       session.objective_version !== activeObjective.version
@@ -130,12 +142,14 @@ async function main() {
     let hypotheses = [];
     let iterations = [];
     let packages = [];
+    let experiments = [];
     while (Date.now() < deadline) {
       claims = expect(await api(page, "GET", "/agent/claims/scope%23model", { token: managerToken }), 200, "leer reclamo");
       hypotheses = expect(await api(page, "GET", `/agent/sessions/${sessionId}/hypotheses`, { token: channelToken }), 200, "leer hipótesis");
       iterations = expect(await api(page, "GET", `/agent/sessions/${sessionId}/iterations`, { token: channelToken }), 200, "leer iteraciones");
       packages = expect(await api(page, "GET", `/agent/sessions/${sessionId}/packages`, { token: channelToken }), 200, "leer paquetes de la sesión");
-      if (iterations.some((item) => item.experiment_verified === true) && packages.some((item) => item.status === "VERIFIED")) break;
+      experiments = expect(await api(page, "GET", `/agent/sessions/${sessionId}/experiments`, { token: channelToken }), 200, "leer experimentos evaluados");
+      if (experiments.some((item) => item.status !== "RUNNING") && packages.some((item) => item.status === "VERIFIED")) break;
       const observed = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "leer estado de sesión");
       if (["STOPPED", "FAILED", "CANCELLED"].includes(observed.status)) break;
       await page.waitForTimeout(1000);
@@ -150,13 +164,66 @@ async function main() {
     }
     if (
       iteration.specialist !== "xgboost" ||
-      !iteration.experiment_verified ||
+      !iteration.specialist_verified ||
       iteration.verification_status !== "PASSED"
     ) {
       throw new Error(`la selección/verificación del especialista no coincide: ${JSON.stringify(iteration)}`);
     }
     if (!packages.some((item) => item.status === "VERIFIED")) {
       throw new Error("la propuesta del proveedor no quedó verificada");
+    }
+    const experiment = experiments.find((item) => item.iteration_number === iteration.number);
+    if (!experiment || !["SUCCEEDED", "REJECTED_GLOBAL_CONSTRAINT"].includes(experiment.status)) {
+      throw new Error(`el loop no terminó la evaluación reproducible: ${JSON.stringify(experiment || experiments)}`);
+    }
+    if (
+      experiment.components.length !== 4 ||
+      experiment.baseline_components.length !== 4 ||
+      new Set(experiment.components.map((item) => item.component)).size !== 4 ||
+      new Set(experiment.baseline_components.map((item) => item.component)).size !== 4 ||
+      !experiment.snapshot_id ||
+      !/^[a-f0-9]{64}$/.test(experiment.snapshot_sha256 || "") ||
+      experiment.global_evaluation.sample?.partition !== "final" ||
+      experiment.global_evaluation.sample?.snapshot_id !== experiment.snapshot_id ||
+      experiment.global_evaluation.sample?.content_sha256 !== experiment.snapshot_sha256 ||
+      experiment.global_evaluation.knowledge_evidence?.decision_policy !== "evidence_only_v1"
+    ) {
+      throw new Error(`la evaluación no fijó stack/snapshot/política: ${JSON.stringify(experiment)}`);
+    }
+    const publishedSegments = experiment.global_evaluation.segments || {};
+    if (Object.values(publishedSegments).some((segment) => segment.support < 30)) {
+      throw new Error("la evaluación publicó un segmento con menos de 30 casos");
+    }
+    const support29 = Object.entries(publishedSegments).find(([name]) =>
+      name.endsWith("E2E_SUPPORT_29"),
+    );
+    const support30 = Object.entries(publishedSegments).find(([name]) =>
+      name.endsWith("E2E_SUPPORT_30"),
+    );
+    if (support29) {
+      throw new Error(`el segmento de 29 casos no fue suprimido: ${support29[0]}`);
+    }
+    if (!support30 || support30[1].support !== 30) {
+      throw new Error(
+        `el segmento de 30 casos no se publicó con soporte exacto: ${JSON.stringify(publishedSegments)}`,
+      );
+    }
+    if (
+      !experiment.global_evaluation.metrics?.candidate ||
+      !experiment.global_evaluation.metrics?.baseline ||
+      !experiment.global_evaluation.delta ||
+      experiment.global_evaluation.uncertainty?.method !== "paired_bootstrap" ||
+      experiment.global_evaluation.uncertainty?.confidence_level !== 0.95
+    ) {
+      throw new Error(`la evaluación no incluye comparación pareada completa: ${JSON.stringify(experiment.global_evaluation)}`);
+    }
+    const segmentSupports = Object.fromEntries(
+      Object.entries(publishedSegments).map(([name, segment]) => [name, segment.support]),
+    );
+    const modelPin = experiment.components.find((item) => item.component === "model");
+    const candidateModel = expect(await api(page, "GET", `/models/${modelPin.entity_id}`, { token: managerToken }), 200, "comprobar modelo candidato");
+    if (candidateModel.active) {
+      throw new Error("un resultado SUCCEEDED de experimento activó el candidato sin promoción");
     }
     if (
       iteration.objective_id !== session.objective_id ||
@@ -174,11 +241,112 @@ async function main() {
     if (current.status !== "CANCELLED") {
       throw new Error(`la sesión no se canceló tras validar el paquete candidato: ${current.status}`);
     }
+    const audit = expect(await api(page, "GET", `/agent/sessions/${sessionId}/audit?limit=100`, {
+      token: channelToken,
+    }), 200, "leer auditoría real de la sesión");
+    const auditCategories = new Set(audit.items.map((event) => event.category));
+    for (const category of ["session", "iteration", "tool", "lease"]) {
+      if (!auditCategories.has(category)) {
+        throw new Error(`falta el evento real de auditoría ${category}: ${JSON.stringify([...auditCategories])}`);
+      }
+    }
+    const auditFirstPage = expect(
+      await api(page, "GET", `/agent/sessions/${sessionId}/audit?limit=1`, {
+        token: channelToken,
+      }),
+      200,
+      "leer primera página de auditoría",
+    );
+    if (!auditFirstPage.next_cursor || auditFirstPage.items.length !== 1) {
+      throw new Error("la auditoría real no devolvió cursor para la segunda página");
+    }
+    const auditSecondPage = expect(
+      await api(
+        page,
+        "GET",
+        `/agent/sessions/${sessionId}/audit?limit=1&cursor=${encodeURIComponent(auditFirstPage.next_cursor)}`,
+        { token: channelToken },
+      ),
+      200,
+      "leer segunda página de auditoría",
+    );
+    if (
+      auditSecondPage.items.length !== 1 ||
+      auditSecondPage.items[0].event_id === auditFirstPage.items[0].event_id
+    ) {
+      throw new Error("la segunda página de auditoría no avanzó a otro evento");
+    }
+    await page.evaluate((token) => localStorage.setItem("aria.auth.accessToken", token), channelToken);
+    await page.goto(`${BASE_URL}/configuracion`, { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Abrir asistente ARIA" }).click();
+    await page.getByRole("button", { name: "Optimizador", exact: true }).click();
+    const comparisonPanel = page.getByRole("region", {
+      name: "Comparación baseline y experimentos",
+    });
+    await comparisonPanel.waitFor({ state: "visible", timeout: 15_000 });
+    await comparisonPanel
+      .getByText(`Experimento ${experiment.iteration_number} · ${experiment.status}`, {
+        exact: true,
+      })
+      .waitFor({ state: "visible", timeout: 30_000 });
+    const comparisonText = await comparisonPanel.innerText();
+    const visibleValues = [
+      `Experimento ${experiment.iteration_number} · ${experiment.status}`,
+      experiment.snapshot_id,
+      experiment.snapshot_sha256,
+      "Baseline:",
+      "Candidato:",
+      "paired_bootstrap",
+    ];
+    for (const value of visibleValues) {
+      if (!comparisonText.includes(value)) {
+        throw new Error(`la UI no muestra la evidencia evaluada ${value}: ${comparisonText}`);
+      }
+    }
+    const leasePanel = page.getByLabel("Estado del lease");
+    await leasePanel.waitFor({ state: "visible", timeout: 15_000 });
+    if (!current.lease || !(await leasePanel.innerText()).includes(current.lease.status)) {
+      throw new Error(`la UI no muestra el lease real: ${JSON.stringify(current.lease)}`);
+    }
+    const auditPanel = page.getByRole("region", { name: "Auditoría de sesión" });
+    await auditPanel.waitFor({ state: "visible", timeout: 15_000 });
+    await auditPanel
+      .getByText(/· experiment ·/)
+      .first()
+      .waitFor({ state: "visible", timeout: 30_000 });
+    const auditText = await auditPanel.innerText();
+    for (const category of ["session", "iteration", "tool", "lease", "experiment"]) {
+      if (!auditText.includes(`· ${category} ·`)) {
+        throw new Error(`la UI no muestra el evento real ${category}: ${auditText}`);
+      }
+    }
     claims = expect(await api(page, "GET", "/agent/claims/scope%23model", { token: managerToken }), 200, "leer reclamos tras pausar");
     if (claims.some((claim) => claim.session_id === sessionId)) {
       throw new Error("una sesión detenida conserva un reclamo activo");
     }
-    console.log("H10 Playwright por nginx: objetivo fijado, propuesta XGBoost generada y verificada, cancelación e hipótesis evaluada pasaron.");
+    const evidence = {
+      result: "H11 Playwright por nginx completado",
+      session_id: sessionId,
+      experiment_id: experiment.experiment_id,
+      experiment_status: experiment.status,
+      snapshot_id: experiment.snapshot_id,
+      snapshot_sha256: experiment.snapshot_sha256,
+      component_types: experiment.components.map((item) => item.component).sort(),
+      baseline_component_types: experiment.baseline_components.map((item) => item.component).sort(),
+      partition: experiment.global_evaluation.sample.partition,
+      knowledge_decision_policy: experiment.global_evaluation.knowledge_evidence.decision_policy,
+      published_segment_count: Object.keys(publishedSegments).length,
+      minimum_published_segment_support: Math.min(30, ...Object.values(publishedSegments).map((segment) => segment.support)),
+      published_segment_supports: segmentSupports,
+      audit_categories: [...auditCategories].sort(),
+      ui_experiment_rendered: true,
+      ui_audit_categories: ["session", "iteration", "tool", "lease", "experiment"],
+      candidate_active: candidateModel.active,
+    };
+    console.log(JSON.stringify(evidence));
+    if (process.env.H12_E2E_RESULT_PATH) {
+      writeFileSync(process.env.H12_E2E_RESULT_PATH, `${JSON.stringify(evidence)}\n`, { mode: 0o600 });
+    }
   } finally {
     if (managerToken && originalSettings) {
       await api(page, "PUT", "/assistant-optimizer-settings", {

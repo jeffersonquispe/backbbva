@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aria-agent-beat
+  labels:
+    app.kubernetes.io/name: aria-agent-beat
+    app.kubernetes.io/component: celery-agent-scheduler
+    app.kubernetes.io/part-of: aria-workers
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app.kubernetes.io/name: aria-agent-beat}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: aria-agent-beat, app.kubernetes.io/component: celery-agent-scheduler, app.kubernetes.io/part-of: aria-workers}}
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: aria-worker-main
+      imagePullSecrets:
+        - name: artifactory-auth
+      containers:
+        - name: aria-agent-beat
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:14a263531ebcb2d03a531cfcafde3254af3a1589
+          command: [celery, -A, src.infrastructure.entrypoint.agent_worker.celery.celery_app:app, beat, --loglevel=INFO, --schedule=/tmp/agent-celerybeat-schedule]
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
+          resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: 500m, memory: 512Mi}}
+          envFrom:
+            - configMapRef: {name: aria-worker-main-config}
+          env:
+            - {name: CELERY_AGENT_QUEUE, value: agent}
+            - {name: AGENT_STUB_DELAY_SECONDS, value: "0"}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: AWS_ACCESS_KEY_ID}}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: AWS_SECRET_ACCESS_KEY}}
+            - name: DYNAMO_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: DYNAMO_ACCESS_KEY}}
+            - name: DYNAMO_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: DYNAMO_SECRET_KEY}}
+            - name: OBJECT_STORAGE_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: OBJECT_STORAGE_ACCESS_KEY}}
+            - name: OBJECT_STORAGE_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: OBJECT_STORAGE_SECRET_KEY}}
+            - name: OPENSEARCH_USERNAME
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: OPENSEARCH_USERNAME}}
+            - name: OPENSEARCH_PASSWORD
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: OPENSEARCH_PASSWORD}}
+            - name: OPENAI_KEY
+              valueFrom: {secretKeyRef: {name: aria-worker-main-runtime, key: OPENAI_KEY}}

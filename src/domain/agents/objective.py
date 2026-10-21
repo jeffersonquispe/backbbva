@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import Any
 
 GLOBAL_FRAUD_OBJECTIVE_ID = "global_fraud_effectiveness"
+KNOWLEDGE_DECISION_POLICY_EVIDENCE_ONLY_V1 = "evidence_only_v1"
 
 
 class AgentObjectiveStatus(StrEnum):
@@ -37,4 +38,6 @@ class AgentObjective:
     created_at: datetime
     approved_by: str | None = None
     activated_at: datetime | None = None
-
+    # Immutable part of this objective version: knowledge components provide
+    # evidence, while only the pinned model and configuration select a label.
+    knowledge_decision_policy: str = KNOWLEDGE_DECISION_POLICY_EVIDENCE_ONLY_V1

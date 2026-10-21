@@ -16,9 +16,11 @@ from src.application.use_cases.agent.manage_agent_session import (
 )
 from src.application.use_cases.agent.renew_agent_budget import RenewAgentBudgetUseCase
 from src.infrastructure.agents.factories import (
+    get_agent_audit_repository,
     get_agent_budget_ledger_repository,
     get_agent_chat_responder,
     get_agent_entity_claim_repository,
+    get_agent_experiment_component_resolver,
     get_agent_insight_repository,
     get_agent_link_repository,
     get_agent_message_repository,
@@ -46,6 +48,7 @@ def get_create_agent_session_use_case(
         sessions=get_agent_session_repository(),
         prompts=get_agent_prompt_repository(),
         objectives=get_agent_objective_repository(),
+        components=get_agent_experiment_component_resolver(),
         settings=settings,
         clock=get_clock(),
         id_generator=get_id_generator(),
@@ -59,6 +62,7 @@ def get_manage_agent_session_use_case(
         repository=get_agent_session_repository(),
         clock=get_clock(),
         settings=settings,
+        audit=get_agent_audit_repository(),
     )
 
 

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import builtins
+from datetime import datetime
 from typing import Protocol
 
 from src.domain.fraud_knowledge.library_entities import SimilarCaseLibraryEntry
+
+
+class SimilarCaseLibraryRevisionConflict(Exception):
+    """Raised if a similar case changed after an assistant draft was verified."""
 
 
 class SimilarCaseLibraryRepository(Protocol):
@@ -22,6 +27,7 @@ class SimilarCaseLibraryRepository(Protocol):
         taxonomy_library_id: str | None = None,
         active: bool | None = None,
         embedding: builtins.list[float] | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> SimilarCaseLibraryEntry | None: ...
 
     def delete(self, entry_id: str) -> None: ...

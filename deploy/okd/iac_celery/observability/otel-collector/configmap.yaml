@@ -55,6 +55,21 @@ data:
           enabled: true
           max_elapsed_time: 60s
 
+      # In-namespace backends (observability/{tempo,loki,prometheus}).
+      otlp/tempo:
+        endpoint: tempo:4317
+        tls:
+          insecure: true
+      otlphttp/loki:
+        endpoint: http://loki:3100/otlp
+        tls:
+          insecure: true
+      # Prometheus native OTLP receiver (--web.enable-otlp-receiver).
+      otlphttp/prometheus:
+        endpoint: http://prometheus:9090/api/v1/otlp
+        tls:
+          insecure: true
+
     service:
       extensions: [health_check]
       telemetry:
@@ -64,12 +79,12 @@ data:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [debug, otlp/upstream]
+          exporters: [debug, otlp/upstream, otlp/tempo]
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [debug, otlp/upstream]
+          exporters: [debug, otlp/upstream, otlphttp/prometheus]
         logs:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [debug, otlp/upstream]
+          exporters: [debug, otlp/upstream, otlphttp/loki]

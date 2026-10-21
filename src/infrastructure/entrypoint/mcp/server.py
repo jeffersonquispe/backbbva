@@ -2,6 +2,7 @@
 # @mcp.tool()'s schema by eval()-ing the function's annotations at import
 # time, and that eval loses `typing.Any` out of this module's globals when
 # annotations are deferred to strings, raising NameError at import.
+from hashlib import sha256
 from typing import Any
 from uuid import UUID
 
@@ -19,6 +20,7 @@ from src.infrastructure.entrypoint.mcp.bundle import (
 from src.infrastructure.entrypoint.mcp.factories import (
     get_alert_repository,
     get_model_repository,
+    get_model_storage,
 )
 from src.infrastructure.entrypoint.mcp.scoring import score_row
 
@@ -90,6 +92,177 @@ async def score_row_http(request: Request) -> JSONResponse:
         )
     result = await run_in_threadpool(_score_model_row, model_id, row)
     return JSONResponse(result, status_code=404 if "error" in result else 200)
+
+
+@mcp.custom_route("/internal/score-pinned-pipeline", methods=["POST"])
+async def score_pinned_pipeline_http(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+        if (
+            body.get("knowledge_decision_policy") != "evidence_only_v1"
+            or not isinstance(body.get("rows"), list)
+            or not body["rows"]
+            or not isinstance(body.get("configuration"), dict)
+            or not isinstance(body.get("library"), dict)
+            or not isinstance(body.get("vector_store"), dict)
+        ):
+            raise ValueError("invalid pinned pipeline")
+        model_id = str(UUID(body["model_id"]))
+        artifact_sha256 = body["artifact_sha256"]
+        if (
+            not isinstance(artifact_sha256, str)
+            or len(artifact_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in artifact_sha256)
+        ):
+            raise ValueError("invalid model digest")
+    except (KeyError, TypeError, ValueError):
+        return JSONResponse({"error": "PINNED_PIPELINE_INPUT_INVALID"}, status_code=422)
+    result = await run_in_threadpool(
+        _score_pinned_pipeline,
+        model_id,
+        artifact_sha256,
+        body["configuration"],
+        body["library"],
+        body["vector_store"],
+        body["rows"],
+    )
+    if "error" in result:
+        return JSONResponse(result, status_code=422)
+    return JSONResponse(result)
+
+
+def _score_pinned_pipeline(
+    model_id: str,
+    artifact_sha256: str,
+    configuration: dict[str, Any],
+    library: dict[str, Any],
+    vector_store: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    try:
+        model = get_model_repository().get(UUID(model_id))
+        if model is None:
+            return {"error": "PINNED_MODEL_UNAVAILABLE"}
+        storage_ref = f"models/sha256/{artifact_sha256}.joblib"
+        artifact = get_model_storage().get_bytes(storage_ref)
+        if sha256(artifact).hexdigest() != artifact_sha256:
+            return {"error": "PINNED_MODEL_ARTIFACT_MISMATCH"}
+        bundle = get_model_bundle(storage_ref)
+        segments = configuration.get("segments")
+        if not isinstance(segments, dict) or not segments:
+            return {"error": "PINNED_CONFIGURATION_SEGMENTS_MISSING"}
+        enabled = [
+            (name, value)
+            for name, value in segments.items()
+            if isinstance(value, dict) and value.get("enabled")
+        ]
+        predictions = []
+        if not enabled:
+            # With no active segment override, the pinned configuration has no
+            # threshold rule; use the threshold embedded in the pinned model
+            # bundle as the configured default for this exact model revision.
+            threshold = bundle.get("threshold", 0.5)
+            if not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
+                return {"error": "PINNED_MODEL_THRESHOLD_INVALID"}
+            for row in rows:
+                scored = score_row(bundle, row)
+                predictions.append(float(scored["score"]) >= float(threshold))
+            return {
+                "predicted_positive": predictions,
+                "knowledge_evidence_assets": _knowledge_evidence_count(
+                    vector_store, library
+                ),
+                "knowledge_decision_policy": "evidence_only_v1",
+            }
+        for row in rows:
+            selected = next(
+                (
+                    (name, value)
+                    for name, value in sorted(
+                        enabled, key=lambda item: int(item[1].get("order", 0))
+                    )
+                    if _segment_filter_matches(value.get("filter", {}), row)
+                ),
+                None,
+            )
+            if selected is None:
+                return {"error": "PINNED_CONFIGURATION_SEGMENT_UNRESOLVED"}
+            detector = selected[1].get("agent", {}).get("detector", {})
+            threshold_value = detector.get("xgboost_fraud_threshold")
+            if not isinstance(threshold_value, (int, float)):
+                return {"error": "PINNED_CONFIGURATION_THRESHOLD_MISSING"}
+            threshold = float(threshold_value)
+            if threshold < 0 or threshold > 1:
+                return {"error": "PINNED_CONFIGURATION_THRESHOLD_INVALID"}
+            scored = score_row(bundle, row)
+            predictions.append(float(scored["score"]) >= threshold)
+        return {
+            "predicted_positive": predictions,
+            "knowledge_evidence_assets": _knowledge_evidence_count(
+                vector_store, library
+            ),
+            "knowledge_decision_policy": "evidence_only_v1",
+        }
+    except (KeyError, TypeError, ValueError, OSError):
+        return {"error": "PINNED_PIPELINE_SCORING_FAILED"}
+
+
+def _knowledge_evidence_count(
+    vector_store: dict[str, Any], library: dict[str, Any]
+) -> int:
+    assets = vector_store.get("assets", [])
+    library_id = library.get("id")
+    return sum(
+        1
+        for asset in assets
+        if isinstance(asset, dict) and asset.get("asset_id") == library_id
+    )
+
+
+def _segment_filter_matches(group: dict[str, Any], row: dict[str, Any]) -> bool:
+    if not isinstance(group, dict):
+        return False
+    values: dict[str, set[str]] = {}
+    for field, category in (
+        ("event_type", "event_type"),
+        ("integration_point", "integration_point"),
+    ):
+        if row.get(field) not in (None, ""):
+            values[category] = {str(row[field])}
+    rules = row.get("rules")
+    if isinstance(rules, list):
+        values["triggered_rule"] = {
+            str(item.get("name")) if isinstance(item, dict) else str(item)
+            for item in rules
+            if item not in (None, "")
+        }
+    elif isinstance(rules, str):
+        values["triggered_rule"] = {
+            token.strip() for token in rules.strip("[]").split(",") if token.strip()
+        }
+    conditions = group.get("conditions", [])
+    nested = group.get("groups", [])
+    matches = []
+    if isinstance(conditions, list):
+        for condition in conditions:
+            if not isinstance(condition, dict):
+                return False
+            category = str(condition.get("category", ""))
+            accepted = condition.get("values", [])
+            if not isinstance(accepted, list):
+                return False
+            matches.append(
+                bool(values.get(category, set()) & {str(v) for v in accepted})
+            )
+    if isinstance(nested, list):
+        matches.extend(_segment_filter_matches(item, row) for item in nested)
+    elif nested:
+        return False
+    if not matches:
+        return True
+    if str(group.get("operator", "and")).lower().endswith("or"):
+        return any(matches)
+    return all(matches)
 
 
 @mcp.custom_route("/internal/reload-active-model", methods=["POST"])

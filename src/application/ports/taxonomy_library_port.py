@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import builtins
+from datetime import datetime
 from typing import Protocol
 
 from src.domain.fraud_knowledge.library_entities import TaxonomyLibraryEntry
+
+
+class TaxonomyLibraryRevisionConflict(Exception):
+    """Raised when a taxonomy changed since an assistant draft was verified."""
 
 
 class TaxonomyLibraryRepository(Protocol):
@@ -24,6 +29,7 @@ class TaxonomyLibraryRepository(Protocol):
         examples: builtins.list[str] | None = None,
         active: bool | None = None,
         embedding: builtins.list[float] | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> TaxonomyLibraryEntry | None: ...
 
     def delete(self, entry_id: str) -> None: ...

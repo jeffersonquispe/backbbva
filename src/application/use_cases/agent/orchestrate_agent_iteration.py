@@ -5,9 +5,13 @@ import json
 from dataclasses import replace
 from datetime import timedelta
 
+from src.application.ports.agent_audit_port import AgentAuditEvent, AgentAuditRepository
 from src.application.ports.agent_budget_ledger_port import (
     AgentBudgetEntry,
     AgentBudgetLedgerRepository,
+)
+from src.application.ports.agent_experiment_component_port import (
+    AgentExperimentComponentResolver,
 )
 from src.application.ports.agent_hypothesis_port import (
     AgentHypothesis,
@@ -56,8 +60,31 @@ from src.application.ports.assistant_optimizer_settings_port import (
 )
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.use_cases.agent.evaluate_agent_experiment import (
+    EvaluateAgentExperiment,
+)
+from src.domain.agents.experiment import AgentExperimentKind
 
 LEASE_SECONDS = 90
+_SAFE_AUDIT_REASONS = {
+    "LEASE_ACQUIRED",
+    "LEASE_RELEASED",
+    "LEASE_EXPIRED",
+    "CONTEXT_UNAVAILABLE",
+    "DISPATCH_FAILED",
+    "EVALUATION_FAILED",
+    "EXECUTION_FAILED",
+    "EXECUTION_INVALID",
+    "GENERATION_FAILED",
+    "GENERATION_INVALID",
+    "GLOBAL_EVALUATION_FAILED",
+    "PROMPT_NOT_PINNED",
+    "PROMPT_UNAVAILABLE",
+    "PROMPT_VERSION_MISMATCH",
+    "RUN_CANCELLED",
+    "WORKER_LEASE_EXPIRED",
+}
 
 
 class OrchestrateAgentIterationUseCase:
@@ -82,6 +109,10 @@ class OrchestrateAgentIterationUseCase:
         summaries: AgentSessionSummaryRepository | None = None,
         specialists: dict[str, AgentSubagent] | None = None,
         objectives: AgentObjectiveRepository | None = None,
+        monitoring: MonitoringPort | None = None,
+        audit: AgentAuditRepository | None = None,
+        components: AgentExperimentComponentResolver | None = None,
+        experiment_evaluator: EvaluateAgentExperiment | None = None,
     ) -> None:
         self._sessions = sessions
         self._iterations = iterations
@@ -99,6 +130,10 @@ class OrchestrateAgentIterationUseCase:
         self._summaries = summaries
         self._specialists = specialists or {}
         self._objectives = objectives
+        self._monitoring = monitoring
+        self._audit = audit
+        self._components = components
+        self._experiment_evaluator = experiment_evaluator
 
     def execute(self, session_id: str) -> str:
         # Settings are deliberately read on each invocation, never captured in
@@ -141,7 +176,11 @@ class OrchestrateAgentIterationUseCase:
         )
         if not enabled:
             self._sessions.update(
-                replace(session, status=AgentSessionStatus.PAUSED, updated_at=self._clock.now()),
+                replace(
+                    session,
+                    status=AgentSessionStatus.PAUSED,
+                    updated_at=self._clock.now(),
+                ),
                 expected_rev=session.rev,
             )
             return "paused_by_kill_switch"
@@ -156,18 +195,24 @@ class OrchestrateAgentIterationUseCase:
                 )
                 if item.mode == "optimization"
             ]
-            if len(active_optimizers) > current_settings.optimizer_max_concurrent_sessions:
+            if (
+                len(active_optimizers)
+                > current_settings.optimizer_max_concurrent_sessions
+            ):
                 return "deferred_by_session_limit"
             active_runs = self._runs.list_active(now, limit=100)
             if len(active_runs) >= current_settings.optimizer_max_concurrent_runs:
                 return "deferred_by_run_limit"
 
         lease_expires = now + timedelta(seconds=LEASE_SECONDS)
+        if session.lease_expires_at is not None and session.lease_expires_at <= now:
+            self._record_audit(session_id, now, "lease", "expired", "LEASE_EXPIRED")
         leased = self._sessions.acquire_lease(
             session_id, str(self._ids.new_id()), now, lease_expires
         )
         if leased is None:
             return "lease_unavailable"
+        self._record_audit(session_id, now, "lease", "succeeded", "LEASE_ACQUIRED")
 
         limits = {
             "tokens": current_settings.optimizer_session_budget_ceiling_tokens,
@@ -195,6 +240,7 @@ class OrchestrateAgentIterationUseCase:
                 ),
                 expected_rev=leased.rev,
             )
+            self._record_audit(session_id, now, "lease", "succeeded", "LEASE_RELEASED")
             return "paused_by_candidate_limit"
 
         prior = self._iterations.list_for_session(session_id, limit=100)
@@ -210,6 +256,7 @@ class OrchestrateAgentIterationUseCase:
                 ),
                 expected_rev=leased.rev,
             )
+            self._record_audit(session_id, now, "lease", "succeeded", "LEASE_RELEASED")
             self._save_session_memory(
                 session_id,
                 leased,
@@ -222,8 +269,15 @@ class OrchestrateAgentIterationUseCase:
             )
             return "stopped_no_signal"
 
+        cost_before = sum(
+            entry.amount
+            for entry in self._budget.list_for_session(session_id)
+            if entry.entry_type == "SPEND" and entry.resource == "usd_micros"
+        )
         for resource in ("tokens", "usd_micros", "seconds"):
-            if not self._budget.reserve(session_id, resource, 1, effective_budget[resource]):
+            if not self._budget.reserve(
+                session_id, resource, 1, effective_budget[resource]
+            ):
                 self._sessions.update(
                     replace(
                         leased,
@@ -233,6 +287,9 @@ class OrchestrateAgentIterationUseCase:
                         updated_at=now,
                     ),
                     expected_rev=leased.rev,
+                )
+                self._record_audit(
+                    session_id, now, "lease", "succeeded", "LEASE_RELEASED"
                 )
                 return "paused_by_budget"
             self._budget.append(
@@ -282,25 +339,133 @@ class OrchestrateAgentIterationUseCase:
             run_ids=(run_id,),
         )
         self._iterations.create(iteration)
-
-        output = selected_subagent.execute(
-            AgentSubagentInput(
-                session_id=session_id,
-                iteration_number=number,
-                scope=leased.scope,
-                hypothesis=(
-                    hypothesis.statement
-                    if hypothesis is not None
-                    else "Exercise the configured specialist."
-                ),
-                budget=effective_budget,
-                prompt_versions=leased.prompt_versions,
-                objective_id=leased.objective_id,
-                objective_version=leased.objective_version,
-                objective=objective,
-            )
+        self._record_audit(session_id, now, "session", "started")
+        self._record_audit(session_id, now, "iteration", "started")
+        self._record_audit(
+            session_id, now, "specialist", "started", specialist=selected_subagent.name
         )
+        self._record_audit(
+            session_id, now, "tool", "started", tool=selected_subagent.name
+        )
+
+        subagent_input = AgentSubagentInput(
+            session_id=session_id,
+            iteration_number=number,
+            scope=leased.scope,
+            hypothesis=(
+                hypothesis.statement
+                if hypothesis is not None
+                else "Exercise the configured specialist."
+            ),
+            budget=effective_budget,
+            prompt_versions=leased.prompt_versions,
+            objective_id=leased.objective_id,
+            objective_version=leased.objective_version,
+            objective=objective,
+            baseline_components=leased.baseline_components,
+        )
+        if self._monitoring is None:
+            output = selected_subagent.execute(subagent_input)
+        else:
+            # Identifiers belong on trace spans for audit correlation, never
+            # on metric dimensions. Tool/specialist names and states are
+            # bounded values; no experiment rows or prompt content are sent.
+            with self._monitoring.start(
+                "agent.session",
+                "agent",
+                {"agent.session_id": session_id, "agent.status": "ACTIVE"},
+            ) as session_span:
+                with self._monitoring.start(
+                    "agent.iteration",
+                    "agent",
+                    {
+                        "agent.session_id": session_id,
+                        "agent.iteration": number,
+                        "agent.status": "RUNNING",
+                    },
+                ) as iteration_span:
+                    with self._monitoring.start(
+                        "agent.specialist",
+                        "agent",
+                        {
+                            "agent.specialist": selected_subagent.name,
+                            "agent.status": "RUNNING",
+                        },
+                    ) as specialist_span:
+                        with self._monitoring.start(
+                            "agent.tool",
+                            "agent",
+                            {
+                                "agent.tool": selected_subagent.name,
+                                "agent.status": "RUNNING",
+                            },
+                        ) as tool_span:
+                            output = selected_subagent.execute(subagent_input)
+                    duration_ms = max(
+                        0, int((self._clock.now() - now).total_seconds() * 1000)
+                    )
+                    audit_result = {
+                        "agent.status": (
+                            "FAILED" if output.error_code else "SUCCEEDED"
+                        ),
+                        "agent.duration_ms": duration_ms,
+                        "agent.specialist": selected_subagent.name,
+                    }
+                    cost = output.safe_metrics.get("cost_usd_micros")
+                    if not isinstance(cost, (int, float)):
+                        cost = (
+                            sum(
+                                entry.amount
+                                for entry in self._budget.list_for_session(session_id)
+                                if entry.entry_type == "SPEND"
+                                and entry.resource == "usd_micros"
+                            )
+                            - cost_before
+                        )
+                    if isinstance(cost, (int, float)) and cost >= 0:
+                        audit_result["agent.cost_usd_micros"] = int(cost)
+                    iteration_span.write_operation_metas(audit_result)
+                    session_span.write_operation_metas(audit_result)
+                    specialist_span.write_operation_metas(audit_result)
+                    tool_span.write_operation_metas(audit_result)
         finished = self._clock.now()
+        elapsed_ms = max(0, int((finished - now).total_seconds() * 1000))
+        result_status = "failed" if output.error_code else "succeeded"
+        cost_value = output.safe_metrics.get("cost_usd_micros")
+        cost_micros = (
+            int(cost_value)
+            if isinstance(cost_value, (int, float)) and cost_value >= 0
+            else None
+        )
+        self._record_audit(
+            session_id,
+            finished,
+            "tool",
+            result_status,
+            output.error_code,
+            elapsed_ms,
+            cost_micros,
+            tool=selected_subagent.name,
+        )
+        self._record_audit(
+            session_id,
+            finished,
+            "specialist",
+            result_status,
+            output.error_code,
+            elapsed_ms,
+            cost_micros,
+            specialist=selected_subagent.name,
+        )
+        self._record_audit(
+            session_id,
+            finished,
+            "iteration",
+            result_status,
+            output.error_code,
+            elapsed_ms,
+            cost_micros,
+        )
         current_session = self._sessions.get(session_id)
         if current_session is None:
             return "session_missing_after_run"
@@ -329,6 +494,9 @@ class OrchestrateAgentIterationUseCase:
                     updated_at=finished,
                 ),
                 expected_rev=current_session.rev,
+            )
+            self._record_audit(
+                session_id, finished, "lease", "succeeded", "LEASE_RELEASED"
             )
             return "cancelled"
         self._runs.update(
@@ -360,6 +528,15 @@ class OrchestrateAgentIterationUseCase:
                 "subagent": output.subagent,
                 "contribution": output.contribution,
                 "verification_status": output.verification_status,
+                "experiment_candidate_components": [
+                    {
+                        "component": item.component,
+                        "entity_id": item.entity_id,
+                        "version": item.version,
+                        "content_sha256": item.content_sha256,
+                    }
+                    for item in output.experiment_candidate_components
+                ],
             }
             content_hash = hashlib.sha256(
                 json.dumps(content, sort_keys=True, separators=(",", ":")).encode()
@@ -383,7 +560,10 @@ class OrchestrateAgentIterationUseCase:
                     sealed_at=(
                         finished
                         if leased.mode == "assistant"
-                        or (output.verification_status == "PASSED" and output.error_code is None)
+                        or (
+                            output.verification_status == "PASSED"
+                            and output.error_code is None
+                        )
                         else None
                     ),
                 )
@@ -401,10 +581,72 @@ class OrchestrateAgentIterationUseCase:
             )
         )
         verified = output.verification_status == "PASSED" and output.error_code is None
+        experiment = None
+        if (
+            leased.mode == "optimization"
+            and verified
+            and output.experiment_candidate_components
+            and self._experiment_evaluator is not None
+        ):
+            baseline_by_type = {
+                item.component: item for item in leased.baseline_components
+            }
+            candidate_by_type = {
+                item.component: item for item in output.experiment_candidate_components
+            }
+            required_types = {"model", "configuration", "library", "vector_store"}
+            if (
+                set(candidate_by_type) == required_types
+                and set(baseline_by_type) == required_types
+            ):
+                changed = sum(
+                    candidate_by_type[name] != baseline_by_type[name]
+                    for name in required_types
+                )
+                if changed:
+                    self._record_audit(session_id, finished, "experiment", "started")
+                    experiment = self._experiment_evaluator.execute(
+                        experiment_id=str(self._ids.new_id()),
+                        session_id=session_id,
+                        kind=(
+                            AgentExperimentKind.ISOLATED
+                            if changed == 1
+                            else AgentExperimentKind.COMBINATION
+                        ),
+                        iteration_number=number,
+                        components=tuple(
+                            candidate_by_type[name] for name in sorted(required_types)
+                        ),
+                        baseline_components=tuple(
+                            baseline_by_type[name] for name in sorted(required_types)
+                        ),
+                        objective_id=leased.objective_id or "",
+                        objective_version=leased.objective_version or 0,
+                    )
+                    experiment_status = (
+                        "succeeded"
+                        if experiment.status.value == "SUCCEEDED"
+                        else "failed"
+                    )
+                    self._record_audit(
+                        session_id,
+                        self._clock.now(),
+                        "experiment",
+                        experiment_status,
+                        (
+                            "GLOBAL_CONSTRAINT_REJECTED"
+                            if experiment.status.value == "REJECTED_GLOBAL_CONSTRAINT"
+                            else experiment.error_code
+                        ),
+                    )
         if hypothesis is not None and self._hypotheses is not None:
             precision = output.safe_metrics.get("precision")
             recall = output.safe_metrics.get("recall")
-            if verified and isinstance(precision, (int, float)) and isinstance(recall, (int, float)):
+            if (
+                verified
+                and isinstance(precision, (int, float))
+                and isinstance(recall, (int, float))
+            ):
                 outcome = (
                     AgentHypothesisStatus.VALIDATED
                     if precision >= current_settings.objective_precision_floor
@@ -472,9 +714,16 @@ class OrchestrateAgentIterationUseCase:
             decision["hypothesis"] = hypothesis.statement
         decision["specialist"] = selected_subagent.name
         decision["verification_status"] = output.verification_status
-        decision["experiment_verified"] = verified
+        decision["specialist_verified"] = verified
+        decision["experiment_verified"] = bool(
+            experiment is not None and experiment.status.value == "SUCCEEDED"
+        )
         decision["objective_id"] = leased.objective_id
         decision["objective_version"] = leased.objective_version
+        if experiment is not None:
+            decision["experiment_id"] = experiment.experiment_id
+            decision["experiment_status"] = experiment.status.value
+            decision["global_evaluation"] = experiment.global_evaluation
         self._iterations.update(
             AgentIteration(
                 session_id=session_id,
@@ -508,6 +757,7 @@ class OrchestrateAgentIterationUseCase:
             ),
             expected_rev=current_session.rev,
         )
+        self._record_audit(session_id, finished, "lease", "succeeded", "LEASE_RELEASED")
         if self._summaries is not None:
             self._save_session_memory(
                 session_id,
@@ -525,8 +775,49 @@ class OrchestrateAgentIterationUseCase:
                     "decision": decision,
                 },
             )
-        return "stopped_by_critical_failure" if decision.get("reason") == "critical_failure" else (
-            "stopped_by_stagnation" if decision.get("reason") == "stagnation" else "iteration_completed"
+        return (
+            "stopped_by_critical_failure"
+            if decision.get("reason") == "critical_failure"
+            else (
+                "stopped_by_stagnation"
+                if decision.get("reason") == "stagnation"
+                else "iteration_completed"
+            )
+        )
+
+    def _record_audit(
+        self,
+        session_id,
+        occurred_at,
+        category,
+        status,
+        reason_code=None,
+        duration_ms=None,
+        cost_micros=None,
+        specialist=None,
+        tool=None,
+    ) -> None:
+        if self._audit is None:
+            return
+        self._audit.append(
+            AgentAuditEvent(
+                session_id=session_id,
+                occurred_at=occurred_at,
+                event_id=str(self._ids.new_id()),
+                category=category,
+                status=status,
+                reason_code=reason_code
+                if isinstance(reason_code, str) and reason_code in _SAFE_AUDIT_REASONS
+                else None,
+                duration_ms=duration_ms,
+                cost_micros=cost_micros,
+                specialist=specialist
+                if specialist in {"configuration", "library", "vector_store", "xgboost"}
+                else None,
+                tool=tool
+                if tool in {"configuration", "library", "vector_store", "xgboost"}
+                else None,
+            )
         )
 
     def _select_subagent(self, session, hypothesis, prior):
@@ -535,12 +826,12 @@ class OrchestrateAgentIterationUseCase:
             return self._subagent
         area = " ".join(
             str(value).lower()
-            for value in (
-                (hypothesis.scope if hypothesis else {}).values()
-            )
+            for value in ((hypothesis.scope if hypothesis else {}).values())
         )
         if not area:
-            area = " ".join(str(value).lower() for value in session.scope.get("areas", []))
+            area = " ".join(
+                str(value).lower() for value in session.scope.get("areas", [])
+            )
         last = prior[-1].decision if prior else {}
         if last.get("experiment_verified") is False:
             selected = "library"
@@ -548,7 +839,9 @@ class OrchestrateAgentIterationUseCase:
             selected = "vector_store"
         elif any(term in area for term in ("model", "xgboost", "classifier")):
             selected = "xgboost"
-        elif any(term in area for term in ("config", "prompt", "rubric", "threshold", "rule")):
+        elif any(
+            term in area for term in ("config", "prompt", "rubric", "threshold", "rule")
+        ):
             selected = "configuration"
         else:
             selected = "library"
@@ -558,7 +851,11 @@ class OrchestrateAgentIterationUseCase:
         if session.mode != "optimization" or self._hypotheses is None:
             return None
         all_hypotheses = self._hypotheses.list_for_session(session.session_id)
-        active = [item for item in all_hypotheses if item.status == AgentHypothesisStatus.ACTIVE]
+        active = [
+            item
+            for item in all_hypotheses
+            if item.status == AgentHypothesisStatus.ACTIVE
+        ]
         if not active and not all_hypotheses and not prior:
             insights = (
                 self._insights.list_for_session(
@@ -674,7 +971,9 @@ def _iteration_decision(
     stale = _stale_iteration_count(prior)
     improved = float(recall) > best
     stale = 0 if improved else stale + 1
-    decision.update({"score": float(recall), "improved": improved, "stale_iterations": stale})
+    decision.update(
+        {"score": float(recall), "improved": improved, "stale_iterations": stale}
+    )
     if stale >= settings.optimizer_iterations_without_improvement:
         decision.update({"action": "stop", "reason": "stagnation"})
     return decision

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  annotations: {argocd.argoproj.io/sync-wave: "2"}
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/component: logs
+    app.kubernetes.io/part-of: aria-observability
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app.kubernetes.io/name: loki}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: loki, app.kubernetes.io/component: logs, app.kubernetes.io/part-of: aria-observability}}
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: aria-loki
+      containers:
+        - name: loki
+          image: docker.io/grafana/loki:3.3.2
+          args: [-config.file=/etc/loki/loki.yaml, -config.expand-env=true]
+          ports: [{name: http, containerPort: 3100}]
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
+          resources: {requests: {cpu: 100m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
+          env:
+            - name: S3_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: aria-observability-minio-runtime, key: S3_ACCESS_KEY}}
+            - name: S3_SECRET_KEY
+              valueFrom: {secretKeyRef: {name: aria-observability-minio-runtime, key: S3_SECRET_KEY}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/loki, readOnly: true}
+            - {name: data, mountPath: /loki}
+          startupProbe: {httpGet: {path: /ready, port: http}, periodSeconds: 5, failureThreshold: 36}
+          readinessProbe: {httpGet: {path: /ready, port: http}, periodSeconds: 10}
+          livenessProbe: {httpGet: {path: /ready, port: http}, periodSeconds: 20, failureThreshold: 6}
+      volumes:
+        - {name: config, configMap: {name: aria-loki-config}}
+        - {name: data, persistentVolumeClaim: {claimName: loki-data}}

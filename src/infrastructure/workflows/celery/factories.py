@@ -96,6 +96,9 @@ from src.application.use_cases.operations.live_operations_capacity import (
     LiveOperationsCapacity,
 )
 from src.application.use_cases.research.research_tool import BoundedResearchTool
+from src.infrastructure.agents.agent_experiment_component_resolver import (
+    StoredAgentExperimentComponentResolver,
+)
 from src.infrastructure.agents.factories import (
     get_agent_budget_ledger_repository,
     get_agent_hypothesis_repository,
@@ -363,6 +366,17 @@ def get_host_personal_data_changes_port() -> MockHostServicePersonalDataChangesA
 @lru_cache
 def get_vector_store_instance_repository() -> VectorStoreInstanceRepository:
     return DynamoVectorStoreInstanceRepository()
+
+
+@lru_cache
+def get_agent_experiment_component_resolver():
+    return StoredAgentExperimentComponentResolver(
+        models=get_model_repository(),
+        model_storage=get_model_storage(),
+        configurations=get_configuration_repository(),
+        library=get_modus_operandi_library_repository(),
+        vector_stores=get_vector_store_instance_repository(),
+    )
 
 
 @lru_cache
@@ -799,6 +813,39 @@ def get_orchestrate_agent_iteration_use_case(
     subagent: AgentSubagent | None = None,
 ) -> OrchestrateAgentIterationUseCase:
     """Compose the agent tick with the live Dynamo settings repository."""
+    from src.application.use_cases.agent.evaluate_agent_experiment import (
+        EvaluateAgentExperiment,
+    )
+    from src.application.use_cases.agent.paired_agent_experiment_runner import (
+        PairedAgentExperimentRunner,
+    )
+    from src.infrastructure.agents.factories import (
+        get_agent_audit_repository,
+        get_agent_experiment_component_resolver,
+        get_agent_experiment_repository,
+    )
+    from src.infrastructure.agents.mcp_resolved_agent_pipeline_scorer import (
+        MCPResolvedAgentPipelineScorer,
+    )
+    from src.infrastructure.workflows.celery.task_factories import (
+        get_dataset_repository,
+        get_dataset_snapshot_repository,
+    )
+
+    component_resolver = get_agent_experiment_component_resolver()
+    pipeline_runner = PairedAgentExperimentRunner(
+        components=component_resolver,
+        scorer=MCPResolvedAgentPipelineScorer(),
+        objectives=get_agent_objective_repository(),
+    )
+    experiment_evaluator = EvaluateAgentExperiment(
+        experiments=get_agent_experiment_repository(),
+        objectives=get_agent_objective_repository(),
+        evaluator=pipeline_runner,
+        snapshots=get_dataset_snapshot_repository(),
+        datasets=get_dataset_repository(),
+        clock=get_clock(),
+    )
     return OrchestrateAgentIterationUseCase(
         sessions=get_agent_session_repository(),
         iterations=get_agent_iteration_repository(),
@@ -811,10 +858,13 @@ def get_orchestrate_agent_iteration_use_case(
         links=get_agent_link_repository(),
         summaries=get_agent_session_summary_repository(),
         settings=settings or get_assistant_optimizer_settings_repository(),
-        subagent=subagent
-        or StubAgentSubagent(genai_config.AGENT_STUB_DELAY_SECONDS),
+        subagent=subagent or StubAgentSubagent(genai_config.AGENT_STUB_DELAY_SECONDS),
         specialists=get_optimizer_agent_specialists(),
         objectives=get_agent_objective_repository(),
+        audit=get_agent_audit_repository(),
+        components=component_resolver,
+        experiment_evaluator=experiment_evaluator,
+        monitoring=get_monitoring(),
         clock=get_clock(),
         id_generator=get_id_generator(),
     )

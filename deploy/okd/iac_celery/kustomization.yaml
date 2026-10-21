@@ -5,7 +5,7 @@ resources:
   - storage/db/opsearch
   - storage/objectstorage/minio
   - storage/broker/redis
-  - observability/otel-collector
+  - observability
   - computation/api
   - computation/mcp
   - computation/celery-workers/worker
@@ -14,6 +14,8 @@ resources:
   - computation/celery-workers/capacity-controller
   - computation/celery-workers/simulator-alert-worker
   - computation/celery-workers/scheduler
+  - computation/celery-workers/agent-worker
+  - computation/celery-workers/agent-scheduler
   - computation/celery-workers/simulator-worker
   - frontend/app
   - proxy/nginx

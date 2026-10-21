@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import builtins
+from datetime import datetime
 from typing import Protocol
 
 from src.domain.configurations.entities import (
     FlagType,
 )
 from src.domain.fraud_knowledge.library_entities import FlagLibraryEntry
+
+
+class FlagLibraryRevisionConflict(Exception):
+    """Raised when a flag changed since an assistant draft was verified."""
 
 
 class FlagLibraryRepository(Protocol):
@@ -27,6 +32,7 @@ class FlagLibraryRepository(Protocol):
         modus_operandi_library_ids: builtins.list[str] | None = None,
         active: bool | None = None,
         embedding: builtins.list[float] | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> FlagLibraryEntry | None: ...
 
     def delete(self, entry_id: str) -> None: ...

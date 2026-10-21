@@ -7,6 +7,7 @@ from typing import Any
 from src.application.ports.similar_case_library_port import (
     SimilarCaseLibraryEntry,
     SimilarCaseLibraryRepository,
+    SimilarCaseLibraryRevisionConflict,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
@@ -44,6 +45,7 @@ class DynamoSimilarCaseLibraryRepository(SimilarCaseLibraryRepository):
         taxonomy_library_id: str | None = None,
         active: bool | None = None,
         embedding: list[float] | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> SimilarCaseLibraryEntry | None:
         current = self.get(entry_id)
         if current is None:
@@ -66,8 +68,27 @@ class DynamoSimilarCaseLibraryRepository(SimilarCaseLibraryRepository):
             updated_at=datetime.now(UTC),
             embedding=embedding if embedding is not None else current.embedding,
         )
-        self._table.put_item(Item=_to_item(updated))
+        try:
+            if expected_updated_at is None:
+                self._table.put_item(Item=_to_item(updated))
+            else:
+                from boto3.dynamodb.conditions import Attr
+
+                self._table.put_item(
+                    Item=_to_item(updated),
+                    ConditionExpression=Attr("updated_at").eq(expected_updated_at.isoformat()),
+                )
+        except self._conditional_error() as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                raise SimilarCaseLibraryRevisionConflict("similar case changed during update") from error
+            raise
         return updated
+
+    @staticmethod
+    def _conditional_error():
+        from botocore.exceptions import ClientError
+
+        return ClientError
 
     def delete(self, entry_id: str) -> None:
         self._table.delete_item(Key={"id": entry_id})

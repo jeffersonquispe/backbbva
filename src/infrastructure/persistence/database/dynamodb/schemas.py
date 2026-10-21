@@ -22,6 +22,19 @@ AUDIT_LOG_TABLE = {
     ],
 }
 
+AGENT_AUDIT_EVENTS_TABLE = {
+    "TableName": "agent_audit_events",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "event_key", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "event_key", "AttributeType": "S"},
+    ],
+}
+
 
 # Local identities. A user deliberately carries exactly one role; permissions
 # are derived from that enum in application code and are never data-managed.
@@ -654,6 +667,19 @@ LIBRARY_MODUS_OPERANDI_TABLE = {
     ],
 }
 
+LIBRARY_MODUS_OPERANDI_REVISIONS_TABLE = {
+    "TableName": "library_modus_operandi_revisions",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "entry_id", "KeyType": "HASH"},
+        {"AttributeName": "revision_sha256", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "entry_id", "AttributeType": "S"},
+        {"AttributeName": "revision_sha256", "AttributeType": "S"},
+    ],
+}
+
 
 LIBRARY_FLAGS_TABLE = {
     "TableName": "library_flags",
@@ -800,6 +826,64 @@ AGENT_ITERATIONS_TABLE = {
     "AttributeDefinitions": [
         {"AttributeName": "session_id", "AttributeType": "S"},
         {"AttributeName": "number", "AttributeType": "N"},
+    ],
+}
+AGENT_EXPERIMENTS_TABLE = {
+    "TableName": "agent_experiments",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "experiment_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "experiment_id", "AttributeType": "S"},
+    ],
+}
+AGENT_RETROSPECTIVE_VALIDATIONS_TABLE = {
+    "TableName": "agent_retrospective_validations",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "validation_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [
+        {"AttributeName": "validation_id", "AttributeType": "S"}
+    ],
+}
+AGENT_RELEASE_OBSERVATIONS_TABLE = {
+    "TableName": "agent_release_observations",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "release_id", "KeyType": "HASH"},
+        {"AttributeName": "observation_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "release_id", "AttributeType": "S"},
+        {"AttributeName": "observation_id", "AttributeType": "S"},
+    ],
+}
+AGENT_RELEASE_ACTIVE_TABLE = {
+    "TableName": "agent_release_active",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "slot", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "slot", "AttributeType": "S"}],
+}
+AGENT_RELEASES_TABLE = {
+    "TableName": "agent_releases",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "release_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [
+        {"AttributeName": "release_id", "AttributeType": "S"},
+        {"AttributeName": "status", "AttributeType": "S"},
+        {"AttributeName": "requested_at", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "StatusRequestedIdx",
+            "KeySchema": [
+                {"AttributeName": "status", "KeyType": "HASH"},
+                {"AttributeName": "requested_at", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        }
     ],
 }
 AGENT_RUNS_TABLE = {

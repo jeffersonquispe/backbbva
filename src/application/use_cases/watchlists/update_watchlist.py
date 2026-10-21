@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from src.application.errors import NotFoundError
 from src.application.ports.watchlist_port import Watchlist, WatchlistRepository
 
@@ -19,12 +21,14 @@ class UpdateWatchlistUseCase:
         name: str | None = None,
         description: str | None = None,
         active: bool | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> Watchlist:
         updated = self._watchlists.update(
             watchlist_id,
             name=name,
             description=description,
             active=active,
+            expected_updated_at=expected_updated_at,
         )
         if updated is None:
             raise WatchlistNotFoundError(f"Watchlist not found: {watchlist_id}")

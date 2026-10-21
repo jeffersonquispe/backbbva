@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from src.application.ports.embedding_port import EmbeddingResult, EmbeddingUnitOfWork
@@ -8,7 +10,10 @@ from src.application.ports.embedding_unit_of_work_factory_port import (
 )
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.monitoring_span_port import MonitoringSpan
-from src.application.ports.similar_case_library_port import SimilarCaseLibraryEntry
+from src.application.ports.similar_case_library_port import (
+    SimilarCaseLibraryEntry,
+    SimilarCaseLibraryRevisionConflict,
+)
 from src.application.use_cases.similar_case_library.create_similar_case_library_entry import (
     CreateSimilarCaseLibraryEntryUseCase,
 )
@@ -50,10 +55,13 @@ class InMemorySimilarCaseLibraryRepository:
         taxonomy_library_id: str | None = None,
         active: bool | None = None,
         embedding: list[float] | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> SimilarCaseLibraryEntry | None:
         current = self.items.get(entry_id)
         if current is None:
             return None
+        if expected_updated_at is not None and expected_updated_at != current.updated_at:
+            raise SimilarCaseLibraryRevisionConflict("similar case changed during update")
         updated = SimilarCaseLibraryEntry(
             id=current.id,
             text=text if text is not None else current.text,

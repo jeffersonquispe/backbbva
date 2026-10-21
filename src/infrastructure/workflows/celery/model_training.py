@@ -303,10 +303,13 @@ def run_model_training(
         _progress("persisting", 85)
         buffer = BytesIO()
         joblib.dump(bundle, buffer)
-        storage_key = f"{model_id}/{model.tag}.joblib"
+        artifact_bytes = buffer.getvalue()
+        from hashlib import sha256
+
+        storage_key = f"models/sha256/{sha256(artifact_bytes).hexdigest()}.joblib"
         model_object_storage.put_bytes(
             key=storage_key,
-            content=buffer.getvalue(),
+            content=artifact_bytes,
             content_type="application/octet-stream",
         )
 

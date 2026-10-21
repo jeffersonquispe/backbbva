@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from src.application.ports.watchlist_port import Watchlist, WatchlistType
@@ -71,6 +73,7 @@ class InMemoryWatchlistRepository:
         name: str | None = None,
         description: str | None = None,
         active: bool | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> Watchlist | None:
         current = self.items.get(watchlist_id)
         if current is None:

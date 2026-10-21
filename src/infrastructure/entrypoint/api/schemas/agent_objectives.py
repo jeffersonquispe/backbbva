@@ -30,6 +30,7 @@ class AgentObjectiveResponse(BaseModel):
     created_at: datetime
     approved_by: str | None
     activated_at: datetime | None
+    knowledge_decision_policy: str
 
 
 class ActivateAgentObjectiveRequest(BaseModel):

@@ -1,0 +1,14 @@
+# Observability group: telemetry pipeline + in-namespace backends.
+#   otel-collector -> tempo (traces) | loki (logs) | prometheus (metrics)
+#   tempo/loki persist to observability-minio (buckets via observability-minio-init)
+#   grafana reads all three.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - observability-minio
+  - observability-minio-init
+  - tempo
+  - loki
+  - prometheus
+  - otel-collector
+  - grafana

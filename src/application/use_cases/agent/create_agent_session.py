@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from src.application.ports.agent_experiment_component_port import (
+    AgentExperimentComponentResolver,
+)
 from src.application.ports.agent_objective_port import AgentObjectiveRepository
 from src.application.ports.agent_prompt_port import AgentPromptRepository
 from src.application.ports.agent_session_port import (
@@ -14,6 +17,7 @@ from src.application.ports.assistant_optimizer_settings_port import (
 )
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
+from src.domain.agents.experiment import ComponentVersionReference
 from src.domain.agents.objective import GLOBAL_FRAUD_OBJECTIVE_ID
 
 REQUIRED_PROMPTS = (
@@ -58,6 +62,7 @@ class CreateAgentSessionUseCase:
         prompts: AgentPromptRepository,
         settings: AssistantOptimizerSettingsPort,
         objectives: AgentObjectiveRepository | None = None,
+        components: AgentExperimentComponentResolver | None = None,
         clock: Clock,
         id_generator: IdGenerator,
     ) -> None:
@@ -65,6 +70,7 @@ class CreateAgentSessionUseCase:
         self._prompts = prompts
         self._settings = settings
         self._objectives = objectives
+        self._components = components
         self._clock = clock
         self._ids = id_generator
 
@@ -97,7 +103,9 @@ class CreateAgentSessionUseCase:
 
         ceilings = {
             "tokens": settings.optimizer_session_budget_ceiling_tokens,
-            "usd_micros": int(settings.optimizer_session_budget_ceiling_usd * 1_000_000),
+            "usd_micros": int(
+                settings.optimizer_session_budget_ceiling_usd * 1_000_000
+            ),
             "seconds": settings.optimizer_session_budget_ceiling_seconds,
         }
         budget = {
@@ -130,6 +138,25 @@ class CreateAgentSessionUseCase:
             and active_objective is None
         ):
             raise AgentSessionPolicyError("an active optimizer objective is required")
+        baseline_components: tuple[ComponentVersionReference, ...] = ()
+        if request.mode == "optimization":
+            if self._components is None:
+                raise AgentSessionPolicyError(
+                    "experiment baseline resolver is unavailable"
+                )
+            try:
+                baseline_components = self._components.active_baseline()
+            except (RuntimeError, ValueError, TypeError) as error:
+                raise AgentSessionPolicyError(
+                    "complete pinned baseline is unavailable"
+                ) from error
+            if {item.component for item in baseline_components} != {
+                "model",
+                "configuration",
+                "library",
+                "vector_store",
+            }:
+                raise AgentSessionPolicyError("complete pinned baseline is unavailable")
         session = AgentSession(
             session_id=str(self._ids.new_id()),
             mode=request.mode,
@@ -142,5 +169,6 @@ class CreateAgentSessionUseCase:
             objective_version=active_objective.version if active_objective else None,
             budget_limits=budget,
             prompt_versions=prompt_versions,
+            baseline_components=baseline_components,
         )
         return self._sessions.create(session)

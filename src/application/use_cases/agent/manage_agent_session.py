@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from uuid import uuid4
 
+from src.application.ports.agent_audit_port import AgentAuditEvent, AgentAuditRepository
 from src.application.ports.agent_session_port import (
     AgentSession,
     AgentSessionRepository,
@@ -27,10 +29,12 @@ class ManageAgentSessionUseCase:
         repository: AgentSessionRepository,
         clock: Clock,
         settings: AssistantOptimizerSettingsPort | None = None,
+        audit: AgentAuditRepository | None = None,
     ) -> None:
         self._repository = repository
         self._clock = clock
         self._settings = settings
+        self._audit = audit
 
     def list_for_owner(self, owner_id: str, limit: int = 50) -> list[AgentSession]:
         return self._repository.list_by_owner(owner_id, limit)
@@ -114,4 +118,16 @@ class ManageAgentSessionUseCase:
         self, session: AgentSession, status: AgentSessionStatus
     ) -> AgentSession:
         updated = replace(session, status=status, updated_at=self._clock.now())
-        return self._repository.update(updated, expected_rev=session.rev)
+        saved = self._repository.update(updated, expected_rev=session.rev)
+        if self._audit is not None:
+            self._audit.append(
+                AgentAuditEvent(
+                    session_id=session.session_id,
+                    occurred_at=saved.updated_at,
+                    event_id=str(uuid4()),
+                    category="session",
+                    status="succeeded",
+                    reason_code=f"SESSION_{status.value}",
+                )
+            )
+        return saved

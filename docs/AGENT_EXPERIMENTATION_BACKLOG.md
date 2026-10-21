@@ -19,12 +19,17 @@ integradora H6: lint Ruff/mypy 0/0, arquitectura 233/233, pytest focalizado
 20/20 y Playwright real por nginx 1/1. El merge conservó la limpieza E2E de
 tablas del chat H4 y del muestreador H6. Los baselines de lint no crecieron.
 
-Queda pendiente la decisión 8 y las decisiones técnicas B0.2–B0.4 antes de
-H8. H7 en adelante no está autorizado por estas integraciones. FP0/FP1 de la
-pestaña del muestreador se integraron en frontend (`c8eb74c`, `8cf3d2e`) y el
-E2E del panel pasó; FP1b/FP2/FP3 del panel conversacional siguen por confirmar.
-La suite completa `make e2e-all-local` pasó 27/27 por nginx en la revisión
-integradora del 2026-10-20, tras corregir los
+El modo autónomo y el orden adaptativo de especialistas quedaron acordados.
+B0.2–B0.4 están acordados. H5, H6, H8, H9 y H10 están integrados; H10 quedó
+integrado en `3451384` junto con FP4/FP5. Verificación integrada: lint Ruff y
+mypy 0/0, arquitectura 240/240, pytest focalizado 35/35; E2E H10 con propuesta
+XGBoost verificada y E2E Playwright FP4/FP5 1/1 pasaron por nginx. ESLint,
+TypeScript y `git diff --check` también pasaron. FP0/FP1 del muestreador se
+integraron en frontend (`c8eb74c`, `8cf3d2e`), FP2/FP3 en `a50afba` y FP4/FP5
+en `43ce0f9`. La imagen frontend del primer intento de FP4/FP5 estaba vieja;
+tras reconstruir el stack desde la rama integrada el escenario pasó. Los
+baselines de lint permanecen en cero. Investigación integradora del 2026-10-20:
+la suite completa `make e2e-all-local` pasó 27/27 por nginx tras corregir los
 fallos reportados anteriormente. E01 tenía dos errores de backend: la
 transacción de activación enviaba valores tipados a un cliente boto3 que ya los
 serializa, y la aprobación omitía `:pending` de sus valores de expresión. E01
@@ -62,8 +67,10 @@ channel manager, en dos modos:
 - **Asistente**: chat en un panel lateral; el usuario pega texto y el agente
   crea o edita entidades (Biblioteca, configuración del agente, Vector Stores,
   modelos XGBoost) como borradores que el usuario confirma.
-- **Optimizador**: ciclo largo que diagnostica, prueba y deja paquetes
-  candidatos listos con evidencia. Nunca activa ni promueve nada.
+- **Optimizador**: ciclo largo y autónomo que diagnostica, prueba, analiza
+  fallos y decide el siguiente experimento. No pide aprobación entre pasos ni
+  construye paquetes de resultados. Al detenerse presenta el estado acumulado;
+  `manager` o `release_manager` debe aprobar cualquier promoción a producción.
 
 **Cómo trabajar con el usuario** (no volver a preguntar lo decidido):
 - Hablar en español. Los términos abstractos le confunden: explicar con un
@@ -80,8 +87,8 @@ channel manager, en dos modos:
 | Tema | Decisión | Dónde |
 |---|---|---|
 | Modos | Un orquestador con dos modos: asistente (primer vertical) y optimizador | Objetivo |
-| Aprobación | El agente nunca activa ni promueve. Todo es un paquete candidato versionado que el usuario aprueba | Principio 6 |
-| Confirmación | Siempre explícita, antes de toda escritura sobre una entidad viva (crear, editar, eliminar), guardada como auditoría append-only | BM.7 |
+| Aprobación | El optimizador ejecuta iteraciones sin aprobación intermedia; `manager`/`release_manager` aprueba solo la promoción a producción. El asistente conserva borradores y confirmación explícita | Dec. 5, principio 6 |
+| Confirmación | En modo asistente, explícita antes de escribir una entidad viva y guardada como auditoría append-only. En modo optimizador, no hay confirmación entre experimentos; promover a producción requiere aprobación de `manager`/`release_manager` | BM.7, dec. 5 |
 | Entrada del usuario | Solo texto pegado en la v1, sin archivos | Dec. 9, 14 |
 | Datos personales | Se enmascaran antes del modelo y antes de guardar; el original no se conserva; sin KMS | BM.1, dec. 19 |
 | Tamaño y retención | 8.000 caracteres por mensaje (configurable); 2 años para todo el chat | Dec. 13, 19 |
@@ -147,16 +154,22 @@ Revisarlos antes de implementar; el usuario puede corregirlos.
   autorización añade presupuesto al límite vigente y se registra en auditoría.
   Al agotar el nuevo tope vuelve a pausarse. No hay renovación automática; el
   máximo de ampliaciones se controla con `optimizer_max_budget_renewals`.
-- **5 (decidida 2026-10-19):** el `channel_manager` aprueba o rechaza el
-  paquete de resultados completo. La promoción a producción es un paso aparte
-  y requiere aprobación de `manager` o `release_manager`.
+- **5 (ajustada 2026-10-19):** el optimizador trabaja de forma autónoma, sin
+  paquetes ni aprobaciones por iteración. `manager` o `release_manager` aprueba
+  la promoción a producción. El `channel_manager` recibe el progreso y el
+  resultado acumulado de su sesión.
 - **6 (decidida 2026-10-19):** los diagnósticos agregados se muestran por
   segmento; solo se publican métricas de un segmento cuando contiene al menos
   30 casos.
-- **7**: qué insights persisten entre sesiones y cuáles caducan.
-- **8**: qué subagente del optimizador va primero.
-- **B0.2, B0.3 y B0.4**: política de datos y presupuesto, contrato de salida
-  segura y alcance por entidad. Son trabajo de definición, no preguntas.
+- **7 (decidida 2026-10-19):** `optimizer_insights` conserva hallazgos
+  agregados con procedencia y se reevaluará en nuevas sesiones; no requiere
+  confirmación caso por caso.
+- **8 (decidida 2026-10-19):** no hay un orden fijo de agentes. El orquestador
+  elige el siguiente especialista según la hipótesis y lo que revele cada
+  experimento; puede encadenar varios ciclos sin pedir aprobación intermedia.
+- **B0.2, B0.3 y B0.4 (acordadas 2026-10-19):** política de datos y
+  presupuesto, contrato de salida segura y alcance por entidad; ver sus
+  secciones para los límites acordados.
 - Detalle técnico: qué versiones del esquema de alerta son compatibles (BS.3).
 
 Para construir el **modo asistente** no queda ninguna decisión abierta.
@@ -172,11 +185,12 @@ implementación** → **Planificación de frontend** → Decisiones pendientes.
 
 ## Objetivo
 
-Construir un agente de ciclo prolongado que haga las labores de un channel
-manager: configurar el agente de revisión de alertas, probarlo, diagnosticarlo
-y dejar todo listo para promover. Tiene una pieza central, el **orquestador**,
-que llama subagentes especialistas por área. El usuario conversa con el
-orquestador para darle insights y dirección.
+Construir un optimizador de ciclo prolongado que diagnostique resultados,
+pruebe cambios experimentales y siga investigando fallos concretos. El
+**orquestador** elige subagentes especialistas de forma adaptativa según cada
+resultado; no sigue una lista fija ni pide aprobación entre pasos. El usuario
+conversa con él, le da dirección y ve el progreso. La aprobación de `manager`
+o `release_manager` solo interviene para promover a producción.
 
 El mismo orquestador opera en **dos modos**:
 
@@ -184,17 +198,24 @@ El mismo orquestador opera en **dos modos**:
   ("te mando esta información, crea un modus operandi"). Un subagente
   generador produce un borrador de entidad, verificadores deterministas lo
   revisan y el usuario lo edita y aprueba. No hay optimización ni ciclo largo.
-- **Modo optimización**: el ciclo prolongado descrito en las fases siguientes.
+- **Modo optimización**: el ciclo prolongado descrito en las fases siguientes;
+  el agente decide y ejecuta iteraciones adaptativas sin pedir aprobación
+  intermedia. El progreso aparece como una conversación continua.
 
-Ambos comparten sesión, subagentes, paquete candidato, chat, insights,
-autorización y aprobación humana. El modo asistente se construye primero
-porque ejercita toda la columna vertebral sin requerir la función de
-efectividad global ni el presupuesto renovable.
+Ambos comparten sesión, subagentes, chat, insights y auditoría. Los borradores
+de entidades del **modo asistente** usan paquetes versionados y confirmación
+explícita. El optimizador registra iteraciones, hipótesis, experimentos,
+evidencia y progreso sin paquetes ni aprobaciones paso a paso. Se construye
+primero el modo asistente porque ejercita la columna vertebral sin requerir la
+función de efectividad global ni el presupuesto renovable.
 
-El agente puede crear y modificar cualquier artefacto que el channel manager
-gestiona, incluidas entidades nuevas como modus operandi. Todo lo que produce
-es un **paquete candidato versionado**. El usuario revisa y aprueba; el agente
-no activa ni promueve nada por cuenta propia.
+En modo asistente, el agente puede proponer cambios a los artefactos que el
+channel manager gestiona; cada cambio es un borrador candidato confirmado por
+una persona antes de escribir en una entidad viva. En modo optimizador, puede
+probar de forma autónoma cambios aislados en entornos/datasets experimentales,
+compararlos con el baseline y continuar investigando los fallos observados. No
+puede promover el resultado a producción: esa aprobación corresponde a
+`manager` o `release_manager`.
 
 Este backlog se basa en el estado observado de `backend` y `frontend_mockup`.
 No cambia contratos actuales hasta que se acuerden las decisiones del final.
@@ -218,8 +239,10 @@ No cambia contratos actuales hasta que se acuerden las decisiones del final.
   - La Biblioteca (modus operandi con su playbook, taxonomías, casos
     similares) se edita en vivo, sin versión ni borrador.
   - `OperationalSettings` es un singleton con efecto inmediato.
-  - Por eso el agente **no escribe** en ninguno de los dos: sus cambios viven
-    en el paquete candidato hasta que el usuario los aprueba (ver B1.2).
+- Por eso el **modo asistente no escribe** en ninguno de los dos: sus cambios
+  viven en un borrador hasta que el usuario los confirma (ver B1.2). El
+  optimizador puede probar variantes en su entorno experimental aislado; no
+  modifica esas entidades vivas.
 - Existen rollups de métricas de negocio y técnicas (`mark` vs `fraud_label`,
   tokens, latencia, fallos) y un LLM-judge muestreado (#22). Son insumos para
   metas y diagnóstico.
@@ -235,13 +258,20 @@ No cambia contratos actuales hasta que se acuerden las decisiones del final.
    agente nunca se verifica a sí mismo.
 3. La efectividad global se calcula sobre el resultado final con una función
    objetivo versionada. No se promedian métricas incompatibles.
-4. Los datos por caso permanecen en workers con acceso autorizado. El LLM
-   recibe métricas agregadas y referencias opacas, nunca filas, payloads o
-   documentos. El diagnóstico se apoya en agregados por segmento, etapa y ruta.
-5. Todo candidato fija versiones, dataset, protocolo y presupuesto para que sus
-   resultados sean reproducibles.
-6. Experimentar y publicar son fases distintas. Aprobar y promover son
-   acciones humanas, auditadas y ligadas al candidato evaluado.
+4. El optimizador puede analizar los datos completos de las pruebas, las
+   configuraciones y los modelos que forman el ciclo de optimización. Los
+   workers autorizados acceden a los datos necesarios para evaluar cada
+   experimento; el LLM recibe métricas agregadas y referencias opacas, nunca
+   filas, payloads o documentos. El diagnóstico se apoya en agregados por
+   segmento, etapa y ruta.
+5. Cada experimento fija versiones, dataset, protocolo y presupuesto para que
+   sus resultados sean reproducibles. Las iteraciones usan entrenamiento y
+   validación; la partición final se reserva para evaluar el resultado global
+   del pipeline lineal al cerrar la optimización.
+6. El optimizador itera de forma autónoma en el entorno experimental y no
+   solicita aprobaciones entre pasos. La promoción a producción es una acción
+   humana auditada de `manager` o `release_manager`. El modo asistente sí exige
+   confirmación humana antes de escribir en entidades vivas.
 7. Las decisiones del loop se basan en estado persistido (verificaciones,
    insights, decisiones), no en el historial conversacional del LLM.
 8. Lo que el usuario dice en el chat es una **entrada**, no una orden
@@ -321,36 +351,78 @@ configurable que usan las métricas y el optimizador.
 ### B0.2 — Política de experimentación, datos y presupuesto
 **Backend + seguridad + negocio**
 
-Datasets permitidos, particiones, segmentos, retención, límites de volumen y
-presupuesto de cómputo. Definir cómo se **renueva** el presupuesto en un ciclo
-prolongado (por sesión, por ventana de tiempo, por aprobación). Asignar roles
-para crear, consultar, chatear, aprobar y promover.
+El optimizador puede analizar los datos completos del ciclo de optimización:
+pruebas y sus resultados, configuraciones y versiones, y modelos junto con sus
+evaluaciones. No se limita a agregados precalculados. Los workers autorizados
+acceden a los datos necesarios para evaluar cada experimento. Para datasets
+con etiquetas, se mantiene la elegibilidad acordada (datos maduros,
+clasificables, sin `pending`, esquema compatible y horizonte recuperable de
+hasta seis meses). Las iteraciones usan entrenamiento y validación; se reserva
+la partición final para evaluar el resultado global de punta a punta, dado que
+el pipeline es lineal. Los datos por caso no se copian a la conversación ni se
+persisten como insights; la interfaz y la memoria entre sesiones reciben solo
+agregados protegidos, con mínimo de 30 casos por segmento. No se duplican los
+datos fuente. Definir además límites de volumen y presupuesto de cómputo, así
+como
+la renovación del presupuesto en un ciclo prolongado (por sesión, por ventana
+de tiempo, por aprobación). Asignar roles para crear, consultar, chatear,
+aprobar y promover.
 
-**Aceptación:** política aplicable por backend; ningún límite depende de una
-instrucción al LLM ni de lo dicho en el chat.
+**Concurrencia acordada:** hasta tres experimentos simultáneos por sesión si
+son independientes; los experimentos que dependan de resultados anteriores
+se ejecutan en secuencia. Se permiten hasta dos sesiones de optimización
+simultáneas, con un máximo global de seis experimentos concurrentes.
+
+**Iteraciones acordadas:** no hay un máximo fijo de iteraciones. La sesión
+puede continuar mientras tenga presupuesto y tiempo; se detiene antes por
+fallo crítico, falta de señal útil o cancelación del usuario.
+
+**Retención acordada:** dos años para hipótesis, configuraciones probadas,
+métricas agregadas y decisiones; 90 días desde el cierre para artefactos de
+modelos candidatos; política vigente para modelos promovidos. Los datos fuente
+se consultan desde el pipeline autorizado y no se duplican.
+
+**Aceptación:** el optimizador puede evaluar todas las pruebas, configuraciones
+y modelos autorizados dentro de los límites fijados; para cada evaluación usa
+el conjunto completo de datos elegibles correspondiente. Las iteraciones
+usan entrenamiento/validación y la partición final mide el resultado global
+del pipeline lineal. La política se aplica por backend y ningún límite depende
+de instrucciones al LLM ni de lo dicho en el chat.
 
 ### B0.3 — Clasificar salidas y datos sensibles
 **Backend + seguridad**
 
-Revisar resultados por caso, informes, logs y errores para determinar qué
-puede revelar datos. El detalle de corridas actual no es una frontera segura
-para el agente.
+La conversación y los informes pueden mostrar métricas y conteos agregados por
+segmento solo cuando cada segmento contiene al menos 30 casos, además de las
+configuraciones probadas y resultados de modelos. Excluir filas individuales,
+identificadores de alertas y payloads originales. Aplicar la misma frontera a
+logs y errores; el detalle de corridas actual no es una frontera segura para
+el agente.
 
-**Aceptación:** contrato de salida segura aprobado, con campos permitidos y
-excluidos.
+**Aceptación:** backend y frontend solo exponen campos permitidos y suprimen
+segmentos con menos de 30 casos; logs y errores no filtran datos por caso.
 
 ### B0.4 — Alcance de control del agente
 **Backend + negocio**
 
-Inventariar cada entidad que gestiona el channel manager (configuración del
-agente por paso, rúbricas, umbrales, watchlists, Biblioteca, Vector Stores,
-modelos XGBoost; `OperationalSettings` y `AssistantOptimizerSettings` quedan
-excluidas porque solo las modifican `release_manager` y `manager`) y declarar para cada una: qué puede
-crear/modificar el agente, cómo se representa como borrador y cómo se aplica
-al aprobarse.
+Alcance acordado para la primera versión:
 
-**Aceptación:** tabla entidad → permisos del agente → representación candidata
-→ flujo de aplicación existente.
+| Área/entidad | Capacidad del optimizador | Frontera |
+|---|---|---|
+| Pruebas | Crear y ejecutar pruebas experimentales con datos elegibles; medir etapas y resultado global | No cambia el dataset fuente; la partición final queda reservada para la evaluación global |
+| Configuración del agente | Probar variantes de rúbricas, umbrales y configuración por etapa | Copias/versiones experimentales; no modifica la configuración activa |
+| Modelos XGBoost | Entrenar y evaluar modelos candidatos; variar parámetros y variables dentro de los límites configurados | El modelo activo no se reemplaza durante la sesión |
+| Vector Stores | Construir y evaluar generaciones candidatas | No cambia la generación activa durante la sesión |
+| Biblioteca, taxonomías y watchlists | Consultar como contexto | Sin creación ni edición en v1; capacidad pendiente de decisión posterior |
+| `OperationalSettings` y `AssistantOptimizerSettings` | Consultar lo necesario para la sesión | Solo `manager` y `release_manager` pueden modificarlas |
+
+El optimizador no solicita aprobaciones entre experimentos. La promoción a
+producción de un resultado requiere aprobación de `manager` o
+`release_manager` y usa el flujo existente de despliegue.
+
+**Aceptación:** las pruebas y variantes corren de forma aislada; ninguna
+entidad activa cambia durante la sesión; la promoción pasa por el flujo
+existente y por un aprobador autorizado.
 
 ## Fase 1 — Columna vertebral: sesiones, candidato y `verify`
 
@@ -366,20 +438,16 @@ del dataset.
 **Aceptación:** sesión auditable que puede pausarse, reanudarse y cancelarse
 sin perder evidencia.
 
-### B1.2 — Paquete candidato versionado
+### B1.2 — Borradores versionados del modo asistente
 **Backend**
 
-Artefacto único que agrupa todo lo que el agente propone en una iteración:
-versión candidata de configuración, entidades nuevas o modificadas de la
-Biblioteca (incluidos modus operandi y sus playbooks), generación candidata de
-Vector Store y modelo XGBoost candidato. Fija referencias exactas a dataset (hash/versión),
-modelo, configuración, protocolo, particiones, parámetros y semilla.
+En modo asistente, cada operación de Biblioteca, configuración, Vector Store
+o modelo es un borrador versionado con procedencia, diff y verificaciones. El
+usuario lo confirma explícitamente antes de escribir en la entidad viva. Este
+flujo no se usa para las iteraciones del optimizador.
 
-Las entidades de la Biblioteca **no se escriben en sus tablas vivas**: residen en el paquete como borrador y se aplican por los flujos
-existentes solo cuando el usuario aprueba.
-
-**Aceptación:** el paquete muestra qué cambió y qué permaneció constante,
-puede diferenciarse contra la versión activa y es inmutable una vez evaluado.
+**Aceptación:** el borrador muestra cambios y campos sin cambio, se compara
+con la versión activa, conserva auditoría y no se aplica sin confirmación.
 
 ### B1.3 — Contrato seguro `verify`
 **Backend**
@@ -402,11 +470,12 @@ reutilizan los límites de pruebas o si el agente necesita presupuesto propio.
 **Aceptación:** el agente no puede ampliar sus límites mediante argumentos de
 herramienta ni mediante el chat; cada acción queda ligada a actor y sesión.
 
-### B1.5 — API de sesiones y paquetes
+### B1.5 — API de sesiones, progreso y borradores
 **Backend + frontend API**
 
 Crear, iniciar, pausar, reanudar, cancelar, consultar y listar sesiones,
-iteraciones, paquetes y verificaciones seguras.
+iteraciones, runs, resultados y verificaciones seguras; borradores versionados
+solo para el modo asistente.
 
 **Aceptación:** respuestas autorizadas y libres de datos por caso; idempotencia
 y errores tipados documentados.
@@ -610,9 +679,10 @@ guardarlo.
 **Backend**
 
 Interfaz común para especialistas: entrada (alcance, hipótesis, presupuesto
-asignado), salida (contribución al paquete candidato + resultado `verify`),
-límites y cancelación. Los especialistas se registran por área sin cambiar el
-orquestador.
+asignado), salida (resultado experimental, métricas permitidas, evidencia y
+resultado `verify`), límites y cancelación. Un especialista puede proponer y
+probar una variante experimental; nunca promueve a producción. Los especialistas
+se registran por área sin cambiar el orquestador.
 
 **Aceptación:** un subagente de prueba (stub) se enchufa y ejecuta de extremo a
 extremo sin tocar el orquestador.
@@ -620,21 +690,28 @@ extremo sin tocar el orquestador.
 ### B3.2 — Orquestador
 **Backend**
 
-Ciclo persistido y prolongado:
-1. leer verificaciones, diagnóstico e insights activos;
-2. formular hipótesis y priorizarlas;
-3. escoger subagente(s) dentro del alcance;
-4. construir/actualizar el paquete candidato;
-5. verificar con los evaluadores deterministas;
-6. actualizar ranking y registrar la decisión con su evidencia;
-7. repetir mientras haya señal y presupuesto.
+Ciclo persistido, prolongado y autónomo:
+1. leer baseline, hallazgos, insights reutilizables y errores observados;
+2. formular y priorizar una hipótesis comprobable;
+3. elegir dinámicamente el especialista o especialistas necesarios;
+4. ejecutar un experimento aislado y medirlo contra el baseline;
+5. investigar el resultado, incluidos falsos negativos concretos solo mediante
+   agregados protegidos (por ejemplo, “no detecta G”);
+6. registrar la evidencia y elegir el siguiente experimento, en serie o en
+   paralelo si no hay dependencia;
+7. repetir sin solicitar aprobación entre iteraciones mientras haya señal y
+   presupuesto.
 
-Para por meta cumplida, presupuesto agotado, regresión de límites duros, falta
-de señal o instrucción del usuario. Al parar, deja un paquete recomendado con
-su evidencia.
+Por ejemplo, puede ajustar XGBoost, evaluar el recall, descubrir que G sigue
+sin detectarse y continuar analizando ese fallo antes de decidir el siguiente
+cambio. Solo pausa por límites, fallos críticos, falta de señal, petición del
+usuario o aclaración realmente bloqueante. Al detenerse muestra un resumen
+acumulado del trabajo y sus resultados; no genera un paquete ni activa cambios
+en producción.
 
-**Aceptación:** cada decisión referencia evidencia; recuperación tras fallo e
-idempotencia; criterios de parada deterministas.
+**Aceptación:** cada iteración referencia evidencia; la sesión puede atravesar
+múltiples hipótesis y especialistas sin aprobación humana intermedia;
+recuperación tras fallo e idempotencia; criterios de parada deterministas.
 
 ### B3.3 — Combinaciones
 **Backend**
@@ -723,7 +800,7 @@ alterar límites, roles, presupuesto ni activar acciones de aprobación.
 
 ## Fase A — Modo asistente (primer vertical)
 
-Depende de B1.1–B1.5 (sesión, paquete, autorización), B3.1 (contrato de
+Depende de B1.1–B1.5 (sesión, borrador del asistente, autorización), B3.1 (contrato de
 subagente) y B4.1–B4.3 (chat e insights). Se construye antes que la
 optimización.
 
@@ -899,7 +976,9 @@ agente antes de aprobar; solo se ofrecen tipos de entidad autorizados.
 
 ## Fase 5 — Subagentes por área
 
-Cada uno cumple B3.1 y aporta al paquete candidato (B1.2).
+Cada especialista cumple B3.1 y devuelve evidencia y verificaciones para el
+ciclo autónomo. En el modo asistente, los cambios de entidades generan
+borradores confirmables por separado.
 
 ### B5.1 — Configuración del agente
 Rúbricas, prompts, herramientas por paso, umbrales y reglas determinísticas,
@@ -907,8 +986,12 @@ usando preview y versionado existentes. Pruebas contra una versión fijada.
 
 ### B5.2 — Biblioteca y entidades nuevas
 Crear y modificar modus operandi (con playbook y fallbacks), taxonomías, casos
-similares y watchlists como borradores del paquete. Parte de B2.6 para
-proponer entidades nuevas con evidencia.
+similares y watchlists. En el modo asistente, propone borradores de esas
+entidades para confirmación explícita. En el optimizador, produce experimentos,
+evidencia y verificaciones sin aprobación entre iteraciones. Parte de B2.6
+para proponer entidades nuevas con evidencia. Por ejemplo: «Ajusté XGBoost y
+sigue sin detectar G; voy a revisar qué tienen en común esos casos y probar
+otra hipótesis».
 
 ### B5.3 — Vector Store
 Construir una generación candidata desde el manifiesto versionado, validar
@@ -923,8 +1006,8 @@ modifica.
 ### B5.5 — Operación (descartado)
 `OperationalSettings` solo lo modifican `release_manager` y `manager`, y el
 optimizador solo lo lanza `channel_manager`. El agente no lo toca ni lo
-propone en un paquete. Si en el futuro se quiere que sugiera ajustes de
-capacidad, sería un informe de texto para esos roles, fuera del paquete.
+propone como cambio. Si en el futuro se quiere que sugiera ajustes de
+capacidad, sería un informe de texto para esos roles.
 
 ## Fase 6 — Interfaz de usuario
 
@@ -939,23 +1022,28 @@ explicar qué puede modificar el agente y qué se evaluará.
 
 ### F6.2 — Chat y panel de insights
 Chat junto al estado del loop. Panel de insights con estado, vínculos y
-resultado; confirmar, editar o rechazar los propuestos por el agente.
+procedencia y resultado. Las propuestas conversacionales se pueden confirmar,
+editar o rechazar; los hallazgos agregados se presentan como evidencia y no
+detienen el loop para pedir aprobación.
 
 ### F6.3 — Progreso del loop
 Hipótesis resumida, subagente elegido, estado de verificación, coste
 acumulado, motivo de parada y presupuesto restante.
 
-### F6.4 — Comparar baseline y paquetes
+### F6.4 — Comparar baseline y experimentos
 Métrica global, restricciones, resultados por área y segmento, incertidumbre,
-cobertura de etiquetas, diffs de cada entidad. Candidatos rechazados y su
-motivo.
+conteo de etiquetas y cambios probados, con sus resultados y motivos para
+continuar o descartarlos. La conversación refleja el progreso acumulado.
 
-### F6.5 — Revisar y aprobar
-Diffs y evidencia `verify` por ítem; aprobación por ítem o por paquete que
-dispara los flujos existentes de activación/promoción según rol.
+### F6.5 — Resumen final y promoción
+Al alcanzar un criterio de parada, mostrar qué optimizó, qué fallos investigó,
+qué experimentos mantuvo o descartó y con qué evidencia. No hay aprobación de
+iteraciones ni paquete final. Si el resultado requiere promoción a producción,
+se solicita la aprobación de `manager` o `release_manager` mediante el flujo
+existente, con versiones y resultados de evaluación fijados.
 
-**Aceptación:** el loop no publica; aprobación y promoción quedan auditadas y
-ligadas al paquete evaluado.
+**Aceptación:** el loop no publica ni se interrumpe por aprobaciones de pasos;
+cualquier promoción es explícita, auditada y aprobada por los roles acordados.
 
 ### F6.6 — Cliente API, estados y permisos
 Tipos, polling de progreso, errores seguros y controles según permisos. El
@@ -1014,15 +1102,16 @@ agent_sessions ──< agent_iterations ──< agent_runs ──< agent_tool_ca
    │  │  │               │                  │
    │  │  │               │                  └── async_operations (1:1, existente)
    │  │  │               ├──> agent_hypotheses ◄── agent_findings (diagnóstico)
-   │  │  │               ├──> agent_packages ──< items ──> entidades vivas*
-   │  │  │               └──> agent_verifications (sobre paquetes/runs)
+   │  │  │               └──> agent_verifications (sobre experimentos/runs)
    │  │  └──< agent_budget_ledger
    │  └──< agent_session_summaries
    └──< agent_messages ──< agent_attachments (contenido en object storage)
               │
-              └─ extrae ─> agent_insights ──(agent_links)──> hipótesis,
-                                                              paquetes, verificaciones
-* solo se escriben al aprobar y vía los casos de uso existentes
+              └─ extrae ─> agent_insights (conversacionales, por sesión)
+agent_hypotheses ──> agent_findings ──> optimizer_insights (memoria agregada)
+
+agent_packages e items pertenecen al modo asistente; solo allí un borrador
+confirmado se aplica por los casos de uso existentes.
 ```
 
 ### Tablas
@@ -1039,22 +1128,24 @@ retención; identificadores UUID o ULID; sin datos por caso en ningún atributo.
   `created_by`/`created_by_id`, `created_at`/`updated_at`, `objective_id` +
   `objective_version`, `scope` (áreas y entidades habilitadas),
   `budget_limits` (copia congelada de la política al crear), `budget_spent`
-  (contadores atómicos), `baseline_ref`, `current_package_id`,
+  (contadores atómicos), `baseline_ref`,
+  `current_assistant_draft_id` (solo modo asistente),
   `final_partition_reserved`, `stop_reason`, `summary_version`,
   `prompt_versions` (versiones de prompt fijadas al crear la sesión),
   `lease_owner`/`lease_expires_at`, `rev`.
 - GSIs: `OwnerIdx` (`created_by_id`, `created_at`) para "mis sesiones";
   `StatusIdx` (`status`, `updated_at`) para recuperación y kill switch.
-- Estados: `DRAFT → ACTIVE ⇄ PAUSED`, `ACTIVE → WAITING_USER` (pregunta o
-  confirmación pendiente), `ACTIVE → WAITING_APPROVAL` (paquete recomendado),
-  terminales `COMPLETED`, `STOPPED` (meta, presupuesto, regresión o falta de
-  señal), `CANCELLED`, `FAILED`. En modo asistente el ciclo es
-  `ACTIVE → WAITING_USER → WAITING_APPROVAL → COMPLETED`.
+- Estados: `DRAFT → ACTIVE ⇄ PAUSED`, `ACTIVE → WAITING_USER` solo cuando se
+  necesita una aclaración bloqueante; terminales `COMPLETED`, `STOPPED` (meta,
+  presupuesto, fallo crítico o falta de señal), `CANCELLED`, `FAILED`. El
+  optimizador no tiene estado `WAITING_APPROVAL` entre iteraciones. En modo
+  asistente el ciclo puede ser `ACTIVE → WAITING_USER → WAITING_APPROVAL →
+  COMPLETED` para confirmar un borrador.
 
 **`agent_iterations`** — una vuelta del ciclo; en modo asistente hay una o
 pocas.
 - Clave: `session_id` + `n` (entero con relleno de ceros).
-- Atributos: `status`, `hypothesis_ids`, `run_ids`, `package_id`,
+- Atributos: `status`, `hypothesis_ids`, `run_ids`, `experiment_refs`,
   `verification_ids`, `partitions_consulted`, `decision`
   (`{action, rationale, evidence_refs}`: es el registro de decisiones,
   principio 7), `budget_delta`, `started_at`/`finished_at`.
@@ -1171,8 +1262,8 @@ run.
   activos de un alcance; `CarryOverIdx` (`carry_over_owner`, `created_at`),
   índice disperso que solo contiene insights activos con `carry_over`.
 
-**`agent_links`** — aristas del grafo insight → hipótesis → paquete →
-verificación (B4.4).
+**`agent_links`** — aristas del grafo insight → hipótesis → experimento o
+borrador del asistente → verificación (B4.4).
 - Clave: `session_id` + `sk` = `src_type#src_id#rel#dst_type#dst_id`.
 - Atributos: `rel` (`generates`, `exercised_by`, `validated_by`,
   `refuted_by`, `supersedes`), `created_at`.
@@ -1197,16 +1288,18 @@ verificación (B4.4).
   `approved_by`. Inmutable una vez activa.
 
 **`agent_verifications`** — contrato `verify` (B1.3).
-- Clave: `subject_id` (paquete o run) + `sk` = `verifier#seq`.
+- Clave: `subject_id` (borrador del asistente, experimento o run) + `sk` = `verifier#seq`.
 - Atributos: `verifier` (`global_effectiveness`, `stage_route`, `schema`,
   `duplicates`, `taxonomy`, `playbook_fallbacks`, `dry_run`, `leakage`),
   `status`, métricas permitidas, incertidumbre, conteos protegidos,
   regresiones, `objective_version`, versiones evaluadas, `protocol`,
   `partitions_consulted`, `error_code`, `opaque_refs`, `run_id`, `created_at`.
 
-#### Salida: paquete candidato
+#### Borradores del modo asistente
 
 **`agent_packages`**
+- Uso: exclusivamente modo asistente; no agrupa ni detiene resultados del
+  optimizador.
 - Clave: `package_id` + `sk` (`meta` | `item#<item_id>`).
 - GSI: `SessionIdx` (`session_id`, `created_at`).
 - `meta`: `session_id`, `iteration_id`, `parent_package_id`, `status`
@@ -1276,23 +1369,24 @@ configuración versionada.
   cambiado con escritura condicional y auditado; permite revertir sin
   desplegar código.
 - Cada `agent_runs`, mensaje del agente y `agent_tool_calls` guarda
-  `prompt_ref` = `{name, version, hash}`, y cada paquete registra los prompts
-  con que se generó, para poder reproducir un resultado.
+  `prompt_ref` = `{name, version, hash}`. Los borradores del asistente y las
+  iteraciones del optimizador registran los prompts usados para reproducir
+  cada resultado.
 
 **`agent_entity_claims`** — reclamos informativos (no bloqueantes) de una
 sesión de optimización sobre entidades, para el aviso de interferencia (BM.8).
 - Clave: `entity_key` (p. ej. `configuration#<id>`,
   `library_modus_operandi#<id>`, `scope#<área>`) + `session_id`.
 - Atributos: `claimed_at`, `heartbeat_at`, `expires_at`, `reason`
-  (alcance declarado o ítem de paquete que la toca).
-- Se escribe al arrancar una sesión (por su alcance) y al crear un ítem de
-  paquete; se renueva con el heartbeat y caduca si la sesión muere. Consultar
+  (alcance declarado o entidad incluida en un borrador del asistente).
+- Se escribe al arrancar una sesión (por su alcance) y al crear un borrador;
+  se renueva con el heartbeat y caduca si la sesión muere. Consultar
   por `entity_key` devuelve qué sesiones trabajan sobre algo.
 
 #### Confirmaciones
 
 **`agent_confirmations`** — registro append-only de cada confirmación humana
-(BM.7), en ambos modos.
+(BM.7), para confirmaciones del modo asistente.
 - Clave: `session_id` + `confirmation_id`.
 - Atributos: `package_id`, `item_id`, `action` (`create`, `update`, `delete`,
   `activate`), `content_hash` y `diff_hash` de lo que el usuario vio,
@@ -1354,16 +1448,15 @@ ninguna de las dos ni las proponen como ítem de paquete.
   (`max_sessions_per_user`).
 - **Cambios externos durante una sesión**: cuando una entidad viva dentro del
   alcance de un optimizador cambia por mano de un usuario o del asistente, se
-  registra un mensaje de sistema en esa sesión, los ítems de paquete con
-  `base_version` desfasada se marcan obsoletos y las comparaciones que
-  dependían de ella se invalidan. El optimizador trabaja sobre versiones
-  fijadas, así que el choque real ocurre al aprobar.
+  registra un mensaje de sistema en esa sesión, los borradores del asistente
+  con `base_version` desfasada se marcan obsoletos y las comparaciones que
+  dependían de esa versión se invalidan. El optimizador trabaja sobre
+  versiones fijadas y vuelve a evaluar cualquier experimento afectado.
 - **Trabajos largos del asistente**: entrenar un modelo o construir un Vector
   Store corre como job asíncrono (run con su `async_operations`), igual que en
   el optimizador. El chat sigue disponible; el progreso aparece en la
   conversación y el resultado vuelve a la sesión como borrador a verificar y
-  confirmar. Cuentan contra `optimizer_max_candidates_per_session` y la
-  concurrencia global.
+  confirmar. Cuentan contra los límites de concurrencia global.
 - **Retención**: `expires_at` (730 días) en mensajes, llamadas a herramientas,
   insights, enlaces, resúmenes y confirmaciones.
   El TTL no borra en OKD/LocalStack (hallazgo de #22), así que se requiere el
@@ -1384,10 +1477,10 @@ ninguna de las dos ni las proponen como ítem de paquete.
 | `sessions/{id}/insights` | listar, confirmar, editar, rechazar |
 | `sessions/{id}/iterations` | listar, obtener (progreso del loop) |
 | `sessions/{id}/budget` | consultar; solicitar renovación |
-| `sessions/{id}/packages` | listar, obtener con ítems y verificaciones |
-| `packages/{id}/items/{item}` | editar borrador, rechazar, confirmar y aprobar (crea el registro en `agent_confirmations`) |
+| `sessions/{id}/packages` (asistente) | listar, obtener con ítems y verificaciones |
+| `packages/{id}/items/{item}` (asistente) | editar borrador, rechazar, confirmar y aplicar (crea el registro en `agent_confirmations`) |
 | `sessions/{id}/confirmations` | listar (auditoría) |
-| `packages/{id}/approve` | aprobar el paquete completo |
+| `packages/{id}/approve` (asistente) | aprobar el borrador completo |
 | `objectives` | listar, crear versión, activar |
 
 Todas las respuestas son seguras por contrato (B1.3): sin filas, payloads ni
@@ -1397,7 +1490,8 @@ razonamientos. Los errores son tipados con códigos seguros.
 
 | Fase | Tablas |
 |---|---|
-| Columna vertebral (B1, B3.1) | `agent_sessions`, `agent_iterations`, `agent_runs`, `agent_tool_calls`, `agent_budget_ledger`, `agent_verifications`, `agent_packages`, `agent_prompts`, `agent_prompt_active` |
+| Columna vertebral (B1, B3.1) | `agent_sessions`, `agent_iterations`, `agent_runs`, `agent_tool_calls`, `agent_budget_ledger`, `agent_verifications`, `agent_prompts`, `agent_prompt_active` |
+| Modo asistente | `agent_packages` y `agent_confirmations` |
 | Chat e insights (B4) | `agent_messages`, `agent_attachments`, `agent_insights`, `agent_links`, `agent_session_summaries` |
 | Modo asistente (Fase A) | `agent_confirmations`; usa las anteriores. `agent_attachments` queda fuera de la v1 (solo texto pegado) |
 | Configuración y muestreo (Fase S, BC) | `assistant_optimizer_settings` (+ historial), `dataset_snapshots`, `dataset_sampler_state`; deben existir antes de abrir el modo asistente |
@@ -1547,12 +1641,14 @@ nada los usa. La vista previa del muestreo (BS.8) queda para H6.
 
 ### H3 — Columna vertebral mínima
 Tablas y puertos de sesiones, iteraciones, runs, llamadas a herramientas,
-ledger de presupuesto, verificaciones, paquetes y confirmaciones, más el
+ledger de presupuesto y verificaciones. Los paquetes y confirmaciones son del
+modo asistente. Se añade el
 registro de prompts versionados (BD.1, BD.2, BD.4, B1.1 a B1.6). Contrato de
 subagente con un subagente de prueba (B3.1). Orquestador mínimo de una
 iteración. Cola y worker propios del agente, lease, barrido de recuperación,
-lectura en cada tick de los kill switches y topes de H2, API de sesiones y
-paquetes (B1.5).
+lectura en cada tick de los kill switches y topes de H2, API de sesiones,
+iteraciones y presupuesto; endpoints de borradores solo para el modo asistente
+(B1.5).
 *Depende de:* H2.
 *Se verifica con:* una sesión de prueba con el subagente stub que se pausa, se
 cancela, se recupera tras matar el worker y respeta el kill switch.
@@ -1596,7 +1692,7 @@ como confirmaciones separadas. Jobs largos con progreso en el chat.
 *Depende de:* H5 y H6.
 
 ### H8 — Decisiones y evaluación del optimizador
-Cerrar las decisiones abiertas (2 a 8) y B0.2, B0.3 y B0.4. Objetivos versionados
+B0.2, B0.3 y B0.4 acordados. Objetivos versionados
 (`agent_objectives`), evaluador global sobre muestras maduras, verificación por
 etapa y ruta, comparación estadística contra baseline, protección de la
 partición final, diagnóstico agregado y descubrimiento de patrones
@@ -1604,6 +1700,9 @@ partición final, diagnóstico agregado y descubrimiento de patrones
 *Depende de:* H6, H3 y las decisiones.
 *Se verifica con:* resultados reproducibles para versiones fijadas y ninguna
 fila por caso en las respuestas.
+**Estado (2026-10-20):** integrado en `40c8c41`. Lint Ruff/mypy 0/0,
+arquitectura 236/236, pytest focalizado 11/11 y E2E real post-merge por nginx
+pasó (3.000 elegibles; 304 filas etiquetadas en la partición final).
 
 ### H9 — Orquestador del optimizador
 Ciclo largo persistido con hipótesis, ranking y criterios de parada
@@ -1613,30 +1712,127 @@ detección de estancamiento y kill switch (B3.2, B4.4, B4.5, B7.3).
 Frontend: activación desde el panel, pestaña del optimizador, progreso y
 aviso de interferencia (FP4, FP5).
 *Depende de:* H8 y H4.
+**Estado (2026-10-20):** integrado en `c65cea0`; FP4/FP5 completan la interfaz
+en `43ce0f9`. Lint Ruff/mypy 0/0, arquitectura 240/240, pytest focalizado
+35/35 en la revisión integrada. E2E API/Playwright H9 y E2E FP4/FP5 post-merge
+pasaron por nginx: kill switch, recuperación, hipótesis/evidencia, reclamos,
+presupuesto, lanzamiento, conversación, pausa y cancelación. No crecieron los
+baselines.
 
 ### H10 — Subagentes del optimizador
-Uno por área, cada uno con su verificador antes de dejarlo actuar: configuración
-del agente, Biblioteca, Vector Store y modelo XGBoost (B5.1 a B5.4). El primero
-se decide en la decisión 8 (candidato: configuración del agente, por ser el
-más medible con lo existente).
+Especialistas para configuración del agente, Biblioteca, Vector Store y modelo
+XGBoost (B5.1 a B5.4). El orquestador los elige dinámicamente según la hipótesis
+y el resultado del experimento anterior; no hay una secuencia fija. Cada
+experimento tiene verificaciones antes de que sus resultados puedan sustentar
+una promoción.
 *Depende de:* H9.
 
+**Estado (2026-10-20):** integrado en `3451384` (backend H10 más endpoint de
+presupuesto de FP4/FP5). Quedaron implementados los ejecutores/evaluadores de
+configuración, Biblioteca, Vector Store y XGBoost; el candidato permanece
+inactivo hasta aprobación. Verificación integradora: lint Ruff/mypy 0/0,
+arquitectura 240/240, pruebas focalizadas 35/35 y E2E real H10 por nginx con
+propuesta XGBoost generada, entrenada y verificada, cancelación e hipótesis
+evaluada. La suite completa registró 19 pasadas, 7 fallidas y 1 omitida;
+`make e2e-observability` pasó 1/1. No iniciar H11 hasta investigar y resolver
+los fallos de la suite completa. **Este estado es el corte histórico del
+2026-10-20; H11 se inició después.**
+
 ### H11 — Combinaciones, revisión y operación
-Evaluación de combinaciones (B3.3), vista de comparación y aprobación por ítem
-o por paquete (FP6), herramientas operativas, historial y auditoría en la
-interfaz (FP7, F7.4), observabilidad del agente (B7.1).
+Evaluación adaptativa de combinaciones (B3.3), comparación de experimentos y
+resultados acumulados (FP6), herramientas operativas, historial y auditoría en
+la interfaz (FP7, F7.4), observabilidad del agente (B7.1). No hay aprobación
+intermedia; la aprobación de promoción queda en el flujo existente de
+`manager`/`release_manager`.
 *Depende de:* H10.
+
+**H11 cerrado por decisión del usuario (2026-10-21); ver estado consolidado en
+`docs/handoff/HANDOFF-B.md`.** El worker compone resolver, runner pareado y
+scorer MCP para evaluar los cuatro componentes sobre un snapshot final común
+con hash reproducible. La política versionada `evidence_only_v1` limita
+Biblioteca/Vector Store a evidencia. Playwright por nginx comprobó soporte 29
+suprimido y soporte 30 publicado (`event_type_E2E_SUPPORT_30`: 30), cuatro pins,
+auditoría y candidato inactivo. Snapshot
+`ee2a1ca652f851b5c86c8a5968d789cf`, SHA-256
+`d08d0e2783ef4b0df55ef229b7a68bd5b799c0ad868614aeb546189fbd0a7862`.
+
+La discrepancia previa de `CreatedDayIdx` (0/3000) no era un problema del GSI:
+el fixture usó el mapping incorrecto y eligió `event_id`, campo reservado que
+después se sobrescribía, como estrato. Ya se corrigió el fixture. Los datos son
+sintéticos locales: `SUCCEEDED` no significa despliegue ni promoción de
+producción. El último build del target completo tuvo una falla transitoria al
+descargar Poetry; el sembrado H8 y Playwright H11 se ejecutaron directamente
+por nginx en el stack local levantado.
 
 ### H12 — Validación y salida gradual
 Evaluación retrospectiva, shadow mode, promoción gradual con rollback
 (X8.1 a X8.3) y E2E de punta a punta del optimizador (FP8).
 *Depende de:* H11.
 
+**Estado backend (2026-10-21):** API y persistencia DynamoDB implementadas; el
+contrato para FP8 está en `docs/handoff/HANDOFF-H12-CONTRACT-A.md`. El runner
+retrospectivo recarga el snapshot final, comprueba su hash persistido y vuelve
+a calcular el objetivo y los pins. SHADOW no cambia decisiones; el canary usa
+bucket estable por alerta y registra comparaciones deduplicadas en el review
+worker. Se exige mínimo 30 observaciones y desacuerdo máximo 5 % en cada etapa.
+Solo manager/release_manager pueden aprobar, avanzar o revertir. La versión 1
+permite rollout de modelo únicamente y conserva iguales los pins de
+configuración, Biblioteca y Vector Store.
+
+`make e2e-agent-h12-local` encadena H11 y H12; el H12 resume target reusa un
+resultado H11 guardado para iterar sin reentrenar. En 2026-10-21 pasó el tramo
+H12 por nginx: retrospectiva/SHADOW, 403 para aprobación de channel_manager,
+409 con guardrail incompleto y rollback manager. Usó snapshot
+`4929896f4f3adddcda74816b6b810860`, SHA-256
+`637273f9b745f60ea43f659fd959722beba2f5dc59e2eef8f06916674fb188fc`; estado
+de validación `PASSED`, release `ROLLED_BACK` v2, candidato inactivo. La
+auditoría DynamoDB conservó retrospectiva, solicitud, SHADOW y rollback con
+actor, release/version, snapshot y SHA. `SUCCEEDED` y los fixtures de esta
+ejecución son locales/sintéticos; no prueban despliegue ni rendimiento
+productivo.
+
+Contrato H12 cotejado con router, schemas, casos de uso y review worker; se
+compartió la confirmación con A en `docs/handoff/HANDOFF-A.md`. La API
+habilitada coincide en roles, rutas, estados y errores; el contrato aclara que
+rollback repetido es 409 (no idempotente) y añade `ACTIVE_RELEASE_EXISTS`.
+
+E2E de FULL preparado sin fakes: `make e2e-agent-h12-full-local` y
+`make e2e-agent-h12-full-resume-local` emiten alertas por
+`POST /api/v0/alerts/test`, esperan workflows terminales del review worker,
+consultan agregados deduplicados por etapa y hacen rollback después de FULL.
+El preflight real por nginx no pasó la condición necesaria para emitir tráfico:
+configuración `default@1` mantiene deshabilitados `canales_digitales` y
+`tarjetas`, XGBoost falso y sin model ID. El worker no invoca scorer H12 con
+esa configuración; la corrida completa se detiene sin crear release ni inyectar
+observaciones. Antes de repetir se necesita habilitar el baseline XGBoost y
+generar un H11 nuevo con los mismos pins.
+
+Un probe anterior aceptó una alerta, pero el polling devolvió 502 durante
+reinicio de API/worker por Compose; no hay estado terminal y no cuenta como
+observación. El cleanup autenticado reportó `cleaned: []`. Ver detalle en
+`docs/handoff/HANDOFF-C.md`. Esta evidencia no demuestra despliegue o
+rendimiento productivo.
+
+Verificación de regresión del stack (2026-10-21): `make e2e-all-local`
+ejecutó 27 escenarios por nginx, 25 pasaron y 2 fallaron. E05 recibió 403
+`ROLE_NOT_PERMITTED` al activar un modelo con el rol de su fixture; E10
+comparó un esperado `637` con 278 ejecuciones técnicas en los datos/reportes
+reales. Causas aún no aisladas; suite general no verde. `make
+e2e-observability` pasó 1/1. Estos resultados no cambian el límite de H12:
+no hay validación real de todas las etapas ni evidencia productiva.
+
+**Pendiente para integrar FP8:** emitir alertas por el camino real de review en
+cada etapa para reunir 30 observaciones por ventana, validar avance de
+`CANARY_5 → CANARY_25 → CANARY_50 → FULL` y rollback después de una etapa
+aprobada. La cobertura de routing/observación canary actual es unitaria con
+fakes; el E2E no inyecta conteos falsos. H12 no se declara cerrado hasta que
+FP8 ejecute ese recorrido real integrado.
+
 ### Qué se puede hacer en paralelo
 - H1 y H0 pueden empezar ya.
 - H6 (muestreador) corre en paralelo con H3 a H5 una vez cerrados H1 y H2.
 - Dentro de H5, los tipos de entidad avanzan por separado.
-- H8 puede arrancar en cuanto estén las decisiones abiertas y H6 listo, aunque
+- H8 puede arrancar en cuanto esté H6 listo, aunque
   H5 y H7 sigan en curso.
 
 ## Planificación de frontend
@@ -1670,16 +1866,18 @@ en FP0.
 - **Pestañas = conversaciones**: "Asistente" (siempre disponible) y una pestaña
   por cada sesión de optimización lanzada. Varias pueden estar abiertas a la
   vez. Cada pestaña de optimizador contiene el chat de esa sesión y una vista
-  de progreso (iteraciones, hipótesis, presupuesto, runs, paquetes).
+  de progreso (iteraciones, hipótesis, presupuesto, runs y resultados).
 - **Lanzar el optimizador**: desde la pestaña "Asistente" (o un atajo del
   panel). El `channel_manager` solo **activa**: el objetivo, el presupuesto y
   los límites vienen de la configuración del manager y se muestran como
   resumen de solo lectura; lo único que puede indicar es el alcance (qué
   áreas) y notas o insights iniciales. Termina en un resumen y un botón
-  explícito "Iniciar", porque una sesión consume presupuesto. El asistente también puede proponer lanzarlo
-  desde la conversación; el inicio siempre lo confirma el usuario.
-- **Estado de cada pestaña**: ejecutando, esperando tu respuesta, requiere
-  aprobación, terminó, falló o detenido. Un indicador en la pestaña y en el
+  explícito "Iniciar", porque una sesión consume presupuesto. El asistente
+  también puede proponer lanzarlo desde la conversación; el inicio siempre lo
+  confirma el usuario. Una vez iniciada, el optimizador decide los pasos
+  siguientes sin pedir aprobación entre iteraciones.
+- **Estado de cada pestaña**: ejecutando, espera una aclaración, terminó,
+  falló o detenido. Un indicador en la pestaña y en el
   botón flotante avisa de lo que necesita atención aunque el panel esté
   cerrado.
 - **Anuncio de interferencia**: si la página o entidad que el usuario está
@@ -1690,9 +1888,9 @@ en FP0.
 - **Contexto de página**: el panel envía la ruta y la entidad seleccionada como
   referencias (ids), nunca el contenido de la pantalla, para que el asistente
   actúe sobre lo que el usuario está viendo.
-- **Revisión de paquetes**: el panel es estrecho para diffs, así que la
-  revisión se abre en una vista ampliada (el panel se expande o abre una
-  superposición grande) sin salir de la página.
+- **Resultados**: el panel puede expandirse para comparar el baseline, los
+  experimentos y sus métricas sin salir de la página. La revisión de un cambio
+  para promoción usa el flujo existente de `manager`/`release_manager`.
 - **Roles**: el panel aparece donde el rol ya ve esas rutas (`ROLE_NAV`). El
   asistente exige los permisos de creación manual de cada entidad. El
   optimizador solo lo puede lanzar `channel_manager` (decisión 15); el backend
@@ -1775,31 +1973,38 @@ ofrecen entidades que el rol puede modificar.
 Activación del optimizador: alcance (qué áreas) y notas iniciales, más un
 resumen de solo lectura con el objetivo vigente, el presupuesto y los límites
 definidos por el manager, y un aviso claro de qué puede modificar el agente y
-qué no. Confirmación de inicio. La sesión nueva aparece como pestaña. Cuando
-el agente escala una decisión, aparece en esa pestaña como una tarjeta que el
-`channel_manager` resuelve.
+qué no. Confirmación de inicio. La sesión nueva aparece como pestaña. Durante
+la ejecución solo interrumpe por aclaración bloqueante, fallo crítico o
+autorización de presupuesto adicional; nunca pide aprobar pasos del ciclo.
 *Aceptación:* el `channel_manager` no puede cambiar presupuesto ni límites;
 el asistente sigue usable mientras se crea y arranca la sesión.
+**Estado (2026-10-20):** integrado en frontend `43ce0f9` y backend `c7717fb`
+(merge H10 `3451384`). E2E real 1/1 por nginx pasó con control de roles,
+objetivo y presupuesto del servidor, inicio y cancelación.
 
 **FP5 — Pestaña del optimizador: conversación y progreso**
-Chat de la sesión más vista de progreso: hipótesis actual, subagente, línea de
-tiempo de iteraciones, estado de verificación, presupuesto gastado y restante,
-motivo de parada, y controles de pausar, reanudar y cancelar. Indicadores de
+Chat de la sesión más vista de progreso: investigación actual, especialista,
+línea de tiempo de experimentos, hallazgos, presupuesto gastado y restante,
+motivo de parada, y controles de pausar, reanudar y cancelar. El agente narra
+qué probó, qué observó y qué investigará a continuación. Indicadores de
 atención en la pestaña y en el botón flotante. Aviso de interferencia
 (compartido con FP3).
 *Aceptación:* varias pestañas conviven sin bloquearse; el chat responde
-mientras el loop corre; los estados (ejecutando, esperando, requiere
-aprobación, completado, fallido, cancelado) se representan correctamente; no
-depende de endpoints de detalle por caso.
+mientras el loop corre; los estados (ejecutando, espera una aclaración,
+completado, fallido, cancelado) se representan correctamente; no depende de
+endpoints de detalle por caso.
+**Estado (2026-10-20):** integrado en frontend `43ce0f9`; el E2E real 1/1
+por nginx pasó conversación, progreso, pausa y cancelación.
 
-**FP6 — Comparación, revisión y aprobación**
-Vista ampliada: comparar baseline y candidatos (métrica global,
+**FP6 — Comparación de experimentos y promoción**
+Vista ampliada: comparar baseline y experimentos (métrica global,
 restricciones, resultados por área y segmento, incertidumbre, cobertura de
-etiquetas, suficiencia de muestra) y diff por tipo de ítem del paquete.
-Confirmación por ítem o por paquete, que dispara los flujos de activación
-existentes según el rol, con rastro de autor y aprobador.
-*Aceptación:* queda clara la diferencia entre mejora local y global; los
-candidatos rechazados muestran su motivo; el loop nunca publica.
+etiquetas y suficiencia de muestra), con motivos para continuar o descartar
+cambios. No hay aprobación por iteración. Si el resultado se propone para
+producción, el flujo existente requiere aprobación de `manager` o
+`release_manager`.
+*Aceptación:* queda clara la diferencia entre mejora local y global; cada
+resultado muestra su evidencia; el loop nunca publica por sí mismo.
 
 **FP7 — Operación y seguridad en la interfaz**
 Kill switch y estado global, límites alcanzados, solicitud de renovación de
@@ -1816,9 +2021,10 @@ exige `CLAUDE.md`. Se añaden `e2e/agent-assistant-real.spec.ts` y
 de pruebas de componentes en `src/test/`. Los escenarios cubren: crear y
 editar una entrada de la Biblioteca con el asistente de punta a punta, la
 confirmación auditada, lanzar un optimizador y seguir chateando con el
-asistente, el aviso de interferencia, un insight confirmado que cambia el
-comportamiento del loop, pausa y cancelación, aprobación de un paquete y
-bloqueo por rol. Si falta una credencial, Docker o datos de fixture, se
+asistente, el aviso de interferencia, un hallazgo agregado que orienta la
+siguiente iteración, varias iteraciones sin aprobación intermedia,
+pausa/cancelación y promoción bloqueada hasta aprobación de
+`manager`/`release_manager`. Si falta una credencial, Docker o datos de fixture, se
 reporta el bloqueo exacto y el cambio queda incompleto; no se da por pasada
 una prueba de otro escenario.
 
@@ -1864,9 +2070,10 @@ construye una sola vez.
    el `channel_manager` puede autorizar ampliaciones adicionales, una por una.
    Cada ampliación queda auditada, no es automática y respeta
    `optimizer_max_budget_renewals`.
-5. ✅ **Resuelta 2026-10-19:** el `channel_manager` aprueba/rechaza el paquete
-   completo del optimizador. La promoción a producción requiere aprobación de
-   `manager` o `release_manager` y sigue separada de aprobar el paquete.
+5. ✅ **Resuelta 2026-10-19; ajustada:** el optimizador no crea paquetes de
+   resultados ni pide aprobación entre iteraciones. El `channel_manager`
+   inicia y sigue la sesión autónoma; promover a producción requiere aprobación
+   de `manager` o `release_manager`.
 6. ✅ **Resuelta 2026-10-19:** mostrar diagnósticos a nivel de segmento; ocultar
    las métricas de cualquier segmento con menos de 30 casos.
 7. ✅ **Resuelta 2026-10-19:** crear `optimizer_insights` para guardar y
@@ -1877,8 +2084,10 @@ construye una sola vez.
    menos 30 casos por segmento, se reevalúan en cada sesión nueva y pueden
    quedar `SUPPORTED`, `REFUTED`, `STALE` o `RETIRED`. Persistir un hallazgo no
    lo aprueba ni promueve a producción.
-8. Para el loop de optimización: ¿qué subagente va primero, tras el modo
-   asistente?
+8. ✅ **Resuelta 2026-10-19:** no se fija un orden para los subagentes. El
+   orquestador elige según el resultado anterior y sigue iterando de forma
+   autónoma; por ejemplo, después de ajustar XGBoost puede investigar por qué
+   sigue sin detectar G y elegir el siguiente experimento con esa evidencia.
 9. ✅ **Resuelta 2026-10-18.** Modo asistente: solo texto pegado, sin
    archivos en la v1. El tamaño y los datos personales se resolvieron en la 19.
 10. ✅ **Resuelta 2026-10-18.** Modo asistente: toda la Biblioteca, crear y
@@ -1936,11 +2145,13 @@ construye una sola vez.
 
 ## Recomendación
 
-Construir primero la columna vertebral (sesión persistida, paquete candidato,
-`verify` y orquestador con un subagente stub) y el chat con su modelo de
-insights, porque definen los contratos que todos los especialistas
-consumirán. Los especialistas se añaden después, de uno en uno, cada uno con
-su verificador antes de dejarlo actuar.
+Construir primero la columna vertebral (sesión persistida, iteraciones,
+experimentos, evidencia, `verify` y orquestador con un subagente stub) y el
+chat con su modelo de insights, porque definen los contratos que todos los
+especialistas consumirán. Los especialistas se añaden después, cada uno con
+su verificador. El ciclo del optimizador elige dinámicamente qué especialista
+invocar según la hipótesis y los resultados; no requiere aprobación entre
+experimentos.
 
 El modo asistente es el primer vertical: cubre toda la columna vertebral con
 una sola entidad y un verificador ligero, entrega valor inmediato y permite

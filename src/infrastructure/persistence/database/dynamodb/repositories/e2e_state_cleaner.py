@@ -8,8 +8,13 @@ from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
 from src.infrastructure.persistence.database.dynamodb.schemas import (
+    AGENT_EXPERIMENTS_TABLE,
     AGENT_OBJECTIVE_ACTIVE_TABLE,
     AGENT_OBJECTIVES_TABLE,
+    AGENT_RELEASE_ACTIVE_TABLE,
+    AGENT_RELEASE_OBSERVATIONS_TABLE,
+    AGENT_RELEASES_TABLE,
+    AGENT_RETROSPECTIVE_VALIDATIONS_TABLE,
     ASSISTANT_OPTIMIZER_SETTINGS_CHANGES_TABLE,
     ASSISTANT_OPTIMIZER_SETTINGS_TABLE,
     DATASET_SAMPLER_STATE_TABLE,
@@ -40,6 +45,8 @@ class DynamoE2EStateCleaner(E2EStateCleaner):
             | MATURE_SAMPLER_TABLE_NAMES
             | AGENT_OBJECTIVE_TABLE_NAMES
             | AGENT_H9_TABLE_NAMES
+            | AGENT_EXPERIMENT_TABLE_NAMES
+            | AGENT_H12_TABLE_NAMES
         ]
         agent_chat_tables = [
             name for name in table_names if name in AGENT_CHAT_TABLE_NAMES
@@ -54,6 +61,8 @@ class DynamoE2EStateCleaner(E2EStateCleaner):
             | AGENT_CHAT_TABLE_NAMES
             | AGENT_OBJECTIVE_TABLE_NAMES
             | AGENT_H9_TABLE_NAMES
+            | AGENT_EXPERIMENT_TABLE_NAMES
+            | AGENT_H12_TABLE_NAMES
         ]
         deleted = 0
         for table_name in (*settings_tables, *agent_chat_tables, *other_tables):
@@ -125,3 +134,14 @@ AGENT_OBJECTIVE_TABLE_NAMES = frozenset(
 
 # H9 optimizer state is cleaned as a distinct milestone-owned group.
 AGENT_H9_TABLE_NAMES = frozenset({"agent_entity_claims", "agent_hypotheses"})
+
+# H11 experiment history is removed with the local optimizer state.
+AGENT_EXPERIMENT_TABLE_NAMES = frozenset({AGENT_EXPERIMENTS_TABLE["TableName"]})
+AGENT_H12_TABLE_NAMES = frozenset(
+    {
+        AGENT_RELEASES_TABLE["TableName"],
+        AGENT_RELEASE_ACTIVE_TABLE["TableName"],
+        AGENT_RELEASE_OBSERVATIONS_TABLE["TableName"],
+        AGENT_RETROSPECTIVE_VALIDATIONS_TABLE["TableName"],
+    }
+)

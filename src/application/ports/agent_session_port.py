@@ -5,6 +5,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol
 
+from src.domain.agents.experiment import ComponentVersionReference
+
 
 class AgentSessionStatus(StrEnum):
     DRAFT = "DRAFT"
@@ -36,6 +38,7 @@ class AgentSession:
     rev: int = 0
     message_seq: int = 0
     budget_renewals: int = 0
+    baseline_components: tuple[ComponentVersionReference, ...] = ()
 
 
 class AgentSessionRepository(Protocol):
@@ -49,9 +52,7 @@ class AgentSessionRepository(Protocol):
         self, status: AgentSessionStatus, limit: int = 50
     ) -> list[AgentSession]: ...
 
-    def update(
-        self, session: AgentSession, expected_rev: int
-    ) -> AgentSession: ...
+    def update(self, session: AgentSession, expected_rev: int) -> AgentSession: ...
 
     def acquire_lease(
         self, session_id: str, owner: str, now: datetime, expires_at: datetime

@@ -1,0 +1,370 @@
+# Grafana alert rules as code (T5). Provisioned at Grafana start from
+# provisioning/alerting/; reload without restart:
+#   curl -X POST -u admin:admin http://localhost:3000/api/admin/provisioning/alerting/reload
+# How to force each rule locally: docs/OBSERVABILITY_RUNBOOK.md.
+# Keep the PromQL in sync with the instrument names in
+# src/infrastructure/monitoring/opentelemetry/meter.py. Literal '$' must be
+# written '$$' (Grafana expands env vars in provisioning files).
+apiVersion: 1
+groups:
+- orgId: 1
+  name: aria-workflow
+  folder: ARIA
+  interval: 1m
+  rules:
+  - uid: aria-workflow-failing
+    title: Workflow fallando
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: |-
+          sum(rate(aria_workflow_duration_seconds_count{aria_workflow_step="workflow",aria_workflow_outcome="FAILED"}[15m]))
+          / sum(rate(aria_workflow_duration_seconds_count{aria_workflow_step="workflow"}[15m]))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.05
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: critical
+      team: aria
+    annotations:
+      summary: Más del 5 % de las revisiones de alerta terminan en FAILED (ventana 15 min).
+      runbook_url: docs/OBSERVABILITY_RUNBOOK.md#aria-workflow-failing
+    isPaused: false
+  - uid: aria-sla-at-risk
+    title: SLA en riesgo
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: histogram_quantile(0.95, sum by (le) (rate(aria_workflow_duration_seconds_bucket{aria_workflow_step="workflow"}[15m])))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 300
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    labels:
+      severity: warning
+      team: aria
+    annotations:
+      summary: El p95 de duración del workflow supera 5 min (ventana 15 min).
+      runbook_url: docs/OBSERVABILITY_RUNBOOK.md#aria-sla-at-risk
+    isPaused: false
+  - uid: aria-dead-mans-switch
+    title: Dead man's switch
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 1800
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: |-
+          (sum(increase(aria_workflow_duration_seconds_count{aria_workflow_step="workflow"}[30m])) or on() vector(0))
+          and on() (max(aria_agent_enabled) == 1)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 1
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: critical
+      team: aria
+    annotations:
+      summary: El agente está ON y no se procesó ninguna alerta en 30 min.
+      runbook_url: docs/OBSERVABILITY_RUNBOOK.md#aria-dead-mans-switch
+    isPaused: false
+- orgId: 1
+  name: aria-llm
+  folder: ARIA
+  interval: 1m
+  rules:
+  - uid: aria-llm-errors
+    title: LLM caído
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: |-
+          sum(rate(gen_ai_client_operation_duration_seconds_count{error_type!=""}[5m]))
+          / sum(rate(gen_ai_client_operation_duration_seconds_count[5m]))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.1
+    noDataState: OK
+    execErrState: Error
+    for: 2m
+    labels:
+      severity: critical
+      team: aria
+    annotations:
+      summary: Más del 10 % de las llamadas LLM fallan (ventana 5 min).
+      runbook_url: docs/OBSERVABILITY_RUNBOOK.md#aria-llm-errors
+    isPaused: false
+  - uid: aria-llm-slow
+    title: LLM lento
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: histogram_quantile(0.95, sum by (le) (rate(gen_ai_client_operation_duration_seconds_bucket[5m])))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 30
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: warning
+      team: aria
+    annotations:
+      summary: El p95 de latencia LLM supera 30 s (ventana 5 min).
+      runbook_url: docs/OBSERVABILITY_RUNBOOK.md#aria-llm-slow
+    isPaused: false
+  - uid: aria-research-degraded
+    title: Investigación degradada
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 900
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: |-
+          sum by (aria_research_source) (rate(aria_research_calls_total{aria_research_outcome!="ok"}[15m]))
+          / sum by (aria_research_source) (rate(aria_research_calls_total[15m]))
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0.2
+    noDataState: OK
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: warning
+      team: aria
+    annotations:
+      summary: Más del 20 % de las consultas de investigación ({{ $$labels.aria_research_source }}) fallan o vencen (ventana
+        15 min).
+      runbook_url: docs/OBSERVABILITY_RUNBOOK.md#aria-research-degraded
+    isPaused: false
+- orgId: 1
+  name: aria-operations
+  folder: ARIA
+  interval: 1m
+  rules:
+  - uid: aria-analyst-queue-stuck
+    title: Cola de analistas atascada
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: max(aria_analyst_queue_oldest_age_seconds)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 900
+    noDataState: OK
+    execErrState: Error
+    for: 1m
+    labels:
+      severity: warning
+      team: aria
+    annotations:
+      summary: Hay una alerta ESCALATED sin tomar hace más de 15 min.
+      runbook_url: docs/OBSERVABILITY_RUNBOOK.md#aria-analyst-queue-stuck
+    isPaused: false
+  - uid: aria-no-capacity
+    title: Sin capacidad
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: |-
+          (min by (aria_resource) (aria_capacity_available) < 1)
+          and on() (max(aria_operating_hours) == 1)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: lt
+            params:
+            - 1
+    noDataState: OK
+    execErrState: Error
+    for: 10m
+    labels:
+      severity: critical
+      team: aria
+    annotations:
+      summary: Sin capacidad de {{ $$labels.aria_resource }} durante 10 min en horario operativo.
+      runbook_url: docs/OBSERVABILITY_RUNBOOK.md#aria-no-capacity
+    isPaused: false
+  - uid: aria-rollup-drift
+    title: Drift de agregados dos días seguidos
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 3600
+        to: 0
+      datasourceUid: prometheus
+      model:
+        refId: A
+        expr: |-
+          (max(max_over_time(aria_metrics_rollup_drift[1h])) > 0)
+          and on() (max(max_over_time(aria_metrics_rollup_drift[1h] offset 24h)) > 0)
+        instant: true
+        range: false
+        intervalMs: 15000
+        maxDataPoints: 43200
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        refId: C
+        type: threshold
+        expression: A
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+    noDataState: OK
+    execErrState: Error
+    for: 1h
+    labels:
+      severity: warning
+      team: aria
+    annotations:
+      summary: La reconciliación de agregados encontró drift > 0 dos días seguidos.
+      runbook_url: docs/OBSERVABILITY_RUNBOOK.md#aria-rollup-drift
+    isPaused: false

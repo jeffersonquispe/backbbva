@@ -170,10 +170,60 @@ def test_library_evaluator_accepts_unique_taxonomy_draft_without_live_write() ->
     assert result.safe_metrics["live_entity_writes"] == 0
 
 
-def test_vector_store_evaluator_builds_isolated_candidate_and_searches_authorized_query() -> None:
+def test_library_optimizer_rejects_flag_writes_as_unsupported_experiment_type() -> None:
+    executor = LibrarySpecialistExecutor(
+        taxonomies=EmptyLibraryRepository(),
+        modus_operandi=EmptyLibraryRepository(),
+        similar_cases=EmptyLibraryRepository(),
+        watchlists=EmptyLibraryRepository(),
+        masker=NoPersonalDataMasker(),
+    )
+    result = executor.execute(
+        AgentSubagentInput("session", 1, {}, "flag improvement", {}),
+        {
+            "entity_type": "flag",
+            "draft": {"flag_type": "red", "name": "Proposed flag"},
+        },
+    )
+    assert result.status == "FAILED"
+    assert result.error_code == "LIBRARY_DRAFT_INVALID"
+
+
+def test_library_optimizer_watchlist_proposal_is_draft_only() -> None:
+    executor = LibrarySpecialistExecutor(
+        taxonomies=EmptyLibraryRepository(),
+        modus_operandi=EmptyLibraryRepository(),
+        similar_cases=EmptyLibraryRepository(),
+        watchlists=EmptyLibraryRepository(),
+        masker=NoPersonalDataMasker(),
+    )
+    result = executor.execute(
+        AgentSubagentInput("session", 1, {}, "watchlist improvement", {}),
+        {
+            "entity_type": "watchlist",
+            "draft": {
+                "name": "Candidate",
+                "description": "Proposed only",
+                "list_type": "blacklist",
+                "values": ["123"],
+            },
+        },
+    )
+    assert result.status == "PASSED"
+    assert result.contribution == {"draft_only": True, "entity_type": "watchlist"}
+    assert result.safe_metrics["live_entity_writes"] == 0
+
+
+def test_vector_store_evaluator_builds_isolated_candidate_and_searches_authorized_query() -> (
+    None
+):
     now = datetime.now(UTC)
-    source = VectorStoreInstance("source", 1, "source", "source", now, "test", promoted_version=1)
-    candidate = VectorStoreInstance("candidate", 2, "candidate", "candidate", now, "agent", promoted_version=1)
+    source = VectorStoreInstance(
+        "source", 1, "source", "source", now, "test", promoted_version=1
+    )
+    candidate = VectorStoreInstance(
+        "candidate", 2, "candidate", "candidate", now, "agent", promoted_version=1
+    )
     asset = VectorStoreInstanceAsset(
         vector_store_instance_id="source",
         asset_type=KnowledgeAssetType.MODUS_OPERANDI,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import asdict
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -10,6 +12,7 @@ from botocore.exceptions import ClientError
 from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryEntry,
     ModusOperandiLibraryRepository,
+    ModusOperandiLibraryRevision,
     ModusOperandiLibraryRevisionConflict,
     ModusOperandiPlaybook,
 )
@@ -21,13 +24,18 @@ from src.infrastructure.persistence.database.dynamodb.repositories.configuration
 )
 
 MODUS_OPERANDI_LIBRARY_TABLE_NAME = "library_modus_operandi"
+MODUS_OPERANDI_LIBRARY_REVISIONS_TABLE_NAME = "library_modus_operandi_revisions"
 
 
 class DynamoModusOperandiLibraryRepository(ModusOperandiLibraryRepository):
     def __init__(self) -> None:
         self._table = get_dynamodb_resource().Table(MODUS_OPERANDI_LIBRARY_TABLE_NAME)
+        self._revisions = get_dynamodb_resource().Table(
+            MODUS_OPERANDI_LIBRARY_REVISIONS_TABLE_NAME
+        )
 
     def create(self, entry: ModusOperandiLibraryEntry) -> ModusOperandiLibraryEntry:
+        self._save_revision(entry)
         self._table.put_item(Item=_to_item(entry))
         return entry
 
@@ -35,6 +43,44 @@ class DynamoModusOperandiLibraryRepository(ModusOperandiLibraryRepository):
         response = self._table.get_item(Key={"id": entry_id})
         item = response.get("Item")
         return _from_item(item) if item else None
+
+    def get_revision(
+        self, entry_id: str, revision_sha256: str
+    ) -> ModusOperandiLibraryRevision | None:
+        response = self._revisions.get_item(
+            Key={"entry_id": entry_id, "revision_sha256": revision_sha256}
+        )
+        item = response.get("Item")
+        if not item:
+            return None
+        content = _from_item(item["content"])
+        if _revision_hash(content) != revision_sha256:
+            return None
+        return ModusOperandiLibraryRevision(entry_id, revision_sha256, content)
+
+    def ensure_current_revision(
+        self, entry_id: str
+    ) -> ModusOperandiLibraryRevision | None:
+        entry = self.get(entry_id)
+        if entry is None:
+            return None
+        digest = _revision_hash(entry)
+        try:
+            self._revisions.put_item(
+                Item={
+                    "entry_id": entry.id,
+                    "revision_sha256": digest,
+                    "content": _to_item(entry),
+                },
+                ConditionExpression=(
+                    "attribute_not_exists(entry_id) AND "
+                    "attribute_not_exists(revision_sha256)"
+                ),
+            )
+        except ClientError as error:
+            if error.response["Error"]["Code"] != "ConditionalCheckFailedException":
+                raise
+        return self.get_revision(entry_id, digest)
 
     def list(self, *, active_only: bool = False) -> list[ModusOperandiLibraryEntry]:
         response = self._table.scan()
@@ -86,6 +132,7 @@ class DynamoModusOperandiLibraryRepository(ModusOperandiLibraryRepository):
                 ":expected": expected_updated_at.isoformat()
             }
         try:
+            self._save_revision(updated)
             self._table.put_item(**kwargs)
         except ClientError as error:
             if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
@@ -94,6 +141,18 @@ class DynamoModusOperandiLibraryRepository(ModusOperandiLibraryRepository):
                 ) from error
             raise
         return updated
+
+    def _save_revision(self, entry: ModusOperandiLibraryEntry) -> str:
+        digest = _revision_hash(entry)
+        self._revisions.put_item(
+            Item={
+                "entry_id": entry.id,
+                "revision_sha256": digest,
+                "content": _to_item(entry),
+            },
+            ConditionExpression="attribute_not_exists(entry_id) AND attribute_not_exists(revision_sha256)",
+        )
+        return digest
 
     def delete(self, entry_id: str) -> None:
         self._table.delete_item(Key={"id": entry_id})
@@ -116,6 +175,13 @@ def _to_item(entry: ModusOperandiLibraryEntry) -> dict[str, Any]:
         ),
         "playbook": asdict(entry.playbook) if entry.playbook is not None else None,
     }
+
+
+def _revision_hash(entry: ModusOperandiLibraryEntry) -> str:
+    canonical = json.dumps(
+        _to_item(entry), sort_keys=True, separators=(",", ":"), default=str
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def _from_item(item: dict[str, Any]) -> ModusOperandiLibraryEntry:

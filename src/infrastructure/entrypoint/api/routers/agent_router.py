@@ -29,7 +29,9 @@ from src.application.use_cases.agent.renew_agent_budget import (
     AgentBudgetRenewalError,
 )
 from src.infrastructure.agents.factories import (
+    get_agent_audit_repository,
     get_agent_budget_ledger_repository,
+    get_agent_experiment_repository,
     get_agent_hypothesis_repository,
     get_agent_iteration_repository,
     get_agent_link_repository,
@@ -51,8 +53,10 @@ from src.infrastructure.entrypoint.api.factories.agent_factory import (
 )
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas.agent import (
+    AgentAuditPageResponse,
     AgentChatTurnResponse,
     AgentEntityClaimResponse,
+    AgentExperimentResponse,
     AgentHypothesisResponse,
     AgentInsightResponse,
     AgentLinkResponse,
@@ -130,7 +134,9 @@ def renew_budget(
             session_id, str(user.id), request.additions
         )
     except AgentBudgetRenewalError as error:
-        raise HTTPException(status_code=409, detail={"code": "BUDGET_RENEWAL_POLICY"}) from error
+        raise HTTPException(
+            status_code=409, detail={"code": "BUDGET_RENEWAL_POLICY"}
+        ) from error
 
 
 @router.get("/sessions", response_model=list[AgentSessionResponse])
@@ -149,6 +155,31 @@ def get_session(
     _: LocalUser = _CONFIGURATION_ACCESS,
 ):
     return _owned_session(session_id, str(user.id))
+
+
+@router.get(
+    "/sessions/{session_id}/audit",
+    response_model=AgentAuditPageResponse,
+)
+def list_session_audit(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+    limit: int = 50,
+    cursor: str | None = None,
+):
+    _owned_session(session_id, str(user.id))
+    if limit < 1 or limit > 100:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_PAGE_SIZE"})
+    try:
+        items, next_cursor = get_agent_audit_repository().list_for_session(
+            session_id, cursor=cursor, limit=limit
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=422, detail={"code": "INVALID_AUDIT_CURSOR"}
+        ) from error
+    return {"items": items, "next_cursor": next_cursor}
 
 
 @router.post("/sessions/{session_id}/start", response_model=AgentSessionResponse)
@@ -215,6 +246,39 @@ def list_session_hypotheses(
     return get_agent_hypothesis_repository().list_for_session(session_id)
 
 
+@router.get(
+    "/sessions/{session_id}/experiments",
+    response_model=list[AgentExperimentResponse],
+)
+def list_session_experiments(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+    limit: int = 50,
+):
+    _owned_session(session_id, str(user.id))
+    if not 1 <= limit <= 100:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_PAGE"})
+    return get_agent_experiment_repository().list_for_session(session_id, limit)
+
+
+@router.get(
+    "/sessions/{session_id}/experiments/{experiment_id}",
+    response_model=AgentExperimentResponse,
+)
+def get_session_experiment(
+    session_id: str,
+    experiment_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    _owned_session(session_id, str(user.id))
+    experiment = get_agent_experiment_repository().get(session_id, experiment_id)
+    if experiment is None:
+        raise HTTPException(status_code=404, detail={"code": "EXPERIMENT_NOT_FOUND"})
+    return experiment
+
+
 @router.get("/sessions/{session_id}/iterations")
 def list_session_iterations(
     session_id: str,
@@ -234,6 +298,7 @@ def list_session_iterations(
             "objective_version": item.decision.get("objective_version"),
             "specialist": item.decision.get("specialist"),
             "verification_status": item.decision.get("verification_status"),
+            "specialist_verified": item.decision.get("specialist_verified", False),
             "experiment_verified": item.decision.get("experiment_verified", False),
             "decision": item.decision.get("action"),
             "reason": item.decision.get("reason"),

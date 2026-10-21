@@ -15,6 +15,9 @@ from src.application.use_cases.agent.evaluate_global_pipeline import (
 from src.application.use_cases.agent.orchestrate_agent_iteration import (
     OrchestrateAgentIterationUseCase,
 )
+from src.application.use_cases.agent.record_agent_shadow_observation import (
+    RecordAgentShadowObservation,
+)
 from src.application.use_cases.agent.recover_stale_agent_runs import (
     RecoverStaleAgentRunsUseCase,
 )
@@ -65,7 +68,12 @@ from src.domain.configurations.entities import (
     HistoryPandasResearchConfig,
     VectorStoreResearchConfig,
 )
-from src.infrastructure.agents.factories import get_agent_verification_repository
+from src.infrastructure.agents.factories import (
+    get_agent_audit_repository,
+    get_agent_experiment_component_resolver,
+    get_agent_release_repository,
+    get_agent_verification_repository,
+)
 from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
     MockAlertChannelActionAdapter,
 )
@@ -148,6 +156,17 @@ def get_backup_catalog_repository() -> BackupCatalogRepository:
 @lru_cache
 def get_model_scoring_port() -> ModelScoringPort:
     return MCPModelScoringClient()
+
+
+@lru_cache
+def get_agent_shadow_observer() -> RecordAgentShadowObservation:
+    return RecordAgentShadowObservation(
+        releases=get_agent_release_repository(),
+        components=get_agent_experiment_component_resolver(),
+        scorer=get_model_scoring_port(),
+        audit=get_agent_audit_repository(),
+        now=get_clock().now,
+    )
 
 
 @lru_cache

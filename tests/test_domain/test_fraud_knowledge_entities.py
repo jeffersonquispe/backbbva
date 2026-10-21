@@ -13,12 +13,14 @@ def test_modus_operandi_playbook_defaults_are_independent() -> None:
     first = ModusOperandiPlaybook()
     second = ModusOperandiPlaybook()
 
-    first.resolution.strategy = "review"
-    first.if_no_voicebot.strategy = "block"
+    first.resolution.resolution_tag = ResolutionTag.HANDLE_BY_ARIA
+    first.if_no_voicebot.resolution_tag = ResolutionTag.BLOCK_HARD
+    first.if_no_voicebot.resolution_method_id = "method-1"
 
-    assert second.resolution.strategy == ""
-    assert second.if_no_voicebot.strategy == ""
     assert second.resolution.resolution_tag is ResolutionTag.SCALE_TO_ANALYST
+    assert second.resolution.resolution_method_id is None
+    assert second.if_no_voicebot.resolution_tag is ResolutionTag.BLOCK_SOFT
+    assert second.if_no_voicebot.resolution_method_id is None
 
 
 def test_flag_links_and_playbook_resolution_rules_are_domain_owned() -> None:

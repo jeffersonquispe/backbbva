@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from src.application.dtos.model_dtos import CreateModelInput
+from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.model_port import (
     FieldTransform,
     HistoricalFeature,
@@ -41,6 +42,7 @@ from src.infrastructure.entrypoint.api.factories.model_factory import (
     get_preview_features_use_case,
     get_start_model_training_use_case,
 )
+from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas import (
     CreateModelRequest,
     DeleteModelResponse,
@@ -278,7 +280,10 @@ def train_model(
 def activate_model(
     model_id: UUID,
     use_case: Annotated[ActivateModelUseCase, Depends(get_activate_model_use_case)],
+    user: Annotated[LocalUser, Depends(get_current_user)],
 ):
+    if user.role not in {LocalRole.MANAGER, LocalRole.RELEASE_MANAGER}:
+        raise HTTPException(status_code=403, detail="ROLE_NOT_PERMITTED")
     try:
         activated = use_case.execute(model_id)
     except ModelNotFoundError:

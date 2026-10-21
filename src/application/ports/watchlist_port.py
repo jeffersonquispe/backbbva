@@ -12,6 +12,10 @@ class WatchlistType(StrEnum):
     WHITELIST = "whitelist"
 
 
+class WatchlistRevisionConflict(Exception):
+    """Raised when a watchlist changed since an assistant draft was verified."""
+
+
 @dataclass
 class Watchlist:
     # A named, described set of elements evaluated for membership - a
@@ -52,6 +56,7 @@ class WatchlistRepository(Protocol):
         name: str | None = None,
         description: str | None = None,
         active: bool | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> Watchlist | None: ...
 
     def delete(self, watchlist_id: str) -> None: ...

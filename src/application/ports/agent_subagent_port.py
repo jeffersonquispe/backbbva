@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from src.domain.agents.experiment import ComponentVersionReference
 from src.domain.agents.objective import AgentObjective
 
 
@@ -17,6 +18,7 @@ class AgentSubagentInput:
     objective_id: str | None = None
     objective_version: int | None = None
     objective: AgentObjective | None = None
+    baseline_components: tuple[ComponentVersionReference, ...] = ()
     cancelled: bool = False
 
 
@@ -27,6 +29,7 @@ class AgentSubagentOutput:
     verification_status: str = "NOT_VERIFIED"
     safe_metrics: dict[str, Any] = field(default_factory=dict)
     error_code: str | None = None
+    experiment_candidate_components: tuple[ComponentVersionReference, ...] = ()
 
 
 class AgentSubagent(Protocol):

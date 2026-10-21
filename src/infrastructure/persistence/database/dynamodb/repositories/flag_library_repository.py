@@ -4,9 +4,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from boto3.dynamodb.conditions import Attr
+from botocore.exceptions import ClientError
+
 from src.application.ports.flag_library_port import (
     FlagLibraryEntry,
     FlagLibraryRepository,
+    FlagLibraryRevisionConflict,
 )
 from src.domain.configurations.entities import (
     FlagType,
@@ -49,6 +53,7 @@ class DynamoFlagLibraryRepository(FlagLibraryRepository):
         modus_operandi_library_ids: list[str] | None = None,
         active: bool | None = None,
         embedding: list[float] | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> FlagLibraryEntry | None:
         current = self.get(entry_id)
         if current is None:
@@ -73,7 +78,20 @@ class DynamoFlagLibraryRepository(FlagLibraryRepository):
             updated_at=datetime.now(UTC),
             embedding=embedding if embedding is not None else current.embedding,
         )
-        self._table.put_item(Item=_to_item(updated))
+        put_args: dict[str, Any] = {"Item": _to_item(updated)}
+        if expected_updated_at is not None:
+            put_args["ConditionExpression"] = Attr("updated_at").eq(
+                expected_updated_at.isoformat()
+            )
+        try:
+            self._table.put_item(**put_args)
+        except ClientError as error:
+            if (
+                error.response.get("Error", {}).get("Code")
+                == "ConditionalCheckFailedException"
+            ):
+                raise FlagLibraryRevisionConflict(entry_id) from error
+            raise
         return updated
 
     def delete(self, entry_id: str) -> None:

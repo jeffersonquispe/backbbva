@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CreateAgentSessionRequest(BaseModel):
@@ -16,6 +16,50 @@ class CreateAgentSessionRequest(BaseModel):
 
 class RenewAgentBudgetRequest(BaseModel):
     additions: dict[str, int]
+
+
+class AgentLeaseResponse(BaseModel):
+    status: Literal["NONE", "ACTIVE", "EXPIRED"] = "NONE"
+    expires_at: datetime | None = None
+    heartbeat_at: datetime | None = None
+
+
+class AgentAuditEventResponse(BaseModel):
+    event_id: str
+    occurred_at: datetime
+    category: Literal[
+        "session", "iteration", "specialist", "tool", "experiment", "lease", "release"
+    ]
+    status: str = Field(min_length=1, max_length=64)
+    reason_code: str | None = Field(default=None, pattern=r"^[A-Z0-9_]{1,64}$")
+    duration_ms: int | None = Field(default=None, ge=0)
+    cost_micros: int | None = Field(default=None, ge=0)
+    specialist: Literal[
+        "optimizer",
+        "configuration",
+        "library",
+        "vector_store",
+        "model",
+        "dataset",
+        "xgboost",
+    ] | None = None
+    tool: Literal[
+        "read", "write", "evaluate", "search", "score", "persist", "dispatch",
+        "configuration", "library", "vector_store", "xgboost",
+    ] | None = None
+    actor: str | None = None
+    actor_id: str | None = None
+    entity_id: str | None = None
+    version: int | None = Field(default=None, ge=1)
+    snapshot_id: str | None = None
+    content_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    policy_version: str | None = None
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class AgentAuditPageResponse(BaseModel):
+    items: list[AgentAuditEventResponse]
+    next_cursor: str | None
 
 
 class AgentSessionResponse(BaseModel):
@@ -33,8 +77,35 @@ class AgentSessionResponse(BaseModel):
     prompt_versions: dict[str, dict[str, str]]
     rev: int
     budget_renewals: int = 0
+    lease: AgentLeaseResponse = Field(default_factory=AgentLeaseResponse)
 
-
+    @model_validator(mode="before")
+    @classmethod
+    def derive_lease_view(cls, value):
+        owner = (
+            value.get("lease_owner")
+            if isinstance(value, dict)
+            else getattr(value, "lease_owner", None)
+        )
+        expires_at = (
+            value.get("lease_expires_at")
+            if isinstance(value, dict)
+            else getattr(value, "lease_expires_at", None)
+        )
+        if expires_at is not None:
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
+            state = "ACTIVE" if expires_at > datetime.now(UTC) else "EXPIRED"
+        else:
+            state = "ACTIVE" if owner else "NONE"
+        lease = {
+            "status": state,
+            "expires_at": expires_at,
+            "heartbeat_at": None,
+        }
+        if isinstance(value, dict):
+            return {**value, "lease": lease}
+        return {**value.__dict__, "lease": lease}
 class AgentPackageSummaryResponse(BaseModel):
     package_id: str
     session_id: str
@@ -125,6 +196,40 @@ class AgentHypothesisResponse(BaseModel):
     evidence_outcome: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class ComponentVersionReferenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    component: Literal["model", "configuration", "library", "vector_store"]
+    entity_id: str
+    version: str
+    content_sha256: str
+
+
+class AgentExperimentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    session_id: str
+    experiment_id: str
+    iteration_number: int
+    kind: Literal["ISOLATED", "COMBINATION"]
+    status: Literal[
+        "RUNNING",
+        "SUCCEEDED",
+        "REJECTED_GLOBAL_CONSTRAINT",
+        "FAILED",
+    ]
+    components: list[ComponentVersionReferenceResponse]
+    baseline_components: list[ComponentVersionReferenceResponse]
+    snapshot_id: str | None = None
+    snapshot_sha256: str | None = None
+    objective_id: str
+    objective_version: int
+    created_at: datetime
+    completed_at: datetime | None
+    global_evaluation: dict[str, object]
+    error_code: str | None
 
 
 class GenerateModusOperandiDraftRequest(BaseModel):

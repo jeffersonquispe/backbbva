@@ -7,6 +7,7 @@ from typing import Any
 from src.application.ports.taxonomy_library_port import (
     TaxonomyLibraryEntry,
     TaxonomyLibraryRepository,
+    TaxonomyLibraryRevisionConflict,
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
@@ -46,6 +47,7 @@ class DynamoTaxonomyLibraryRepository(TaxonomyLibraryRepository):
         examples: list[str] | None = None,
         active: bool | None = None,
         embedding: list[float] | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> TaxonomyLibraryEntry | None:
         current = self.get(entry_id)
         if current is None:
@@ -62,8 +64,27 @@ class DynamoTaxonomyLibraryRepository(TaxonomyLibraryRepository):
             updated_at=datetime.now(UTC),
             embedding=embedding if embedding is not None else current.embedding,
         )
-        self._table.put_item(Item=_to_item(updated))
+        try:
+            if expected_updated_at is None:
+                self._table.put_item(Item=_to_item(updated))
+            else:
+                from boto3.dynamodb.conditions import Attr
+
+                self._table.put_item(
+                    Item=_to_item(updated),
+                    ConditionExpression=Attr("updated_at").eq(expected_updated_at.isoformat()),
+                )
+        except self._conditional_error() as error:
+            if error.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                raise TaxonomyLibraryRevisionConflict("taxonomy changed during update") from error
+            raise
         return updated
+
+    @staticmethod
+    def _conditional_error():
+        from botocore.exceptions import ClientError
+
+        return ClientError
 
     def delete(self, entry_id: str) -> None:
         self._table.delete_item(Key={"id": entry_id})

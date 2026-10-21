@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from src.application.ports.embedding_port import EmbeddingResult, EmbeddingUnitOfWork
@@ -55,6 +57,7 @@ class InMemoryFlagLibraryRepository:
         modus_operandi_library_ids: list[str] | None = None,
         active: bool | None = None,
         embedding: list[float] | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> FlagLibraryEntry | None:
         current = self.items.get(entry_id)
         if current is None:

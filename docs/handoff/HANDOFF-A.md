@@ -1,5 +1,16 @@
 # HANDOFF — Sesión A
 
+## H12 — contrato API/estados/errores compartido antes de implementación
+
+El contrato para A y FP8 está publicado en
+[`HANDOFF-H12-CONTRACT-A.md`](HANDOFF-H12-CONTRACT-A.md). Define validación
+retrospectiva sobre experimento H11 y pins inmutables, shadow no influyente,
+aprobación humana separada, etapas de canary y rollback, además de roles,
+guardrails, errores y un escenario E2E reproducible. La implementación debe
+mantener la regla de que el optimizador no activa/promueve candidatos. Este es
+un handoff dentro del workspace compartido; no hay un canal de mensajería de A
+disponible en esta sesión.
+
 ## H0 — Verificaciones previas
 
 Revisión del código en `a5843c74` (rama `feat/agent-A`), sin cambios de
@@ -425,6 +436,20 @@ Frontend (`../frontend_mockup`):
   (componente/API/E2E), `c8eb74c` (montaje de pestaña). No se requiere acción
   de B; el puerto contractual permanece intacto.
 
+## FP2–FP3 — Chat compartido y modo asistente en el panel
+
+- Commits frontend integrados: `69e6782` (panel compartido y chat) y `a50afba`
+  (corrección de cleanup de efecto y E2E). La UI ofrece contexto de página,
+  chat idempotente, insights y confirmación auditada de borradores.
+- Verificación integradora: ESLint focalizado y `npx tsc --noEmit` pasaron.
+  `make test-e2e-agent` reconstruyó el frontend integrado y Playwright pasó
+  1/1 por nginx `http://localhost:80`, con chat idempotente y creación,
+  verificación y confirmación de borrador contra el API real.
+- El primer intento post-merge agotó el timeout del hook al recrear el API
+  para obtener bootstrap. Se repitió con el API sano, config local montada
+  desde integración y token temporal de bootstrap; el stack se devolvió a su
+  configuración normal al terminar.
+
 ## Revisión integradora de regresiones (2026-10-20)
 
 - La suite `make e2e-all-local` completa pasó 27/27 por nginx después de
@@ -434,3 +459,93 @@ Frontend (`../frontend_mockup`):
 - Lint Ruff/mypy 0/0, arquitectura 240/240, pytest focalizado de repositorios
   de configuración 22/22; `.lint-baseline.json` y los baselines conocidos no
   crecieron.
+
+## FP4/FP5 — lanzamiento, conversación y progreso del optimizador
+
+- Commits integrados: backend `c7717fb` (endpoint agregado de presupuesto) y
+  frontend `43ce0f9` (panel del optimizador). El merge backend con H10 quedó en
+  `3451384`.
+- Verificación integrada: lint Ruff/mypy 0/0, arquitectura 240/240, pytest
+  focalizado 35/35, ESLint focalizado, `npx tsc --noEmit` y `git diff --check`
+  pasaron. Los baselines permanecen en cero.
+- `E2E_TEST_FILES=e2e/agent-optimizer-real.spec.ts make e2e-all-local`
+  reconstruyó API, worker y frontend y pasó 1/1 por nginx `http://localhost:80`
+  con API same-origin `/api/v0`. Comprobó rechazo del rol manager, objetivo y
+  presupuesto reales, lanzamiento por channel_manager, pausa, conversación y
+  cancelación. Una ejecución anterior contra imagen frontend vieja expiró;
+  reconstruir la imagen resolvió el problema.
+- `make e2e-observability` pasó 1/1. La suite completa registró 19 pasadas,
+  7 fallidas y 1 omitida: aserción de métricas de esquema; E11 respaldos,
+  E01 login, E04 login, E03 entidades y E06 login con HTTP 500; E05 no encontró
+  `/private/tmp/aria-e04-partitions/e04_actual_sanitized_900.csv`. Los E2E de
+  FP4/FP5 y FP2/FP3 pasaron dentro de la suite.
+- En la repetición focalizada, el API registró que `POST /api/v0/library/taxonomies`
+  falla porque `tiktoken` intenta descargar `cl100k_base` y el contenedor no
+  resuelve `openaipublic.blob.core.windows.net`. Las demás causas seguían sin
+  confirmar en el corte del 2026-10-20; esa espera es histórica. El integrador
+  declaró H11 cerrado; la sección histórica de
+  `docs/handoff/HANDOFF-B.md` aún requiere alinear su estado.
+
+## FP8 — UI y Playwright real por nginx (2026-10-21)
+
+- Contraste con el router backend H12 y sus esquemas: se consumen las rutas
+  existentes bajo `/api/v0/agent/releases` para validación retrospectiva,
+  creación/listado SHADOW, submit, aprobación, avance y rollback. No se añadió
+  endpoint ni se simularon respuestas. `channel_manager` valida/crea/envía;
+  `manager` y `release_manager` leen y ejecutan aprobación/avance/rollback.
+  La API rechaza aprobación de `channel_manager` (403), autoaprobación (409),
+  envío sin 30 observaciones (409) y release simultáneo (409).
+- La UI presenta el resultado de la validación (estado, snapshot/hash y pins),
+  el estado/observaciones del release y acciones permitidas por rol. El avance
+  solo se habilita con el mínimo de observaciones y rollback se oculta en estado
+  terminal. El panel optimizador consulta los claims ya existentes por área;
+  si otra sesión tiene el claim activo, muestra su `session_id` y `claimed_at`
+  localizado. La prueba confirma que B devuelve 409 al crear otra sesión
+  optimizadora mientras el área está reclamada; por eso el fixture crea una
+  sesión borrador antes de iniciar la sesión que toma el claim.
+- Archivos frontend tocados: `src/lib/api/agent.functions.ts`,
+  `src/components/agent/AgentReleasePanel.tsx`,
+  `src/components/agent/AgentOptimizerPanel.tsx`,
+  `src/components/agent/AgentPanel.tsx`,
+  `e2e/agent-assistant-real.spec.ts` y
+  `e2e/agent-optimizer-real.spec.ts` en `../frontend_mockup`.
+- Cobertura Playwright ejecutada: `npm run test:e2e:agent:optimizer:real`
+  terminó **1 passed (13.5s)** por `http://localhost` (nginx), con API
+  same-origin `/api`: claims reales por área, nombre/fecha de sesión activa
+  desde la pestaña de otra sesión draft, lanzamiento, lease, historial,
+  comparación/auditoría FP6/F7.4, pausa, conversación y cancelación. El E2E
+  `npm run test:e2e:agent:real` sigue **pendiente**: primero ejecutó creación y
+  edición pero falló porque el schema de confirmaciones no contiene
+  `entity_id`; corregida la aserción para validar `action/status`, la repetición
+  falló al generar el borrador de edición (HTTP 503 del servicio de generación)
+  antes de confirmar la edición. No declaro ese recorrido cubierto.
+- El E2E H12 default integrado pasó previamente: validación retrospectiva y
+  creación SHADOW desde UI, 403 al intentar aprobar como channel_manager,
+  409 al enviar sin evidencia, rollback de manager desde UI y candidato inactivo.
+  Resultado completo conservado en el bloque H12 de este HANDOFF (sesión
+  `818e7fbd-ce1b-49ab-a27c-97f0af13f547`, experimento
+  `6c7e33fa-998a-4c3c-9dcf-e532fe00f7a5`).
+- Intento de cobertura integrada completa:
+  `H12_E2E_FULL=1 make e2e-agent-h12-resume-local`. API, worker y nginx se
+  reconstruyeron, la retrospectiva/SHADOW se ejecutó por UI y el camino real
+  generó la primera alerta con `POST /api/v0/alerts/test`; el review worker
+  marcó esa alerta `FAILED` (adversarial review rechazó `customer_name='Mock
+  Customer'` y `event_type='H12 rollout E2E'`). El comando terminó exit 2 antes
+  de submit/aprobación/promoción. No se inyectaron observaciones ficticias.
+  **Quedan pendientes** con evidencia backend: transición aprobada a
+  `CANARY_5`, avance `CANARY_25`/`CANARY_50`/`FULL`, rollback posterior a FULL,
+  y la promoción bloqueada/desbloqueada de extremo a extremo. La aprobación
+  debe reintentarse con alertas que superen la política real de revisión.
+- **Límites:** el E2E de claims cubre interferencia entre una sesión activa y
+  una draft, no dos sesiones activas; el backend bloquea la segunda con 409.
+  La edición asistida se ejecutó pero su aserción de auditoría aún requiere
+  repetición. El flujo de insights vinculado a la sesión, varias iteraciones
+  reales sin aprobación intermedia y pausa/cancelación con progreso del runner
+  no están cubiertos por los resultados de esta corrida. No se afirma cobertura
+  para ellos. La evidencia H12 disponible es local y sintética, sin despliegue
+  ni rendimiento productivo.
+- Verificaciones: ESLint focalizado y `npx tsc --noEmit` pasaron tras los
+  cambios de UI/specs. `node --check scripts/e2e_agent_h12_local.mjs` y
+  `git diff --check` pasaron antes de la última corrida; repetir
+  `git diff --check` al cerrar. No se ejecutó la suite completa ni
+  `make e2e-observability` para este cambio.

@@ -4,6 +4,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import UUID
 
+from src.application.ports.agent_audit_port import AgentAuditEvent
 from src.application.ports.agent_budget_ledger_port import AgentBudgetEntry
 from src.application.ports.agent_hypothesis_port import (
     AgentHypothesis,
@@ -38,6 +39,8 @@ from src.application.ports.assistant_optimizer_settings_port import (
 )
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
+from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.agent.manage_agent_session import (
     ManageAgentSessionUseCase,
 )
@@ -142,6 +145,17 @@ class InMemoryBudget:
         return self.entries[:limit]
 
 
+class InMemoryAgentAudit:
+    def __init__(self) -> None:
+        self.events: list[AgentAuditEvent] = []
+
+    def append(self, event):
+        self.events.append(event)
+
+    def list_for_session(self, session_id, *, cursor, limit):
+        return self.events[:limit], None
+
+
 class InMemoryPackages:
     def __init__(self) -> None:
         self.items: dict[str, AgentPackage] = {}
@@ -182,7 +196,9 @@ class InMemoryHypotheses:
         return item
 
     def list_for_session(self, session_id, limit=100):
-        return [item for item in self.items.values() if item.session_id == session_id][:limit]
+        return [item for item in self.items.values() if item.session_id == session_id][
+            :limit
+        ]
 
     def update(self, item, expected_rev):
         self.items[item.hypothesis_id] = replace(item, rev=expected_rev + 1)
@@ -223,7 +239,8 @@ class InMemoryInsights:
         return [
             item
             for item in self.items.values()
-            if item.session_id == session_id and (status is None or item.status == status)
+            if item.session_id == session_id
+            and (status is None or item.status == status)
         ][:limit]
 
     def get(self, session_id, insight_id):
@@ -259,7 +276,9 @@ class InMemorySettings(AssistantOptimizerSettingsPort):
         self.read_count += 1
         return self.settings
 
-    def update(self, settings: AssistantOptimizerSettings) -> AssistantOptimizerSettings:
+    def update(
+        self, settings: AssistantOptimizerSettings
+    ) -> AssistantOptimizerSettings:
         self.settings = settings
         return settings
 
@@ -301,6 +320,40 @@ class MetricSubagent:
         )
 
 
+class RecordingAgentSpan(MonitoringSpan):
+    def __init__(self, name: str, metadata: dict) -> None:
+        self.name = name
+        self.metadata = dict(metadata)
+
+    def write_input(self, data):
+        pass
+
+    def write_result(self, data):
+        pass
+
+    def write_inner_logs(self, entries):
+        pass
+
+    def write_operation_metas(self, metadata):
+        self.metadata.update(metadata)
+
+    def record_dependency(self, name, kind, metadata=None):
+        pass
+
+    def finish(self, error=None):
+        self.metadata["finished"] = True
+
+
+class RecordingAgentMonitoring(MonitoringPort):
+    def __init__(self) -> None:
+        self.spans: list[RecordingAgentSpan] = []
+
+    def start(self, operation_name, operation_type, metadata=None):
+        span = RecordingAgentSpan(operation_name, metadata or {})
+        self.spans.append(span)
+        return span
+
+
 def _use_case(
     session,
     settings,
@@ -311,6 +364,8 @@ def _use_case(
     links=None,
     specialists=None,
     objectives=None,
+    monitoring=None,
+    audit=None,
 ):
     repositories = {
         "sessions": sessions_repository or InMemorySessions(session),
@@ -331,6 +386,8 @@ def _use_case(
         links=links,
         specialists=specialists,
         objectives=objectives,
+        monitoring=monitoring,
+        audit=audit,
     )
     return use_case, repositories
 
@@ -384,6 +441,51 @@ def test_tick_persists_one_stub_iteration_and_clears_lease() -> None:
     assert session.lease_expires_at is None
 
 
+def test_tick_persists_session_iteration_specialist_tool_and_lease_audit() -> None:
+    audit = InMemoryAgentAudit()
+    use_case, _ = _use_case(
+        _session(), InMemorySettings(AssistantOptimizerSettings()), audit=audit
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+    assert {event.category for event in audit.events} == {
+        "lease",
+        "session",
+        "iteration",
+        "specialist",
+        "tool",
+    }
+    assert any(event.reason_code == "LEASE_ACQUIRED" for event in audit.events)
+    assert any(event.reason_code == "LEASE_RELEASED" for event in audit.events)
+
+
+def test_iteration_emits_safe_agent_audit_spans() -> None:
+    monitoring = RecordingAgentMonitoring()
+    use_case, _ = _use_case(
+        _session(),
+        InMemorySettings(AssistantOptimizerSettings()),
+        monitoring=monitoring,
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+
+    assert [span.name for span in monitoring.spans] == [
+        "agent.session",
+        "agent.iteration",
+        "agent.specialist",
+        "agent.tool",
+    ]
+    assert all(span.metadata["finished"] for span in monitoring.spans)
+    assert all(
+        span.metadata["agent.status"] == "SUCCEEDED" for span in monitoring.spans
+    )
+    assert monitoring.spans[1].metadata["agent.session_id"] == "s1"
+    assert monitoring.spans[1].metadata["agent.iteration"] == 1
+    assert monitoring.spans[2].metadata["agent.specialist"] == "stub"
+    assert monitoring.spans[1].metadata["agent.duration_ms"] == 0
+    assert monitoring.spans[1].metadata["agent.cost_usd_micros"] == 1
+
+
 def test_optimizer_stops_deterministically_after_configured_stagnation() -> None:
     settings = InMemorySettings(
         AssistantOptimizerSettings(
@@ -410,7 +512,9 @@ def test_optimizer_stops_deterministically_after_configured_stagnation() -> None
 
     assert repositories["sessions"].session.status == AgentSessionStatus.STOPPED
     assert len(repositories["iterations"].items) == 3
-    assert all(item.package_id is None for item in repositories["iterations"].items.values())
+    assert all(
+        item.package_id is None for item in repositories["iterations"].items.values()
+    )
     decision = repositories["iterations"].items[3].decision
     assert decision["action"] == "stop"
     assert decision["score"] == 0.6
@@ -476,7 +580,8 @@ def test_optimizer_routes_to_specialist_for_hypothesis_area() -> None:
 
     decision = repositories["iterations"].items[1].decision
     assert decision["specialist"] == "vector_store"
-    assert decision["experiment_verified"] is True
+    assert decision["specialist_verified"] is True
+    assert decision["experiment_verified"] is False
 
 
 class NamedStubSubagent(InMemoryStubSubagent):
@@ -529,7 +634,10 @@ def test_unverified_experiment_cannot_validate_hypothesis() -> None:
 
     assert use_case.execute("s1") == "iteration_completed"
 
-    assert next(iter(hypotheses.items.values())).status == AgentHypothesisStatus.NONCONCLUSIVE
+    assert (
+        next(iter(hypotheses.items.values())).status
+        == AgentHypothesisStatus.NONCONCLUSIVE
+    )
     decision = repositories["iterations"].items[1].decision
     assert decision["experiment_verified"] is False
     assert "score" not in decision
@@ -603,9 +711,7 @@ class UnverifiedProposalSubagent:
 
 
 def test_optimizer_persists_candidate_package_as_pending_verification() -> None:
-    session = replace(
-        _session("optimization"), scope={"areas": ["configuration"]}
-    )
+    session = replace(_session("optimization"), scope={"areas": ["configuration"]})
     use_case, repositories = _use_case(
         session,
         InMemorySettings(AssistantOptimizerSettings(optimizer_enabled=True)),

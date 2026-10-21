@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aria-prometheus-config
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: aria-observability
+    app.kubernetes.io/managed-by: argocd
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+
+    # App metrics are PUSHED by otel-collector to Prometheus' OTLP receiver
+    # (--web.enable-otlp-receiver); only the backends themselves are scraped.
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
+
+      - job_name: tempo
+        static_configs:
+          - targets: ["tempo:3200"]
+
+      - job_name: loki
+        static_configs:
+          - targets: ["loki:3100"]

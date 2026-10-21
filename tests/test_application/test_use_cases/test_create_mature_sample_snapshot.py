@@ -135,6 +135,9 @@ class InMemoryDatasets:
         self.rows[name].extend(rows)
         return len(self.rows[name])
 
+    def get_rows(self, name):
+        return self.rows[name]
+
     def delete(self, name):
         self.rows.pop(name, None)
         self.fields.pop(name, None)

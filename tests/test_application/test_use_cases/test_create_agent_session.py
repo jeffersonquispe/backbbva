@@ -5,6 +5,9 @@ from uuid import UUID
 
 import pytest
 
+from src.application.ports.agent_experiment_component_port import (
+    AgentExperimentComponentResolver,
+)
 from src.application.ports.agent_objective_port import AgentObjectiveRepository
 from src.application.ports.agent_prompt_port import (
     ActiveAgentPrompt,
@@ -27,6 +30,7 @@ from src.application.use_cases.agent.create_agent_session import (
     CreateAgentSessionInput,
     CreateAgentSessionUseCase,
 )
+from src.domain.agents.experiment import ComponentVersionReference
 from src.domain.agents.objective import (
     GLOBAL_FRAUD_OBJECTIVE_ID,
     AgentObjective,
@@ -87,11 +91,7 @@ class InMemoryPrompts(AgentPromptRepository):
 
     def get_active(self, name: str) -> ActiveAgentPrompt | None:
         prompt = self.prompts.get(name)
-        return (
-            ActiveAgentPrompt(name, prompt.version, NOW, "test")
-            if prompt
-            else None
-        )
+        return ActiveAgentPrompt(name, prompt.version, NOW, "test") if prompt else None
 
     def activate(self, pointer, expected_version):
         return None
@@ -123,7 +123,9 @@ class InMemoryObjectives(AgentObjectiveRepository):
         return objective
 
     def objective_id_matches(self, objective_id: str) -> bool:
-        return self.objective is not None and self.objective.objective_id == objective_id
+        return (
+            self.objective is not None and self.objective.objective_id == objective_id
+        )
 
 
 class InMemorySettings(AssistantOptimizerSettingsPort):
@@ -133,7 +135,9 @@ class InMemorySettings(AssistantOptimizerSettingsPort):
             optimizer_max_concurrent_sessions=3,
         )
 
-    def update(self, settings: AssistantOptimizerSettings) -> AssistantOptimizerSettings:
+    def update(
+        self, settings: AssistantOptimizerSettings
+    ) -> AssistantOptimizerSettings:
         return settings
 
 
@@ -145,6 +149,22 @@ class FixedClock(Clock):
 class FixedIds(IdGenerator):
     def new_id(self) -> UUID:
         return UUID(int=123)
+
+
+class InMemoryBaselineResolver(AgentExperimentComponentResolver):
+    def active_baseline(self):
+        return tuple(
+            ComponentVersionReference.pin(
+                component, f"{component}-id", "1", {"component": component}
+            )
+            for component in ("model", "configuration", "library", "vector_store")
+        )
+
+    def pin(self, component, entity_id, version):
+        return None
+
+    def resolve(self, reference):
+        return None
 
 
 def _objective(version: int) -> AgentObjective:
@@ -178,6 +198,7 @@ def test_optimization_session_pins_active_objective_version_and_all_prompts() ->
         sessions=sessions,
         prompts=InMemoryPrompts(),
         objectives=InMemoryObjectives(objective),
+        components=InMemoryBaselineResolver(),
         settings=InMemorySettings(),
         clock=FixedClock(),
         id_generator=FixedIds(),
@@ -194,6 +215,12 @@ def test_optimization_session_pins_active_objective_version_and_all_prompts() ->
 
     assert created.objective_id == GLOBAL_FRAUD_OBJECTIVE_ID
     assert created.objective_version == 5
+    assert {item.component for item in created.baseline_components} == {
+        "model",
+        "configuration",
+        "library",
+        "vector_store",
+    }
     assert set(created.prompt_versions) == set(REQUIRED_PROMPTS)
     assert sessions.created == created
 

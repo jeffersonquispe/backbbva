@@ -487,3 +487,180 @@ La repetición final del target usó Playwright, `http://localhost` a través de
   transacción de activación y define `:pending` en la aprobación del pedido.
 - Lint Ruff/mypy 0/0, arquitectura 240/240 y pytest focalizado 22/22 pasaron;
   los baselines no crecieron.
+
+### Cierre integrador H10 (2026-10-20)
+
+- El trabajo se registró en `9fd9af6` (`DEMLGENAIF-141 feat(agent): execute
+  optimizer specialists`) y se integró con FP4/FP5 en el merge `3451384`.
+  El único conflicto fue `AgentSessionResponse`: quedó con `scope` de FP4/FP5
+  y `objective_id`/`objective_version` de H10. No hubo crecimiento de baseline.
+- En la rama integrada pasaron `make lint` (Ruff 0, mypy 0),
+  `make test-architecture` (240/240) y pytest focalizado (35/35; una
+  advertencia deprecada de Starlette). `git diff --check` pasó.
+- `make e2e-agent-h10-local` reconstruyó API/worker y pasó por nginx con
+  proveedor configurado: objetivo fijado, propuesta XGBoost generada y
+  verificada, cancelación e hipótesis evaluada.
+- `make e2e-observability` pasó 1/1. La suite completa registró 19 pasadas,
+  7 fallidas y 1 omitida: aserción de métricas de esquema; E11 respaldos,
+  E01 login, E04 login, E03 entidades y E06 login con HTTP 500; E05 no encontró
+  `/private/tmp/aria-e04-partitions/e04_actual_sanitized_900.csv`. H10 y FP4/FP5
+  pasaron en las corridas enfocadas y dentro de la suite. Una repetición
+  enfocada confirmó un fallo de tokenizer por DNS al crear taxonomías; las
+  causas de los demás HTTP 500 no están confirmadas. Mantener H11 en espera
+  hasta investigar los fallos restantes.
+
+### Contrato API propuesto H11 para A — 2026-10-20
+
+Para que FP6/FP7 pueda avanzar sobre contratos estables, propongo conservar
+el prefijo `/api/v0/agent` y el ownership ya aplicado por sesión:
+
+- `GET /sessions/{session_id}/iterations` conserva la respuesta existente.
+- `GET /sessions/{session_id}/experiments?limit=50` devuelve una lista de
+  `{session_id,experiment_id,iteration_number,kind,status,created_at,
+  completed_at,components,baseline_components,objective_id,objective_version,
+  global_evaluation,error_code}`. Los dos conjuntos contienen pins
+  `{component,entity_id,version,content_sha256}`; `kind` es `ISOLATED` o
+  `COMBINATION`. La evaluación compara los candidatos con los pins baseline.
+- `global_evaluation` expone `{status,minimum_protected_segment_size,global,
+  baseline_global,segments,constraints}`. Cada constraint incluye
+  `{constraint_id,status,aggregate,minimum_sample_size}`. Un segmento con
+  soporte bajo queda fuera de `segments`, no aparece por nombre en el fallo y
+  no revela su cuenta. Sólo se publican agregados con al menos 30 casos por
+  segmento; se aplica el umbral mayor entre 30 y el del objetivo versionado.
+- `GET /sessions/{session_id}/experiments/{experiment_id}` devuelve el mismo
+  objeto o `404 {detail:{code:"EXPERIMENT_NOT_FOUND"}}`. Combinaciones
+  candidatas usan estado `REJECTED_GLOBAL_CONSTRAINT` cuando cualquier
+  restricción global falla; de otro modo `SUCCEEDED`/`FAILED`.
+- Estados de iteración conservan `RUNNING`, `SUCCEEDED`, `STOPPED`, `FAILED`;
+  sesiones mantienen sus estados existentes. No hay aprobación intermedia.
+  Promoción sigue siendo una operación separada del flujo existente y exige
+  `manager` o `release_manager`.
+- Duración y coste son agregados de la iteración/experimento. Auditoría OTLP
+  usa spans `agent.session`, `agent.iteration`, `agent.specialist` y
+  `agent.tool`, con estado, duración y coste; ids de sesión/iteración,
+  nombres de herramientas, versiones, filas y valores de negocio no serán
+  atributos de métricas ni dimensiones de cardinalidad.
+
+Esta propuesta se compartió antes de modificar rutas. Se implementaron las
+dos lecturas de experimentos sobre ese contrato; la respuesta de iteraciones
+existente no se alteró.
+
+## H11 — estado vigente consolidado — 2026-10-21
+
+> Esta sección sustituye los estados provisionales H11 anteriores. H11 quedó
+> conectado al loop autónomo y verificado en el stack local. El resultado de un
+> experimento no activa ni promueve el modelo en producción.
+
+### Decisión versionada de etiquetas
+
+- El objetivo global fija `knowledge_decision_policy=evidence_only_v1` en cada
+  versión. Biblioteca y Vector Store entregan evidencia y su cantidad agregada;
+  nunca alteran las etiquetas binarias ni el cálculo de precision/recall. Una
+  política futura que permita cambiar etiquetas requiere una versión nueva del
+  objetivo y nuevas pruebas comparables.
+- El modelo fijado produce el score. La configuración fijada aplica el umbral
+  del primer segmento habilitado que coincide con la fila. Si no hay segmentos
+  habilitados, rige el umbral del bundle del modelo fijado. Si hay segmentos
+  habilitados pero ninguno coincide, el scorer falla cerrado.
+
+### Camino productivo implementado
+
+- Al crear una sesión de optimización se guardan pins estructurados de modelo,
+  configuración, Biblioteca y Vector Store. El resolver persistente recupera
+  cada revisión y valida SHA-256. El modelo usa artefactos
+  `models/sha256/<digest>.joblib`; revisiones actuales de Biblioteca se archivan
+  antes de crear el pin.
+- La salida verificada del especialista puede producir el stack candidato
+  estructurado. El loop Celery compone `PairedAgentExperimentRunner` con el
+  `MCPResolvedAgentPipelineScorer` y llama `EvaluateAgentExperiment` al cerrar
+  la iteración. La factory inyecta también la auditoría DynamoDB.
+- Baseline y candidato resuelven los cuatro componentes y se puntúan sobre las
+  mismas filas de la partición final de un snapshot maduro. El snapshot guarda
+  el SHA-256 de la representación CSV ya persistida; el evaluador vuelve a
+  calcularlo y valida los conteos antes de puntuar. El bootstrap pareado usa
+  semilla derivada del hash del snapshot y la métrica.
+- La auditoría persistida incluye sesión, iteración, especialista, herramienta,
+  experimento y adquisición/liberación de lease. La API de auditoría acepta
+  `xgboost` y devuelve los eventos reales del loop.
+- El evaluador suprime segmentos cuyo soporte sea menor que
+  `max(30, minimum_support_per_segment)`. La prueba unitaria verifica el caso
+  con 29 filas; el E2E integrado también comprueba 29/30 en la partición final.
+- Diagnóstico del `CreatedDayIdx`: el índice está `ACTIVE` y una escritura de
+  prueba sí aparece en la consulta. El 0/3000 se originaba antes: el fixture
+  leía `schema_mapping` del objetivo activo en lugar del mapping del sampler;
+  además, tras corregir ese mapping mantenía el conjunto de campos reservados
+  anterior y elegía `event_id` como estrato. Ese campo se sobrescribe con la
+  marca inicial constante. El fixture ahora lee el endpoint de mapping del
+  sampler y recalcula los campos reservados después de actualizarlo.
+
+### Qué corre en el stack y qué usa fakes
+
+- **Camino integrado real local:** API, Celery, DynamoDB Local, MinIO, MCP,
+  modelo XGBoost entrenado y Playwright a través de nginx en `http://localhost`
+  con tráfico same-origin `/api/v0`. No se mockea la API en el navegador. El
+  fixture de alertas es sintético y solo pertenece al stack local.
+- **Solo pruebas unitarias con fakes:** supresión explícita de una etiqueta de
+  segmento con soporte 29 y fallos de validación de pins/evidencia. Estas
+  pruebas complementan el E2E; no se presentan como ejecución productiva.
+- Un estado de experimento `SUCCEEDED` significa que pasó las restricciones
+  del objetivo fijado. No cambia el modelo activo ni equivale a un despliegue,
+  una aprobación de promoción o evidencia de datos productivos.
+
+### Evidencia del E2E real — 2026-10-21
+
+`make e2e-agent-global-pipeline-local` creó por nginx una muestra madura con
+3.000 alertas elegibles y una partición final de 296 filas etiquetadas; entrenó
+baseline y candidato reales. Después, `make e2e-agent-h9-local` ejecutó el loop
+H11 por nginx y comprobó el experimento persistido:
+
+- Estado `SUCCEEDED`; pins candidatos y baseline para
+  `configuration`, `library`, `model` y `vector_store`.
+- Partición `final`, snapshot
+  `415a74293d1f826c0997a59acf235d20`, SHA-256
+  `67d806d21c920df8d7a34b92cdb338129fef53ecc9bc201351fc06bf4fa4a972`.
+- Política `evidence_only_v1`; categorías de auditoría observadas:
+  `experiment`, `iteration`, `lease`, `session`, `specialist`, `tool`.
+- `candidate_active=false` tras el éxito del experimento.
+
+Es evidencia de integración en el stack local con datos sintéticos, no de
+producción ni de promoción. El primer E2E aislado no tenía snapshot final; el
+siguiente encontró una composición incorrecta del runner; la ejecución que
+produjo la evidencia anterior pasó con el hash reproducible, scorer compuesto y
+auditoría conectada.
+
+La repetición con la frontera 29/30 sembró 3.000 alertas elegibles y 283 filas
+etiquetadas en la partición final. El flujo de preparación H8 y el E2E H11 se
+ejecutaron por nginx contra el stack local; el runner comparó el modelo y la
+configuración fijados junto con Biblioteca y Vector Store, sobre el mismo
+snapshot:
+
+- Estado `SUCCEEDED` de evaluación local, snapshot
+  `ee2a1ca652f851b5c86c8a5968d789cf`, SHA-256
+  `d08d0e2783ef4b0df55ef229b7a68bd5b799c0ad868614aeb546189fbd0a7862`.
+- Segmentos: `event_type_E2E_SUPPORT_30` publicado con soporte 30;
+  `E2E_SUPPORT_29` no publicado. El E2E exige ambos resultados y falló antes
+  cuando el fixture no generaba segmentos, en vez de aceptar un mapa vacío.
+- Política `evidence_only_v1`; eventos reales de auditoría
+  `experiment`, `iteration`, `lease`, `session`, `specialist`, `tool`; UI mostró
+  sesión, iteración, herramienta, lease y experimento. `candidate_active=false`.
+- `make e2e-agent-h11-local` no terminó su etapa de build en el último intento
+  por una descarga/decodificación transitoria de Poetry desde PyPI. Para obtener
+  la evidencia se ejecutaron directamente el sembrado H8 y Playwright H11 por
+  nginx sobre el stack local levantado, con las imágenes backend ya reconstruidas.
+
+Este resultado sigue siendo local y usa datos sintéticos: `SUCCEEDED` no equivale
+a despliegue ni promoción productiva.
+
+### Verificaciones
+
+- `make lint`: Ruff y mypy, 0 errores; baseline en cero.
+- `make test-architecture`: 246/246.
+- Pruebas focalizadas de runner, evaluador y persistencia: 21/21.
+- `git diff --check`: sin errores.
+- E2E real por nginx: se validaron el snapshot, los cuatro componentes,
+  scoring reproducible, supresión de soporte 29 y publicación de soporte 30.
+- **Estado H11:** cerrado por decisión del usuario el 2026-10-21. La evidencia
+  local `SUCCEEDED` no activa el candidato ni equivale a despliegue o promoción
+  productiva; el flujo de liberación gradual corresponde a H12.
+
+No se creó commit ni se hizo push.

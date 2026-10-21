@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import secrets
 import sys
@@ -27,6 +29,11 @@ from e2e_agent_local import (
     restart_nginx,
     update_settings,
     wait_for_nginx_api,
+)
+
+from src.domain.datasets.mature_sampling import (
+    MatureSampleSpec,
+    deterministic_partition,
 )
 
 BASE_ALERT_COUNT = 3_000
@@ -105,9 +112,11 @@ def wait_evaluation(token: str, snapshot_id: str, timeout: int = 120) -> dict:
 
 
 def _mapping_and_schema(token: str) -> tuple[dict, dict, dict]:
-    status, active = request("GET", "/agent/objectives/active", token)
-    if status == 200:
-        mapping = active["schema_mapping"]
+    status, sampler_configuration = request(
+        "GET", "/assistant-optimizer-settings/sampler/schema-configuration", token
+    )
+    check(status, 200, "read sampler schema mapping", sampler_configuration)
+    mapping = sampler_configuration["mapping"]
     status, schema = request("GET", "/alert-schema/active", token)
     check(status, 200, "read active alert schema", schema)
     fields = {item["field"]: item for item in schema["fields"]}
@@ -177,6 +186,16 @@ def _mapping_and_schema(token: str) -> tuple[dict, dict, dict]:
             mapping,
         )
         check(status, 200, "update mapping to the active schema", saved)
+    # The sampler mapping may have been replaced above. Recompute reserved
+    # fields before choosing a feature for fixture segmentation; otherwise an
+    # initial-mark field such as event_id can be selected as the stratum and
+    # then overwritten with the same constant value for every generated row.
+    required = {
+        mapping["initial_mark_field"],
+        mapping["initial_marking_date_field"],
+        mapping["target_field"],
+        mapping["marking_date_field"],
+    }
     positive_values = [
         key
         for key, value in mapping["label_value_mapping"].items()
@@ -224,7 +243,8 @@ def _mapping_and_schema(token: str) -> tuple[dict, dict, dict]:
 
 
 def seed_mature_alerts(
-    *, token: str, schema: dict, mapping: dict, fields: dict, maturity_days: int
+    *, token: str, schema: dict, mapping: dict, fields: dict, maturity_days: int,
+    settings: dict,
 ) -> None:
     del token  # The fixture writes only generated, non-customer test alerts.
     client = boto3.resource(
@@ -238,14 +258,63 @@ def seed_mature_alerts(
     timezone = ZoneInfo(os.getenv("OPERATIONS_TIMEZONE", "America/Bogota"))
     today = datetime.now(UTC).astimezone(timezone).date()
     created_day = today - timedelta(days=max(maturity_days, 1))
+    period_end = today - timedelta(days=maturity_days)
+    period_start = period_end - timedelta(days=settings["sampler_period_days"] - 1)
+    schema_versions = [int(value) for value in settings["sampler_compatible_schema_versions"]]
+    specification = {
+        "period_start": period_start.isoformat(),
+        "period_end": period_end.isoformat(),
+        "as_of": today.isoformat(),
+        "maturing_days": maturity_days,
+        "fields": list(settings["sampler_strata"]),
+        "initial_mark_field": mapping["initial_mark_field"],
+        "initial_marking_date_field": mapping["initial_marking_date_field"],
+        "target_field": mapping["target_field"],
+        "marking_date_field": mapping["marking_date_field"],
+        "label_value_mapping": dict(mapping["label_value_mapping"]),
+        "schema_versions": schema_versions,
+        "sampler_period_days": settings["sampler_period_days"],
+        "sampler_minimum_per_stratum": settings["sampler_minimum_per_stratum"],
+        "sampler_fraud_oversampling_ratio": settings["sampler_fraud_oversampling_ratio"],
+        "sampler_train_proportion": settings["sampler_train_proportion"],
+        "sampler_validation_proportion": settings["sampler_validation_proportion"],
+        "sampler_test_proportion": settings["sampler_test_proportion"],
+        "sampler_error_margin_pct": settings["sampler_error_margin_pct"],
+        "sampler_confidence_pct": settings["sampler_confidence_pct"],
+        "sampler_seed_policy": settings["sampler_seed_policy"],
+    }
+    snapshot_id = hashlib.sha256(
+        json.dumps(specification, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()[:32]
+    seed = int(snapshot_id[:16], 16)
+    partition_spec = MatureSampleSpec(
+        as_of=today,
+        period_start=period_start,
+        period_end=period_end,
+        maturing_days=maturity_days,
+        sample_size=BASE_ALERT_COUNT,
+        seed=seed,
+        train_proportion=settings["sampler_train_proportion"],
+        validation_proportion=settings["sampler_validation_proportion"],
+        test_proportion=settings["sampler_test_proportion"],
+    )
+    all_alert_ids = [str(uuid4()) for _ in range(BASE_ALERT_COUNT)]
+    final_ids = [
+        alert_id for alert_id in all_alert_ids
+        if deterministic_partition(alert_id, partition_spec) == "final"
+    ]
+    if len(final_ids) < 59:
+        raise RuntimeError(f"final partition too small for segment-boundary fixture: {len(final_ids)}")
+    segment_values = {alert_id: "E2E_CHANNEL" for alert_id in all_alert_ids}
+    segment_values.update({alert_id: "E2E_SUPPORT_29" for alert_id in final_ids[:29]})
+    segment_values.update({alert_id: "E2E_SUPPORT_30" for alert_id in final_ids[29:59]})
     timestamp = datetime.combine(
         created_day, datetime_time(hour=12), tzinfo=timezone
     ).astimezone(UTC)
     marked = (today - timedelta(days=max(maturity_days, 1))).isoformat()
     alert_ids: list[str] = []
     try:
-        for index in range(BASE_ALERT_COUNT):
-            alert_id = str(uuid4())
+        for index, alert_id in enumerate(all_alert_ids):
             alert_timestamp = timestamp + timedelta(seconds=index)
             positive = index % 2 == 0
             input_data: dict[str, object] = {}
@@ -263,7 +332,7 @@ def seed_mature_alerts(
                 elif name == fields["numeric"]:
                     value = Decimal(index % 97) + (Decimal("100") if positive else Decimal("0"))
                 elif name == fields["strata"]:
-                    value = "E2E_CHANNEL"
+                    value = segment_values[alert_id]
                 elif field["type"] == "number":
                     value = Decimal(index % 113)
                 elif field["type"] in {"date", "datetime"}:
@@ -330,20 +399,32 @@ def seed_mature_alerts(
                 batch.delete_item(Key={"partition": "alert", "alert_id": alert_id})
         raise
     count = 0
-    query = {
-        "IndexName": "CreatedDayIdx",
-        "KeyConditionExpression": Key("created_day").eq(created_day.isoformat()),
-        "Select": "COUNT",
-    }
-    while True:
-        response = table.query(**query)
-        count += response.get("Count", 0)
-        if "LastEvaluatedKey" not in response:
-            break
-        query["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+    index_deadline = time.monotonic() + 30
+    while count < BASE_ALERT_COUNT and time.monotonic() < index_deadline:
+        count = 0
+        query = {
+            "IndexName": "CreatedDayIdx",
+            "KeyConditionExpression": Key("created_day").eq(created_day.isoformat()),
+            "Select": "COUNT",
+        }
+        while True:
+            response = table.query(**query)
+            count += response.get("Count", 0)
+            if "LastEvaluatedKey" not in response:
+                break
+            query["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        if count < BASE_ALERT_COUNT:
+            time.sleep(1)
     if count < BASE_ALERT_COUNT:
+        probe = table.scan(
+            FilterExpression=Attr("event_type").eq("H8 evaluation fixture"),
+            ProjectionExpression="created_day, created_at, alert_id",
+            Limit=1,
+        )
         raise RuntimeError(
-            f"synthetic alert fixture is not fully indexed: {count}/{BASE_ALERT_COUNT}"
+            "synthetic alert fixture is not fully indexed: "
+            f"index={count}/{BASE_ALERT_COUNT}, expected_day={created_day.isoformat()}, "
+            f"scan_count={probe.get('Count', 0)}, scan_sample={probe.get('Items', [])}"
         )
 
 
@@ -384,10 +465,11 @@ def main() -> int:
         # evaluations are deliberately single-use and append-only.
         sampler_period_days=30 + secrets.randbelow(336),
         sampler_error_margin_pct=0.1,
-        sampler_minimum_per_stratum=BASE_ALERT_COUNT,
+        sampler_minimum_per_stratum=30,
         sampler_fraud_oversampling_ratio=1.0,
         sampler_strata=[fields["strata"]],
         sampler_compatible_schema_versions=[str(schema["version"])],
+        sampler_seed_policy="fixed_per_sample",
     )
     try:
         update_settings(token, settings)
@@ -397,17 +479,8 @@ def main() -> int:
         check(status, 200, "read applied sampler settings", applied_settings)
         if applied_settings["sampler_error_margin_pct"] != 0.1:
             raise RuntimeError("sampler precision setting did not persist")
-        if applied_settings["sampler_minimum_per_stratum"] != BASE_ALERT_COUNT:
+        if applied_settings["sampler_minimum_per_stratum"] != 30:
             raise RuntimeError("sampler stratum floor did not persist")
-        if original_mapping != mapping:
-            status, _ = request(
-                "PUT",
-                "/assistant-optimizer-settings/sampler/schema-configuration",
-                token,
-                mapping,
-            )
-            check(status, 200, "set objective sampler mapping", None)
-
         cleanup_synthetic_alerts()
         status, operation = request(
             "POST", "/agent/objectives", token
@@ -432,6 +505,27 @@ def main() -> int:
             mapping=mapping,
             fields=fields,
             maturity_days=objective["maturing_days"],
+            settings=applied_settings,
+        )
+        objective_table = boto3.resource(
+            "dynamodb",
+            endpoint_url=f"http://localhost:{os.getenv('LOCAL_DYNAMODB_PORT', '8002')}",
+            region_name="us-east-1",
+            aws_access_key_id="local",
+            aws_secret_access_key="local",
+        ).Table("agent_objectives")
+        objective_table.update_item(
+            Key={"objective_id": objective["objective_id"], "version": int(objective["version"])},
+            UpdateExpression=(
+                "SET schema_mapping.protected_segments = :segments, "
+                "minimum_support_per_segment = :minimum_support"
+            ),
+            ExpressionAttributeValues={
+                ":segments": {
+                    fields["strata"]: ["E2E_SUPPORT_29", "E2E_SUPPORT_30"]
+                },
+                ":minimum_support": 30,
+            },
         )
         status, preview = request(
             "POST", "/assistant-optimizer-settings/sampler/preview", token, {}

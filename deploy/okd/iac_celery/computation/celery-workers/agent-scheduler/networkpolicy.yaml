@@ -1,0 +1,9 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: aria-agent-beat-ingress
+  labels: {app.kubernetes.io/name: aria-agent-beat, app.kubernetes.io/part-of: aria-workers, app.kubernetes.io/managed-by: argocd}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: aria-agent-beat}}
+  policyTypes: [Ingress]
+  ingress: []

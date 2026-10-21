@@ -11,6 +11,7 @@ from src.application.ports.agent_session_port import (
     AgentSession,
     AgentSessionStatus,
 )
+from src.domain.agents.experiment import ComponentVersionReference
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
@@ -129,6 +130,9 @@ def _to_item(session: AgentSession) -> dict[str, Any]:
         session.lease_expires_at.isoformat() if session.lease_expires_at else None
     )
     item["owner_id"] = session.owner_id
+    item["baseline_components"] = [
+        asdict(reference) for reference in session.baseline_components
+    ]
     return {key: value for key, value in item.items() if value is not None}
 
 
@@ -158,4 +162,8 @@ def _from_item(item: dict[str, Any]) -> AgentSession:
         rev=int(item.get("rev", 0)),
         message_seq=int(item.get("message_seq", 0)),
         budget_renewals=int(item.get("budget_renewals", 0)),
+        baseline_components=tuple(
+            ComponentVersionReference(**reference)
+            for reference in item.get("baseline_components", [])
+        ),
     )

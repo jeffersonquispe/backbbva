@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-import src.infrastructure.workflows.celery.factories as factories
 import src.infrastructure.workflows.celery.review_agent_steps as workflow_module
+import src.infrastructure.workflows.celery.task_factories as task_factories
 from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.application.dtos.profile_alert_dtos import ProfileAlertOutput
+from src.application.dtos.research_dtos import ResearchSource
 from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.domain.configurations.entities import (
     AgentSettings,
@@ -141,8 +142,20 @@ def test_run_classification_exposes_vector_store_research_as_a_bounded_tool(
     monkeypatch,
 ) -> None:
     calls = _patched(monkeypatch)
+    class InMemoryResearchAgent:
+        def research(self, request):
+            raise AssertionError("classification setup must not run a research query")
+
+    received_configs = []
+
+    def fake_get_vector_store_research_tool(config):
+        received_configs.append(config)
+        return BoundedResearchTool(
+            InMemoryResearchAgent(), ResearchSource.VECTOR_STORE, config.max_delegations
+        )
+
     monkeypatch.setattr(
-        factories, "get_search_fraud_knowledge_use_case", lambda: object()
+        task_factories, "get_vector_store_research_tool", fake_get_vector_store_research_tool
     )
 
     workflow_module._run_classification(_context(_vector_store_segment("vs-1")))
@@ -150,6 +163,7 @@ def test_run_classification_exposes_vector_store_research_as_a_bounded_tool(
     research_tool = calls[0]["vector_store_research"]
     assert isinstance(research_tool, BoundedResearchTool)
     assert research_tool.remaining == 2
+    assert received_configs[0].vector_store_instance_id == "vs-1"
     # "Base de conocimiento" direct tools are gone - the research tool replaces them.
     assert "get_similar_frauds" not in calls[0]["enabled_tools"]
 

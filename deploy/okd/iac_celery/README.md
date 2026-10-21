@@ -21,6 +21,7 @@ straight from public registries (the cluster has internet egress):
 | OpenSearch | `docker.io/opensearchproject/opensearch:2.19.1` |
 | DynamoDB local | `docker.io/amazon/dynamodb-local:latest` |
 | OTLP Collector | `artifactory.globaldevtools.bbva.com:443/public.ecr.aws-remote/aws-observability/aws-otel-collector:v0.43.2` (via Artifactory) |
+| Tempo / Loki / Prometheus / Grafana | `docker.io/grafana/tempo:2.6.1`, `docker.io/grafana/loki:3.3.2`, `docker.io/prom/prometheus:v3.0.1`, `docker.io/grafana/grafana:11.4.0` (same versions as the local Compose stack) |
 | MinIO | `cgr.dev/chainguard/minio:latest` — upstream `minio/minio` is no longer publicly pullable from Docker Hub/Quay |
 
 `OTEL_ENDPOINT` points every workload at the namespace OTLP Collector, `http://otel-collector:4317` (`observability/otel-collector/`, decision D5). The Collector image is the AWS Distro for OpenTelemetry (`aws-otel-collector`) pulled through Artifactory's `public.ecr.aws-remote`. **Its upstream backend is still a placeholder**: it exports to the `debug` exporter (sampled, pod logs) and to `otlp/upstream` -> `OTLP_UPSTREAM_ENDPOINT` in `aria-otel-collector-config`, which must be set to the real BBVA observability endpoint (plus TLS/auth) before telemetry leaves the namespace. PVCs use the `ceph-rbd` storage class. Initial resource values are
@@ -39,6 +40,32 @@ explicit `--scale` values.
 `dynamodb-local` is documented as a compatibility risk: the local Compose stack
 runs it as root. This base does not grant privileged/root execution; validate the
 selected image under OKD arbitrary-UID SCC before deployment.
+
+## Observability group (`observability/`)
+
+Mirrors the observability services of `deploy/local/docker/docker-compose.yml`.
+Applications still only know `OTEL_ENDPOINT`; the Collector fans out:
+
+```
+otel-collector -> tempo (traces, OTLP gRPC)
+               -> loki (logs, OTLP/HTTP)
+               -> prometheus (metrics, OTLP/HTTP, --web.enable-otlp-receiver)
+               -> otlp/upstream (still the BBVA placeholder)
+tempo, loki -> observability-minio (buckets created by the observability-minio-init Argo Sync hook)
+grafana     -> prometheus, tempo, loki   (exposed by nginx at /grafana/, no anonymous access)
+```
+
+`observability-minio` is separate from the application `minio`. Grafana
+provisioning and dashboards under `observability/grafana/` are copies of
+`deploy/local/docker/observability/grafana/`; keep both in sync. Unlike local,
+Prometheus receives metrics by OTLP push instead of scraping the Collector, and
+the Collector config does not include the `spanmetrics` connector (the ADOT image
+may not ship it), so the RED panels built on `traces_span_metrics_*` stay empty
+until the Collector image is swapped for `otel/opentelemetry-collector-contrib`.
+
+`aria-agent-worker` (queue `agent`, concurrency 1) and `aria-agent-beat` reuse the
+`co-backend-aria-worker` image, `aria-worker-main-config` and
+`aria-worker-main-runtime`. Beat uses `Recreate` so it never runs twice.
 
 ## Required Secrets
 
@@ -59,6 +86,9 @@ so Argo CD never commits, syncs, or overwrites real values.
 | `aria-worker-simulator` | `aria-worker-simulator-runtime` | `EVENT_SIMULATOR_ARIA_API_TOKEN`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY`, `OPENAI_KEY` |
 | MinIO | `aria-minio-runtime` | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` |
 | OpenSearch | `aria-opensearch-runtime` | `OPENSEARCH_INITIAL_ADMIN_PASSWORD` |
+| `aria-agent-worker`, `aria-agent-beat` | `aria-worker-main-runtime` | same as `aria-worker-main` |
+| Observability MinIO, Tempo, Loki, bucket init | `aria-observability-minio-runtime` | `S3_ACCESS_KEY`, `S3_SECRET_KEY` |
+| Grafana | `aria-grafana-runtime` | `GF_SECURITY_ADMIN_USER`, `GF_SECURITY_ADMIN_PASSWORD` |
 
 Redis and DynamoDB are configured without credentials and need no Secret.
 Changing a Secret value does not restart pods: run

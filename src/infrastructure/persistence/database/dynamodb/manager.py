@@ -48,9 +48,11 @@ from src.infrastructure.persistence.database.dynamodb.repositories.variable_cata
     DynamoVariableCatalogRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.schemas import (
+    AGENT_AUDIT_EVENTS_TABLE,
     AGENT_BUDGET_LEDGER_TABLE,
     AGENT_CONFIRMATIONS_TABLE,
     AGENT_ENTITY_CLAIMS_TABLE,
+    AGENT_EXPERIMENTS_TABLE,
     AGENT_HYPOTHESES_TABLE,
     AGENT_INSIGHTS_TABLE,
     AGENT_ITERATIONS_TABLE,
@@ -61,6 +63,10 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     AGENT_PACKAGES_TABLE,
     AGENT_PROMPT_ACTIVE_TABLE,
     AGENT_PROMPTS_TABLE,
+    AGENT_RELEASE_ACTIVE_TABLE,
+    AGENT_RELEASE_OBSERVATIONS_TABLE,
+    AGENT_RELEASES_TABLE,
+    AGENT_RETROSPECTIVE_VALIDATIONS_TABLE,
     AGENT_RUNS_TABLE,
     AGENT_SESSION_SUMMARIES_TABLE,
     AGENT_SESSIONS_TABLE,
@@ -101,6 +107,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     FRAUD_LABEL_REVIEWS_TABLE,
     LIBRARY_CHANNELS_TABLE,
     LIBRARY_FLAGS_TABLE,
+    LIBRARY_MODUS_OPERANDI_REVISIONS_TABLE,
     LIBRARY_MODUS_OPERANDI_TABLE,
     LIBRARY_SIMILAR_CASES_TABLE,
     LIBRARY_TAXONOMIES_TABLE,
@@ -383,6 +390,7 @@ def ensure_global_secondary_indexes(schema: dict) -> None:
 def ensure_all_tables() -> None:
     """Ensure all DynamoDB tables used by the application exist."""
     create_table(AUDIT_LOG_TABLE)
+    create_table(AGENT_AUDIT_EVENTS_TABLE)
     create_table(BACKUPS_TABLE)
     create_table(USERS_TABLE)
     create_table(REVOKED_TOKENS_TABLE)
@@ -438,6 +446,7 @@ def ensure_all_tables() -> None:
     create_table(LIBRARY_TAXONOMIES_TABLE)
     create_table(LIBRARY_CHANNELS_TABLE)
     create_table(LIBRARY_MODUS_OPERANDI_TABLE)
+    create_table(LIBRARY_MODUS_OPERANDI_REVISIONS_TABLE)
     create_table(LIBRARY_FLAGS_TABLE)
     create_table(LIBRARY_SIMILAR_CASES_TABLE)
     create_table(VECTOR_STORE_INSTANCES_TABLE)
@@ -456,6 +465,12 @@ def ensure_all_tables() -> None:
     # Agent orchestration tables (kept together for the H3 backbone).
     create_table(AGENT_SESSIONS_TABLE)
     create_table(AGENT_ITERATIONS_TABLE)
+    create_table(AGENT_EXPERIMENTS_TABLE)
+    create_table(AGENT_RETROSPECTIVE_VALIDATIONS_TABLE)
+    create_table(AGENT_RELEASE_OBSERVATIONS_TABLE)
+    create_table(AGENT_RELEASES_TABLE)
+    create_table(AGENT_RELEASE_ACTIVE_TABLE)
+    ensure_global_secondary_indexes(AGENT_RELEASES_TABLE)
     create_table(AGENT_RUNS_TABLE)
     create_table(AGENT_TOOL_CALLS_TABLE)
     create_table(AGENT_BUDGET_LEDGER_TABLE)

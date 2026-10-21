@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from src.application.errors import NotFoundError
 from src.application.ports.embedding_unit_of_work_factory_port import (
     EmbeddingUnitOfWorkFactory,
@@ -44,6 +46,7 @@ class UpdateFlagLibraryEntryUseCase:
         evolved_variables: list[str] | None = None,
         modus_operandi_library_ids: list[str] | None = None,
         active: bool | None = None,
+        expected_updated_at: datetime | None = None,
     ) -> FlagLibraryEntry:
         current = self._entries.get(entry_id)
         if current is None:
@@ -81,6 +84,7 @@ class UpdateFlagLibraryEntryUseCase:
             modus_operandi_library_ids=modus_operandi_library_ids,
             active=active,
             embedding=embedding,
+            expected_updated_at=expected_updated_at,
         )
         if updated is None:
             raise FlagLibraryEntryNotFoundError(

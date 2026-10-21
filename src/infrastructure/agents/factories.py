@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from src.application.ports.agent_audit_port import AgentAuditRepository
 from src.application.ports.agent_budget_ledger_port import (
     AgentBudgetLedgerRepository,
 )
@@ -10,6 +11,10 @@ from src.application.ports.agent_confirmation_port import (
     AgentConfirmationRepository,
 )
 from src.application.ports.agent_entity_claim_port import AgentEntityClaimRepository
+from src.application.ports.agent_experiment_component_port import (
+    AgentExperimentComponentResolver,
+)
+from src.application.ports.agent_experiment_port import AgentExperimentRepository
 from src.application.ports.agent_hypothesis_port import AgentHypothesisRepository
 from src.application.ports.agent_insight_port import AgentInsightRepository
 from src.application.ports.agent_iteration_port import AgentIterationRepository
@@ -18,6 +23,7 @@ from src.application.ports.agent_message_port import AgentMessageRepository
 from src.application.ports.agent_objective_port import AgentObjectiveRepository
 from src.application.ports.agent_package_port import AgentPackageRepository
 from src.application.ports.agent_prompt_port import AgentPromptRepository
+from src.application.ports.agent_release_port import AgentReleaseRepository
 from src.application.ports.agent_run_port import AgentRunRepository
 from src.application.ports.agent_session_port import AgentSessionRepository
 from src.application.ports.agent_session_summary_port import (
@@ -28,6 +34,9 @@ from src.application.ports.agent_verification_port import (
     AgentVerificationRepository,
 )
 from src.application.ports.personal_data_masker_port import PersonalDataMasker
+from src.infrastructure.agents.agent_experiment_component_resolver import (
+    StoredAgentExperimentComponentResolver,
+)
 from src.infrastructure.agents.llm_chat_responder import LLMChatResponder
 from src.infrastructure.agents.llm_structured_agent_generator import (
     LLMStructuredAgentGenerator,
@@ -44,6 +53,9 @@ from src.infrastructure.agents.rule_based_personal_data_masker import (
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
+from src.infrastructure.persistence.database.dynamodb.repositories.agent_audit_repository import (
+    DynamoAgentAuditRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_chat_repositories import (
     DynamoAgentInsightRepository,
     DynamoAgentLinkRepository,
@@ -53,10 +65,14 @@ from src.infrastructure.persistence.database.dynamodb.repositories.agent_chat_re
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_objective_repository import (
     DynamoAgentObjectiveRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.agent_release_repository import (
+    DynamoAgentReleaseRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_repositories import (
     DynamoAgentBudgetLedgerRepository,
     DynamoAgentConfirmationRepository,
     DynamoAgentEntityClaimRepository,
+    DynamoAgentExperimentRepository,
     DynamoAgentHypothesisRepository,
     DynamoAgentIterationRepository,
     DynamoAgentPackageRepository,
@@ -68,6 +84,19 @@ from src.infrastructure.persistence.database.dynamodb.repositories.agent_reposit
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_session_repository import (
     DynamoAgentSessionRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
+    DynamoConfigurationRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.model_repository import (
+    DynamoModelRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.modus_operandi_library_repository import (
+    DynamoModusOperandiLibraryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import (
+    DynamoVectorStoreInstanceRepository,
+)
+from src.infrastructure.persistence.object_storage.minio import get_model_object_storage
 
 
 @lru_cache
@@ -76,8 +105,34 @@ def get_agent_session_repository() -> AgentSessionRepository:
 
 
 @lru_cache
+def get_agent_experiment_component_resolver() -> AgentExperimentComponentResolver:
+    return StoredAgentExperimentComponentResolver(
+        models=DynamoModelRepository(),
+        model_storage=get_model_object_storage(),
+        configurations=DynamoConfigurationRepository(),
+        library=DynamoModusOperandiLibraryRepository(),
+        vector_stores=DynamoVectorStoreInstanceRepository(),
+    )
+
+
+@lru_cache
+def get_agent_audit_repository() -> AgentAuditRepository:
+    return DynamoAgentAuditRepository()
+
+
+@lru_cache
+def get_agent_release_repository() -> AgentReleaseRepository:
+    return DynamoAgentReleaseRepository()
+
+
+@lru_cache
 def get_agent_iteration_repository() -> AgentIterationRepository:
     return DynamoAgentIterationRepository()
+
+
+@lru_cache
+def get_agent_experiment_repository() -> AgentExperimentRepository:
+    return DynamoAgentExperimentRepository()
 
 
 @lru_cache
@@ -199,6 +254,7 @@ def get_optimizer_agent_specialists() -> dict[str, OptimizerSpecialistSubagent]:
             generator=generator,
             masker=masker,
             executor=executors[name],
+            component_resolver=get_agent_experiment_component_resolver(),
         )
         for name, prompt_suffix in (
             ("configuration", "configuration"),

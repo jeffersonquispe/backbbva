@@ -345,6 +345,7 @@ class VectorStoreSpecialistExecutor(AgentSpecialistExecutor):
             status="PASSED",
             contribution={
                 "candidate_instance_id": candidate.id,
+                "candidate_instance_version": candidate.version,
                 "candidate_generation": candidate.promoted_version,
                 "source_manifest_version": source.version,
             },
@@ -401,8 +402,9 @@ class XGBoostSpecialistExecutor(AgentSpecialistExecutor):
         parameters = experiment.get("parameters")
         if baseline is None or not isinstance(parameters, dict):
             return _rejected("AUTHORIZED_MODEL_BASELINE_REQUIRED")
-        if experiment.get("dataset_ref") != baseline.dataset_name:
-            return _rejected("DATASET_NOT_AUTHORIZED")
+        # Dataset selection is server-owned: proposals may tune parameters,
+        # while training always inherits the authorized active baseline's
+        # dataset and feature contract below.
         training = TrainingConfig(**vars(baseline.training_config))
         for key, value in parameters.items():
             if not hasattr(training, key):
@@ -592,6 +594,7 @@ def _verify_trained_model(candidate, baseline) -> AgentSpecialistExecution:
         status="PASSED",
         contribution={
             "candidate_model_id": str(candidate.id),
+            "candidate_model_tag": candidate.tag,
             "candidate_active": False,
             "baseline_model_id": str(baseline.id),
         },

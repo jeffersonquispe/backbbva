@@ -8,6 +8,9 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+from src.application.ports.agent_experiment_component_port import (
+    AgentExperimentComponentResolver,
+)
 from src.application.ports.agent_prompt_port import AgentPromptRepository
 from src.application.ports.agent_specialist_executor_port import (
     AgentSpecialistExecutor,
@@ -21,6 +24,7 @@ from src.application.ports.agent_subagent_port import (
     AgentSubagentOutput,
 )
 from src.application.ports.personal_data_masker_port import PersonalDataMasker
+from src.domain.agents.experiment import ComponentVersionReference
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +41,7 @@ class OptimizerSpecialistSubagent:
         generator: AgentStructuredGenerator,
         masker: PersonalDataMasker,
         executor: AgentSpecialistExecutor | None = None,
+        component_resolver: AgentExperimentComponentResolver | None = None,
     ) -> None:
         self._name = name
         self._prompt_name = prompt_name
@@ -44,6 +49,7 @@ class OptimizerSpecialistSubagent:
         self._generator = generator
         self._masker = masker
         self._executor = executor
+        self._component_resolver = component_resolver
 
     @property
     def name(self) -> str:
@@ -130,13 +136,59 @@ class OptimizerSpecialistSubagent:
         if not isinstance(safe_execution, dict):
             return AgentSubagentOutput(self.name, error_code="EXECUTION_INVALID")
         safe_payload["execution"] = safe_execution
+        candidate_components = self._candidate_components(
+            request, execution.contribution
+        )
         return AgentSubagentOutput(
             subagent=self.name,
             contribution=safe_payload,
             verification_status=execution.status,
             safe_metrics=execution.safe_metrics,
             error_code=execution.error_code,
+            experiment_candidate_components=candidate_components,
         )
+
+    def _candidate_components(
+        self, request: AgentSubagentInput, execution: dict[str, Any]
+    ) -> tuple[ComponentVersionReference, ...]:
+        if self._component_resolver is None or not request.baseline_components:
+            return ()
+        candidates = {item.component: item for item in request.baseline_components}
+        component, entity_id, version = {
+            "configuration": (
+                "configuration",
+                execution.get("candidate_configuration_id"),
+                execution.get("candidate_configuration_version"),
+            ),
+            "xgboost": (
+                "model",
+                execution.get("candidate_model_id"),
+                execution.get("candidate_model_tag"),
+            ),
+            "vector_store": (
+                "vector_store",
+                execution.get("candidate_instance_id"),
+                execution.get("candidate_instance_version"),
+            ),
+        }.get(self.name, ("", None, None))
+        if not component or entity_id is None or version is None:
+            return ()
+        pin = self._component_resolver.pin(component, str(entity_id), str(version))
+        if pin is None:
+            return ()
+        candidates[component] = pin
+        if candidates[component] == next(
+            (
+                item
+                for item in request.baseline_components
+                if item.component == component
+            ),
+            None,
+        ):
+            return ()
+        if set(candidates) != {"model", "configuration", "library", "vector_store"}:
+            return ()
+        return tuple(candidates[key] for key in sorted(candidates))
 
 
 def _mask_strings(value: Any, masker: PersonalDataMasker) -> Any:
@@ -206,7 +258,9 @@ def _is_valid_experiment(name: str, experiment: dict[str, Any]) -> bool:
                 isinstance(change, dict)
                 and isinstance(change.get("path"), str)
                 and "value" in change
-                and not change["path"].startswith(("infra.", "operational.", "kill_switch"))
+                and not change["path"].startswith(
+                    ("infra.", "operational.", "kill_switch")
+                )
                 for change in changes
             )
         )
@@ -224,11 +278,14 @@ def _is_valid_experiment(name: str, experiment: dict[str, Any]) -> bool:
             and experiment["manifest_version"] > 0
             and isinstance(experiment.get("authorized_queries"), list)
             and bool(experiment["authorized_queries"])
-            and all(isinstance(query, str) and query for query in experiment["authorized_queries"])
+            and all(
+                isinstance(query, str) and query
+                for query in experiment["authorized_queries"]
+            )
         )
     if name == "xgboost":
         parameters = experiment.get("parameters")
-        if not isinstance(experiment.get("dataset_ref"), str) or not isinstance(parameters, dict):
+        if not isinstance(parameters, dict):
             return False
         bounds = {
             "n_estimators": (1, 2000),

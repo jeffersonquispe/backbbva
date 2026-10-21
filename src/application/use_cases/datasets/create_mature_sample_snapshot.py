@@ -260,14 +260,6 @@ class CreateMatureSampleSnapshotUseCase:
             ]
             for partition, rows in rows_by_partition.items()
         }
-        hash_input: dict[str, list[dict[str, Any]]] = {
-            **partition_dataset_rows,
-            "all": [
-                row
-                for partition in PARTITIONS[:-1]
-                for row in rows_by_partition[partition]
-            ],
-        }
         strata_counts = Counter(
             " | ".join(stratum_key(alert, fields)) for alert in selected
         )
@@ -289,6 +281,7 @@ class CreateMatureSampleSnapshotUseCase:
                 ]
             )
         )
+        specification["content_hash_format"] = "persisted_csv_rows_v1"
         snapshot_persisted = False
         try:
             for partition in PARTITIONS:
@@ -306,6 +299,14 @@ class CreateMatureSampleSnapshotUseCase:
                     for row in rows_by_partition[partition]
                 ],
             )
+            # Hash the exact representation the scorer will read. CSV round
+            # trips normalize values (for example numeric JSON values become
+            # strings), so hashing pre-storage objects makes the snapshot hash
+            # impossible to reproduce from its immutable dataset references.
+            hash_input = {
+                name: self._datasets.get_rows(dataset_refs[name])
+                for name in (*PARTITIONS, "all")
+            }
             created_at = self._clock.now()
             snapshot = DatasetSnapshot(
                 snapshot_id=snapshot_id,

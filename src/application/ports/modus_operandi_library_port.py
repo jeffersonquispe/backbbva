@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
@@ -14,10 +15,27 @@ class ModusOperandiLibraryRevisionConflict(Exception):
     pass
 
 
+@dataclass(frozen=True)
+class ModusOperandiLibraryRevision:
+    entry_id: str
+    revision_sha256: str
+    content: ModusOperandiLibraryEntry
+
+
 class ModusOperandiLibraryRepository(Protocol):
     def create(self, entry: ModusOperandiLibraryEntry) -> ModusOperandiLibraryEntry: ...
 
     def get(self, entry_id: str) -> ModusOperandiLibraryEntry | None: ...
+
+    def get_revision(
+        self, entry_id: str, revision_sha256: str
+    ) -> ModusOperandiLibraryRevision | None: ...
+
+    def ensure_current_revision(
+        self, entry_id: str
+    ) -> ModusOperandiLibraryRevision | None:
+        """Archive the current row once, then return its immutable revision."""
+        ...
 
     def list(self, *, active_only: bool = False) -> list[ModusOperandiLibraryEntry]: ...
 
