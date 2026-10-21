@@ -54,6 +54,7 @@ class DynamoConfigurationDeployRequestRepository:
             ExpressionAttributeValues=to_dynamodb(
                 {
                     ":approved": "approved",
+                    ":pending": "pending",
                     ":approved_by": approved_by,
                     ":approved_by_id": approved_by_id,
                     ":approved_at": approved_at.isoformat(),

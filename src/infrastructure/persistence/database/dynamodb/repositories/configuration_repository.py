@@ -279,19 +279,17 @@ class DynamoConfigurationRepository(ConfigurationRepository):
                     "Update": {
                         "TableName": self._table.name,
                         "Key": {
-                            "configuration_id": {"S": current_active.configuration_id},
-                            "version": {"N": str(current_active.version)},
+                            "configuration_id": current_active.configuration_id,
+                            "version": current_active.version,
                         },
                         "UpdateExpression": "SET active = :inactive, updated_at = :updated_at",
                         "ConditionExpression": current_condition,
                         "ExpressionAttributeValues": {
-                            ":inactive": {"BOOL": False},
-                            ":active": {"BOOL": True},
-                            ":current_configuration_id": {
-                                "S": current_active.configuration_id
-                            },
-                            ":current_version": {"N": str(current_active.version)},
-                            ":updated_at": {"S": now},
+                            ":inactive": False,
+                            ":active": True,
+                            ":current_configuration_id": current_active.configuration_id,
+                            ":current_version": current_active.version,
+                            ":updated_at": now,
                         },
                     }
                 }
@@ -301,17 +299,17 @@ class DynamoConfigurationRepository(ConfigurationRepository):
                 "Update": {
                     "TableName": self._table.name,
                     "Key": {
-                        "configuration_id": {"S": configuration_id},
-                        "version": {"N": str(version)},
+                        "configuration_id": configuration_id,
+                        "version": version,
                     },
                     "UpdateExpression": "SET active = :active, ever_activated = :ever_activated, activated_at = :activated_at, updated_at = :updated_at",
                     "ConditionExpression": "attribute_exists(configuration_id) AND active = :inactive",
                     "ExpressionAttributeValues": {
-                        ":active": {"BOOL": True},
-                        ":inactive": {"BOOL": False},
-                        ":ever_activated": {"BOOL": True},
-                        ":activated_at": {"S": now},
-                        ":updated_at": {"S": now},
+                        ":active": True,
+                        ":inactive": False,
+                        ":ever_activated": True,
+                        ":activated_at": now,
+                        ":updated_at": now,
                     },
                 }
             }
