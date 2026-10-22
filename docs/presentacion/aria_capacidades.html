@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARIA — Plano de capacidades</title>
+<style>
+  :root {
+    --bg: #fafaf9; --navy: #0a2249; --blue: #1464a5; --blue-soft: #e8f0fb; --line: #dde3ec;
+    --ink: #1c2b45; --mute: #64748b; --card: #ffffff; --cyan: #c3e7f6;
+    --green: #1f9d6b; --amber: #d98a0b; --violet: #6d5bd0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden;
+    font-family: Inter, -apple-system, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  body::before { content: ""; position: fixed; right: -14vw; top: 14vh; width: 62vw; height: 62vw; border-radius: 50%;
+    background: radial-gradient(circle at 45% 55%, rgba(150,208,240,.55) 0%, rgba(195,231,246,.38) 38%, rgba(225,245,240,.18) 62%, transparent 72%);
+    pointer-events: none; z-index: 0; }
+  svg.i { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- chrome ---------- */
+  .top { position: fixed; top: 0; left: 0; right: 0; height: 9vh; padding: 0 6vw; display: flex; align-items: center;
+    justify-content: space-between; gap: 2vw; z-index: 8; }
+  .brand { display: flex; align-items: center; gap: .6em; font-weight: 700; letter-spacing: .2em; color: var(--navy);
+    font-size: clamp(.62rem, .95vw, .85rem); white-space: nowrap; }
+  .brand i { width: .7em; height: .7em; border-radius: 50%; background: var(--blue); display: inline-block; }
+  nav { display: flex; gap: .3vw; flex-wrap: wrap; justify-content: flex-end; }
+  nav button { border: 0; background: transparent; color: var(--mute); font: inherit; font-size: clamp(.62rem, .88vw, .8rem);
+    letter-spacing: .12em; text-transform: uppercase; font-weight: 600; padding: .5em .9em; border-radius: 99px; cursor: pointer; }
+  nav button:hover { color: var(--navy); }
+  nav button.on { background: var(--navy); color: #fff; }
+  .foot { position: fixed; bottom: 0; left: 0; right: 0; height: 7vh; padding: 0 6vw; display: flex; align-items: center;
+    justify-content: space-between; color: var(--mute); font-size: clamp(.7rem, .95vw, .88rem); z-index: 8; }
+  .ctl { display: flex; align-items: center; gap: .8em; }
+  .ctl button { border: 1px solid var(--line); background: #fff; color: var(--navy); border-radius: 99px; width: 2.2em; height: 2.2em;
+    cursor: pointer; font-size: .95rem; }
+  .prog { position: fixed; top: 0; left: 0; height: 3px; background: var(--blue); transition: width .3s; z-index: 9; }
+
+  /* ---------- slides ---------- */
+  .slide { position: absolute; inset: 0; padding: 10vh 6vw 8vh; display: none; flex-direction: column; z-index: 1; }
+  .slide.active { display: flex; animation: in .35s ease; }
+  @keyframes in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .head { flex: 0 0 auto; margin-bottom: 1.2vh; }
+  .eyebrow { color: var(--blue); text-transform: uppercase; letter-spacing: .2em; font-weight: 700; font-size: clamp(.7rem, 1.1vw, .98rem); }
+  h1, h2 { color: var(--navy); margin: .2em 0 0; letter-spacing: -.025em; line-height: 1.05; font-weight: 800; }
+  h1 { font-size: clamp(2.6rem, 6.4vw, 5.4rem); }
+  h2 { font-size: clamp(1.7rem, 3.5vw, 3rem); }
+  .lead { color: var(--mute); font-size: clamp(.92rem, 1.35vw, 1.15rem); margin: .6em 0 0; max-width: 95ch; line-height: 1.45; }
+  .body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 1.8vh; overflow-y: auto;
+    padding: .6vh .3vw; }
+  .body.mid { justify-content: center; }
+
+  .grid { display: grid; gap: 1.6vh 1.3vw; } .g2 { grid-template-columns: repeat(2, 1fr); } .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1.6vh 1.3vw;
+    box-shadow: 0 1px 2px rgba(10,34,73,.04), 0 6px 18px rgba(10,34,73,.04); }
+  .card .k { color: var(--blue); text-transform: uppercase; letter-spacing: .16em; font-weight: 700; font-size: clamp(.62rem, .85vw, .78rem); margin-bottom: .45em; }
+  .card h3 { margin: 0 0 .35em; color: var(--navy); font-size: clamp(1.1rem, 1.8vw, 1.5rem); letter-spacing: -.01em; }
+  .card p, .card li { font-size: clamp(.88rem, 1.28vw, 1.12rem); line-height: 1.45; color: var(--ink); margin: 0; }
+  .card p.m, .card li.m { color: var(--mute); }
+  .card ul { margin: 0; padding-left: 1.1em; } .card li { margin-bottom: .28em; }
+  code { background: var(--blue-soft); color: var(--blue); padding: .05em .35em; border-radius: 5px; font-size: .88em; }
+  .why { border-left: 3px solid var(--blue); background: rgba(232,240,251,.7); border-radius: 0 10px 10px 0; padding: 1.3vh 1.1vw;
+    font-size: clamp(.88rem, 1.25vw, 1.08rem); line-height: 1.45; }
+  .why b { color: var(--blue); }
+
+  /* capability map */
+  .cap { cursor: pointer; transition: transform .2s, box-shadow .2s; display: flex; gap: 1vw; align-items: flex-start; padding: 3.2vh 1.5vw; }
+  .cap:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(10,34,73,.1); }
+  .tile { flex: 0 0 auto; width: clamp(46px, 4.6vw, 70px); height: clamp(46px, 4.6vw, 70px); border-radius: 16px;
+    background: linear-gradient(145deg, #e8f0fb, #d3e6f7); color: var(--blue); display: grid; place-items: center; font-size: clamp(1.6rem, 2.6vw, 2.4rem); }
+  .cap h3 { font-size: clamp(1.05rem, 1.7vw, 1.45rem); }
+  .cap p { color: var(--mute); font-size: clamp(.85rem, 1.2vw, 1.05rem); }
+  .tile.t2 { background: linear-gradient(145deg, #e4f6ee, #cdeedf); color: var(--green); }
+  .tile.t3 { background: linear-gradient(145deg, #fdf0dc, #fae2b8); color: var(--amber); }
+  .tile.t4 { background: linear-gradient(145deg, #ece9fb, #dcd6f6); color: var(--violet); }
+
+  /* steppers */
+  .stepper { display: grid; align-items: end; row-gap: 1vh; }
+  .gl { border-top: 2px solid var(--line); padding-top: .6em; color: var(--blue); text-transform: uppercase; letter-spacing: .18em;
+    font-weight: 700; font-size: clamp(.62rem, .9vw, .8rem); margin-right: .6vw; }
+  .st { position: relative; border: 0; background: none; font: inherit; cursor: pointer; text-align: center; padding: .3vh 0 0;
+    display: flex; flex-direction: column; align-items: center; gap: .8vh; color: var(--mute); }
+  .st::before { content: ""; position: absolute; top: calc(var(--c) / 2 + .3vh); left: -50%; width: 100%; height: 2px; background: var(--line); z-index: 0; }
+  .st:first-of-type::before { display: none; }
+  .st.done::before, .st.on::before { background: var(--blue); }
+  .circ { position: relative; z-index: 1; width: var(--c); height: var(--c); border-radius: 50%; border: 1.6px solid var(--line); background: #fff;
+    display: grid; place-items: center; color: var(--mute); font-weight: 700; font-size: clamp(.85rem, 1.4vw, 1.2rem); transition: all .2s; }
+  .circ .i { font-size: 1.2em; }
+  .st.done .circ { background: var(--blue-soft); border-color: var(--blue); color: var(--blue); }
+  .st.on .circ { background: var(--navy); border-color: var(--navy); color: #fff; box-shadow: 0 0 0 7px rgba(150,208,240,.5); }
+  .st:hover .circ { border-color: var(--blue); }
+  .st .nm { font-size: clamp(.74rem, 1.1vw, 1rem); font-weight: 500; color: var(--mute); }
+  .st.on .nm { color: var(--navy); font-weight: 700; }
+  .detail { animation: in .3s ease; }
+  .d-title { color: var(--navy); font-weight: 800; letter-spacing: -.02em; font-size: clamp(1.15rem, 2.1vw, 1.8rem); }
+  .d-desc { color: var(--mute); margin: .2em 0 1.2vh; font-size: clamp(.92rem, 1.35vw, 1.2rem); }
+  .kv .row { display: flex; gap: .8em; padding: .6vh 0; border-bottom: 1px dashed var(--line); font-size: clamp(.86rem, 1.2vw, 1.05rem); line-height: 1.4; }
+  .kv .row:last-child { border: 0; }
+  .kv .row b { flex: 0 0 5.2em; color: var(--blue); text-transform: uppercase; letter-spacing: .1em; font-size: .72em; padding-top: .2em; }
+  .hint { color: var(--mute); font-size: clamp(.7rem, .9vw, .82rem); text-align: center; }
+
+  /* flows */
+  .flow { display: flex; gap: 1.1vw; flex-wrap: wrap; }
+  .step { position: relative; flex: 1 1 10%; min-width: 120px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 1.6vh .8vw;
+    text-align: center; font-size: clamp(.84rem, 1.2vw, 1.05rem); box-shadow: 0 4px 12px rgba(10,34,73,.04); color: var(--navy); font-weight: 600; }
+  .step b { display: block; color: var(--blue); text-transform: uppercase; letter-spacing: .12em; font-size: .68em; margin-bottom: .25em; }
+  .step small { display: block; color: var(--mute); font-weight: 400; margin-top: .2em; font-size: .85em; }
+  .step:not(:last-child)::after { content: "›"; position: absolute; right: -.85vw; top: 50%; transform: translateY(-55%); color: var(--blue); font-size: 1.4em; font-weight: 700; }
+  .step.hl { border-color: var(--blue); background: var(--blue-soft); }
+
+  /* roles */
+  .roles { display: flex; flex-wrap: wrap; gap: .6vh .7vw; align-items: center; }
+  .roles > em { font-style: normal; color: var(--blue); text-transform: uppercase; letter-spacing: .16em; font-weight: 700; font-size: clamp(.6rem, .8vw, .72rem); margin-right: .4vw; }
+  .role { display: inline-flex; align-items: center; gap: .5em; background: #fff; border: 1px solid var(--line); border-radius: 99px;
+    padding: .4em .9em .4em .5em; font-size: clamp(.78rem, 1.1vw, .98rem); color: var(--mute); }
+  .role .ic { width: 1.9em; height: 1.9em; border-radius: 50%; background: var(--blue-soft); color: var(--blue); display: grid; place-items: center; font-size: 1em; }
+  .role b { color: var(--navy); }
+  .rc h3 { display: flex; align-items: center; gap: .5em; }
+  .rc svg.v { width: 100%; height: auto; display: block; margin: .4vh 0 1vh; background: linear-gradient(180deg, #f4f8fd, #eaf2fb); border-radius: 10px; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: clamp(.8rem, 1.15vw, 1rem); background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  th, td { padding: 1vh .7vw; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); line-height: 1.35; }
+  tr:last-child td { border-bottom: 0; }
+  th { color: var(--blue); text-transform: uppercase; letter-spacing: .08em; font-size: .75em; background: #f4f8fd; }
+  td.a { color: var(--navy); font-weight: 700; background: #fbfcfe; }
+  .p { display: inline-block; border-radius: 99px; padding: .05em .6em; font-size: .78em; font-weight: 700; margin-right: .3em; }
+  .p.op { background: #dff3ea; color: #146c49; } .p.ap { background: #fdebc8; color: #8a5a06; } .p.co { background: #e8f0fb; color: var(--blue); }
+  td .m { color: var(--mute); display: block; margin-top: .15em; }
+
+  /* storyboard */
+  .stage { position: relative; background: rgba(255,255,255,.78); border: 1px solid var(--line); border-radius: 18px; padding: 1vh; }
+  .stage svg { width: 100%; height: auto; max-height: 49vh; display: block; margin: 0 auto; }
+  .edge { stroke: var(--line); stroke-width: 2; stroke-dasharray: 2 6; }
+  .edge.on { stroke: var(--blue); stroke-dasharray: 8 6; animation: dash .8s linear infinite; stroke-width: 2.6; }
+  @keyframes dash { to { stroke-dashoffset: -28; } }
+  .nd circle.b { fill: #fff; stroke: var(--line); stroke-width: 2; transition: all .3s; }
+  .nd { color: var(--mute); transition: color .3s; }
+  .nd.on { color: var(--blue); }
+  .nd.on circle.b { stroke: var(--blue); fill: var(--blue-soft); }
+  .nd.on circle.ring { animation: ring 1.4s ease-out infinite; }
+  .nd circle.ring { fill: none; stroke: var(--blue); opacity: 0; }
+  @keyframes ring { 0% { r: 36; opacity: .7; } 100% { r: 60; opacity: 0; } }
+  .nd text.l { font-size: 15px; font-weight: 700; fill: var(--navy); } .nd text.s { font-size: 11.5px; fill: var(--mute); }
+  .aria circle.b { fill: var(--navy); stroke: var(--navy); } .aria, .aria.on { color: #fff; }
+  .aria.on circle.b { fill: var(--navy); }
+  .cap-box { display: flex; gap: 1vw; align-items: center; margin-top: 1vh; }
+  .cap-box .num { flex: 0 0 auto; width: 2.4em; height: 2.4em; border-radius: 50%; background: var(--navy); color: #fff; display: grid; place-items: center; font-weight: 700; }
+  .cap-box h4 { margin: 0; color: var(--navy); font-size: clamp(.95rem, 1.5vw, 1.25rem); }
+  .cap-box p { margin: .15em 0 0; color: var(--mute); font-size: clamp(.8rem, 1.1vw, 1rem); }
+  .pills { display: flex; gap: .5vw; flex-wrap: wrap; margin-top: 1vh; }
+  .pills button { border: 1px solid var(--line); background: #fff; color: var(--mute); border-radius: 99px; padding: .35em .9em; font: inherit; font-size: clamp(.68rem, .9vw, .8rem); cursor: pointer; }
+  .pills button.on { background: var(--navy); border-color: var(--navy); color: #fff; }
+
+
+  /* contrato / código */
+  .code { background: #0e2a52; color: #d7e4f7; border-radius: 12px; padding: 1.1vh .8vw; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: clamp(.64rem, .9vw, .82rem); line-height: 1.5; overflow: hidden; }
+  .code .ln { white-space: pre; display: block; padding-left: 1.5em; position: relative; border-radius: 4px; }
+  .code .ln.dim { color: #7f95b8; }
+  .code .ln.new { background: rgba(74,222,128,.15); color: #eafff3; animation: lnin .5s ease both; }
+  .code .ln.new::before { content: "+"; position: absolute; left: .45em; color: #4ade80; font-weight: 700; }
+  .code .jk { color: #8fd0ff; } .code .js { color: #9be8b6; } .code .jn { color: #ffcf6e; }
+  .code .ln.dim .jk, .code .ln.dim .js, .code .ln.dim .jn { color: inherit; }
+  @keyframes lnin { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+  .chip { display: inline-block; background: var(--blue-soft); color: var(--blue); border-radius: 99px; padding: .15em .7em; font-weight: 600; font-size: clamp(.66rem, .9vw, .8rem); }
+  .chip.new { background: #dff3ea; color: #146c49; }
+  .chip.off { background: #eef1f5; color: #98a4b6; }
+  .xin { display: flex; gap: .4vw; flex-wrap: wrap; align-items: center; color: var(--mute); font-size: clamp(.68rem, .92vw, .82rem); margin: .8vh 0 .6vh; }
+  .xin b { color: var(--blue); text-transform: uppercase; letter-spacing: .12em; font-size: .78em; margin-right: .2vw; }
+  .d-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 1.2vw; }
+  .d-grid .col { display: flex; flex-direction: column; gap: 1.2vh; }
+  .ct-foot { color: var(--mute); font-size: clamp(.66rem, .88vw, .8rem); margin-top: .7vh; }
+  .ct-foot b { color: #146c49; }
+  .ctr { display: grid; grid-template-columns: 15em 1fr; gap: 1.3vw; align-items: stretch; }
+  .tl { display: flex; flex-direction: column; gap: .5vh; }
+  .tl button { display: flex; align-items: center; gap: .7em; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: .55vh .7vw; font: inherit;
+    font-size: clamp(.7rem, 1vw, .9rem); color: var(--mute); cursor: pointer; text-align: left; }
+  .tl button i { font-style: normal; width: 1.7em; height: 1.7em; border-radius: 50%; display: grid; place-items: center; background: #f1f4f8; font-weight: 700; font-size: .85em; }
+  .tl button.done { color: var(--navy); } .tl button.done i { background: var(--blue-soft); color: var(--blue); }
+  .tl button.on { background: var(--navy); border-color: var(--navy); color: #fff; } .tl button.on i { background: #fff; color: var(--navy); }
+  .ctr-main { display: flex; flex-direction: column; gap: 1vh; }
+  .ctr-main .code { min-height: 34vh; }
+  .xcell { display: flex; flex-direction: column; gap: .6vh; }
+  .grid > *, .xcell { min-width: 0; }
+  .code { overflow-x: auto; }
+
+
+  /* escenas animadas por pasos */
+  .scene .stage > svg { max-height: var(--mh, 44vh); }
+  .scene [data-from] { opacity: 0; transition: opacity .5s ease; pointer-events: none; }
+  .scene [data-from].v { opacity: 1; }
+  .scene svg text { font-family: inherit; }
+  .sv-t1 { font-size: 15px; font-weight: 700; fill: var(--navy); } .sv-t1s { font-size: 12.5px; font-weight: 700; fill: var(--navy); }
+  .sv-t2 { font-size: 12px; fill: var(--mute); } .sv-t3 { font-size: 11px; fill: var(--mute); }
+  .sv-box { fill: #fff; stroke: var(--line); stroke-width: 2; transition: all .4s; }
+  .sv-box.hot { stroke: var(--blue); fill: #eef5fd; }
+  .sv-box.amber.hot { stroke: var(--amber); fill: #fff6e5; }
+  .sv-line { stroke: #c3d0e0; stroke-width: 2; fill: none; }
+  .sv-line.hot { stroke: var(--blue); stroke-dasharray: 7 6; animation: dash .8s linear infinite; }
+  .sv-line.amber.hot { stroke: var(--amber); }
+  .sv-ok { color: var(--green); } .sv-warn { color: var(--amber); }
+  .sc-dots { display: flex; gap: .45em; align-items: center; margin-left: auto; }
+  .sc-dots i { width: .65em; height: .65em; border-radius: 50%; background: var(--line); cursor: pointer; display: block; }
+  .sc-dots i.on { background: var(--navy); transform: scale(1.25); }
+  .sc-dots button { border: 1px solid var(--line); background: #fff; color: var(--navy); border-radius: 99px; width: 2.1em; height: 2.1em; cursor: pointer; font-size: .85rem; margin-left: .4em; }
+  .knob .hand { transform: rotate(-55deg); transform-box: fill-box; transform-origin: 50% 100%; transition: transform 1.2s cubic-bezier(.3,1.5,.5,1); }
+  .knob.hot .hand { transform: rotate(60deg); }
+  .knob.hot circle { stroke: var(--blue); }
+  .timer-p { stroke-dasharray: 440; stroke-dashoffset: 440; }
+  .timer-p.hot { stroke-dashoffset: 40; transition: stroke-dashoffset 3.4s linear; }
+  .pill-s { font-size: 12px; font-weight: 700; }
+  .ic-u { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+  .center { align-items: flex-start; }
+  @media (max-width: 860px) { .g2, .g3, .g4 { grid-template-columns: 1fr; } nav { display: none; } .step:not(:last-child)::after { display: none; } }
+  @media print { html, body { overflow: visible; } .slide { position: relative; display: flex !important; height: 100vh; page-break-after: always; animation: none; }
+    .top, .foot, .prog { display: none; } }
+</style>
+</head>
+<body>
+
+<!-- ===== sprite de iconos ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.2 8.3-8 9-4.8-.7-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol>
+    <symbol id="i-headset" viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0116 0v2"/><path d="M4 14a2 2 0 012-2h1v5H6a2 2 0 01-2-2z"/><path d="M20 14a2 2 0 00-2-2h-1v5h1a2 2 0 002-2z"/><path d="M17 19c0 1.5-2 2-5 2"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+    <symbol id="i-landmark" viewBox="0 0 24 24"><path d="M3 21h18M5 21V10M9.5 21V10M14.5 21V10M19 21V10M2.5 10L12 4l9.5 6z"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5z"/><path d="M12 8v4M10 10h4"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16 5.5l4 1-3.2 13.6-4-1z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></symbol>
+    <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4.6 18.5A2 2 0 006.3 21.5h11.4a2 2 0 001.7-3L14 9V3"/><path d="M7.5 15h9"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.2" cy="9" r="2.5"/><path d="M16.5 14.2c2.9.3 4.9 2.5 4.9 5.8"/></symbol>
+    <symbol id="i-usercheck" viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.8"/><path d="M3 21c0-4 3-7 7-7"/><path d="M15.5 17.5l2.2 2.2 4-4.2"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M18 7h2M4 17h2M11 17h9"/><circle cx="15.5" cy="7" r="2.3"/><circle cx="8.5" cy="17" r="2.3"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3L3 10.2l7 3 3 7.3L21 3z"/><path d="M10 13.2L21 3"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13l3-8h12l3 8v6H3v-6z"/><path d="M3 13h5l1.5 2.5h5L16 13h5"/></symbol>
+    <symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 4v16M7 20h10M5 8h14"/><path d="M5 8l-3 7a3 3 0 006 0L5 8zM19 8l-3 7a3 3 0 006 0l-3-7z"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></symbol>
+    <symbol id="i-bar" viewBox="0 0 24 24"><path d="M4 20V11M10 20V4M16 20v-7M22 20H2"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+    <symbol id="i-loop" viewBox="0 0 24 24"><path d="M20 12a8 8 0 01-14 5.3M4 12a8 8 0 0114-5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></symbol>
+    <symbol id="i-robot" viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M9.5 16.2h5"/><circle cx="12" cy="3.5" r="1"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0112 0v6l1.5 2h-15L6 17zM10 21h4"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></symbol>
+    <symbol id="i-pc" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 21h8M12 16v5"/></symbol>
+  </defs>
+</svg>
+
+<div class="prog" id="prog"></div>
+<header class="top">
+  <div class="brand"><i></i>BBVA · INTELIGENCIA ARTIFICIAL</div>
+  <nav id="nav"></nav>
+</header>
+
+<!-- ======================= INTRO ======================= -->
+<section class="slide" data-sec="Intro">
+  <div class="body">
+    <div class="eyebrow">Plano funcional de capacidades</div>
+    <h1>ARIA</h1>
+    <p class="lead" style="font-size:clamp(1.1rem,1.9vw,1.6rem);max-width:40ch">Un agente que revisa alertas de fraude de forma masiva, se gobierna con personas y aprende de sus resultados.</p>
+  </div>
+</section>
+
+<section class="slide" data-sec="Intro">
+  <div class="head"><div class="eyebrow">Mapa de capacidades</div><h2>Seis capacidades, un mismo ciclo</h2>
+    <p class="lead">Haz clic en una capacidad para ir a su detalle.</p></div>
+  <div class="body">
+    <div class="grid g3">
+      <div class="card cap" data-go="Pipeline"><div class="tile"><svg class="i"><use href="#i-shield"/></svg></div><div><h3>Revisión de alertas</h3><p>Reglas, perfilado, modelo, LLM y revisión adversarial convergen en una decisión explicable.</p></div></div>
+      <div class="card cap" data-go="Pipeline"><div class="tile t2"><svg class="i"><use href="#i-headset"/></svg></div><div><h3>Resolución operativa</h3><p>Analista, voicebot o ARIA según el playbook, con cupos en vivo y acción sobre el canal.</p></div></div>
+      <div class="card cap" data-go="Monitoreo"><div class="tile t3"><svg class="i"><use href="#i-activity"/></svg></div><div><h3>Monitoreo</h3><p>Dashboard, monitor e histórico con métricas exactas, telemetría y auditoría completa.</p></div></div>
+      <div class="card cap" data-go="Gobierno"><div class="tile t4"><svg class="i"><use href="#i-landmark"/></svg></div><div><h3>Gobierno</h3><p>Configuración versionada, esquema de alertas, catálogos y biblioteca con aprobación y trazabilidad.</p></div></div>
+      <div class="card cap" data-go="Asistente"><div class="tile"><svg class="i"><use href="#i-chat"/></svg></div><div><h3>Asistente</h3><p>Convierte información pegada en borradores de entidades que una persona confirma.</p></div></div>
+      <div class="card cap" data-go="Optimizador"><div class="tile t2"><svg class="i"><use href="#i-trend"/></svg></div><div><h3>Optimizador</h3><p>Investiga, experimenta con cambios aislados y propone lanzamientos medidos.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Intro">
+  <div class="head"><div class="eyebrow">Flujo de punta a punta</div><h2>Del evento al aprendizaje</h2></div>
+  <div class="body">
+    <div class="stepper" data-set="e2e"></div>
+    <div class="detail" data-for="e2e"></div>
+    <div class="hint">Haz clic en cada etapa para ver qué ocurre por dentro.</div>
+  </div>
+</section>
+
+<!-- ======================= PIPELINE ======================= -->
+<section class="slide" data-sec="Pipeline">
+  <div class="head"><div class="eyebrow">Cómo procesa ARIA una alerta</div><h2>Un flujo de diez etapas</h2></div>
+  <div class="body">
+    <div class="stepper" data-set="pipe"></div>
+    <div class="detail" data-for="pipe"></div>
+    <div class="roles"><em>Roles</em>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-sliders"/></svg></span><b>Channel manager</b> configura agentes por segmento</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-usercheck"/></svg></span><b>Fraud analyst</b> resuelve las escaladas</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-headset"/></svg></span><b>Ops analyst</b> vigila cola y capacidad</span>
+    </div>
+  </div>
+</section>
+
+
+<section class="slide" data-sec="Pipeline">
+  <div class="head"><div class="eyebrow">Etapas 4 y 6</div><h2>XGBoost: el modelo que puntúa primero</h2></div>
+  <div class="body">
+    <div class="scene" data-ms="4600" data-caps="[[&quot;Datos estructurados&quot;, &quot;Cada alerta madura es una fila con variables (monto, canal, señales del dispositivo, hora) y una etiqueta real: fraude o no fraude.&quot;], [&quot;Un árbol aprende reglas&quot;, &quot;XGBoost construye árboles de decisión que dividen las alertas con preguntas simples sobre esas variables.&quot;], [&quot;Cada árbol corrige al anterior&quot;, &quot;Es boosting: los árboles siguientes se concentran en lo que los anteriores clasificaron mal, y el error restante baja.&quot;], [&quot;Los árboles votan&quot;, &quot;Con una alerta nueva, la suma de los árboles se convierte en un puntaje de 0 a 1. Sobre el umbral es fraude; bajo la banda, no fraude.&quot;], [&quot;Y explica su decisión&quot;, &quot;SHAP indica qué variables empujaron el puntaje y cuánto; ese detalle viaja al LLM y a la traza del paso.&quot;]]" style="--mh:33vh"><div class="stage"><svg viewBox="0 0 1000 330" role="img" aria-label="XGBoost"><text class="sv-t1" x="20" y="24">Datos estructurados</text><text class="sv-t3" x="24" y="52" style="font-weight:700">monto</text><text class="sv-t3" x="92" y="52" style="font-weight:700">canal</text><text class="sv-t3" x="146" y="52" style="font-weight:700">biocatch</text><text class="sv-t3" x="214" y="52" style="font-weight:700">hora</text><text class="sv-t3" x="262" y="52" style="font-weight:700">fraude</text><rect class="sv-box" x="20" y="60" width="284" height="28" rx="7"/><text class="sv-t2" x="24" y="78">5500</text><text class="sv-t2" x="92" y="78">OM</text><text class="sv-t2" x="146" y="78">0.03</text><text class="sv-t2" x="214" y="78">13:42</text><text class="sv-t2" x="262" y="78" style="font-weight:700;fill:#1f9d6b">no</text><rect class="sv-box" x="20" y="94" width="284" height="28" rx="7"/><text class="sv-t2" x="24" y="112">120000</text><text class="sv-t2" x="92" y="112">OM</text><text class="sv-t2" x="146" y="112">0.91</text><text class="sv-t2" x="214" y="112">02:10</text><text class="sv-t2" x="262" y="112" style="font-weight:700;fill:#d98a0b">sí</text><rect class="sv-box" x="20" y="128" width="284" height="28" rx="7"/><text class="sv-t2" x="24" y="146">800</text><text class="sv-t2" x="92" y="146">WEB</text><text class="sv-t2" x="146" y="146">0.12</text><text class="sv-t2" x="214" y="146">09:05</text><text class="sv-t2" x="262" y="146" style="font-weight:700;fill:#1f9d6b">no</text><rect class="sv-box" x="20" y="162" width="284" height="28" rx="7"/><text class="sv-t2" x="24" y="180">43000</text><text class="sv-t2" x="92" y="180">APP</text><text class="sv-t2" x="146" y="180">0.77</text><text class="sv-t2" x="214" y="180">03:30</text><text class="sv-t2" x="262" y="180" style="font-weight:700;fill:#d98a0b">sí</text><rect class="sv-box" x="20" y="196" width="284" height="28" rx="7"/><text class="sv-t2" x="24" y="214">3200</text><text class="sv-t2" x="92" y="214">OM</text><text class="sv-t2" x="146" y="214">0.05</text><text class="sv-t2" x="214" y="214">18:20</text><text class="sv-t2" x="262" y="214" style="font-weight:700;fill:#1f9d6b">no</text><rect data-at="0" class="sv-box" x="254" y="38" width="52" height="176" rx="8" style="fill:none"/><text class="sv-t3" x="20" y="240">Alertas maduras con su etiqueta real</text><text data-from="0" data-at="0" class="sv-t2" x="258" y="236" style="font-weight:700">↑ etiqueta</text><path data-from="1" class="sv-line" data-at="1" d="M310 130 L350 130"/><path data-from="3" class="sv-line" data-at="3" d="M690 130 L726 130"/><text data-from="1" class="sv-t1" x="350" y="24">Árboles de decisión (boosting)</text><g data-from="1" transform="translate(410,64)"><g data-tree="1"></g><text class="sv-t3" x="0" y="118" text-anchor="middle">Árbol 1</text><rect x="-50" y="132" width="100" height="8" rx="4" fill="#eef1f5"/><rect x="-50" y="132" width="90" height="8" rx="4" fill="#d98a0b"/><text class="sv-t3" x="0" y="158" text-anchor="middle">error restante</text></g><g data-from="2" transform="translate(520,64)"><g data-tree="1"></g><text class="sv-t3" x="0" y="118" text-anchor="middle">Árbol 2</text><rect x="-50" y="132" width="100" height="8" rx="4" fill="#eef1f5"/><rect x="-50" y="132" width="52" height="8" rx="4" fill="#d98a0b"/><text class="sv-t3" x="0" y="158" text-anchor="middle">error restante</text></g><g data-from="2" transform="translate(630,64)"><g data-tree="1"></g><text class="sv-t3" x="0" y="118" text-anchor="middle">Árbol 3</text><rect x="-50" y="132" width="100" height="8" rx="4" fill="#eef1f5"/><rect x="-50" y="132" width="22" height="8" rx="4" fill="#d98a0b"/><text class="sv-t3" x="0" y="158" text-anchor="middle">error restante</text></g><text data-from="2" class="sv-t3" x="350" y="240">Cada árbol corrige lo que falló el anterior</text><g data-from="3"><text class="sv-t1" x="730" y="24">Puntaje de la alerta nueva</text><rect class="sv-box" x="730" y="38" width="250" height="34" rx="8"/><text class="sv-t3" x="740" y="59">5500 · OM · biocatch 0.03</text><rect x="730" y="92" width="250" height="14" rx="7" fill="#eef1f5"/><rect x="730" y="92" width="18" height="14" rx="7" fill="#1f9d6b"/><line x1="855" y1="84" x2="855" y2="114" stroke="#d98a0b" stroke-width="2"/><text class="sv-t3" x="855" y="128" text-anchor="middle">umbral</text><circle cx="748" cy="99" r="8" fill="#fff" stroke="#1f9d6b" stroke-width="3"/><text class="sv-t1" x="748" y="150" text-anchor="middle" style="fill:#1f9d6b">0.07</text><text class="sv-t1" x="880" y="152" text-anchor="middle" style="fill:#1f9d6b">no fraude</text></g><g data-from="4"><text class="sv-t1" x="730" y="188">Por qué (SHAP)</text><text class="sv-t3" x="730" y="217">biocatch_score</text><rect x="830" y="206" width="120" height="14" rx="4" fill="#1f9d6b" opacity=".85"/><text class="sv-t3" x="730" y="247">amount</text><rect x="830" y="236" width="70" height="14" rx="4" fill="#1f9d6b" opacity=".85"/><text class="sv-t3" x="730" y="277">hora</text><rect x="830" y="266" width="34" height="14" rx="4" fill="#1f9d6b" opacity=".85"/><text class="sv-t3" x="830" y="304">← empuja hacia no fraude</text></g></svg></div><div class="cap-box sc-cap"></div></div>
+    <div class="grid g2">
+      <div class="xcell"><div class="xform" data-steps="detector"></div></div>
+      <div class="xcell"><div class="xform" data-steps="classification"></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Pipeline">
+  <div class="head"><div class="eyebrow">Etapas 4 y 6</div><h2>El agente: un LLM con contexto y herramientas</h2></div>
+  <div class="body">
+    <div class="scene" data-ms="4300" data-caps="[[&quot;El agente recibe su contexto&quot;, &quot;Es un LLM con un objetivo claro (decidir si hay fraude) que recibe la alerta y lo que dejaron los pasos anteriores en el contexto.&quot;], [&quot;Razona en bucle&quot;, &quot;Piensa, decide si necesita algo, actúa y observa el resultado (ReAct). Su prompt, modelo y límites se configuran por segmento.&quot;], [&quot;Consulta el Vector Store&quot;, &quot;Si le falta contexto, busca taxonomías, modus operandi y casos similares: hasta 3 consultas por paso. Un fallo se vuelve observación y el flujo sigue.&quot;], [&quot;Analiza el historial&quot;, &quot;Si queda inconcluso, pide un análisis del historial del cliente y reejecuta con los hallazgos (hasta 5 rondas).&quot;], [&quot;Usa el modelo y calcula&quot;, &quot;Pide el score y los SHAP de XGBoost por MCP, y usa la calculadora y las listas para operaciones exactas.&quot;], [&quot;Entrega su conclusión&quot;, &quot;Veredicto, razonamiento, traza de herramientas y tokens se guardan bajo su clave del contexto.&quot;]]" style="--mh:40vh"><div class="stage"><div data-agent="step"></div></div><div class="cap-box sc-cap"></div></div>
+    <div><div class="xin"><b>Contrato</b> Qué agrega al paso usar las herramientas</div><div class="code" data-custom="tools"></div></div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Pipeline">
+  <div class="head"><div class="eyebrow">Etapas 5 y 7</div><h2>Revisión adversarial: el mismo agente, otro objetivo</h2></div>
+  <div class="body">
+    <div class="scene" data-ms="4300" data-caps="[[&quot;Recibe una conclusión&quot;, &quot;El adversarial lee lo que concluyó el detector o el clasificador junto con la evidencia que lo respaldó.&quot;], [&quot;Su objetivo es el opuesto&quot;, &quot;El detector busca concluir; el adversarial busca refutar: encontrar el punto débil del razonamiento y de la evidencia.&quot;], [&quot;Busca evidencia en contra&quot;, &quot;Consulta el Vector Store por casos que contradigan la conclusión. Tiene su propia selección de herramientas.&quot;], [&quot;Contrasta con el historial&quot;, &quot;Revisa si el historial del cliente respalda lo afirmado o muestra algo que la conclusión ignoró.&quot;], [&quot;Verifica con el modelo&quot;, &quot;Compara el score de XGBoost y los cálculos con lo que el razonamiento sostiene.&quot;], [&quot;Devuelve objeciones&quot;, &quot;Indica si exige corrección, con feedback y puntos débiles. El paso se reejecuta; si se agotan las rondas, la alerta escala al analista.&quot;]]" style="--mh:40vh"><div class="stage"><div data-agent="adv"></div></div><div class="cap-box sc-cap"></div></div>
+    <div><div class="xin"><b>Contrato</b> La objeción queda registrada y el paso se reejecuta con ella</div><div class="code" data-custom="adv"></div></div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Pipeline">
+  <div class="head"><div class="eyebrow">Etapas 8 a 10</div><h2>Resolución: playbook, cupos y ejecución</h2></div>
+  <div class="body">
+    <div class="scene" data-ms="4400" data-caps="[[&quot;El analista lee el playbook&quot;, &quot;El LLM recibe el playbook del modus operandi clasificado y la disponibilidad en vivo de analistas y voicebot, y elige un método principal.&quot;], [&quot;Camino A · ARIA resuelve&quot;, &quot;Acción directa en el canal: block, bidi o pass. No consume cupos de personas ni de voicebot.&quot;], [&quot;Camino B · Voicebot&quot;, &quot;Reserva atómica de un slot de la cuota concurrente y llamada al cliente; el callback libera el cupo.&quot;], [&quot;Si no hay cupo: respaldo&quot;, &quot;Al ejecutar, el cupo puede haberse ocupado. El playbook define el respaldo: «si no hay voicebot» pasa a otro método.&quot;], [&quot;Camino C · Analista&quot;, &quot;La alerta escala a la cola; al tomarla, el analista la reserva 30 minutos. Si no hay analista, aplica el respaldo configurado.&quot;], [&quot;Todos convergen&quot;, &quot;Cualquier camino termina en el ejecutor y el post-proceso, que documentan y miden la decisión.&quot;]]" style="--mh:46vh"><div class="stage"><svg viewBox="0 0 1000 340" role="img" aria-label="Caminos del playbook"><rect class="sv-box" x="20" y="120" width="200" height="100" rx="14" data-at="0"/><text class="sv-t1" x="120" y="156" text-anchor="middle">Analista (LLM)</text><text class="sv-t3" x="120" y="176" text-anchor="middle">lee el playbook del</text><text class="sv-t3" x="120" y="191" text-anchor="middle">modus operandi y la</text><text class="sv-t3" x="120" y="206" text-anchor="middle">disponibilidad en vivo</text><path class="sv-line" data-at="1 2 4" d="M220 170 L290 170"/><path d="M330 135 L370 170 L330 205 L290 170 Z" class="sv-box" data-at="1 2 4"/><text class="sv-t3" x="330" y="173" text-anchor="middle" style="font-weight:700">método</text><path class="sv-line" data-at="1" d="M370 170 C 400 170 400 72 430 72"/><rect class="sv-box" data-at="1" x="430" y="40" width="250" height="64" rx="14"/><text class="sv-t1" x="555" y="68" text-anchor="middle">ARIA resuelve</text><text class="sv-t3" x="555" y="88" text-anchor="middle">block · bidi · pass directo en el canal</text><path class="sv-line" data-at="1 5" d="M680 72 C 730 72 740 170 780 170"/><path class="sv-line" data-at="2 3" d="M370 170 C 400 170 400 170 430 170"/><rect class="sv-box" data-at="2 3" x="430" y="138" width="250" height="64" rx="14"/><text class="sv-t1" x="555" y="166" text-anchor="middle">Voicebot</text><text class="sv-t3" x="555" y="186" text-anchor="middle">reserva atómica de un slot + llamada</text><path class="sv-line" data-at="2 3 5" d="M680 170 C 730 170 740 170 780 170"/><path class="sv-line" data-at="4" d="M370 170 C 400 170 400 268 430 268"/><rect class="sv-box" data-at="4" x="430" y="236" width="250" height="64" rx="14"/><text class="sv-t1" x="555" y="264" text-anchor="middle">Analista humano</text><text class="sv-t3" x="555" y="284" text-anchor="middle">escala a la cola · reserva de 30 min</text><path class="sv-line" data-at="4 5" d="M680 268 C 730 268 740 170 780 170"/><path data-from="3" class="sv-line amber hot" d="M555 202 L555 236" style="stroke:#d98a0b;stroke-dasharray:6 5"/><text data-from="3" class="pill-s" x="566" y="224" style="fill:#d98a0b">sin cupo</text><g data-from="3"><rect x="300" y="274" width="110" height="26" rx="13" fill="#fff6e5" stroke="#d98a0b"/><text class="pill-s" x="355" y="291" text-anchor="middle" style="fill:#8a5a06">respaldo</text></g><rect class="sv-box" data-at="5" x="780" y="120" width="200" height="100" rx="14"/><text class="sv-t1" x="880" y="160" text-anchor="middle">Ejecutor</text><text class="sv-t3" x="880" y="180" text-anchor="middle">+ post-proceso</text><text class="sv-t3" x="880" y="198" text-anchor="middle">documenta y mide</text><circle r="8" fill="#1464a5" data-from="0" data-until="0"><animateMotion data-mot="0" dur="1.6s" begin="indefinite" fill="freeze" path="M120 170 L330 170"/></circle><circle r="8" fill="#1464a5" data-from="1" data-until="1"><animateMotion data-mot="1" dur="2s" begin="indefinite" fill="freeze" path="M330 170 C 400 170 400 72 430 72 L 680 72 C 740 72 740 170 780 170"/></circle><circle r="8" fill="#1464a5" data-from="2" data-until="2"><animateMotion data-mot="2" dur="2s" begin="indefinite" fill="freeze" path="M330 170 C 400 170 400 170 430 170 L 680 170 L 780 170"/></circle><circle r="8" fill="#d98a0b" data-from="3" data-until="3"><animateMotion data-mot="3" dur="2s" begin="indefinite" fill="freeze" path="M555 170 L555 266"/></circle><circle r="8" fill="#1464a5" data-from="4" data-until="4"><animateMotion data-mot="4" dur="2s" begin="indefinite" fill="freeze" path="M330 170 C 400 170 400 268 430 268 L 680 268 C 740 268 740 170 780 170"/></circle></svg></div><div class="cap-box sc-cap"></div></div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Pipeline">
+  <div class="head"><div class="eyebrow">Flujo de escalamiento</div><h2>La cola: cuando una persona decide</h2></div>
+  <div class="body">
+    <div class="scene" data-ms="4600" data-caps="[[&quot;La cola espera&quot;, &quot;Las alertas escaladas (por playbook, límite adversarial o fallo) esperan hasta que un analista con capacidad las toma.&quot;], [&quot;El analista reserva&quot;, &quot;Al tomar una alerta queda reservada para esa persona: nadie más puede tomarla mientras la revisa.&quot;], [&quot;30 minutos de ventana&quot;, &quot;La reserva dura 30 minutos. En ese tiempo el analista revisa toda la evidencia del agente y decide: block, pass o bidi.&quot;], [&quot;Se desreserva&quot;, &quot;Al resolver, la alerta sale de la cola con su marca. Si libera la alerta o se vencen los 30 minutos, la reserva termina y vuelve a esperar al siguiente analista.&quot;]]" style="--mh:42vh"><div class="stage"><svg viewBox="0 0 1000 340" role="img" aria-label="Cola de analistas"><text class="sv-t1" x="20" y="26">Cola de espera</text><text class="sv-t3" x="20" y="44">alertas ESCALATED</text><g data-from="0" data-until="0"><rect class="sv-box" x="20" y="62" width="236" height="50" rx="10"/><text class="sv-t1s" x="34" y="84">e2e-alert-0007</text><text class="sv-t3" x="34" y="102">esperando 02:10</text></g><g><rect class="sv-box" x="20" y="124" width="236" height="50" rx="10"/><text class="sv-t1s" x="34" y="146">e2e-alert-0011</text><text class="sv-t3" x="34" y="164">esperando 01:35</text></g><g><rect class="sv-box" x="20" y="186" width="236" height="50" rx="10"/><text class="sv-t1s" x="34" y="208">e2e-alert-0013</text><text class="sv-t3" x="34" y="226">esperando 00:48</text></g><g><rect class="sv-box" x="20" y="248" width="236" height="50" rx="10"/><text class="sv-t1s" x="34" y="270">e2e-alert-0016</text><text class="sv-t3" x="34" y="288">esperando 00:12</text></g><g data-from="3"><rect class="sv-box hot" x="20" y="62" width="236" height="50" rx="10" style="stroke:#1f9d6b;fill:#eefaf3"/><text class="sv-t1s" x="34" y="84">e2e-alert-0007</text><text class="sv-t3" x="34" y="102" style="fill:#146c49">vuelve a esperar</text></g><g transform="translate(480,0)"><circle cx="0" cy="104" r="24" fill="#e8f0fb" stroke="#1464a5" stroke-width="2"/><path d="M-40 188 C-40 140 40 140 40 188 Z" fill="#e8f0fb" stroke="#1464a5" stroke-width="2"/><rect x="-70" y="188" width="140" height="12" rx="6" fill="#dde3ec"/><text class="sv-t1" x="0" y="226" text-anchor="middle">Fraud analyst</text><circle cx="62" cy="86" r="6" fill="#1f9d6b"/><text class="sv-t3" x="72" y="90">disponible</text></g><g data-from="1" data-until="2"><rect class="sv-box hot" x="395" y="248" width="170" height="52" rx="10"/><text class="sv-t1s" x="408" y="270">e2e-alert-0007</text><text class="sv-t3" x="408" y="288" style="fill:#8a5a06">reservada</text></g><g data-from="1" data-until="2" style="color:#d98a0b"><use href="#i-lock" x="535" y="262" width="20" height="20" class="ic-u"/></g><circle r="8" fill="#1464a5" data-from="1" data-until="1"><animateMotion data-mot="1" dur="1.6s" begin="indefinite" fill="freeze" path="M256 86 C 340 86 330 272 395 272"/></circle><path data-from="3" data-until="3" class="sv-line hot" style="stroke:#1f9d6b" d="M395 272 C 330 272 340 86 256 86"/><circle r="8" fill="#1f9d6b" data-from="3" data-until="3"><animateMotion data-mot="3" dur="1.6s" begin="indefinite" fill="freeze" path="M395 272 C 330 272 340 86 256 86"/></circle><text data-from="3" data-until="3" class="sv-t3" x="400" y="326">o sale resuelta si el analista marcó la alerta</text><g data-from="1"><circle cx="820" cy="150" r="70" fill="#fff" stroke="#eef1f5" stroke-width="12"/><circle class="timer-p" data-at="2" cx="820" cy="150" r="70" fill="none" stroke="#1464a5" stroke-width="12" stroke-linecap="round" transform="rotate(-90 820 150)"/><text data-from="1" data-until="2" class="sv-t1" x="820" y="158" text-anchor="middle" style="font-size:26px">30 min</text><text data-from="3" class="sv-t1" x="820" y="158" text-anchor="middle" style="font-size:20px;fill:#1f9d6b">Liberada</text><text class="sv-t3" x="820" y="250" text-anchor="middle">reserva de la alerta</text></g></svg></div><div class="cap-box sc-cap"></div></div>
+    <div class="roles"><em>Roles</em>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-usercheck"/></svg></span><b>Fraud analyst</b> toma, revisa y marca</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-headset"/></svg></span><b>Ops analyst</b> observa colas y SLA</span>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= OPTIMIZADOR ======================= -->
+<section class="slide" data-sec="Optimizador">
+  <div class="head"><div class="eyebrow">Qué es el optimizador</div><h2>Un agente que ajusta las perillas del pipeline</h2></div>
+  <div class="body">
+    <div class="scene" data-ms="4600" data-caps="[[&quot;El pipeline tiene perillas&quot;, &quot;Reglas, rúbricas, modelo y umbral, límites adversariales, biblioteca, Vector Store, prompts y playbooks: cada una cambia cómo decide ARIA.&quot;], [&quot;El optimizador las puede girar&quot;, &quot;Es un agente que prueba valores de esas perillas sobre copias experimentales; las configuraciones activas no se tocan.&quot;], [&quot;Cada giro es un experimento&quot;, &quot;Mide el resultado contra la línea base, sobre la misma muestra madura, y decide qué probar después.&quot;], [&quot;Propone el mejor ajuste&quot;, &quot;Entrega una combinación versionada con su evidencia. Llevarla a producción lo decide una persona.&quot;]]" style="--mh:46vh"><div class="stage"><svg viewBox="0 0 1000 340" role="img" aria-label="Perillas del pipeline"><path class="sv-line" d="M55 270 L955 270"/><circle cx="55" cy="270" r="20" fill="#fff" stroke="#1464a5" stroke-width="2"/><text class="sv-t1s" x="55" y="275" text-anchor="middle">1</text><text class="sv-t3" x="55" y="312" text-anchor="middle">Pre-proceso</text><circle cx="155" cy="270" r="20" fill="#fff" stroke="#1464a5" stroke-width="2"/><text class="sv-t1s" x="155" y="275" text-anchor="middle">2</text><text class="sv-t3" x="155" y="312" text-anchor="middle">Determ.</text><circle cx="255" cy="270" r="20" fill="#fff" stroke="#1464a5" stroke-width="2"/><text class="sv-t1s" x="255" y="275" text-anchor="middle">3</text><text class="sv-t3" x="255" y="312" text-anchor="middle">Perfilador</text><circle cx="355" cy="270" r="20" fill="#fff" stroke="#1464a5" stroke-width="2"/><text class="sv-t1s" x="355" y="275" text-anchor="middle">4</text><text class="sv-t3" x="355" y="312" text-anchor="middle">Detector</text><circle cx="455" cy="270" r="20" fill="#fff" stroke="#1464a5" stroke-width="2"/><text class="sv-t1s" x="455" y="275" text-anchor="middle">5</text><text class="sv-t3" x="455" y="312" text-anchor="middle">Det. adv.</text><circle cx="555" cy="270" r="20" fill="#fff" stroke="#1464a5" stroke-width="2"/><text class="sv-t1s" x="555" y="275" text-anchor="middle">6</text><text class="sv-t3" x="555" y="312" text-anchor="middle">Clasif.</text><circle cx="655" cy="270" r="20" fill="#fff" stroke="#1464a5" stroke-width="2"/><text class="sv-t1s" x="655" y="275" text-anchor="middle">7</text><text class="sv-t3" x="655" y="312" text-anchor="middle">Adversarial</text><circle cx="755" cy="270" r="20" fill="#fff" stroke="#1464a5" stroke-width="2"/><text class="sv-t1s" x="755" y="275" text-anchor="middle">8</text><text class="sv-t3" x="755" y="312" text-anchor="middle">Analista</text><circle cx="855" cy="270" r="20" fill="#fff" stroke="#1464a5" stroke-width="2"/><text class="sv-t1s" x="855" y="275" text-anchor="middle">9</text><text class="sv-t3" x="855" y="312" text-anchor="middle">Ejecutor</text><circle cx="955" cy="270" r="20" fill="#fff" stroke="#1464a5" stroke-width="2"/><text class="sv-t1s" x="955" y="275" text-anchor="middle">10</text><text class="sv-t3" x="955" y="312" text-anchor="middle">Post-proc.</text><path data-from="1" class="sv-line" data-at="2 3" d="M500 78 C 500 110 155 110 155 150"/><path data-from="1" class="sv-line" data-at="2 3" d="M500 78 C 500 110 255 110 255 150"/><path data-from="1" class="sv-line" data-at="2 3" d="M500 78 C 500 110 355 110 355 150"/><path data-from="1" class="sv-line" data-at="3" d="M500 78 C 500 110 455 110 455 150"/><path data-from="1" class="sv-line" data-at="3" d="M500 78 C 500 110 555 110 555 150"/><path data-from="1" class="sv-line" data-at="3" d="M500 78 C 500 110 655 110 655 150"/><path data-from="1" class="sv-line" data-at="3" d="M500 78 C 500 110 755 110 755 150"/><g class="knob" data-at="2 3" transform="translate(155,178)"><circle r="24" fill="#fff" stroke="#c3d0e0" stroke-width="2.5"/><g class="hand"><rect x="-2" y="-19" width="4" height="19" rx="2" fill="#0a2249"/></g><circle r="3.5" fill="#0a2249"/></g><text class="sv-t3" x="155" y="226" text-anchor="middle">Reglas</text><path d="M155 232 L155 248" stroke="#c3d0e0" stroke-width="1.5" stroke-dasharray="3 3"/><g class="knob" data-at="2 3" transform="translate(255,178)"><circle r="24" fill="#fff" stroke="#c3d0e0" stroke-width="2.5"/><g class="hand"><rect x="-2" y="-19" width="4" height="19" rx="2" fill="#0a2249"/></g><circle r="3.5" fill="#0a2249"/></g><text class="sv-t3" x="255" y="226" text-anchor="middle">Rúbricas</text><path d="M255 232 L255 248" stroke="#c3d0e0" stroke-width="1.5" stroke-dasharray="3 3"/><g class="knob" data-at="2 3" transform="translate(355,178)"><circle r="24" fill="#fff" stroke="#c3d0e0" stroke-width="2.5"/><g class="hand"><rect x="-2" y="-19" width="4" height="19" rx="2" fill="#0a2249"/></g><circle r="3.5" fill="#0a2249"/></g><text class="sv-t3" x="355" y="226" text-anchor="middle">Modelo y umbral</text><path d="M355 232 L355 248" stroke="#c3d0e0" stroke-width="1.5" stroke-dasharray="3 3"/><g class="knob" data-at="3" transform="translate(455,178)"><circle r="24" fill="#fff" stroke="#c3d0e0" stroke-width="2.5"/><g class="hand"><rect x="-2" y="-19" width="4" height="19" rx="2" fill="#0a2249"/></g><circle r="3.5" fill="#0a2249"/></g><text class="sv-t3" x="455" y="226" text-anchor="middle">Rondas adv.</text><path d="M455 232 L455 248" stroke="#c3d0e0" stroke-width="1.5" stroke-dasharray="3 3"/><g class="knob" data-at="3" transform="translate(555,178)"><circle r="24" fill="#fff" stroke="#c3d0e0" stroke-width="2.5"/><g class="hand"><rect x="-2" y="-19" width="4" height="19" rx="2" fill="#0a2249"/></g><circle r="3.5" fill="#0a2249"/></g><text class="sv-t3" x="555" y="226" text-anchor="middle">Biblioteca y VS</text><path d="M555 232 L555 248" stroke="#c3d0e0" stroke-width="1.5" stroke-dasharray="3 3"/><g class="knob" data-at="3" transform="translate(655,178)"><circle r="24" fill="#fff" stroke="#c3d0e0" stroke-width="2.5"/><g class="hand"><rect x="-2" y="-19" width="4" height="19" rx="2" fill="#0a2249"/></g><circle r="3.5" fill="#0a2249"/></g><text class="sv-t3" x="655" y="226" text-anchor="middle">Prompts</text><path d="M655 232 L655 248" stroke="#c3d0e0" stroke-width="1.5" stroke-dasharray="3 3"/><g class="knob" data-at="3" transform="translate(755,178)"><circle r="24" fill="#fff" stroke="#c3d0e0" stroke-width="2.5"/><g class="hand"><rect x="-2" y="-19" width="4" height="19" rx="2" fill="#0a2249"/></g><circle r="3.5" fill="#0a2249"/></g><text class="sv-t3" x="755" y="226" text-anchor="middle">Playbooks</text><path d="M755 232 L755 248" stroke="#c3d0e0" stroke-width="1.5" stroke-dasharray="3 3"/><g data-from="1"><rect class="sv-box hot" x="395" y="12" width="210" height="62" rx="14"/><use href="#i-robot" x="410" y="28" width="30" height="30" class="ic-u" style="color:#1464a5"/><text class="sv-t1" x="452" y="40">Agente optimizador</text><text class="sv-t3" x="452" y="58">prueba valores de las perillas</text></g><g data-from="2" data-until="2"><rect class="sv-box" x="730" y="6" width="250" height="84" rx="12"/><text class="sv-t1s" x="745" y="28">Experimento vs. línea base</text><text class="sv-t3" x="745" y="50">línea base</text><rect x="815" y="42" width="120" height="9" rx="4" fill="#c3d0e0"/><text class="sv-t3" x="745" y="72">candidato</text><rect x="815" y="64" width="150" height="9" rx="4" fill="#1f9d6b"/></g><g data-from="3"><rect class="sv-box" x="20" y="6" width="290" height="84" rx="12" style="stroke:#1f9d6b"/><text class="sv-t1s" x="36" y="30">Propuesta: conjunto versionado</text><text class="sv-t3" x="36" y="50">modelo · configuración · biblioteca · Vector Store</text><text class="sv-t3" x="36" y="70" style="fill:#146c49;font-weight:700">la aprueba una persona</text></g></svg></div><div class="cap-box sc-cap"></div></div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Optimizador">
+  <div class="head"><div class="eyebrow">Agente de optimización</div><h2>Un orquestador que investiga y experimenta</h2>
+    <p class="lead">Ciclo largo y autónomo. Prueba cambios aislados y los mide contra la línea base; no promueve nada a producción por sí mismo.</p></div>
+  <div class="body">
+    <div class="flow">
+      <div class="step"><b>1 · Leer</b>Línea base e insights</div>
+      <div class="step hl"><b>2 · Hipótesis</b>Comprobable y priorizada</div>
+      <div class="step"><b>3 · Especialista</b>Elegido según el resultado</div>
+      <div class="step"><b>4 · Experimento</b>Aislado, vs. baseline</div>
+      <div class="step"><b>5 · Investigar</b>Fallos solo en agregados</div>
+      <div class="step hl"><b>6 · Registrar</b>Evidencia y siguiente paso</div>
+    </div>
+    <div class="grid g3">
+      <div class="card"><div class="k">Sesión</div><h3>Con objetivo y control</h3><ul><li>Inicia con un objetivo o síntoma; se puede pausar, reanudar o cancelar.</li><li>Se recupera por lease si un worker cae.</li></ul></div>
+      <div class="card"><div class="k">Presupuesto</div><h3>Tope renovable</h3><ul><li>Al agotarse, la sesión se pausa.</li><li>El channel manager autoriza ampliaciones una a una, auditadas.</li></ul></div>
+      <div class="card"><div class="k">Alcance</div><h3>Cambios aislados</h3><ul><li>Pruebas, copias experimentales de configuración, modelos XGBoost y generaciones de Vector Store.</li><li>No toca entidades activas.</li></ul></div>
+    </div>
+    <div class="roles"><em>Roles</em>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-users"/></svg></span><b>Channel manager</b> conduce la sesión y amplía presupuesto</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-db"/></svg></span><b>Data analyst</b> revisa muestras y modelos</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Optimizador">
+  <div class="head"><div class="eyebrow">Optimizador · datos</div><h2>Muestreo de datos maduros</h2></div>
+  <div class="body">
+    <div class="scene" data-ms="5200" data-caps="[[&quot;Una línea de tiempo con ventana&quot;, &quot;El muestreador mira un periodo configurable (ej. 30 días) que termina antes de hoy menos la ventana de maduración (ej. 4 días). Lo más reciente todavía no es de fiar.&quot;], [&quot;Solo entran las maduras&quot;, &quot;Es elegible la alerta cuya edad supera la ventana y cuyo fraud_label está definido. Se muestrea por estratos con semilla fija y se congela en un snapshot inmutable.&quot;], [&quot;El caso: el fraude aún no ha madurado&quot;, &quot;Una transacción de hace 2 días quedó marcada «no fraude». El cliente todavía no reporta el cargo y el equipo de fraude no lo ha confirmado: su etiqueta real aún es desconocida.&quot;], [&quot;Por qué se deja fuera&quot;, &quot;Si entrara, el modelo y el agente aprenderían que ese patrón es legítimo. El monitoreo la muestra marcada como inmadura, pero el entrenamiento y el optimizador no la usan.&quot;], [&quot;Madura y entra a la siguiente muestra&quot;, &quot;Días después el equipo de fraude corrige el fraud_label a fraude. Al salir de la ventana la alerta ya es elegible y entra en la próxima muestra con su etiqueta real.&quot;]]" style="--mh:46vh"><div class="stage"><svg viewBox="0 0 1000 340" role="img" aria-label="Muestreo de datos maduros"><rect x="40" y="96" width="812" height="190" rx="10" fill="#e8f0fb" opacity=".7"/><rect x="852" y="96" width="108" height="190" rx="10" fill="#fff6e5"/><text class="sv-t1s" x="52" y="118">Periodo de muestreo (ej. 30 días)</text><text class="sv-t1s" x="864" y="118" style="fill:#8a5a06">Ventana</text><text class="sv-t3" x="864" y="134">de maduración</text><text class="sv-t3" x="864" y="148">(ej. 4 días)</text><path class="sv-line" d="M40 190 L960 190"/><text class="sv-t3" x="40" y="212">hace 34 días</text><text class="sv-t3" x="930" y="212">hoy</text><line x1="960" y1="180" x2="960" y2="200" stroke="#0a2249" stroke-width="2"/><circle cx="120" cy="190" r="9" fill="#1f9d6b"/><circle cx="220" cy="190" r="9" fill="#d64545"/><circle cx="330" cy="190" r="9" fill="#1f9d6b"/><circle cx="450" cy="190" r="9" fill="#1f9d6b"/><circle cx="560" cy="190" r="9" fill="#d64545"/><circle cx="690" cy="190" r="9" fill="#1f9d6b"/><circle cx="790" cy="190" r="9" fill="#1f9d6b"/><path data-from="1" data-until="1" class="sv-line hot" d="M120 200 L300 268"/><path data-from="1" data-until="1" class="sv-line hot" d="M220 200 L359 268"/><path data-from="1" data-until="1" class="sv-line hot" d="M330 200 L425 268"/><path data-from="1" data-until="1" class="sv-line hot" d="M450 200 L497 268"/><path data-from="1" data-until="1" class="sv-line hot" d="M560 200 L562 268"/><path data-from="1" data-until="1" class="sv-line hot" d="M690 200 L640 268"/><path data-from="1" data-until="1" class="sv-line hot" d="M790 200 L700 268"/><g data-from="1"><rect class="sv-box hot" x="300" y="268" width="400" height="58" rx="12" style="stroke:#1464a5"/><text class="sv-t1s" x="316" y="292">Muestra · snapshot inmutable</text><text class="sv-t3" x="316" y="310">7 alertas elegibles · 2 fraude · particiones por hash (final reservada)</text></g><g data-from="2" data-until="3"><circle cx="915" cy="190" r="11" fill="#fff" stroke="#d98a0b" stroke-width="3" stroke-dasharray="4 3"/><text class="sv-t1s" x="915" y="195" text-anchor="middle" style="fill:#d98a0b">?</text></g><g data-from="2" data-until="2"><rect class="sv-box" x="640" y="14" width="320" height="70" rx="12" style="stroke:#d98a0b"/><text class="sv-t1s" x="654" y="36">Alerta de hace 2 días</text><text class="sv-t3" x="654" y="54">mark: no_fraud · el cliente aún no reporta el cargo</text><text class="sv-t3" x="654" y="70" style="fill:#8a5a06;font-weight:700">fraude no madurado: etiqueta real desconocida</text></g><path data-from="2" data-until="2" class="sv-line amber hot" d="M880 84 L915 176"/><g data-from="3" data-until="3"><rect class="sv-box" x="590" y="14" width="370" height="70" rx="12" style="stroke:#d64545"/><text class="sv-t1s" x="604" y="36" style="fill:#a52828">Si entrara a la muestra…</text><text class="sv-t3" x="604" y="54">figuraría como «no fraude» siendo un fraude real:</text><text class="sv-t3" x="604" y="70">el modelo aprendería ese patrón al revés</text></g><path data-from="3" data-until="3" d="M915 201 C 915 240 800 250 705 290" fill="none" stroke="#d64545" stroke-width="2.5" stroke-dasharray="6 5"/><g data-from="3" data-until="3"><circle cx="830" cy="248" r="14" fill="#fdecec" stroke="#d64545" stroke-width="2"/><text class="sv-t1" x="830" y="254" text-anchor="middle" style="fill:#d64545">✗</text><text class="sv-t3" x="850" y="276" style="fill:#a52828;font-weight:700">se excluye</text></g><g data-from="4"><circle cx="915" cy="190" r="11" fill="#d64545"/><text class="sv-t3" x="915" y="170" text-anchor="middle" style="fill:#a52828;font-weight:700">fraude confirmado</text></g><g data-from="4"><rect class="sv-box" x="720" y="14" width="240" height="70" rx="12" style="stroke:#1f9d6b"/><text class="sv-t1s" x="734" y="36">Días después…</text><text class="sv-t3" x="734" y="54">fraude corrige el fraud_label a fraude</text><text class="sv-t3" x="734" y="70" style="fill:#146c49;font-weight:700">sale de la ventana: ya es elegible</text></g><path data-from="4" class="sv-line hot" style="stroke:#1f9d6b" d="M915 201 C 915 240 880 262 850 275"/><g data-from="4"><rect class="sv-box hot" x="720" y="276" width="240" height="52" rx="12" style="stroke:#1f9d6b;fill:#eefaf3"/><text class="sv-t1s" x="734" y="298">Próxima muestra</text><text class="sv-t3" x="734" y="316">entra con su etiqueta real</text></g><circle cx="48" cy="272" r="6" fill="#1f9d6b"/><text class="sv-t3" x="62" y="276">no fraude confirmado</text><circle cx="48" cy="292" r="6" fill="#d64545"/><text class="sv-t3" x="62" y="296">fraude confirmado</text><circle cx="48" cy="312" r="6" fill="#fff" stroke="#d98a0b" stroke-width="2" stroke-dasharray="3 2"/><text class="sv-t3" x="62" y="316">inmadura</text></svg></div><div class="cap-box sc-cap"></div></div>
+    <div class="why"><b>Vista previa:</b> antes de guardar, la interfaz muestra alertas elegibles, conteos por estrato y qué disparadores se activarían hoy, sin exponer filas.</div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Optimizador">
+  <div class="head"><div class="eyebrow">Optimizador · evaluación</div><h2>Especialistas y verificadores</h2></div>
+  <div class="body">
+    <div class="grid g2">
+      <div class="card"><div class="k">Especialistas</div><h3>Un contrato común</h3><ul><li>Reciben alcance, hipótesis y presupuesto; devuelven resultado, métricas, evidencia y verificación.</li><li>Se registran por área sin cambiar el orquestador.</li><li>Un generador propone modus operandi nuevos a partir de patrones.</li></ul></div>
+      <div class="card"><div class="k">Verificadores</div><h3>Qué comprueban</h3><ul><li><b>Evaluador global:</b> función objetivo sobre desenlaces maduros.</li><li><b>Integridad de ruta:</b> saltos, bucles, fallos y escalamientos.</li><li><b>Comparación:</b> no declara ganador sin muestra mínima.</li></ul></div>
+      <div class="card"><div class="k">Diagnóstico</div><h3>Dónde y por qué falla</h3><ul><li>Por segmento, canal, etapa y ruta.</li><li>Mínimo de 30 casos por corte; nunca filas, ids ni payloads.</li></ul></div>
+      <div class="card"><div class="k">Evaluación pareada</div><h3>Misma muestra, versiones fijas</h3><ul><li>Línea base y candidato sobre la misma muestra, con modelo, configuración, biblioteca y Vector Store fijados por hash.</li><li>Corre el flujo real, con efectos operativos simulados.</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Optimizador">
+  <div class="head"><div class="eyebrow">Del candidato a producción</div><h2>Lanzamiento controlado con aprobación humana</h2></div>
+  <div class="body">
+    <div class="scene" data-ms="4600" data-caps="[[&quot;Le pides lo que necesitas&quot;, &quot;El channel manager le habla al agente optimizador: un objetivo o un síntoma, por ejemplo bajar los falsos positivos de un canal.&quot;], [&quot;El agente concede el deseo&quot;, &quot;Diagnostica, experimenta en copias aisladas y, como un genio, materializa una configuración candidata con su evidencia.&quot;], [&quot;La configuración vuelve a ti&quot;, &quot;No se aplica sola: llega al channel manager con la comparación contra la línea base.&quot;], [&quot;La apruebas o la devuelves&quot;, &quot;Si no te convence, la devuelves con comentarios y el agente itera; si estás de acuerdo, la apruebas.&quot;], [&quot;Pasa al release manager&quot;, &quot;Con tu aprobación, el conjunto versionado (modelo, configuración, biblioteca, Vector Store) llega a quien autoriza el lanzamiento.&quot;], [&quot;El release manager dice sí o no&quot;, &quot;Con un sí avanza por shadow, canary y full, con rollback en cada etapa; con un no, no cambia producción.&quot;]]" style="--mh:44vh"><div class="stage"><svg viewBox="0 0 1000 336" role="img" aria-label="Flujo de promoción"><g><circle cx="110" cy="188" r="20" fill="#e8f0fb" stroke="#1464a5" stroke-width="2"/><path d="M74 258 C74 215 146 215 146 258 Z" fill="#e8f0fb" stroke="#1464a5" stroke-width="2"/><text class="sv-t1" x="110" y="284" text-anchor="middle">Channel manager</text></g><g><circle cx="880" cy="188" r="20" fill="#e4f6ee" stroke="#1464a5" stroke-width="2"/><path d="M844 258 C844 215 916 215 916 258 Z" fill="#e4f6ee" stroke="#1464a5" stroke-width="2"/><text class="sv-t1" x="880" y="284" text-anchor="middle">Release manager</text></g><g><path d="M435 240 C435 222 525 222 525 240 L538 252 L422 252 Z" fill="#fdf0dc" stroke="#d98a0b" stroke-width="2.5"/><path d="M522 232 q 24 -6 34 -26" fill="none" stroke="#d98a0b" stroke-width="3" stroke-linecap="round"/><path d="M438 234 q -22 -2 -14 -22" fill="none" stroke="#d98a0b" stroke-width="3" stroke-linecap="round"/><circle cx="480" cy="219" r="4" fill="#d98a0b"/><text class="sv-t1" x="480" y="284" text-anchor="middle">Agente optimizador</text></g><g data-from="1" data-until="1"><path d="M556 206 C 580 190 540 170 566 150" fill="none" stroke="#d98a0b" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round"/><path d="M430 232 C 470 190 440 170 480 130" fill="none" stroke="#d98a0b" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round" opacity=".6"/></g><g data-from="0" data-until="0"><rect class="sv-box hot" x="30" y="62" width="240" height="64" rx="14"/><path d="M80 126 L96 150 L110 126" class="sv-box hot"/><text class="sv-t2" x="46" y="88" style="fill:#0a2249">«Quiero bajar los falsos</text><text class="sv-t2" x="46" y="108" style="fill:#0a2249">positivos del canal OM»</text></g><path data-from="0" data-until="0" class="sv-line hot" d="M270 94 C 340 94 380 150 440 200"/><g data-from="1" data-until="1"><rect class="sv-box" x="405" y="40" width="150" height="92" rx="12" style="stroke:#1f9d6b"/><text class="sv-t1s" x="417" y="64">Configuración v8</text><text class="sv-t3" x="417" y="84">umbral 0.62 · modelo m-42</text><text class="sv-t3" x="417" y="100">prompts · biblioteca</text><text class="sv-t3" x="417" y="118" style="fill:#146c49;font-weight:700">evidencia vs. línea base</text></g><g data-from="2" data-until="4"><rect class="sv-box" x="35" y="30" width="150" height="92" rx="12" style="stroke:#1f9d6b"/><text class="sv-t1s" x="47" y="54">Configuración v8</text><text class="sv-t3" x="47" y="74">umbral 0.62 · modelo m-42</text><text class="sv-t3" x="47" y="90">prompts · biblioteca</text><text class="sv-t3" x="47" y="108" style="fill:#146c49;font-weight:700">evidencia vs. línea base</text></g><g data-from="5"><rect class="sv-box" x="805" y="30" width="150" height="92" rx="12" style="stroke:#1f9d6b"/><text class="sv-t1s" x="817" y="54">Configuración v8</text><text class="sv-t3" x="817" y="74">umbral 0.62 · modelo m-42</text><text class="sv-t3" x="817" y="90">prompts · biblioteca</text><text class="sv-t3" x="817" y="108" style="fill:#146c49;font-weight:700">evidencia vs. línea base</text></g><circle r="8" fill="#1f9d6b" data-from="2" data-until="2"><animateMotion data-mot="2" dur="1.8s" begin="indefinite" fill="freeze" path="M480 150 C 380 90 240 90 110 150"/></circle><circle r="8" fill="#1f9d6b" data-from="4" data-until="4"><animateMotion data-mot="4" dur="2s" begin="indefinite" fill="freeze" path="M110 150 C 300 20 700 20 880 150"/></circle><g data-from="3" data-until="3"><rect x="20" y="136" width="90" height="26" rx="13" fill="#dff3ea" stroke="#1f9d6b"/><text class="pill-s" x="65" y="153" text-anchor="middle" style="fill:#146c49">Aprueba ✓</text><rect x="118" y="136" width="96" height="26" rx="13" fill="#fff6e5" stroke="#d98a0b"/><text class="pill-s" x="166" y="153" text-anchor="middle" style="fill:#8a5a06">Devuelve ↩</text></g><path data-from="3" data-until="3" class="sv-line amber hot" d="M150 120 C 260 40 360 70 440 190"/><text data-from="3" data-until="3" class="sv-t3" x="300" y="64" style="fill:#8a5a06">con comentarios, el agente itera</text><g data-from="5"><rect x="790" y="136" width="64" height="26" rx="13" fill="#dff3ea" stroke="#1f9d6b"/><text class="pill-s" x="822" y="153" text-anchor="middle" style="fill:#146c49">Sí ✓</text><rect x="862" y="136" width="64" height="26" rx="13" fill="#fdecec" stroke="#d64545"/><text class="pill-s" x="894" y="153" text-anchor="middle" style="fill:#a52828">No ✗</text></g><g data-from="5"><rect x="700" y="314" width="280" height="9" rx="4" fill="#eef1f5"/><rect x="700" y="314" width="280" height="9" rx="4" fill="#1464a5" opacity=".85"/><text class="sv-t3" x="700" y="309">shadow</text><text class="sv-t3" x="810" y="309">canary</text><text class="sv-t3" x="945" y="309">full</text></g></svg></div><div class="cap-box sc-cap"></div></div>
+    <div class="roles"><em>Roles</em>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-users"/></svg></span><b>Channel manager</b> pide, revisa y aprueba o devuelve</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-send"/></svg></span><b>Release manager</b> autoriza y avanza etapas</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-sliders"/></svg></span><b>Manager</b> puede aprobar y revertir</span>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= ASISTENTE ======================= -->
+<section class="slide" data-sec="Asistente">
+  <div class="head"><div class="eyebrow">Asistente</div><h2>Le dices qué quieres hacer y te ayuda a hacerlo</h2></div>
+  <div class="body">
+    <div class="scene" data-ms="4800" data-caps="[[&quot;Abres el chat y dices qué quieres&quot;, &quot;Desde la Biblioteca, el panel del asistente recibe texto pegado o un archivo y tu intención: por ejemplo, crear un modus operandi.&quot;], [&quot;Enmascara y entiende&quot;, &quot;Antes de razonar, oculta los datos personales. El texto del chat es dato, no instrucción: no puede cambiar permisos ni límites.&quot;], [&quot;Genera un borrador&quot;, &quot;Produce un borrador versionado de la entidad y los verificadores comprueban formato y coherencia. Todavía no existe en la biblioteca.&quot;], [&quot;Lo ajustas conversando&quot;, &quot;Pides cambios en lenguaje natural y el borrador se actualiza. Los insights que surgen los propone y tú los confirmas.&quot;], [&quot;Confirmas y se escribe&quot;, &quot;Solo tu confirmación explícita escribe en la entidad viva y queda auditada. Sirve para modus operandi, taxonomías, casos similares, watchlists y flags.&quot;]]" style="--mh:46vh"><div class="stage"><svg viewBox="0 0 1000 360" role="img" aria-label="Asistente"><rect class="sv-box" x="20" y="10" width="560" height="330" rx="16"/><rect x="20" y="10" width="560" height="38" rx="16" fill="#eef5fd"/><rect x="20" y="32" width="560" height="16" fill="#eef5fd"/><circle cx="42" cy="29" r="5" fill="#1f9d6b"/><text class="sv-t1s" x="56" y="34">Asistente · Biblioteca</text><g data-from="0"><rect x="190" y="62" width="376" height="56" rx="14" fill="#0a2249"/><text class="sv-t2" x="204" y="84" style="fill:#fff">Quiero crear un modus operandi con este caso</text><text class="sv-t2" x="204" y="102" style="fill:#fff">[adjunto] caso_OM_0004.txt</text></g><g data-from="1"><rect x="34" y="128" width="400" height="56" rx="14" fill="#eef5fd"/><text class="sv-t2" x="48" y="150" style="fill:#0a2249">Entendido. Enmascaré 3 datos personales y</text><text class="sv-t2" x="48" y="168" style="fill:#0a2249">preparo un borrador de modus operandi.</text></g><g data-from="3"><rect x="236" y="194" width="330" height="40" rx="14" fill="#0a2249"/><text class="sv-t2" x="250" y="216" style="fill:#fff">Ponle título «Pago OM sospechoso»</text></g><g data-from="3"><rect x="34" y="244" width="300" height="40" rx="14" fill="#eef5fd"/><text class="sv-t2" x="48" y="266" style="fill:#0a2249">Hecho. ¿Confirmas el borrador?</text></g><rect x="34" y="300" width="400" height="30" rx="15" fill="#fff" stroke="#dde3ec" stroke-width="2"/><text class="sv-t3" x="50" y="320">Escribe qué quieres hacer…</text><g data-from="4"><rect x="446" y="300" width="120" height="30" rx="15" fill="#1f9d6b"/><text class="pill-s" x="506" y="320" text-anchor="middle" style="fill:#fff">Confirmar</text></g><g data-from="1" data-until="1"><rect x="450" y="150" width="116" height="22" rx="11" fill="#fff6e5" stroke="#d98a0b"/><text class="sv-t3" x="508" y="165" text-anchor="middle" style="fill:#8a5a06">datos enmascarados</text></g><g data-from="2"><rect class="sv-box hot" x="610" y="10" width="370" height="208" rx="14" style="stroke:#1464a5"/><text class="sv-t1s" x="628" y="36">Borrador · modus operandi (v1)</text><text class="sv-t3" x="628" y="54" style="font-weight:700;fill:#1464a5">aún no existe en la biblioteca</text><g data-from="2" data-until="2"><text class="sv-t2" x="628" y="86">Título: Modus operandi nuevo</text></g><g data-from="3"><text class="sv-t2" x="628" y="86" style="font-weight:700;fill:#0a2249">Título: Pago OM sospechoso</text></g><text class="sv-t2" x="628" y="112">Patrón: pago RT sin señales de RAT</text><text class="sv-t2" x="628" y="138">Canal: OM · Taxonomía: pago autorizado</text><text class="sv-t2" x="628" y="164">Playbook: voicebot → analista</text><rect x="628" y="180" width="140" height="24" rx="12" fill="#dff3ea"/><text class="pill-s" x="698" y="196" text-anchor="middle" style="fill:#146c49">formato ✓</text><rect x="778" y="180" width="180" height="24" rx="12" fill="#dff3ea"/><text class="pill-s" x="868" y="196" text-anchor="middle" style="fill:#146c49">coherencia ✓</text></g><g data-from="4"><path class="sv-line hot" d="M795 218 L795 250"/><rect class="sv-box hot" x="610" y="250" width="170" height="80" rx="14" style="stroke:#1f9d6b;fill:#eefaf3"/><use href="#i-book" x="626" y="268" width="30" height="30" class="ic-u" style="color:#1f9d6b"/><text class="sv-t1s" x="666" y="288">Biblioteca</text><text class="sv-t3" x="626" y="316">entidad viva creada</text><rect class="sv-box" x="800" y="250" width="180" height="80" rx="14"/><use href="#i-shield" x="814" y="268" width="26" height="26" class="ic-u" style="color:#1464a5"/><text class="sv-t1s" x="848" y="286">Auditoría</text><text class="sv-t3" x="814" y="312">confirmación guardada</text></g></svg></div><div class="cap-box sc-cap"></div></div>
+    <div class="roles"><em>Roles</em>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-users"/></svg></span><b>Channel manager</b> conversa y confirma borradores</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-db"/></svg></span><b>Data analyst</b> cura la biblioteca</span>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= MONITOREO ======================= -->
+<section class="slide" data-sec="Monitoreo">
+  <div class="head"><div class="eyebrow">Monitoreo</div><h2>Tres vistas para tres preguntas</h2></div>
+  <div class="body">
+    <div class="grid g3">
+      <div class="card"><div class="tile" style="margin-bottom:1vh"><svg class="i"><use href="#i-bar"/></svg></div><h3>Dashboard</h3><p>«¿Cómo va la operación?» Embudo de alertas, procesadas por ARIA, analistas y voicebot, SLA y tiempos por etapa.</p></div>
+      <div class="card"><div class="tile t2" style="margin-bottom:1vh"><svg class="i"><use href="#i-activity"/></svg></div><h3>Monitor</h3><p>«¿Qué tan bien decide el agente?» Falsos positivos, fraude no detectado, errores, latencia, tokens y recomendaciones aceptadas.</p></div>
+      <div class="card"><div class="tile t3" style="margin-bottom:1vh"><svg class="i"><use href="#i-flag"/></svg></div><h3>Histórico de fraude</h3><p>«¿Qué decidimos y qué fue real?» Marcaciones y correcciones del <code>fraud_label</code>, con historial auditado.</p></div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><div class="k">En vivo</div><h3>Cola y embudo</h3><p><code>/metrics/live</code> alimenta las colas; las alertas inmaduras aparecen marcadas.</p></div>
+      <div class="card"><div class="k">Atribución</div><h3>Eventos de versión</h3><p>Marcan en las series cuándo cambió una configuración o un modelo, para atribuir mejoras o regresiones.</p></div>
+    </div>
+    <div class="roles"><em>Roles</em>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-headset"/></svg></span><b>Ops analyst</b> opera dashboard y monitor</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-sliders"/></svg></span><b>Manager</b> corrige el fraud_label</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-users"/></svg></span><b>Channel manager</b> analiza por canal</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Monitoreo">
+  <div class="head"><div class="eyebrow">Monitoreo · métricas</div><h2>Cómo se calculan los números</h2></div>
+  <div class="body">
+    <div class="flow">
+      <div class="step"><b>Evento</b>Decisión, corrección…</div>
+      <div class="step hl"><b>Registro único</b>Un solo caso de uso escribe</div>
+      <div class="step"><b>Transacción</b>Snapshot + rollups<small>protegida por versión</small></div>
+      <div class="step"><b>Rollups</b>Día · mes · año<small>24 franjas horarias</small></div>
+      <div class="step hl"><b>API</b>Numeradores y denominadores<small>el frontend calcula tasas</small></div>
+    </div>
+    <div class="grid g3">
+      <div class="card"><div class="k">Exactitud</div><h3>Auditable por diseño</h3><ul><li>Los KPIs salen de datos de dominio.</li><li>Los reintentos nunca cuentan dos veces.</li><li>Un cambio tardío aplica −anterior/+nuevo.</li></ul></div>
+      <div class="card"><div class="k">Cobertura</div><h3>Tres lecturas</h3><ul><li><b>Overview:</b> negocio y embudo.</li><li><b>Agent:</b> decisiones y calidad.</li><li><b>Technical:</b> latencia, tokens y fallos por paso.</li></ul></div>
+      <div class="card"><div class="k">Mantenimiento</div><h3>Siempre al día</h3><ul><li>Reconciliación nocturna.</li><li>Backfill idempotente por fechas.</li><li>Filas diarias con expiración a 90 días.</li></ul></div>
+    </div>
+    <div class="why"><b>Día de negocio:</b> las alertas se agrupan por su fecha en Bogotá y las consultas usan índices por día y estado; nunca se escanea la tabla.</div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Monitoreo">
+  <div class="head"><div class="eyebrow">Monitoreo · salud técnica</div><h2>Telemetría y rastro de auditoría</h2></div>
+  <div class="body">
+    <div class="grid g2">
+      <div class="card"><div class="k">Telemetría</div><h3>OTLP como único contrato</h3><ul><li>La app solo conoce <code>OTEL_ENDPOINT</code>; el Collector es la frontera.</li><li>Trazas de llamadas LLM, dependencias y casos de uso clave.</li><li>Tempo, Loki, Prometheus y Grafana detrás del Collector.</li><li>Nunca <code>customer_id</code> ni monto exacto en atributos.</li></ul></div>
+      <div class="card"><div class="k">Auditoría</div><h3>Todo deja rastro</h3><ul><li>Cada petición HTTP y mutación persistida pasa por el puerto de auditoría.</li><li>El acceso al payload crudo tiene su propio registro.</li><li>Confirmaciones, aprobaciones, activaciones y correcciones con autor y hora.</li></ul></div>
+      <div class="card"><div class="k">Calidad</div><h3>Juez del razonamiento</h3><ul><li>Un juez LLM evalúa cada decisión como dato técnico adicional.</li><li>El contenido de prompts solo se captura si se activa.</li></ul></div>
+      <div class="card"><div class="k">Audiencias</div><h3>Dos fuentes independientes</h3><ul><li><b>Negocio</b> lee la API de métricas de ARIA.</li><li><b>Plataforma</b> lee Grafana.</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= GOBIERNO ======================= -->
+<section class="slide" data-sec="Gobierno">
+  <div class="head"><div class="eyebrow">Gobierno · configuración</div><h2>Versionada y desplegada con aprobación</h2></div>
+  <div class="body">
+    <div class="flow">
+      <div class="step"><b>1 · Editar</b>Segmento, reglas, agentes</div>
+      <div class="step"><b>2 · Probar</b>Configuration test y test runs</div>
+      <div class="step"><b>3 · Versionar</b>Nueva versión inmutable</div>
+      <div class="step hl"><b>4 · Solicitar</b>Vista previa del despliegue</div>
+      <div class="step hl"><b>5 · Aprobar</b>Otra persona distinta</div>
+      <div class="step"><b>6 · Activar</b>Entra a producción</div>
+    </div>
+    <div class="grid g3">
+      <div class="card"><div class="k">Contenido</div><h3>Todo el pipeline</h3><ul><li>Por segmento: reglas, perfilado, rúbricas, detector, clasificación, adversariales, analista, ejecutor y documentación.</li><li>Prompts, umbrales, herramientas y modelos.</li></ul></div>
+      <div class="card"><div class="k">Operación inmediata</div><h3>Fuera de la versión</h3><ul><li>Estados on/off, slots de voicebot, matriz de analistas y encolamiento.</li><li>Efecto inmediato con historial.</li></ul></div>
+      <div class="card"><div class="k">Optimizador</div><h3>Sus propios ajustes</h3><ul><li>Ventana de maduración, muestreador y presupuesto.</li><li>Historial de cambios consultable.</li></ul></div>
+    </div>
+    <div class="roles"><em>Roles</em>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-sliders"/></svg></span><b>Manager</b> cambia la configuración general</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-users"/></svg></span><b>Channel manager</b> ajusta segmentos y canales</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-send"/></svg></span><b>Release manager</b> aprueba el despliegue</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Gobierno">
+  <div class="head"><div class="eyebrow">Gobierno · esquema y catálogos</div><h2>El esquema de alertas y su entorno</h2></div>
+  <div class="body">
+    <div class="flow">
+      <div class="step"><b>Borrador</b>Define campos</div>
+      <div class="step"><b>Impacto</b>Análisis de efecto</div>
+      <div class="step hl"><b>Propuesta</b>Manager o release manager</div>
+      <div class="step hl"><b>Aprobación</b>Otra persona</div>
+      <div class="step"><b>Activo</b>Nueva versión</div>
+    </div>
+    <div class="grid g3">
+      <div class="card"><div class="k">Esquema</div><h3>Versionado</h3><ul><li>Define campos y cuáles son semánticos (contraparte, dispositivo, sesión).</li><li>Reporte de presencia diario y sugerencias desde los datos.</li></ul></div>
+      <div class="card"><div class="k">Catálogos</div><h3>Vocabulario común</h3><ul><li>Tags, marcación, métodos de resolución y variables.</li><li>Alta, edición y baja por API e interfaz.</li></ul></div>
+      <div class="card"><div class="k">Datasets</div><h3>Mapeo de campos</h3><ul><li>Cada dataset se alinea al esquema.</li><li>Permite entrenar y probar con datos históricos de otra forma.</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Gobierno">
+  <div class="head"><div class="eyebrow">Conocimiento y modelos</div><h2>Lo que alimenta al agente</h2></div>
+  <div class="body">
+    <div class="grid g3">
+      <div class="card cap" style="cursor:default"><div class="tile"><svg class="i"><use href="#i-book"/></svg></div><div><h3>Biblioteca</h3><p>Canales, taxonomías, modus operandi con playbook, flags, casos similares y watchlists con importación masiva.</p></div></div>
+      <div class="card cap" style="cursor:default"><div class="tile t2"><svg class="i"><use href="#i-db"/></svg></div><div><h3>Vector Store</h3><p>Instancias que se construyen, previsualizan, consultan y promueven; búsqueda semántica sobre OpenSearch.</p></div></div>
+      <div class="card cap" style="cursor:default"><div class="tile t3"><svg class="i"><use href="#i-cpu"/></svg></div><div><h3>Modelos XGBoost</h3><p>Plantillas de features, entrenamiento en worker dedicado, activación y recarga en caliente del modelo servido.</p></div></div>
+      <div class="card cap" style="cursor:default"><div class="tile t4"><svg class="i"><use href="#i-inbox"/></svg></div><div><h3>Datasets</h3><p>Crear, extraer desde alertas, añadir filas, analizar y curar alertas reales hacia un dataset.</p></div></div>
+      <div class="card cap" style="cursor:default"><div class="tile"><svg class="i"><use href="#i-flag"/></svg></div><div><h3>Revisión de fraude</h3><p>Corrección individual o por CSV del <code>fraud_label</code>, con historial completo.</p></div></div>
+      <div class="card cap" style="cursor:default"><div class="tile t2"><svg class="i"><use href="#i-loop"/></svg></div><div><h3>Operaciones asíncronas</h3><p>Toda tarea larga se rastrea: pendiente, despachada, en curso, terminada o fallida.</p></div></div>
+    </div>
+    <div class="roles"><em>Roles</em>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-db"/></svg></span><b>Data analyst</b> biblioteca, datasets y modelos</span>
+      <span class="role"><span class="ic"><svg class="i"><use href="#i-users"/></svg></span><b>Channel manager</b> activa modelos y curaduría</span>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Gobierno">
+  <div class="head"><div class="eyebrow">Probar antes de confiar</div><h2>Pruebas y simulación</h2></div>
+  <div class="body">
+    <div class="grid g3">
+      <div class="card"><div class="tile" style="margin-bottom:1vh"><svg class="i"><use href="#i-flask"/></svg></div><h3>Test runs</h3><p>Lotes de casos contra una configuración, con métricas, tokens y detalle por ejecución. Los efectos operativos se simulan.</p></div>
+      <div class="card"><div class="tile t2" style="margin-bottom:1vh"><svg class="i"><use href="#i-bolt"/></svg></div><h3>Escenarios</h3><p>Simulan tráfico: se siembran desde un dataset, se previsualizan y se inician, pausan o detienen con estado en vivo.</p></div>
+      <div class="card"><div class="tile t3" style="margin-bottom:1vh"><svg class="i"><use href="#i-pc"/></svg></div><h3>E2E reales</h3><p>Playwright recorre la interfaz por nginx contra datos reales: alertas, fraude, observabilidad, asistente y optimizador.</p></div>
+    </div>
+    <div class="why"><b>Cierre del ciclo:</b> test runs, escenarios y la evaluación pareada del optimizador alimentan la decisión de aprobar un despliegue.</div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Gobierno">
+  <div class="head"><div class="eyebrow">Acceso y resguardo</div><h2>Autenticación, separación de funciones y continuidad</h2></div>
+  <div class="body">
+    <div class="grid g3">
+      <div class="card"><div class="k">Autenticación</div><h3>Acceso con rol</h3><ul><li>Login con JWT; <code>/auth/me</code> entrega rol y permisos.</li><li>Contraseñas PBKDF2-SHA256.</li><li>Alta de usuarios con token de arranque que no se guarda.</li></ul></div>
+      <div class="card"><div class="k">Separación</div><h3>Nadie decide solo</h3><ul><li>Quien solicita un despliegue no lo aprueba.</li><li>Quien opera no amplía presupuesto.</li><li>El agente nunca promueve a producción.</li></ul></div>
+      <div class="card"><div class="k">Continuidad</div><h3>Backups y retención</h3><ul><li>Respaldo y restauración de DynamoDB, OpenSearch y objetos.</li><li>Retención configurable del payload crudo y del chat.</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= ROLES ======================= -->
+<section class="slide" data-sec="Roles">
+  <div class="head"><div class="eyebrow">Quién hace qué</div><h2>Seis roles, seis responsabilidades</h2></div>
+  <div class="body">
+    <div class="grid g3">
+      <div class="card rc"><h3><svg class="i" style="color:var(--blue)"><use href="#i-usercheck"/></svg>Fraud analyst</h3>
+        <svg class="v" viewBox="0 0 160 70"><rect x="10" y="10" width="105" height="20" rx="6" fill="#fff"/><rect x="10" y="40" width="105" height="20" rx="6" fill="#fff"/>
+          <circle cx="24" cy="20" r="5" fill="#d98a0b"><animate attributeName="fill" values="#d98a0b;#d98a0b;#1f9d6b;#1f9d6b" keyTimes="0;.25;.35;1" dur="4s" repeatCount="indefinite"/></circle>
+          <circle cx="24" cy="50" r="5" fill="#d98a0b"><animate attributeName="fill" values="#d98a0b;#d98a0b;#d98a0b;#1f9d6b;#1f9d6b" keyTimes="0;.5;.6;.7;1" dur="4s" repeatCount="indefinite"/></circle>
+          <rect x="38" y="17" width="50" height="6" rx="3" fill="#dde3ec"/><rect x="38" y="47" width="42" height="6" rx="3" fill="#dde3ec"/>
+          <path d="M124 20l5 5 10-11" fill="none" stroke="#1f9d6b" stroke-width="3" stroke-linecap="round" stroke-dasharray="24" stroke-dashoffset="24"><animate attributeName="stroke-dashoffset" values="24;24;0;0" keyTimes="0;.25;.4;1" dur="4s" repeatCount="indefinite"/></path>
+          <path d="M124 50l5 5 10-11" fill="none" stroke="#1f9d6b" stroke-width="3" stroke-linecap="round" stroke-dasharray="24" stroke-dashoffset="24"><animate attributeName="stroke-dashoffset" values="24;24;0;0" keyTimes="0;.55;.7;1" dur="4s" repeatCount="indefinite"/></path></svg>
+        <p><b>Marca.</b> Toma las alertas escaladas, revisa la evidencia del agente y resuelve con su decisión.</p></div>
+      <div class="card rc"><h3><svg class="i" style="color:var(--blue)"><use href="#i-headset"/></svg>Ops analyst</h3>
+        <svg class="v" viewBox="0 0 160 70"><g fill="#1464a5"><rect x="16" y="40" width="14" height="20" rx="3"><animate attributeName="height" values="12;30;18;12" dur="3s" repeatCount="indefinite"/><animate attributeName="y" values="48;30;42;48" dur="3s" repeatCount="indefinite"/></rect>
+          <rect x="40" y="30" width="14" height="30" rx="3"><animate attributeName="height" values="30;16;34;30" dur="3s" repeatCount="indefinite"/><animate attributeName="y" values="30;44;26;30" dur="3s" repeatCount="indefinite"/></rect>
+          <rect x="64" y="22" width="14" height="38" rx="3"><animate attributeName="height" values="38;26;40;38" dur="3s" repeatCount="indefinite"/><animate attributeName="y" values="22;34;20;22" dur="3s" repeatCount="indefinite"/></rect></g>
+          <path d="M92 48l12-14 10 8 14-22 8 6" fill="none" stroke="#1f9d6b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="90" stroke-dashoffset="90"><animate attributeName="stroke-dashoffset" values="90;0;0;90" keyTimes="0;.5;.9;1" dur="3s" repeatCount="indefinite"/></path></svg>
+        <p><b>Observa.</b> Vigila embudo, SLA, errores y capacidad en dashboard y monitor.</p></div>
+      <div class="card rc"><h3><svg class="i" style="color:var(--blue)"><use href="#i-users"/></svg>Channel manager</h3>
+        <svg class="v" viewBox="0 0 160 70"><circle cx="34" cy="35" r="14" fill="#fff" stroke="#1464a5" stroke-width="2"/><circle cx="126" cy="35" r="14" fill="#0a2249"/>
+          <rect x="119" y="30" width="14" height="9" rx="3" fill="none" stroke="#fff" stroke-width="1.6"/>
+          <circle r="4" cy="28" fill="#1464a5"><animate attributeName="cx" values="52;106;106" keyTimes="0;.5;1" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;1;0" keyTimes="0;.5;.55" dur="3s" repeatCount="indefinite"/></circle>
+          <circle r="4" cy="42" fill="#1f9d6b"><animate attributeName="cx" values="106;106;52" keyTimes="0;.5;1" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1" keyTimes="0;.5;.55" dur="3s" repeatCount="indefinite"/></circle>
+          <path d="M52 35h54" stroke="#c3d3e6" stroke-width="2" stroke-dasharray="3 5"/></svg>
+        <p><b>Dirige.</b> Conduce al agente optimizador: objetivo, segmentos, enrutamiento y presupuesto.</p></div>
+      <div class="card rc"><h3><svg class="i" style="color:var(--blue)"><use href="#i-sliders"/></svg>Manager</h3>
+        <svg class="v" viewBox="0 0 160 70"><g>
+          <rect x="20" y="12" width="44" height="14" rx="7" fill="#dde3ec"><animate attributeName="fill" values="#dde3ec;#1464a5;#1464a5;#dde3ec" keyTimes="0;.2;.7;1" dur="4s" repeatCount="indefinite"/></rect>
+          <circle cy="19" r="5.5" fill="#fff"><animate attributeName="cx" values="27;57;57;27" keyTimes="0;.2;.7;1" dur="4s" repeatCount="indefinite"/></circle>
+          <rect x="20" y="30" width="44" height="14" rx="7" fill="#1464a5"><animate attributeName="fill" values="#1464a5;#1464a5;#dde3ec;#dde3ec;#1464a5" keyTimes="0;.3;.4;.8;1" dur="4s" repeatCount="indefinite"/></rect>
+          <circle cy="37" r="5.5" fill="#fff"><animate attributeName="cx" values="57;57;27;27;57" keyTimes="0;.3;.4;.8;1" dur="4s" repeatCount="indefinite"/></circle>
+          <rect x="20" y="48" width="44" height="14" rx="7" fill="#dde3ec"><animate attributeName="fill" values="#dde3ec;#dde3ec;#1464a5;#1464a5;#dde3ec" keyTimes="0;.5;.6;.9;1" dur="4s" repeatCount="indefinite"/></rect>
+          <circle cy="55" r="5.5" fill="#fff"><animate attributeName="cx" values="27;27;57;57;27" keyTimes="0;.5;.6;.9;1" dur="4s" repeatCount="indefinite"/></circle></g>
+          <rect x="84" y="14" width="56" height="6" rx="3" fill="#c3d3e6"/><rect x="84" y="32" width="40" height="6" rx="3" fill="#c3d3e6"/><rect x="84" y="50" width="48" height="6" rx="3" fill="#c3d3e6"/></svg>
+        <p><b>Gobierna.</b> Cambia la configuración general, el esquema de alertas y los estados on/off.</p></div>
+      <div class="card rc"><h3><svg class="i" style="color:var(--blue)"><use href="#i-send"/></svg>Release manager</h3>
+        <svg class="v" viewBox="0 0 160 70"><rect x="14" y="30" width="132" height="10" rx="5" fill="#dde3ec"/>
+          <rect x="14" y="30" width="0" height="10" rx="5" fill="#1464a5"><animate attributeName="width" values="0;44;88;132;132" keyTimes="0;.25;.5;.75;1" dur="5s" repeatCount="indefinite"/></rect>
+          <g font-size="9" font-weight="700" fill="#64748b" text-anchor="middle"><text x="36" y="22">SHADOW</text><text x="80" y="22">CANARY</text><text x="124" y="22">FULL</text></g>
+          <g fill="#fff" stroke="#1464a5" stroke-width="2"><circle cx="36" cy="35" r="5"/><circle cx="80" cy="35" r="5"/><circle cx="124" cy="35" r="5"/></g>
+          <g font-size="9" fill="#d98a0b" font-weight="700" text-anchor="middle"><text x="80" y="60">Aprobar y avanzar<animate attributeName="opacity" values="0;1;1;0" dur="5s" repeatCount="indefinite"/></text></g></svg>
+        <p><b>Aprueba.</b> Revisa la evidencia, autoriza el lanzamiento y avanza shadow → canary → full.</p></div>
+      <div class="card rc"><h3><svg class="i" style="color:var(--blue)"><use href="#i-db"/></svg>Data analyst</h3>
+        <svg class="v" viewBox="0 0 160 70"><g fill="#1464a5" opacity=".92"><ellipse cx="50" cy="48" rx="24" ry="7"/><ellipse cx="50" cy="38" rx="24" ry="7" fill="#2a7bbf"/><ellipse cx="50" cy="28" rx="24" ry="7" fill="#5aa3d8"/></g>
+          <circle r="3.5" cx="50" fill="#1f9d6b"><animate attributeName="cy" values="2;22;22" keyTimes="0;.6;1" dur="2.5s" repeatCount="indefinite"/></circle>
+          <circle r="3.5" cx="40" fill="#1f9d6b"><animate attributeName="cy" values="-10;22;22" keyTimes="0;.6;1" dur="2.5s" begin=".8s" repeatCount="indefinite"/></circle>
+          <path d="M84 36h22" stroke="#c3d3e6" stroke-width="2.5" stroke-linecap="round"/><path d="M102 31l6 5-6 5" fill="none" stroke="#1464a5" stroke-width="2.5" stroke-linecap="round"/>
+          <rect x="114" y="22" width="30" height="28" rx="6" fill="#0a2249"/><path d="M121 42v-6M129 42v-12M137 42v-9" stroke="#fff" stroke-width="3" stroke-linecap="round"><animate attributeName="opacity" values=".4;1;.4" dur="2.5s" repeatCount="indefinite"/></path></svg>
+        <p><b>Prepara.</b> Cura la biblioteca, los datasets y entrena los modelos que ARIA consulta.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Roles">
+  <div class="head"><div class="eyebrow">Un día en ARIA</div><h2>Cómo colaboran las personas y los agentes</h2></div>
+  <div class="body">
+    <div class="stage">
+      <svg viewBox="-20 15 1140 535" id="story" role="img" aria-label="Ilustración animada de colaboración entre roles y agentes">
+        <g id="edges"></g><g id="nodes"></g>
+        <circle id="tok" r="8" fill="#1464a5" opacity="0"><animate attributeName="r" values="8;11;8" dur="1s" repeatCount="indefinite"/></circle>
+      </svg>
+    </div>
+    <div class="cap-box"><div class="num" id="snum">1</div><div><h4 id="stitle"></h4><p id="stext"></p></div>
+      <div class="ctl" style="margin-left:auto"><button id="sprev" aria-label="Paso anterior">‹</button><button id="splay" aria-label="Pausar">❚❚</button><button id="snext" aria-label="Paso siguiente">›</button></div></div>
+    <div class="pills" id="spills"></div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Roles">
+  <div class="head"><div class="eyebrow">Roles por capacidad</div><h2>Quién interviene en cada capacidad</h2></div>
+  <div class="body">
+    <table>
+      <tr><th>Capacidad</th><th>Fraud analyst</th><th>Ops analyst</th><th>Data analyst</th><th>Channel manager</th><th>Manager</th><th>Release manager</th></tr>
+      <tr><td class="a">Pipeline y cola</td><td><span class="p op">Opera</span><span class="m">toma y marca</span></td><td><span class="p co">Consulta</span><span class="m">cola y capacidad</span></td><td><span class="p co">Consulta</span><span class="m">resultados de pruebas</span></td><td><span class="p op">Opera</span><span class="m">agentes por segmento</span></td><td><span class="p co">Consulta</span></td><td><span class="p ap">Aprueba</span><span class="m">despliegues</span></td></tr>
+      <tr><td class="a">Optimizador</td><td>—</td><td>—</td><td><span class="p op">Opera</span><span class="m">muestras y modelos</span></td><td><span class="p op">Opera</span><span class="m">objetivo y presupuesto</span></td><td><span class="p ap">Aprueba</span><span class="m">promoción</span></td><td><span class="p ap">Aprueba</span><span class="m">lanzamiento por etapas</span></td></tr>
+      <tr><td class="a">Asistente</td><td>—</td><td>—</td><td><span class="p op">Opera</span><span class="m">biblioteca</span></td><td><span class="p ap">Confirma</span><span class="m">borradores</span></td><td>—</td><td>—</td></tr>
+      <tr><td class="a">Monitoreo</td><td><span class="p co">Consulta</span><span class="m">alertas en proceso</span></td><td><span class="p op">Opera</span><span class="m">dashboard y monitor</span></td><td><span class="p co">Consulta</span><span class="m">monitor</span></td><td><span class="p co">Consulta</span><span class="m">por canal</span></td><td><span class="p op">Opera</span><span class="m">corrige fraud_label</span></td><td><span class="p co">Consulta</span></td></tr>
+      <tr><td class="a">Gobierno</td><td>—</td><td>—</td><td><span class="p op">Opera</span><span class="m">biblioteca y datasets</span></td><td><span class="p op">Opera</span><span class="m">segmentos y modelos</span></td><td><span class="p op">Opera</span><span class="m">configuración general y esquema</span></td><td><span class="p ap">Aprueba</span><span class="m">despliegues y esquema</span></td></tr>
+    </table>
+    <div class="hint"><span class="p op">Opera</span> ejecuta la tarea · <span class="p ap">Aprueba</span> da el visto bueno final · <span class="p co">Consulta</span> solo lee</div>
+  </div>
+</section>
+
+<section class="slide" data-sec="Roles">
+  <div class="body">
+    <div class="eyebrow">En resumen</div>
+    <h2 style="max-width:18ch">ARIA revisa, resuelve, mide, gobierna y aprende</h2>
+    <div class="grid g3" style="margin-top:2vh">
+      <div class="card"><div class="k">Decide</div><h3>Con evidencia</h3><p>Reglas, modelo, LLM y adversarial convergen en una decisión explicable.</p></div>
+      <div class="card"><div class="k">Opera</div><h3>Con control</h3><p>Playbooks, cupos y aprobaciones mantienen a las personas en lo que importa.</p></div>
+      <div class="card"><div class="k">Mejora</div><h3>Con medición</h3><p>Datos maduros, evaluación pareada y lanzamientos por etapas convierten resultados en mejoras.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <span>Recorrido por la plataforma</span>
+  <div class="ctl"><button id="prev" aria-label="Anterior">←</button><span id="count"></span><button id="next" aria-label="Siguiente">→</button></div>
+  <span>2026</span>
+</footer>
+
+<script>
+(function () {
+  /* ---------- datos de los steppers ---------- */
+  var DATA = {
+    e2e: {
+      groups: [['Entrada', 1], ['Proceso', 3], ['Aprendizaje', 3]],
+      icon: true,
+      steps: [
+        { n: 'Ingreso', ic: 'inbox', t: 'Ingreso del evento', d: 'Una alerta llega a ARIA desde la plataforma, el simulador o una prueba.',
+          inside: ['La API registra la alerta y su payload crudo, con acceso auditado.', 'Crea una operación asíncrona en estado pendiente y la despacha a la cola de Celery.', 'Cada alerta nace con un origen: manual, prueba, simulador o producción.'],
+          kv: [['Entra', 'Evento de alerta'], ['Sale', 'Alerta registrada y tarea en cola'], ['Roles', 'Sistema origen; Ops analyst vigila el embudo']] },
+        { n: 'Revisión', ic: 'shield', t: 'Revisión por el pipeline', d: 'Un worker recorre las diez etapas y deja el rastro de cada una.',
+          inside: ['El segmento de la alerta elige la configuración vigente.', 'Cada paso persiste entrada, salida, tokens y tiempos.', 'Los reintentos son idempotentes: no hay doble conteo.', 'Un fallo no pierde la alerta: escala a un analista.'],
+          kv: [['Entra', 'Alerta + configuración activa'], ['Sale', 'Veredicto, clasificación y razonamiento'], ['Roles', 'Channel manager configura los agentes']] },
+        { n: 'Decisión', ic: 'scale', t: 'Decisión y marca', d: 'La alerta queda marcada como fraude, no fraude o pendiente.',
+          inside: ['El playbook del modus operandi define quién resuelve: ARIA, voicebot o analista.', 'La marca (<code>mark</code>) es inmutable una vez deja de estar pendiente.', 'Las escaladas entran a la cola y las toma un analista de fraude.'],
+          kv: [['Entra', 'Conclusión del agente y playbook'], ['Sale', 'Marca y método de resolución'], ['Roles', 'Fraud analyst marca las escaladas']] },
+        { n: 'Acción', ic: 'bolt', t: 'Acción sobre el canal', d: 'La decisión se ejecuta donde ocurre la alerta.',
+          inside: ['El ejecutor reserva atómicamente un cupo de voicebot o de analista.', 'Si no hay cupo, sigue el respaldo definido en el playbook.', 'Aplica la acción: descartar, escalar o ejecutar.', 'En pruebas y evaluaciones la acción se simula.'],
+          kv: [['Entra', 'Decisión y cupo reservado'], ['Sale', 'Acción ejecutada y cupo liberado'], ['Roles', 'Ops analyst vigila capacidad']] },
+        { n: 'Medición', ic: 'bar', t: 'Medición', d: 'Cada hito alimenta métricas exactas y auditables.',
+          inside: ['Un único caso de uso escribe el snapshot de la alerta y sus rollups.', 'La transacción está protegida por versión: un reintento no duplica.', 'Rollups por día, mes y año, con 24 franjas horarias.', 'La API devuelve numeradores y denominadores; el frontend calcula las tasas.'],
+          kv: [['Entra', 'Hitos de la alerta'], ['Sale', 'Dashboard, monitor y series por versión'], ['Roles', 'Ops analyst y Manager']] },
+        { n: 'Realidad', ic: 'flag', t: 'Verdad de terreno', d: 'El equipo de fraude confirma qué ocurrió de verdad.',
+          inside: ['Se corrige el <code>fraud_label</code> alerta a alerta o por CSV.', 'Falso positivo o fraude no detectado = marca distinta de la realidad.', 'Las correcciones pueden llegar meses después; por eso hay una ventana de maduración.', 'Queda el historial de cada corrección.'],
+          kv: [['Entra', 'Confirmación del equipo de fraude'], ['Sale', 'Etiqueta real y métricas corregidas'], ['Roles', 'Manager y Channel manager corrigen']] },
+        { n: 'Mejora', ic: 'loop', t: 'Aprendizaje', d: 'Con datos maduros, el sistema propone y valida mejoras.',
+          inside: ['El muestreador toma alertas maduras y crea una muestra inmutable.', 'El optimizador diagnostica, prueba cambios aislados y los mide contra la línea base.', 'Un candidato validado se aprueba y se lanza por etapas con rollback.', 'El asistente alimenta la biblioteca con borradores confirmados.'],
+          kv: [['Entra', 'Muestra madura y objetivo'], ['Sale', 'Nueva versión aprobada'], ['Roles', 'Channel manager, Data analyst y Release manager']] }
+      ]
+    },
+    pipe: {
+      groups: [['Preparación', 3], ['Decisión', 1], ['Revisión', 4], ['Cierre', 2]],
+      steps: [
+        { n: 'Pre-proceso', t: '1 · Pre-proceso', d: 'Convierte el evento original en una alerta estructurada y decide cómo se procesa.',
+          inside: ['Extrae cada campo del payload según las ubicaciones del esquema activo y lo convierte a su tipo.', 'Incorpora señales de ARIC y trae el historial transaccional, con reintentos.', 'Resuelve el segmento (canal, monto, filtros) y elige la configuración vigente.', 'Compuerta de estado: con el agente en OFF, simulador y producción se omiten sin error.'],
+          kv: [['Entra', 'Evento de alerta'], ['Sale', 'Alerta normalizada + segmento + versión de configuración'], ['Roles', 'Channel manager (segmentos)']] },
+        { n: 'Determinístico', t: '2 · Determinístico', d: 'Reglas de negocio sin LLM: baratas, repetibles y explicables.',
+          inside: ['Reglas ordenadas por prioridad: gana la primera cuya condición coincide.', 'Un filtro de alerta decide si el paso aplica o se omite.', 'Las condiciones se evalúan sobre los campos de la alerta.', 'El resultado queda como evidencia estructurada para las etapas siguientes.'],
+          kv: [['Entra', 'Campos de la alerta'], ['Sale', 'Regla coincidente (o ninguna) y su justificación'], ['Roles', 'Channel manager (reglas)']] },
+        { n: 'Perfilador', t: '3 · Perfilador', d: 'Construye el perfil del cliente y del evento.',
+          inside: ['Calcula atributos determinísticos del evento.', 'Enriquece con campos de perfilado configurables: contraparte, dispositivo, sesión, historial.', 'Rúbricas: cada condición cumplida suma puntos, normalizados a 100 por rúbrica.', 'Los puntajes se inyectan al prompt del detector.'],
+          kv: [['Entra', 'Alerta + historial'], ['Sale', 'Perfil y puntaje de rúbricas'], ['Roles', 'Channel manager (rúbricas)']] },
+        { n: 'Detector', t: '4 · Detector', d: 'Decide si hay fraude: primero puntúa el modelo, el LLM resuelve los casos dudosos.',
+          inside: ['XGBoost vía MCP puntúa con solo el id de la alerta y explica con SHAP.', 'Por encima del umbral de fraude o por debajo de la banda: decide el modelo, sin LLM.', 'Dentro de la banda: el LLM razona con el score como evidencia.', 'Herramientas: Vector Store, análisis de historial, calculadora y listas.', 'Sin modelo activo trabaja solo con el LLM.'],
+          kv: [['Entra', 'Alerta, perfil y rúbricas'], ['Sale', 'Veredicto, razonamiento y salida del modelo'], ['Roles', 'Data analyst (modelo); Channel manager (umbrales)']] },
+        { n: 'Detector adv.', t: '5 · Detector adversarial', d: 'Un segundo agente cuestiona la conclusión del detector.',
+          inside: ['Busca fallas en el razonamiento y devuelve feedback.', 'El detector reejecuta con ese feedback hasta lograr acuerdo.', 'Tiene un límite de rondas; si se agota, la alerta escala a analista.', 'Usa su propia selección de herramientas.'],
+          kv: [['Entra', 'Conclusión del detector'], ['Sale', 'Conclusión confirmada o corregida'], ['Roles', 'Channel manager (límites)']] },
+        { n: 'Clasificador', t: '6 · Clasificador', d: 'Identifica el modus operandi y la taxonomía del fraude.',
+          inside: ['Busca por similitud casos, taxonomías y modus operandi en la biblioteca.', 'El score del modelo es evidencia; la decisión es del agente.', 'Si queda inconcluso, pide análisis del historial y se reejecuta (hasta 5 rondas).', 'Registra cada investigación delegada.'],
+          kv: [['Entra', 'Veredicto del detector'], ['Sale', 'Modus operandi, taxonomía y razonamiento'], ['Roles', 'Data analyst (biblioteca)']] },
+        { n: 'Adversarial', t: '7 · Adversarial', d: 'Revisión adversarial de la clasificación.',
+          inside: ['Cuestiona el modus operandi asignado y su evidencia.', 'Devuelve objeciones y el clasificador corrige.', 'Mismo límite de rondas y escalamiento que el detector adversarial.'],
+          kv: [['Entra', 'Clasificación'], ['Sale', 'Clasificación final'], ['Roles', 'Channel manager (límites)']] },
+        { n: 'Analista', t: '8 · Analista', d: 'Un agente decide quién y cómo resuelve la alerta.',
+          inside: ['Recibe el playbook del modus operandi y la disponibilidad en vivo de analistas y voicebot.', 'Elige el método principal: ARIA, voicebot o analista, con su respaldo.', 'Toma el Vector Store configurado en la clasificación.', 'No tiene bucle de herramientas propio.'],
+          kv: [['Entra', 'Clasificación, playbook y disponibilidad'], ['Sale', 'Plan de resolución'], ['Roles', 'Channel manager (playbooks)']] },
+        { n: 'Ejecutor', t: '9 · Ejecutor', d: 'Aplica la decisión sobre el canal.',
+          inside: ['Reserva de forma atómica un slot de voicebot o un analista.', 'Si ya no hay cupo, sigue el respaldo del playbook.', 'Ejecuta la acción: descartar, escalar o ejecutar.', 'En pruebas y evaluaciones el ejecutor se simula.'],
+          kv: [['Entra', 'Plan de resolución'], ['Sale', 'Acción ejecutada o alerta escalada'], ['Roles', 'Fraud analyst (si escala)']] },
+        { n: 'Post-proceso', t: '10 · Post-proceso', d: 'Cierra la ejecución y deja todo documentado y medido.',
+          inside: ['Marca el estado final de la ejecución.', 'Documenta la decisión del analista de forma asíncrona.', 'Un juez LLM evalúa la calidad del razonamiento sin bloquear.', 'Registra métricas técnicas y de negocio de forma idempotente.'],
+          kv: [['Entra', 'Resultado de la ejecución'], ['Sale', 'Alerta cerrada con rastro completo'], ['Roles', 'Ops analyst (monitoreo)']] }
+      ]
+    }
+  };
+
+
+  /* ---------- contrato de la alerta (ejemplo ilustrativo) ---------- */
+  var CT = [
+    { key: 'pre_process', lines: ['"schema_version": 3,', '"input": {', '  "event_id": "e2e-alert-0004",', '  "channel": "OM",', '  "amount": 5500,', '  "biocatch_score": 0.03 },', '"roles": { "customer_id": "e2e-customer-0004" },', '"history": [ { "amount": 3200 }, { "amount": 4100 } ],', '"enrichment": { "aric_signals": "ok" }'] },
+    { key: 'deterministic', lines: ['"matched": false,', '"rule_id": null,', '"decision": null'] },
+    { key: 'profiling', lines: ['"user_profile": "Cliente habitual de OM, 14 meses",', '"transaction_profile": "Pago bajo su promedio",', '"transactional_profile": "Sin picos de frecuencia",', '"input_tokens": 420, "output_tokens": 96'] },
+    { key: 'detector', lines: ['"is_fraud": "not_fraud",', '"reasoning": "Sin señales de RAT, bot o emulador",', '"model_output": {', '  "score": 0.07, "verdict": "not_fraud",', '  "top_features": ["biocatch_score", "amount"] },', '"input_tokens": 967, "output_tokens": 186'] },
+    { key: 'detector_adversarial', lines: ['"requires_classification_feedback": false,', '"feedback": "",', '"weak_points": [],', '"reasoning": "Conclusión coherente con la evidencia"'] },
+    { key: 'classification', lines: ['"is_fraud": "not_fraud",', '"fraud_classification": "unknown",', '"reasoning": "No hay patrón de fraude conocido",', '"vector_store_interactions": [ { … } ]'] },
+    { key: 'adversarial', lines: ['"requires_classification_feedback": false,', '"weak_points": [],', '"reasoning": "Sin objeciones a la clasificación"'] },
+    { key: 'analyst', lines: ['"decision": "pass",', '"reasoning": "Sin indicios: se deja pasar",', '"playbook": null,', '"operations_capacity": { … }'] },
+    { key: 'executor', lines: ['"executed_action": "none",', '"detail": "Sin acción requerida"'], note: 'block/bidi/voicebot: + dispatch_backend' },
+    { key: 'post_process', lines: ['"status": "success",', '"resolution_path": "pass",', '"total_duration_seconds": 29.8,', '"closed_at": "2026-10-12T13:42:51Z",', '"documentation": "…"'] }
+  ];
+  var CT_IN = { pre_process: ['evento'], deterministic: ['pre_process'], profiling: ['pre_process'], detector: ['pre_process', 'profiling'],
+    detector_adversarial: ['pre_process', 'profiling', 'detector'], classification: ['pre_process', 'profiling'],
+    adversarial: ['pre_process', 'profiling', 'classification'], analyst: ['pre_process', 'profiling', 'classification'],
+    executor: ['analyst'], post_process: ['analyst'] };
+  var CUSTOM = {
+    tools: [['dim', '"detector": {'], ['dim', '  "is_fraud": "not_fraud", …'], ['new', '  "research_delegations": [ { … } ],      // análisis de historial'], ['new', '  "vector_store_interactions": [ { … } ]  // consultas al Vector Store'], ['dim', '}']],
+    adv: [['dim', '"detector":  { "is_fraud": "unknown", … }                       // ronda 1'], ['new', '"detector_adversarial": { "requires_classification_feedback": true,'], ['new', '    "feedback": "Falta evidencia de dispositivo", "weak_points": [ "…" ] }'], ['dim', '"detector":  { "is_fraud": "not_fraud", … }                     // ronda 2 con el feedback']],
+    queue: [['dim', '"alert": { "status": "ESCALATED", … }'], ['new', '"reservation": { …, "expira": "30 min" },            // tomar'], ['new', '"resolution": { "analyst_id": "…", "decision": "block",'], ['new', '    "notes": "…" }                                   // resolver']]
+  };
+  function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function hl(t) {
+    var c = '', m = t.indexOf('//');
+    if (m > -1) { c = t.slice(m); t = t.slice(0, m); }
+    t = esc(t).replace(/("[\w ]+")(\s*:)/g, '<span class=jk>$1</span>$2').replace(/(: )("[^"]*")/g, '$1<span class=js>$2</span>')
+      .replace(/(: )(-?\d[\d.]*|true|false|null)(?=[,\s}]|$)/g, '$1<span class=jn>$2</span>');
+    return t + (c ? '<span style="opacity:.6">' + esc(c) + '</span>' : '');
+  }
+  function renderCode(rows, stagger) {
+    return rows.map(function (r, n) {
+      return '<span class="ln ' + r[0] + '"' + (stagger ? ' style="animation-delay:' + (n * 80) + 'ms"' : '') + '>' + hl(r[1]) + '</span>';
+    }).join('');
+  }
+  function blockRows(i) {
+    var c = CT[i], rows = [['new', '"' + c.key + '": {']];
+    c.lines.forEach(function (l) { rows.push(['new', '  ' + l]); });
+    if (c.note) rows.push(['dim', '  // ' + c.note]);
+    rows.push(['new', '}']);
+    return rows;
+  }
+  function ctxRows(i) {
+    var rows = [['dim', 'context = {'], ['dim', '  "alert_id": "9f289737…", "origin": "simulator",']];
+    for (var k = 0; k < i; k++) rows.push(['dim', '  "' + CT[k].key + '": { … },']);
+    blockRows(i).forEach(function (r) { rows.push([r[0], '  ' + r[1]]); });
+    rows.push(['dim', '}']);
+    return rows;
+  }
+
+  /* ---------- stepper ---------- */
+  function buildStepper(host) {
+    var set = DATA[host.getAttribute('data-set')];
+    var detail = host.parentNode.querySelector('.detail[data-for="' + host.getAttribute('data-set') + '"]');
+    var n = set.steps.length;
+    host.style.gridTemplateColumns = 'repeat(' + n + ', 1fr)';
+    host.style.setProperty('--c', set.icon ? 'clamp(46px,4.6vw,70px)' : 'clamp(36px,3.6vw,56px)');
+    var html = '';
+    set.groups.forEach(function (g) { html += '<div class="gl" style="grid-column:span ' + g[1] + '">' + g[0] + '</div>'; });
+    set.steps.forEach(function (s, i) {
+      html += '<button class="st" data-i="' + i + '"><span class="circ">' +
+        (set.icon ? '<svg class="i"><use href="#i-' + s.ic + '"/></svg>' : (i + 1)) + '</span><span class="nm">' + s.n + '</span></button>';
+    });
+    host.innerHTML = html;
+    function select(i) {
+      [].forEach.call(host.querySelectorAll('.st'), function (b, k) {
+        b.classList.toggle('on', k === i); b.classList.toggle('done', k < i);
+      });
+      var s = set.steps[i];
+      var inside = '<div class="card"><div class="k">Por dentro</div><ul>' + s.inside.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></div>';
+      var kv = '<div class="card kv"><div class="k">Resumen</div>' + s.kv.map(function (r) { return '<div class="row"><b>' + r[0] + '</b><span>' + r[1] + '</span></div>'; }).join('') + '</div>';
+      if (host.getAttribute('data-set') === 'pipe') {
+        var ins = CT_IN[CT[i].key].map(function (k) { return '<span class="chip">' + k + '</span>'; }).join('');
+        detail.innerHTML = '<div class="d-title">' + s.t + '</div><div class="d-desc">' + s.d + '</div>' +
+          '<div class="d-grid"><div class="col">' + inside + kv + '</div>' +
+          '<div class="card"><div class="k">Contrato de la alerta · ejemplo</div><div class="code">' + renderCode(ctxRows(i), true) + '</div>' +
+          '<div class="ct-foot">Lee: ' + ins + ' · Agrega: <b>' + CT[i].key + '</b></div></div></div>';
+      } else {
+        detail.innerHTML = '<div class="d-title">' + s.t + '</div><div class="d-desc">' + s.d + '</div>' +
+          '<div class="grid g2" style="grid-template-columns:1.4fr 1fr">' + inside + kv + '</div>';
+      }
+      detail.style.animation = 'none'; void detail.offsetWidth; detail.style.animation = '';
+    }
+    host.addEventListener('click', function (e) { var b = e.target.closest('.st'); if (b) select(+b.getAttribute('data-i')); });
+    select(0);
+  }
+  [].forEach.call(document.querySelectorAll('.stepper'), buildStepper);
+
+  /* ---------- storyboard animado ---------- */
+  var NODES = {
+    alerts: { x: 90, y: 150, ic: 'inbox', l: 'Alertas', s: 'eventos entrantes' },
+    channel: { x: 90, y: 400, ic: 'bolt', l: 'Canal', s: 'acción ejecutada' },
+    aria: { x: 340, y: 270, ic: 'shield', l: 'ARIA', s: 'pipeline de agentes', big: true },
+    data: { x: 340, y: 60, ic: 'db', l: 'Data analyst', s: 'biblioteca y modelos' },
+    fraud: { x: 600, y: 80, ic: 'usercheck', l: 'Fraud analyst', s: 'marca alertas' },
+    ops: { x: 600, y: 270, ic: 'headset', l: 'Ops analyst', s: 'vigila operación' },
+    mgr: { x: 600, y: 460, ic: 'sliders', l: 'Manager', s: 'configuración general' },
+    cm: { x: 880, y: 80, ic: 'users', l: 'Channel manager', s: 'dirige al optimizador' },
+    opt: { x: 880, y: 270, ic: 'robot', l: 'Agente optimizador', s: 'experimenta' },
+    rel: { x: 880, y: 460, ic: 'send', l: 'Release manager', s: 'aprueba lanzamientos' }
+  };
+  Object.keys(NODES).forEach(function (k) { NODES[k].x = Math.round(40 + (NODES[k].x - 90) * 1.3); });
+  var EDGES = [['alerts', 'aria'], ['aria', 'channel'], ['aria', 'fraud'], ['aria', 'ops'], ['data', 'aria'], ['cm', 'opt'], ['opt', 'aria'], ['opt', 'rel'], ['mgr', 'aria'], ['rel', 'aria']];
+  var STORY = [
+    { f: 'alerts', t: 'aria', a: ['alerts', 'aria'], h: 'Llega una alerta', x: 'ARIA la revisa en diez etapas: reglas, perfil, modelo, LLM y revisión adversarial.' },
+    { f: 'aria', t: 'channel', a: ['aria', 'channel'], h: 'Los casos claros se resuelven solos', x: 'Según el playbook, ARIA o el voicebot ejecutan la acción sobre el canal sin intervención humana.' },
+    { f: 'aria', t: 'fraud', a: ['aria', 'fraud'], h: 'El analista marca', x: 'Los casos dudosos o escalados llegan a la cola. El Fraud analyst revisa la evidencia del agente y marca fraude o no fraude.' },
+    { f: 'aria', t: 'ops', a: ['aria', 'ops'], h: 'Operaciones vigila', x: 'El Ops analyst sigue el embudo, el SLA, los errores y la capacidad de analistas y voicebot en tiempo real.' },
+    { f: 'data', t: 'aria', a: ['data', 'aria'], h: 'Los datos alimentan al agente', x: 'El Data analyst cura la biblioteca, prepara datasets y entrena los modelos que ARIA consulta al decidir.' },
+    { f: 'cm', t: 'opt', a: ['cm', 'opt', 'aria'], h: 'El channel manager dirige al optimizador', x: 'Define el objetivo, los segmentos y cómo se enrutan las alertas; el agente optimizador investiga y prueba cambios sobre datos maduros.' },
+    { f: 'opt', t: 'rel', a: ['opt', 'rel'], h: 'Un candidato validado pide aprobación', x: 'El Release manager revisa la evidencia, aprueba y avanza el lanzamiento por shadow, canary y full, con rollback disponible.' },
+    { f: 'mgr', t: 'aria', a: ['mgr', 'aria'], h: 'El manager gobierna', x: 'Cambia la configuración general, el esquema de alertas y los interruptores del agente; los cambios se versionan y auditan.' }
+  ];
+  var NS = 'http://www.w3.org/2000/svg';
+  var story = { i: 0, timer: null, playing: true, raf: 0 };
+  (function buildStory() {
+    var eg = document.getElementById('edges'), ng = document.getElementById('nodes');
+    EDGES.forEach(function (e) {
+      var a = NODES[e[0]], b = NODES[e[1]], l = document.createElementNS(NS, 'line');
+      l.setAttribute('x1', a.x); l.setAttribute('y1', a.y); l.setAttribute('x2', b.x); l.setAttribute('y2', b.y);
+      l.setAttribute('class', 'edge'); l.setAttribute('data-e', e[0] + '-' + e[1]); eg.appendChild(l);
+    });
+    Object.keys(NODES).forEach(function (k) {
+      var n = NODES[k], r = n.big ? 46 : 34, g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', 'nd' + (n.big ? ' aria' : '')); g.setAttribute('data-n', k);
+      g.innerHTML = '<circle class="ring" cx="' + n.x + '" cy="' + n.y + '" r="' + r + '"/><circle class="b" cx="' + n.x + '" cy="' + n.y + '" r="' + r + '"/>' +
+        '<svg x="' + (n.x - 15) + '" y="' + (n.y - 15) + '" width="30" height="30" viewBox="0 0 24 24" class="i" style="color:inherit;overflow:visible"><use href="#i-' + n.ic + '"/></svg>' +
+        '<text class="l" x="' + n.x + '" y="' + (n.y + r + 18) + '" text-anchor="middle">' + n.l + '</text>' +
+        '<text class="s" x="' + n.x + '" y="' + (n.y + r + 33) + '" text-anchor="middle">' + n.s + '</text>';
+      ng.appendChild(g);
+    });
+    var pills = document.getElementById('spills');
+    STORY.forEach(function (s, i) {
+      var b = document.createElement('button'); b.textContent = (i + 1) + ' · ' + s.h.split(' ').slice(0, 3).join(' ');
+      b.onclick = function () { goStory(i, true); }; pills.appendChild(b);
+    });
+  })();
+  function moveToken(f, t) {
+    var a = NODES[f], b = NODES[t], tok = document.getElementById('tok'), t0 = null, D = 1300;
+    cancelAnimationFrame(story.raf); tok.setAttribute('opacity', 1);
+    function tick(ts) {
+      if (t0 === null) t0 = ts;
+      var p = Math.min(1, (ts - t0) / D), e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      tok.setAttribute('cx', a.x + (b.x - a.x) * e); tok.setAttribute('cy', a.y + (b.y - a.y) * e);
+      if (p < 1) story.raf = requestAnimationFrame(tick); else setTimeout(function () { tok.setAttribute('opacity', 0); }, 350);
+    }
+    story.raf = requestAnimationFrame(tick);
+  }
+  function goStory(i, manual) {
+    story.i = (i + STORY.length) % STORY.length; var s = STORY[story.i];
+    [].forEach.call(document.querySelectorAll('.nd'), function (n) { n.classList.toggle('on', s.a.indexOf(n.getAttribute('data-n')) > -1); });
+    [].forEach.call(document.querySelectorAll('.edge'), function (e) {
+      var k = e.getAttribute('data-e').split('-'); e.classList.toggle('on', s.a.indexOf(k[0]) > -1 && s.a.indexOf(k[1]) > -1);
+    });
+    document.getElementById('snum').textContent = story.i + 1;
+    document.getElementById('stitle').textContent = s.h; document.getElementById('stext').textContent = s.x;
+    [].forEach.call(document.querySelectorAll('#spills button'), function (b, k) { b.classList.toggle('on', k === story.i); });
+    moveToken(s.f, s.t);
+    if (manual) restartTimer();
+  }
+  function restartTimer() {
+    clearInterval(story.timer);
+    if (story.playing) story.timer = setInterval(function () { goStory(story.i + 1); }, 5200);
+  }
+  function storyStart() { goStory(story.i); restartTimer(); }
+  function storyStop() { clearInterval(story.timer); cancelAnimationFrame(story.raf); }
+  document.getElementById('sprev').onclick = function () { goStory(story.i - 1, true); };
+  document.getElementById('snext').onclick = function () { goStory(story.i + 1, true); };
+  document.getElementById('splay').onclick = function () {
+    story.playing = !story.playing; this.textContent = story.playing ? '❚❚' : '▶'; restartTimer();
+  };
+
+
+  /* ---------- bloques de contrato incrustados ---------- */
+  [].forEach.call(document.querySelectorAll('.xform'), function (el) {
+    el.getAttribute('data-steps').split(',').forEach(function (id) {
+      var i = CT.map(function (c) { return c.key; }).indexOf(id);
+      var ins = CT_IN[id].map(function (k) { return '<span class="chip">' + k + '</span>'; }).join('');
+      el.innerHTML += '<div class="xin"><b>Lee</b>' + ins + '<b>→ agrega</b><span class="chip new">' + id + '</span></div><div class="code">' + renderCode(blockRows(i), false) + '</div>';
+    });
+  });
+  [].forEach.call(document.querySelectorAll('[data-custom]'), function (el) { el.innerHTML = renderCode(CUSTOM[el.getAttribute('data-custom')], false); });
+
+
+  /* ---------- builders de escena ---------- */
+  function ico(n, x, y, sz, color) {
+    return '<use href="#i-' + n + '" x="' + x + '" y="' + y + '" width="' + sz + '" height="' + sz + '" class="ic-u" style="color:' + (color || '#1464a5') + '"/>';
+  }
+  [].forEach.call(document.querySelectorAll('[data-tree]'), function (g) {
+    g.innerHTML = '<path class="sv-line" d="M0 8 L-36 44 M0 8 L36 44 M-36 44 L-56 92 M-36 44 L-16 92 M36 44 L16 92 M36 44 L56 92"/>' +
+      '<circle r="9" fill="#1464a5"/><circle cx="-36" cy="44" r="7" fill="#5aa3d8"/><circle cx="36" cy="44" r="7" fill="#5aa3d8"/>' +
+      [-56, -16, 16, 56].map(function (x) { return '<circle cx="' + x + '" cy="96" r="6" fill="#fff" stroke="#1464a5" stroke-width="2"/>'; }).join('');
+  });
+  var AG = {
+    step: { name: 'Agente del paso', sub: 'detector · clasificador', goal: 'Objetivo: concluir con evidencia', amber: false, inL: 'Contexto de la alerta', inS: 'pre_process · profiling', outL: 'Conclusión', outS: 'veredicto + razonamiento' },
+    adv: { name: 'Agente adversarial', sub: 'revisa detector y clasificador', goal: 'Objetivo: refutar la conclusión', amber: true, inL: 'Conclusión a revisar', inS: 'detector o clasificador', outL: 'Objeciones', outS: 'feedback + weak_points' }
+  };
+  function agentSVG(c) {
+    var am = c.amber ? ' amber' : '', acc = c.amber ? '#d98a0b' : '#1464a5', soft = c.amber ? '#fff6e5' : '#e8f0fb';
+    var T = [['chat', 'Modelo de lenguaje', 'razona y decide', '1'], ['inbox', 'Contexto del paso', 'alerta + pasos previos', '0 1'], ['db', 'Vector Store', 'taxonomías · MO · casos', '2'],
+      ['loop', 'Análisis de historial', 'pandas · hasta 5 rondas', '3'], ['cpu', 'Modelo XGBoost', 'score + SHAP (MCP)', '4'], ['scale', 'Calculadora y listas', 'operaciones exactas', '4']];
+    var px = [380, 420, 460, 540, 580, 620], cx = [110, 270, 430, 590, 750, 910];
+    var s = '<svg viewBox="0 0 1000 360" role="img" aria-label="Agente con herramientas">';
+    s += '<rect class="sv-box' + am + '" data-at="0" x="20" y="66" width="190" height="84" rx="12"/><text class="sv-t1s" x="115" y="102" text-anchor="middle">' + c.inL + '</text><text class="sv-t3" x="115" y="122" text-anchor="middle">' + c.inS + '</text>';
+    s += '<path class="sv-line' + am + '" data-at="0" d="M210 108 L330 108"/>';
+    s += '<rect class="sv-box' + am + '" data-at="1 2 3 4" x="330" y="26" width="340" height="164" rx="18"/>';
+    s += ico('robot', 350, 42, 30, acc) + '<text class="sv-t1" x="392" y="58" style="font-size:17px">' + c.name + '</text><text class="sv-t2" x="392" y="76">' + c.sub + '</text>';
+    s += '<rect x="350" y="96" width="300" height="30" rx="15" fill="' + soft + '" stroke="' + acc + '"/><text class="sv-t1s" x="500" y="116" text-anchor="middle" style="fill:' + (c.amber ? '#8a5a06' : '#0a2249') + '">' + c.goal + '</text>';
+    s += '<text class="sv-t3" x="500" y="152" text-anchor="middle">Bucle ReAct · pensar → actuar → observar</text>';
+    s += '<g data-from="1" data-until="4" style="color:' + acc + '">' + ico('loop', 486, 160, 20, acc) + '</g>';
+    s += '<path class="sv-line' + am + '" data-at="5" d="M670 108 L790 108"/>';
+    s += '<rect class="sv-box' + am + '" data-at="5" x="790" y="66" width="190" height="84" rx="12"/><text class="sv-t1s" x="885" y="102" text-anchor="middle">' + c.outL + '</text><text class="sv-t3" x="885" y="122" text-anchor="middle">' + c.outS + '</text>';
+    T.forEach(function (t, k) {
+      s += '<path class="sv-line' + am + '" data-at="' + t[3] + '" d="M' + px[k] + ' 190 C ' + px[k] + ' 232 ' + cx[k] + ' 226 ' + cx[k] + ' 262"/>';
+      s += '<path d="M' + (px[k] - 6) + ' 190 L' + px[k] + ' 182 L' + (px[k] + 6) + ' 190 L' + px[k] + ' 198 Z" fill="' + acc + '"/>';
+      s += '<rect class="sv-box' + am + '" data-at="' + t[3] + '" x="' + (cx[k] - 70) + '" y="262" width="140" height="82" rx="12"/>';
+      s += ico(t[0], cx[k] - 11, 272, 22, acc) + '<text class="sv-t1s" x="' + cx[k] + '" y="318" text-anchor="middle">' + t[1] + '</text><text class="sv-t3" x="' + cx[k] + '" y="334" text-anchor="middle">' + t[2] + '</text>';
+    });
+    return s + '</svg>';
+  }
+  [].forEach.call(document.querySelectorAll('[data-agent]'), function (el) { el.outerHTML = agentSVG(AG[el.getAttribute('data-agent')]); });
+
+  /* ---------- motor de escenas por pasos ---------- */
+  var SCN = [];
+  function list(v) { return v ? v.split(/[ ,]+/).map(Number) : []; }
+  function scGo(sc, k, manual) {
+    sc.cur = (k + sc.caps.length) % sc.caps.length; k = sc.cur;
+    var el = sc.el;
+    [].forEach.call(el.querySelectorAll('[data-from]'), function (e) {
+      var f = e.getAttribute('data-from'), u = e.getAttribute('data-until');
+      var vis = (f === null || +f <= k) && (u === null || k <= +u);
+      e.classList.toggle('v', vis);
+    });
+    [].forEach.call(el.querySelectorAll('[data-at]'), function (e) { e.classList.toggle('hot', list(e.getAttribute('data-at')).indexOf(k) > -1); });
+    [].forEach.call(el.querySelectorAll('[data-mot]'), function (m) { if (+m.getAttribute('data-mot') === k && m.beginElement) { try { m.beginElement(); } catch (e) {} } });
+    var box = el.querySelector('.sc-cap');
+    box.querySelector('.num').textContent = k + 1;
+    box.querySelector('h4').textContent = sc.caps[k][0]; box.querySelector('p').textContent = sc.caps[k][1];
+    [].forEach.call(box.querySelectorAll('.sc-dots i'), function (d, n) { d.classList.toggle('on', n === k); });
+    if (manual) scTimer(sc);
+  }
+  function scTimer(sc) { clearInterval(sc.timer); if (sc.playing && sc.active) sc.timer = setInterval(function () { scGo(sc, sc.cur + 1); }, sc.ms); }
+  [].forEach.call(document.querySelectorAll('.scene'), function (el) {
+    var sc = { el: el, caps: JSON.parse(el.getAttribute('data-caps')), cur: 0, timer: null, playing: true, active: false, ms: +el.getAttribute('data-ms') || 4200 };
+    var box = el.querySelector('.sc-cap');
+    box.innerHTML = '<div class="num"></div><div><h4></h4><p></p></div><div class="sc-dots"></div>';
+    var dots = box.querySelector('.sc-dots');
+    sc.caps.forEach(function (c, k) { var d = document.createElement('i'); d.onclick = function () { scGo(sc, k, true); }; dots.appendChild(d); });
+    var pp = document.createElement('button'); pp.textContent = '❚❚'; pp.setAttribute('aria-label', 'Pausar o reanudar');
+    pp.onclick = function () { sc.playing = !sc.playing; pp.textContent = sc.playing ? '❚❚' : '▶'; scTimer(sc); };
+    dots.appendChild(pp);
+    SCN.push(sc); scGo(sc, 0);
+  });
+  function scenesSync(slide) {
+    SCN.forEach(function (sc) {
+      var on = slide.contains(sc.el);
+      if (on && !sc.active) { sc.active = true; scGo(sc, 0); scTimer(sc); }
+      else if (!on && sc.active) { sc.active = false; clearInterval(sc.timer); }
+    });
+  }
+
+  /* ---------- navegación por temas ---------- */
+  var slides = [].slice.call(document.querySelectorAll('.slide'));
+  var secs = []; slides.forEach(function (s) { var n = s.getAttribute('data-sec'); if (secs.indexOf(n) < 0) secs.push(n); });
+  var nav = document.getElementById('nav');
+  secs.forEach(function (n) {
+    var b = document.createElement('button'); b.textContent = n; b.setAttribute('data-s', n);
+    b.onclick = function () { for (var k = 0; k < slides.length; k++) if (slides[k].getAttribute('data-sec') === n) { show(k); break; } };
+    nav.appendChild(b);
+  });
+  [].forEach.call(document.querySelectorAll('[data-go]'), function (c) {
+    c.onclick = function () { var n = c.getAttribute('data-go'); nav.querySelector('[data-s="' + n + '"]').click(); };
+  });
+  var i = 0, h = parseInt(location.hash.slice(1), 10);
+  if (h >= 1 && h <= slides.length) i = h - 1;
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (s, k) { s.classList.toggle('active', k === i); });
+    var sec = slides[i].getAttribute('data-sec');
+    [].forEach.call(nav.children, function (b) { b.classList.toggle('on', b.getAttribute('data-s') === sec); });
+    document.getElementById('count').textContent = (i + 1) + ' / ' + slides.length;
+    document.getElementById('prog').style.width = ((i + 1) / slides.length * 100) + '%';
+    history.replaceState(null, '', '#' + (i + 1));
+    if (slides[i].querySelector('#story')) storyStart(); else storyStop();
+    scenesSync(slides[i]);
+  }
+  document.getElementById('prev').onclick = function () { show(i - 1); };
+  document.getElementById('next').onclick = function () { show(i + 1); };
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); show(i + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') show(0); else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key === 'f' || e.key === 'F') { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); }
+  });
+  var x0 = null;
+  document.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; });
+  document.addEventListener('touchend', function (e) {
+    if (x0 === null) return; var dx = e.changedTouches[0].clientX - x0;
+    if (Math.abs(dx) > 60) show(i + (dx < 0 ? 1 : -1)); x0 = null;
+  });
+  show(i);
+})();
+</script>
+</body>
+</html>
