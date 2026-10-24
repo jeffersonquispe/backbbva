@@ -12,6 +12,9 @@ from src.application.use_cases.analyst_queue.get_alert_detail import (
 from src.application.use_cases.analyst_queue.list_analyst_queue import (
     ListAnalystQueueUseCase,
 )
+from src.application.use_cases.analyst_queue.list_in_process_alerts import (
+    ListInProcessAlertsUseCase,
+)
 from src.application.use_cases.analyst_queue.release_escalated_alert import (
     ReleaseEscalatedAlertUseCase,
 )
@@ -81,6 +84,12 @@ def get_list_analyst_queue_use_case() -> ListAnalystQueueUseCase:
         get_alert_repository(),
         get_resource_reservation_repository(),
         clock=get_clock(),
+    )
+
+
+def get_list_in_process_alerts_use_case() -> ListInProcessAlertsUseCase:
+    return ListInProcessAlertsUseCase(
+        get_alert_repository(), get_workflow_execution_repository()
     )
 
 

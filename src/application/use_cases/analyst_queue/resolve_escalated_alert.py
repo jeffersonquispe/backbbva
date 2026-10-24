@@ -32,7 +32,10 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
 from src.domain.alerts.entities import (
     AlertStatus,
 )
-from src.domain.alerts.exceptions import AlertNotHeldByAnalystError
+from src.domain.alerts.exceptions import (
+    AlertNotFoundError,
+    AlertNotHeldByAnalystError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +63,10 @@ class ResolveEscalatedAlertUseCase:
     def execute(self, input: ResolveEscalatedAlertInput) -> ResourceReservation:
         if input.decision not in VALID_ANALYST_RESOLUTIONS:
             raise ValueError(f"Unsupported resolution: {input.decision}")
+        alert_id = UUID(input.alert_id)
+        alert = self._alerts.get(alert_id)
+        if alert is None:
+            raise AlertNotFoundError(input.alert_id)
         now = self._clock.now()
         reservation = active_reservation_for_alert(
             self._reservations, ReservedResource.ANALYST, input.alert_id, now
@@ -72,17 +79,37 @@ class ResolveEscalatedAlertUseCase:
             "notes": input.notes,
             "resolved_by": input.analyst_id,
         }
-        if input.decision != "pass":
-            ref = self._actions.dispatch(
-                input.decision, UUID(input.alert_id), content=input.notes or None
+        # A retry after a partial failure (the alert is already closed with
+        # this analyst's resolution but the reservation was not freed) only
+        # finishes the release: the channel action must never fire twice.
+        already_closed = (
+            alert.status == AlertStatus.CLOSED
+            and alert.analyst_resolution.get("resolved_by") == input.analyst_id
+        )
+        if not already_closed:
+            if input.decision != "pass":
+                ref = self._actions.dispatch(
+                    input.decision, alert_id, content=input.notes or None
+                )
+                detail["dispatch_backend"] = ref.backend
+                detail["dispatch_external_id"] = ref.external_id
+            # Closed (with the resolution recorded) before the reservation is
+            # freed: the dispatch is the only step that cannot be repeated.
+            self._alerts.update(
+                alert_id,
+                status=AlertStatus.CLOSED,
+                analyst_resolution={
+                    "decision": input.decision,
+                    "notes": input.notes,
+                    "resolved_by": input.analyst_id,
+                    "resolved_at": now.isoformat(),
+                },
             )
-            detail["dispatch_backend"] = ref.backend
-            detail["dispatch_external_id"] = ref.external_id
         released = self._reservations.release(
             reservation.id, reason="resolved", now=now, detail=detail
         )
-        self._alerts.update(UUID(input.alert_id), status=AlertStatus.CLOSED)
-        self._record_metrics(input, now)
+        if not already_closed:
+            self._record_metrics(input, now)
         return released or reservation
 
     def _record_metrics(self, input: ResolveEscalatedAlertInput, now: datetime) -> None:

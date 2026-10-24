@@ -39,3 +39,11 @@ class ResolveEscalatedAlertInput:
     analyst_id: str
     decision: str  # one of VALID_ANALYST_RESOLUTIONS
     notes: str = ""
+
+
+@dataclass
+class InProcessAlertItem:
+    alert: AlertRecord
+    # None while no workflow was dispatched yet (alert just received).
+    workflow_status: str | None = None
+    current_step: str | None = None

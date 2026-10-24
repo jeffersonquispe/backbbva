@@ -56,6 +56,33 @@ class AnalystQueueAlertResponse(BaseModel):
     reservation: ResourceReservationResponse | None = None
 
 
+class InProcessAlertResponse(BaseModel):
+    """An alert ARIA is still analysing (not yet escalated or closed)."""
+
+    alert_id: UUID
+    event_id: str
+    event_type: str
+    status: str
+    customer_id: str | None
+    created_at: datetime
+    schema_version: int | None = None
+    input: dict[str, Any] = Field(default_factory=dict)
+    workflow_status: str | None = None
+    # Workflow step running now (pre_process, classification, ...); None
+    # before the workflow starts.
+    current_step: str | None = None
+
+
+class AnalystResolutionResponse(BaseModel):
+    """How an analyst closed the alert."""
+
+    decision: str
+    notes: str = ""
+    resolved_by: str | None = None
+    resolved_by_name: str | None = None
+    resolved_at: datetime | None = None
+
+
 class AlertStepResponse(BaseModel):
     step_name: str
     status: str
@@ -71,6 +98,8 @@ class AlertDetailResponse(AnalystQueueAlertResponse):
     workflow_status: str | None = None
     workflow_output: dict[str, Any] | None = None
     steps: list[AlertStepResponse] = Field(default_factory=list)
+    # Present only once an analyst closed the alert.
+    analyst_resolution: AnalystResolutionResponse | None = None
 
 
 class ResolveEscalatedAlertRequest(BaseModel):

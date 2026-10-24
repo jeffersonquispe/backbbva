@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -8,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from src.application.dtos.analyst_queue_dtos import (
     AlertDetail,
     AnalystQueueItem,
+    InProcessAlertItem,
     ResolveEscalatedAlertInput,
 )
 from src.application.ports.local_auth_port import LocalRole, LocalUser
@@ -17,6 +19,9 @@ from src.application.use_cases.analyst_queue.get_alert_detail import (
 )
 from src.application.use_cases.analyst_queue.list_analyst_queue import (
     ListAnalystQueueUseCase,
+)
+from src.application.use_cases.analyst_queue.list_in_process_alerts import (
+    ListInProcessAlertsUseCase,
 )
 from src.application.use_cases.analyst_queue.release_escalated_alert import (
     ReleaseEscalatedAlertUseCase,
@@ -28,6 +33,7 @@ from src.application.use_cases.analyst_queue.take_escalated_alert import (
     TakeEscalatedAlertUseCase,
 )
 from src.application.use_cases.auth.local_auth import GetCurrentLocalUserUseCase
+from src.domain.alerts.entities import AlertRecord
 from src.domain.alerts.exceptions import (
     AlertAlreadyTakenError,
     AlertNotFoundError,
@@ -42,6 +48,7 @@ from src.infrastructure.entrypoint.api.factories.local_auth_factory import (
 from src.infrastructure.entrypoint.api.factories.operations_factory import (
     get_alert_detail_use_case,
     get_list_analyst_queue_use_case,
+    get_list_in_process_alerts_use_case,
     get_release_escalated_alert_use_case,
     get_resolve_escalated_alert_use_case,
     get_take_escalated_alert_use_case,
@@ -51,6 +58,8 @@ from src.infrastructure.entrypoint.api.schemas import (
     AlertDetailResponse,
     AlertStepResponse,
     AnalystQueueAlertResponse,
+    AnalystResolutionResponse,
+    InProcessAlertResponse,
     ResolveEscalatedAlertRequest,
     ResourceReservationResponse,
 )
@@ -82,6 +91,17 @@ def list_analyst_queue(
     ],
 ):
     return [_queue_item_response(item, users) for item in use_case.execute()]
+
+
+# Declared before "/{alert_id}" so "in-process" is not parsed as an id.
+@router.get("/in-process", response_model=list[InProcessAlertResponse])
+def list_in_process_alerts(
+    _: CurrentUser,
+    use_case: Annotated[
+        ListInProcessAlertsUseCase, Depends(get_list_in_process_alerts_use_case)
+    ],
+):
+    return [_in_process_response(item) for item in use_case.execute()]
 
 
 @router.get("/{alert_id}", response_model=AlertDetailResponse)
@@ -145,6 +165,8 @@ def resolve_alert(
                 notes=request.notes,
             )
         )
+    except AlertNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AlertNotHeldByAnalystError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -242,6 +264,46 @@ def _queue_item_response(
     )
 
 
+def _in_process_response(item: InProcessAlertItem) -> InProcessAlertResponse:
+    alert = item.alert
+    return InProcessAlertResponse(
+        alert_id=alert.id,
+        event_id=alert.event_id,
+        event_type=alert.event_type,
+        status=alert.status.value,
+        customer_id=alert.customer_id,
+        created_at=alert.created_at,
+        schema_version=alert.schema_version,
+        input=alert.input,
+        workflow_status=item.workflow_status,
+        current_step=item.current_step,
+    )
+
+
+def _resolution_response(
+    alert: AlertRecord, users: GetCurrentLocalUserUseCase
+) -> AnalystResolutionResponse | None:
+    resolution = alert.analyst_resolution
+    if not resolution or "decision" not in resolution:
+        return None
+    resolved_by = resolution.get("resolved_by")
+    name = None
+    if resolved_by:
+        try:
+            user = users.execute(UUID(str(resolved_by)))
+            name = user.name if user is not None else None
+        except ValueError:
+            name = None
+    resolved_at = resolution.get("resolved_at")
+    return AnalystResolutionResponse(
+        decision=str(resolution["decision"]),
+        notes=str(resolution.get("notes") or ""),
+        resolved_by=str(resolved_by) if resolved_by else None,
+        resolved_by_name=name,
+        resolved_at=datetime.fromisoformat(resolved_at) if resolved_at else None,
+    )
+
+
 def _detail_response(
     detail: AlertDetail, users: GetCurrentLocalUserUseCase
 ) -> AlertDetailResponse:
@@ -254,6 +316,7 @@ def _detail_response(
         workflow_execution_id=workflow.id if workflow else None,
         workflow_status=workflow.status.value if workflow else None,
         workflow_output=workflow.output if workflow else None,
+        analyst_resolution=_resolution_response(detail.alert, users),
         steps=[
             AlertStepResponse(
                 step_name=step.step_name,

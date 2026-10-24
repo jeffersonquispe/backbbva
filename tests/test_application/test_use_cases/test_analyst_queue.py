@@ -30,6 +30,9 @@ from src.application.use_cases.analyst_queue.get_alert_detail import (
 from src.application.use_cases.analyst_queue.list_analyst_queue import (
     ListAnalystQueueUseCase,
 )
+from src.application.use_cases.analyst_queue.list_in_process_alerts import (
+    ListInProcessAlertsUseCase,
+)
 from src.application.use_cases.analyst_queue.release_escalated_alert import (
     ReleaseEscalatedAlertUseCase,
 )
@@ -128,10 +131,14 @@ class InMemoryAlertRepository:
     def get(self, alert_id: UUID) -> AlertRecord | None:
         return self.alerts.get(alert_id)
 
-    def update(self, alert_id: UUID, *, status=None, **_) -> AlertRecord | None:
+    def update(
+        self, alert_id: UUID, *, status=None, analyst_resolution=None, **_
+    ) -> AlertRecord | None:
         alert = self.alerts.get(alert_id)
         if alert is not None and status is not None:
             alert.status = status
+        if alert is not None and analyst_resolution is not None:
+            alert.analyst_resolution = analyst_resolution
         return alert
 
     def list_by_status(self, status: AlertStatus) -> list[AlertRecord]:
@@ -494,6 +501,127 @@ def test_detail_includes_the_workflow_steps_and_holder() -> None:
     assert detail.workflow.id == workflow.id
     assert [s.step_name for s in detail.steps] == ["analyst"]
     assert detail.reservation.holder == "analyst-1"
+
+
+def test_resolve_records_who_decided_what_on_the_closed_alert() -> None:
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
+    alert = _alert(alerts)
+    _take(alerts, reservations).execute(alert.id, "analyst-1")
+
+    _resolve(alerts, reservations, RecordingAlertActionDispatcher()).execute(
+        ResolveEscalatedAlertInput(
+            alert_id=str(alert.id),
+            analyst_id="analyst-1",
+            decision="pass",
+            notes="Cliente reconoce la compra",
+        )
+    )
+
+    assert alerts.get(alert.id).analyst_resolution == {
+        "decision": "pass",
+        "notes": "Cliente reconoce la compra",
+        "resolved_by": "analyst-1",
+        "resolved_at": NOW.isoformat(),
+    }
+
+
+def test_resolve_retry_after_a_partial_failure_never_dispatches_twice() -> None:
+    alerts = InMemoryAlertRepository()
+    reservations = InMemoryResourceReservationRepository()
+    dispatcher = RecordingAlertActionDispatcher()
+    alert = _alert(alerts)
+    reservation = _take(alerts, reservations).execute(alert.id, "analyst-1")
+    request = ResolveEscalatedAlertInput(
+        alert_id=str(alert.id), analyst_id="analyst-1", decision="block", notes="n"
+    )
+
+    class ReleaseFailsOnce(InMemoryResourceReservationRepository):
+        failed = False
+
+        def release(self, *args, **kwargs):
+            if not self.failed:
+                self.failed = True
+                raise RuntimeError("dynamodb unavailable")
+            return super().release(*args, **kwargs)
+
+    flaky = ReleaseFailsOnce()
+    flaky.records = reservations.records
+    use_case = _resolve(alerts, flaky, dispatcher)
+
+    with pytest.raises(RuntimeError):
+        use_case.execute(request)
+    released = use_case.execute(request)
+
+    assert dispatcher.calls == [("block", alert.id, "n")]
+    assert released.id == reservation.id
+    assert released.status == ReservationStatus.RELEASED
+    assert alerts.get(alert.id).status == AlertStatus.CLOSED
+
+
+def test_resolve_unknown_alert_raises() -> None:
+    with pytest.raises(AlertNotFoundError):
+        _resolve(
+            InMemoryAlertRepository(),
+            InMemoryResourceReservationRepository(),
+            RecordingAlertActionDispatcher(),
+        ).execute(
+            ResolveEscalatedAlertInput(
+                alert_id=str(uuid.uuid4()), analyst_id="a", decision="pass"
+            )
+        )
+
+
+def test_release_after_the_reservation_expired_raises() -> None:
+    alerts, reservations = (
+        InMemoryAlertRepository(),
+        InMemoryResourceReservationRepository(),
+    )
+    alert = _alert(alerts)
+    _take(alerts, reservations).execute(alert.id, "analyst-1")
+    later = NOW + RESERVATION_TTL + timedelta(seconds=1)
+
+    with pytest.raises(AlertNotHeldByAnalystError):
+        ReleaseEscalatedAlertUseCase(reservations, clock=lambda: later).execute(
+            str(alert.id), "analyst-1"
+        )
+
+
+def test_in_process_lists_received_and_processing_alerts_with_their_step() -> None:
+    alerts = InMemoryAlertRepository()
+    newer = _alert(alerts, status=AlertStatus.RECEIVED, minutes_ago=1)
+    older = _alert(alerts, status=AlertStatus.PROCESSING, minutes_ago=9)
+    _alert(alerts, status=AlertStatus.ESCALATED)
+    _alert(alerts, status=AlertStatus.CLOSED)
+    workflow = WorkflowExecutionRecord(
+        id=uuid.uuid4(),
+        alert_id=older.id,
+        async_operation_id=uuid.uuid4(),
+        workflow_name="alert_review",
+        status=WorkflowStatus.RUNNING,
+        input={},
+        output=None,
+        error=None,
+        current_step="classification",
+        feedback_iterations=0,
+        max_feedback_iterations=1,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    older.workflow_execution_id = workflow.id
+
+    items = ListInProcessAlertsUseCase(
+        alerts, InMemoryWorkflowRepository(workflow)
+    ).execute()
+
+    assert [item.alert.id for item in items] == [older.id, newer.id]
+    assert (items[0].workflow_status, items[0].current_step) == (
+        "RUNNING",
+        "classification",
+    )
+    assert (items[1].workflow_status, items[1].current_step) == (None, None)
 
 
 # --- voicebot callback -------------------------------------------------------
