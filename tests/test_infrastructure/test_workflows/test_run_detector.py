@@ -198,6 +198,30 @@ def test_xgboost_decisive_score_skips_the_llm(monkeypatch) -> None:
     assert output.model_output["top_features"][0]["feature"] == "amount"
 
 
+def test_xgboost_decisive_score_uses_llm_after_adversarial_feedback(monkeypatch) -> None:
+    calls, _ = _patched(monkeypatch, is_fraud="not_fraud")
+    monkeypatch.setattr(
+        workflow_module,
+        "_score_with_xgboost",
+        lambda context, cfg: _xgboost_score("fraud"),
+    )
+    context = _context(_xgboost_segment())
+    context["detector_feedback_iterations"] = 1
+    context["detector_adversarial"] = type(
+        "AdversarialFeedback",
+        (),
+        {"feedback": "Analiza el historial y explica la contraparte."},
+    )()
+
+    output = workflow_module._run_detector(context)
+
+    assert len(calls) == 1
+    assert "Analiza el historial y explica la contraparte" in calls[0]["extra_instructions"]
+    assert "Salida del modelo XGBoost" in calls[0]["extra_instructions"]
+    assert output.is_fraud == "not_fraud"
+    assert output.model_output["prediction"] == "fraud"
+
+
 def test_xgboost_uncertainty_band_lets_the_llm_decide_with_separate_evidence(
     monkeypatch,
 ) -> None:
@@ -248,6 +272,48 @@ def test_xgboost_falls_back_to_llm_when_model_is_not_trained(monkeypatch) -> Non
     assert len(calls) == 1
     assert output.is_fraud == "fraud"
     assert output.model_output is None
+
+
+def test_optimizer_scoring_uses_pinned_artifact_and_label_free_row(monkeypatch) -> None:
+    from src.domain.alerts.entities import AlertOrigin
+    from src.infrastructure.workflows.celery import task_factories
+
+    class RecordingPinnedScorer:
+        def __init__(self) -> None:
+            self.call = None
+
+        def score_pinned_row(self, model_id, artifact_sha256, row):
+            self.call = (model_id, artifact_sha256, row)
+            return {
+                "model_id": model_id,
+                "model_tag": "pinned",
+                "score": 0.9,
+                "predicted_positive": True,
+            }
+
+    scorer = RecordingPinnedScorer()
+    monkeypatch.setattr(task_factories, "get_model_scoring_port", lambda: scorer)
+    context = _context(_xgboost_segment())
+    context["input"] = {
+        "origin": AlertOrigin.OPTIMIZER_EVALUATION.value,
+        "optimizer_model_pin": {
+            "model_id": "pinned-model",
+            "artifact_sha256": "a" * 64,
+        },
+    }
+
+    score = workflow_module._score_with_xgboost(
+        context,
+        DetectorConfig(use_xgboost_model=True, xgboost_model_id="active-model"),
+    )
+
+    assert score is not None
+    assert scorer.call == (
+        "pinned-model",
+        "a" * 64,
+        context["pre_process"].input,
+    )
+    assert "fraud_label" not in scorer.call[2]
 
 
 # ── Análisis de historial + selector (#4) ──────────────────────

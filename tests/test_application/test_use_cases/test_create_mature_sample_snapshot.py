@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
@@ -22,6 +23,7 @@ from src.domain.alerts.entities import (
     Mark,
 )
 from src.domain.datasets.mature_sample_entities import (
+    OPTIMIZER_REPLAY_HISTORY_COLUMN,
     DatasetSamplerState,
     MatureSamplerSchemaMapping,
 )
@@ -63,6 +65,14 @@ class InMemorySchemas:
                     is_label=True,
                 ),
                 AlertSchemaField(
+                    id="later-mark-detail",
+                    field="review_resolution_detail",
+                    data_source=AlertSchemaDataSource.ARIA,
+                    type=AlertSchemaFieldType.STRING,
+                    is_alert=True,
+                    is_label=True,
+                ),
+                AlertSchemaField(
                     id="initial-mark",
                     field="reviewstatus_first",
                     data_source=AlertSchemaDataSource.ARIA,
@@ -82,6 +92,15 @@ class InMemorySchemas:
                     data_source=AlertSchemaDataSource.ARIA,
                     type=AlertSchemaFieldType.DATETIME,
                     is_alert=True,
+                ),
+                AlertSchemaField(
+                    id="history-geolocation",
+                    field="geolocation",
+                    data_source=AlertSchemaDataSource.HOST,
+                    field_ds_loc="location.country",
+                    type=AlertSchemaFieldType.STRING,
+                    is_alert=False,
+                    is_history=True,
                 ),
             ],
         )
@@ -192,10 +211,14 @@ def _alert(day: date, *, label: Mark, risk: str) -> AlertRecord:
             "reviewstatus_first": label.value.replace("_", " "),
             "fecha_primer_marcacion": created.isoformat(),
             "marked_on": created.isoformat(),
+            "review_resolution_detail": "later outcome detail",
         },
         labels={"outcome": label.value.replace("_", " ")},
         schema_version=3,
         metrics=AlertMetricsSnapshot(fraud_label=label),
+        history_prev_alerta=[
+            {"geolocation": "CO", "unconfigured_history_value": "discard"}
+        ],
     )
 
 
@@ -239,11 +262,21 @@ def test_snapshot_materializes_four_partitions_and_is_idempotent() -> None:
         set(row)
         == {
             "risk_band",
-            "reviewstatus_first",
-            "fecha_primer_marcacion",
+            OPTIMIZER_REPLAY_HISTORY_COLUMN,
             "fraud_label",
             "__aria_partition",
         }
         for row in all_rows
     )
+    assert snapshot.specification["training_target_field"] == "fraud_label"
+    assert json.loads(all_rows[0][OPTIMIZER_REPLAY_HISTORY_COLUMN]) == [
+        {"geolocation": "CO"}
+    ]
+    assert set(snapshot.specification["excluded_outcome_fields"]) == {
+        "fecha_primer_marcacion",
+        "marked_on",
+        "outcome",
+        "review_resolution_detail",
+        "reviewstatus_first",
+    }
     assert state.value.last_snapshot_id == snapshot.snapshot_id

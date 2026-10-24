@@ -176,6 +176,29 @@ def test_run_executor_generates_aric_marking_comment_for_block(monkeypatch) -> N
     assert content == "Comentario generado"
 
 
+def test_run_executor_simulates_test_run_actions_without_routing_or_dispatch(
+    monkeypatch,
+) -> None:
+    action_dispatcher, escalation_dispatcher = _patch_dispatchers(monkeypatch)
+    monkeypatch.setattr(
+        workflow_module,
+        "get_route_alert_resolution_use_case",
+        lambda: (_ for _ in ()).throw(AssertionError("routing must be skipped")),
+    )
+    context = _context(
+        _executor_segment(),
+        "scale_to_analyst",
+        input={"origin": "test_run"},
+    )
+
+    output = workflow_module._run_executor(context)
+
+    assert output["executed_action"] == "simulated"
+    assert output["proposed_action"] == "scale_to_analyst"
+    assert action_dispatcher.calls == []
+    assert escalation_dispatcher.calls == []
+
+
 def test_run_executor_skips_generation_when_aric_marking_prompt_empty(
     monkeypatch,
 ) -> None:

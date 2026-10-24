@@ -24,6 +24,7 @@ from src.application.use_cases.test_runs.dataset_sampling import (
 )
 from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
 from src.domain.alerts.entities import (
+    AlertOrigin,
     AlertRecord,
 )
 from src.domain.configurations.entities import (
@@ -263,6 +264,47 @@ def test_start_test_run_dispatches_one_workflow_per_dataset_row() -> None:
         assert workflow.input["config_overrides"]["model_overrides"] == {
             "classification": "gpt-test"
         }
+
+
+def test_optimizer_replay_uses_rows_override_origin_and_pinned_model() -> None:
+    workflows = InMemoryWorkflowExecutionRepository()
+    use_case = StartTestRunUseCase(
+        dataset_repository=InMemoryDatasetRepository({"must-not-read": []}),
+        test_run_repository=InMemoryTestRunRepository(),
+        alert_repository=InMemoryAlertRepository(),
+        async_operation_repository=InMemoryAsyncOperationRepository(),
+        workflow_repository=workflows,
+        workflow_executor=RecordingWorkflowExecutor(),
+    )
+    rows = [
+        {"eventId": "e-1", "fraud_label": "fraud"},
+        {"eventId": "e-2", "fraud_label": "no_fraud"},
+    ]
+
+    output = use_case.execute(
+        StartTestRunInput(
+            name="optimizer replay",
+            dataset_name="snapshot:sample:final",
+            rows_override=rows,
+            origin=AlertOrigin.OPTIMIZER_EVALUATION,
+            optimizer_model_pin={
+                "model_id": "model-1",
+                "artifact_sha256": "a" * 64,
+            },
+        )
+    )
+
+    dispatched = workflows.list_by_test_run(output.test_run_id)
+    assert output.dispatched_count == len(rows)
+    assert [w.input["optimizer_row_index"] for w in dispatched] == [0, 1]
+    assert all(w.input["origin"] == AlertOrigin.OPTIMIZER_EVALUATION.value for w in dispatched)
+    assert all(
+        w.input["optimizer_model_pin"] == {
+            "model_id": "model-1",
+            "artifact_sha256": "a" * 64,
+        }
+        for w in dispatched
+    )
 
 
 def test_start_test_run_threads_configuration_ref_separately_from_config_overrides() -> (

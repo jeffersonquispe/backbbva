@@ -21,7 +21,10 @@ _TASK_NAME = "workflows.alert_review.run"
 
 
 def queue_for_origin(origin: str | None) -> str:
-    if origin == AlertOrigin.TEST_RUN.value:
+    if origin in {
+        AlertOrigin.TEST_RUN.value,
+        AlertOrigin.OPTIMIZER_EVALUATION.value,
+    }:
         return genai_config.CELERY_TEST_QUEUE
     if origin == AlertOrigin.SIMULATOR.value:
         return genai_config.CELERY_SIMULATOR_ALERT_QUEUE

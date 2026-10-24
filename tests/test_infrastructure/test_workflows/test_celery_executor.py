@@ -11,6 +11,7 @@ from src.infrastructure.workflows.celery.executor import queue_for_origin
 
 def test_test_run_workflows_use_the_dedicated_queue() -> None:
     assert queue_for_origin(AlertOrigin.TEST_RUN.value) == "test"
+    assert queue_for_origin(AlertOrigin.OPTIMIZER_EVALUATION.value) == "test"
 
 
 def test_non_test_workflows_stay_on_the_default_queue() -> None:

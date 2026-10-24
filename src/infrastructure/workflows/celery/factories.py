@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import cast
 from uuid import UUID
 
 from src.application.ports.agent_subagent_port import AgentSubagent
@@ -413,6 +414,7 @@ def get_resolve_analyst_playbook_use_case() -> ResolveAnalystPlaybookUseCase:
 @lru_cache
 def get_similar_fraud_case_port(
     vector_store_instance_id: str | None = None,
+    library_revision_pin: dict[str, str] | None = None,
 ) -> MockSimilarFraudCaseAdapter | OpenSearchSimilarFraudCaseAdapter:
     if vector_store_instance_id is None:
         return MockSimilarFraudCaseAdapter()
@@ -629,6 +631,7 @@ def get_analyst_review_alert_use_case(
     system_prompt: str | None = None,
     model: str | None = None,
     vector_store_instance_id: str | None = None,
+    library_revision_pin: dict[str, str] | None = None,
     handling_prompt: str = "",
 ) -> AnalystReviewAlertUseCase:
     return AnalystReviewAlertUseCase(
@@ -642,6 +645,7 @@ def get_analyst_review_alert_use_case(
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
         vector_store_instance_id=vector_store_instance_id,
+        library_revision_pin=library_revision_pin,
         handling_prompt=handling_prompt,
     )
 
@@ -824,10 +828,8 @@ def get_orchestrate_agent_iteration_use_case(
         get_agent_experiment_component_resolver,
         get_agent_experiment_repository,
     )
-    from src.infrastructure.agents.mcp_resolved_agent_pipeline_scorer import (
-        MCPResolvedAgentPipelineScorer,
-    )
     from src.infrastructure.workflows.celery.task_factories import (
+        get_agent_pipeline_replay_scorer,
         get_dataset_repository,
         get_dataset_snapshot_repository,
     )
@@ -835,7 +837,7 @@ def get_orchestrate_agent_iteration_use_case(
     component_resolver = get_agent_experiment_component_resolver()
     pipeline_runner = PairedAgentExperimentRunner(
         components=component_resolver,
-        scorer=MCPResolvedAgentPipelineScorer(),
+        scorer=get_agent_pipeline_replay_scorer(),
         objectives=get_agent_objective_repository(),
     )
     experiment_evaluator = EvaluateAgentExperiment(
@@ -859,7 +861,7 @@ def get_orchestrate_agent_iteration_use_case(
         summaries=get_agent_session_summary_repository(),
         settings=settings or get_assistant_optimizer_settings_repository(),
         subagent=subagent or StubAgentSubagent(genai_config.AGENT_STUB_DELAY_SECONDS),
-        specialists=get_optimizer_agent_specialists(),
+        specialists=cast(dict[str, AgentSubagent], get_optimizer_agent_specialists()),
         objectives=get_agent_objective_repository(),
         audit=get_agent_audit_repository(),
         components=component_resolver,

@@ -36,12 +36,12 @@ from src.application.use_cases.datasets.preview_mature_sample import (
     collect_mature_alerts,
 )
 from src.domain.datasets.mature_sample_entities import (
+    OPTIMIZER_REPLAY_HISTORY_COLUMN,
     DatasetSamplerState,
     DatasetSnapshot,
 )
 from src.domain.datasets.mature_sampling import (
     MatureSampleSpec,
-    alert_field_value,
     content_hash,
     deterministic_partition,
     deterministic_sample,
@@ -137,6 +137,20 @@ class CreateMatureSampleSnapshotUseCase:
             raise ValueError("Selecciona al menos un campo del esquema para muestrear")
         if SAMPLE_TARGET_FIELD in fields or PARTITION_METADATA_FIELD in fields:
             raise ValueError("La selección contiene un campo reservado del muestreador")
+        outcome_fields = {
+            field.field
+            for schema in schemas
+            for field in schema.fields
+            if field.field and field.is_label
+        }
+        outcome_fields.update(
+            {
+                schema_mapping.initial_mark_field,
+                schema_mapping.initial_marking_date_field,
+                schema_mapping.marking_date_field,
+                schema_mapping.target_field,
+            }
+        )
         feature_fields = tuple(
             dict.fromkeys(
                 field.field
@@ -146,8 +160,7 @@ class CreateMatureSampleSnapshotUseCase:
                 and field.is_alert
                 and not field.is_sensible
                 and not field.is_label
-                and field.field != schema_mapping.target_field
-                and field.field != schema_mapping.marking_date_field
+                and field.field not in outcome_fields
             )
         )
 
@@ -162,6 +175,9 @@ class CreateMatureSampleSnapshotUseCase:
             "target_field": schema_mapping.target_field,
             "marking_date_field": schema_mapping.marking_date_field,
             "label_value_mapping": dict(label_value_mapping),
+            "excluded_outcome_fields": sorted(outcome_fields),
+            "training_target_field": SAMPLE_TARGET_FIELD,
+            "optimizer_replay_history_format": "schema_mapped_history_v1",
             "schema_versions": [schema.version for schema in schemas],
             "sampler_period_days": settings.sampler_period_days,
             "sampler_minimum_per_stratum": settings.sampler_minimum_per_stratum,
@@ -232,6 +248,7 @@ class CreateMatureSampleSnapshotUseCase:
         rows_by_partition: dict[str, list[dict[str, Any]]] = {
             partition: [] for partition in PARTITIONS
         }
+        schemas_by_version = {schema.version: schema for schema in schemas}
         for alert in selected:
             label = mapped_alert_label(
                 alert,
@@ -241,11 +258,9 @@ class CreateMatureSampleSnapshotUseCase:
             row: dict[str, Any] = {
                 field: (alert.input or {}).get(field) for field in feature_fields
             }
-            row[schema_mapping.initial_mark_field] = alert_field_value(
-                alert, schema_mapping.initial_mark_field
-            )
-            row[schema_mapping.initial_marking_date_field] = alert_field_value(
-                alert, schema_mapping.initial_marking_date_field
+            row[OPTIMIZER_REPLAY_HISTORY_COLUMN] = _history_snapshot_json(
+                alert.history_prev_alerta,
+                schemas_by_version.get(alert.schema_version),
             )
             row[SAMPLE_TARGET_FIELD] = label
             row[PARTITION_METADATA_FIELD] = deterministic_partition(
@@ -275,8 +290,7 @@ class CreateMatureSampleSnapshotUseCase:
             dict.fromkeys(
                 [
                     *feature_fields,
-                    schema_mapping.initial_mark_field,
-                    schema_mapping.initial_marking_date_field,
+                    OPTIMIZER_REPLAY_HISTORY_COLUMN,
                     SAMPLE_TARGET_FIELD,
                 ]
             )
@@ -396,3 +410,23 @@ class CreateMatureSampleSnapshotUseCase:
             and not field.is_sensible
             and not field.is_label
         }
+
+
+def _history_snapshot_json(history: Any, schema: Any | None) -> str:
+    """Keep manager-defined historical values in the immutable sample."""
+    if not isinstance(history, list) or schema is None:
+        return "[]"
+    allowed_fields = {
+        field.field
+        for field in schema.fields
+        if field.is_history
+        and not field.is_label
+        and not field.is_sensible
+        and field.field
+    }
+    rows = [
+        {key: value for key, value in item.items() if key in allowed_fields}
+        for item in history
+        if isinstance(item, dict)
+    ]
+    return json.dumps(rows, sort_keys=True, separators=(",", ":"), default=str)

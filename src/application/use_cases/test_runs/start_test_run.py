@@ -78,7 +78,15 @@ class StartTestRunUseCase:
         self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, input: StartTestRunInput) -> StartTestRunOutput:
-        rows = self._datasets.get_rows(input.dataset_name)
+        if input.rows_override is not None and (
+            input.sample_size is not None or input.sample_distribution is not None
+        ):
+            raise ValidationError("Optimizer replay rows cannot be sampled again")
+        rows = (
+            [dict(row) for row in input.rows_override]
+            if input.rows_override is not None
+            else self._datasets.get_rows(input.dataset_name)
+        )
         if input.sample_distribution is not None and input.sample_size is None:
             raise ValidationError("sample_distribution requires sample_size")
         if input.sample_size is not None:
@@ -143,7 +151,7 @@ class StartTestRunUseCase:
         # into this blob.
         config_overrides = dataclasses.asdict(input.config)
         config_overrides.pop("configuration_ref", None)
-        for row in rows:
+        for row_index, row in enumerate(rows):
             self._start_alert.execute(
                 StartAlertWorkflowInput(
                     payload=row,
@@ -153,7 +161,14 @@ class StartTestRunUseCase:
                     configuration_ref=input.config.configuration_ref,
                     schema_version=input.config.schema_version,
                     active_schema_version=input.config.active_schema_version,
-                    origin=AlertOrigin.TEST_RUN,
+                    origin=input.origin,
+                    optimizer_row_index=(
+                        row_index
+                        if input.origin == AlertOrigin.OPTIMIZER_EVALUATION
+                        else None
+                    ),
+                    optimizer_model_pin=input.optimizer_model_pin,
+                    optimizer_component_pins=input.optimizer_component_pins,
                 )
             )
         self._test_runs.update(test_run.id, status=TestRunStatus.RUNNING)

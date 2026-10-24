@@ -48,6 +48,7 @@ def _classification() -> ClassifyAlertOutput:
         reasoning="reason",
         expected_classification=LABEL_VALUE,
         ground_truth_tipo="Fraude",
+        model_output={"model_id": "model-1", "score": 0.93},
     )
 
 
@@ -80,6 +81,10 @@ def test_agent_contexts_and_detector_features_exclude_canonical_labels() -> None
     assert all(
         "Fraude" not in json.dumps(value, default=str) for value in prompt_inputs
     )
+    assert prompt_inputs[1]["classification"]["model_output"] == {
+        "model_id": "model-1",
+        "score": 0.93,
+    }
 
 
 class InMemorySchemaRepository(AlertSchemaRepository):

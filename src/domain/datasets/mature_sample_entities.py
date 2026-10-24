@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 
+OPTIMIZER_REPLAY_HISTORY_COLUMN = "__aria_optimizer_history"
+
 
 @dataclass(frozen=True)
 class DatasetSnapshot:

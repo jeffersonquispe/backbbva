@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from src.domain.alerts.entities import AlertOrigin
 from src.domain.test_runs.entities import TestRunConfig, TestRunStatus
 from src.domain.workflows.entities import (
     WorkflowStatus,
@@ -21,6 +22,13 @@ class StartTestRunInput:
     # dataset_sampling.sample_rows for exact semantics.
     sample_size: int | None = None
     sample_distribution: dict[str, float] | None = None
+    # Internal workflow replay inputs are not exposed by the HTTP API. They
+    # let the optimizer reuse the exact production review workflow without
+    # copying the snapshot into the dataset store.
+    rows_override: list[dict] | None = None
+    origin: AlertOrigin = AlertOrigin.TEST_RUN
+    optimizer_model_pin: dict[str, str] | None = None
+    optimizer_component_pins: dict[str, dict[str, str]] | None = None
 
 
 @dataclass

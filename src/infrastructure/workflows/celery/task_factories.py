@@ -64,6 +64,7 @@ from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.application.use_cases.test_runs.cleanup_test_runs import CleanupTestRunsUseCase
 from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
+from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
 from src.domain.configurations.entities import (
     HistoryPandasResearchConfig,
     VectorStoreResearchConfig,
@@ -111,6 +112,7 @@ from src.infrastructure.persistence.object_storage.minio import (
     get_object_storage,
 )
 from src.infrastructure.queues.celery.inspector import CeleryAsyncExecutionInspector
+from src.infrastructure.workflows.celery.executor import CeleryWorkflowExecutor
 from src.infrastructure.workflows.celery.factories import (
     get_alert_object_storage,
     get_alert_repository,
@@ -120,6 +122,7 @@ from src.infrastructure.workflows.celery.factories import (
     get_aric_alert_port,
     get_assistant_optimizer_settings_repository,
     get_async_operation_repository,
+    get_configuration_repository,
     get_discard_alert_use_case,
     get_model_repository,
     get_operational_settings_repository,
@@ -301,6 +304,55 @@ def get_cleanup_test_runs_use_case() -> CleanupTestRunsUseCase:
     )
 
 
+def get_agent_pipeline_replay_scorer():
+    """Compose the optimizer scorer from the same worker workflow as alerts."""
+    from src.infrastructure.agents.workflow_agent_pipeline_scorer import (
+        WorkflowAgentPipelineScorer,
+    )
+
+    workflows = get_workflow_execution_repository()
+    steps = get_workflow_step_execution_repository()
+    test_runs = get_test_run_repository()
+    alerts = get_alert_repository()
+    operations = get_async_operation_repository()
+    object_storage = get_object_storage()
+    delete_test_runs = DeleteTestRunsUseCase(
+        test_run_repository=test_runs,
+        workflow_repository=workflows,
+        step_repository=steps,
+        alert_repository=alerts,
+        async_operation_repository=operations,
+        object_storage=object_storage,
+    )
+    start_test_run = StartTestRunUseCase(
+        dataset_repository=get_dataset_repository(),
+        test_run_repository=test_runs,
+        alert_repository=alerts,
+        async_operation_repository=operations,
+        workflow_repository=workflows,
+        workflow_executor=CeleryWorkflowExecutor(),
+        configuration_repository=get_configuration_repository(),
+        metrics_recorder=get_record_alert_metrics_event_use_case(),
+        schema_repository=get_alert_schema_repository(),
+        # The normal raw-payload lifecycle is reused; DeleteTestRunsUseCase
+        # removes the temporary payload/output objects after completed replay.
+        object_storage=object_storage,
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
+    return WorkflowAgentPipelineScorer(
+        start_test_run=start_test_run,
+        schemas=get_alert_schema_repository(),
+        workflows=workflows,
+        steps=steps,
+        delete_test_runs=delete_test_runs,
+        preserve_test_data=genai_config.E2E_PRESERVE_DATA,
+        # Composition must remain side-effect free; the optimizer run budget
+        # enforces its own timeout, so do not read DynamoDB while wiring.
+        timeout_seconds=1800,
+    )
+
+
 def get_escalate_alert_to_analyst_use_case() -> EscalateAlertToAnalystUseCase:
     return EscalateAlertToAnalystUseCase(
         aric_alert_port=get_aric_alert_port(),
@@ -385,6 +437,8 @@ def get_vector_store_research_tool(
     config: VectorStoreResearchConfig,
 ) -> BoundedResearchTool:
     """Bounded ``search_vector_store`` tool for one configured instance."""
+    if not config.vector_store_instance_id:
+        raise ValueError("VECTOR_STORE_INSTANCE_ID_REQUIRED")
     return BoundedResearchTool(
         TimeBoundedResearchAgent(
             VectorStoreResearchAgent(

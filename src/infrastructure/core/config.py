@@ -45,6 +45,10 @@ class Config(BaseSettings):
     # endpoint remains disabled unless explicitly enabled in local config.
     E2E_CLEANUP_ENABLED: bool = False
 
+    # Preserve local optimizer replay records for post-run debugging only when
+    # an E2E explicitly opts in. Production and ordinary tests keep cleanup on.
+    E2E_PRESERVE_DATA: bool = False
+
     GENAI_PRODUCT: str = "aria"
 
     GENAI_NAME: str = "aria-api"

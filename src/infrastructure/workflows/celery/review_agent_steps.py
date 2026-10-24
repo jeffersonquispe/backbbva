@@ -17,6 +17,7 @@ from src.application.dtos.classify_alert_dtos import (
     ClassifyAlertOutput,
 )
 from src.application.use_cases.alerts.alert_review_policy import active_segment
+from src.domain.alerts.entities import AlertOrigin
 from src.domain.configurations.entities import (
     AdversarialConfig,
     AgentToolsConfig,
@@ -29,6 +30,7 @@ from src.infrastructure.workflows.celery.factories import (
 )
 from src.infrastructure.workflows.celery.history_research import _history_rounds
 from src.infrastructure.workflows.celery.step_context import (
+    _alert_payload,
     _evaluation_labels,
     _rubric_prompt_context,
     _step_overrides,
@@ -40,7 +42,7 @@ from src.infrastructure.workflows.celery.xgboost_score import _XGBoostScore
 logger = logging.getLogger(__name__)
 
 
-def _segment_tool_kwargs(cfg: AgentToolsConfig) -> dict[str, Any]:
+def _segment_tool_kwargs(cfg: AgentToolsConfig, context: dict[str, Any]) -> dict[str, Any]:
     # Same kwargs shape for every ReAct step with the shared "Herramientas
     # del agente" block (Detector, its Adversarial, Classification, its
     # Adversarial) - each passes its own config.
@@ -59,6 +61,14 @@ def _segment_tool_kwargs(cfg: AgentToolsConfig) -> dict[str, Any]:
         kwargs["watchlist_ids"] = cfg.watchlist_ids
         kwargs["watchlist_compare_field"] = cfg.watchlist_compare_field
     vector_store = cfg.delegated_research.vector_store
+    workflow_input = context.get("input") or {}
+    if workflow_input.get("origin") == AlertOrigin.OPTIMIZER_EVALUATION.value:
+        pin = (workflow_input.get("optimizer_component_pins") or {}).get("vector_store")
+        if not isinstance(pin, dict) or not isinstance(pin.get("entity_id"), str):
+            raise ValueError("OPTIMIZER_VECTOR_STORE_PIN_REQUIRED")
+        vector_store = dataclasses.replace(
+            vector_store, vector_store_instance_id=pin["entity_id"]
+        )
     if vector_store.enabled and vector_store.vector_store_instance_id:
         from src.infrastructure.workflows.celery.task_factories import (
             get_vector_store_research_tool,
@@ -76,19 +86,39 @@ def _run_detector(context: dict[str, Any]) -> ClassifyAlertOutput:
     # detailed taxonomy pass runs at all (see run()'s "detector" handling)
     # instead of being the final answer.
     #
-    # With XGBoost enabled the model scores first: >= fraud threshold or
-    # < uncertainty threshold is a direct decision (no LLM call); only the
-    # band in between reaches the LLM, with the model output as evidence.
+    # With XGBoost enabled the first decisive score is a direct decision.
+    # If adversarial review challenges it, a retry reaches the LLM with both
+    # the score and review feedback so the detector can revise its reasoning.
     segment = active_segment(context)
     detector_cfg = segment.agent.detector if segment is not None else None
     model_score = _model_score_for(context, detector_cfg)
-    if model_score is not None and model_score.is_fraud != "unknown":
+    detector_feedback_iterations = int(context.get("detector_feedback_iterations", 0))
+    if (
+        model_score is not None
+        and model_score.is_fraud != "unknown"
+        and detector_feedback_iterations == 0
+    ):
         return ClassifyAlertOutput(
             is_fraud=model_score.is_fraud,
             fraud_classification="unknown",
             reasoning=model_score.reasoning,
             model_output=model_score.as_output(),
         )
+    if detector_feedback_iterations and detector_cfg is not None:
+        adversarial = context.get("detector_adversarial")
+        feedback = getattr(adversarial, "feedback", None)
+        if feedback:
+            detector_cfg = dataclasses.replace(
+                detector_cfg,
+                prompt=(
+                    f"{detector_cfg.prompt}\n\n"
+                    "Revisión adversarial del dictamen anterior. Reevalúa la "
+                    "alerta y responde a estos puntos con la evidencia del "
+                    "historial y del perfilamiento; conserva la salida del "
+                    "modelo como una señal, no como explicación suficiente:\n"
+                    f"{feedback}"
+                ),
+            )
     return _run_classify_step(context, "detector", detector_cfg, model_score)
 
 
@@ -130,7 +160,7 @@ def _run_classify_step(
             extra_instructions += model_score.prompt_block()
         if extra_instructions:
             segment_kwargs["extra_instructions"] = extra_instructions
-        segment_kwargs.update(_segment_tool_kwargs(cfg))
+        segment_kwargs.update(_segment_tool_kwargs(cfg, context))
         if cfg.output_labels:
             segment_kwargs["output_labels"] = cfg.output_labels
         if cfg.max_thought_iterations:
@@ -216,7 +246,7 @@ def _run_adversarial_step(
             extra_instructions += model_score.prompt_block()
         if extra_instructions:
             segment_kwargs["extra_instructions"] = extra_instructions
-        segment_kwargs.update(_segment_tool_kwargs(cfg))
+        segment_kwargs.update(_segment_tool_kwargs(cfg, context))
         max_iterations = getattr(cfg, "max_thought_iterations", None)
         if max_iterations:
             segment_kwargs["max_iterations"] = max_iterations
@@ -275,19 +305,39 @@ def _score_with_xgboost(
     model_id = cfg.xgboost_model_id
     shadow_observer = None
     routed_model_id = None
-    try:
-        from src.infrastructure.workflows.celery.task_factories import (
-            get_agent_shadow_observer,
-        )
+    optimizer_evaluation = (
+        (context.get("input") or {}).get("origin")
+        == AlertOrigin.OPTIMIZER_EVALUATION.value
+    )
+    workflow_input = context.get("input") or {}
+    optimizer_model_pin = (
+        workflow_input.get("optimizer_model_pin") if optimizer_evaluation else None
+    )
+    if optimizer_evaluation:
+        if not isinstance(optimizer_model_pin, dict):
+            raise ValueError("OPTIMIZER_MODEL_PIN_REQUIRED")
+        model_id = optimizer_model_pin.get("model_id")
+        artifact_sha256 = optimizer_model_pin.get("artifact_sha256")
+        if not isinstance(model_id, str) or not isinstance(artifact_sha256, str):
+            raise ValueError("OPTIMIZER_MODEL_PIN_INVALID")
+    if not optimizer_evaluation:
+        try:
+            from src.infrastructure.workflows.celery.task_factories import (
+                get_agent_shadow_observer,
+            )
 
-        shadow_observer = get_agent_shadow_observer()
-        routed_model_id = shadow_observer.route_model_id(str(context["alert_id"]))
-        if routed_model_id is not None:
-            model_id = routed_model_id
-    except Exception as exc:  # noqa: BLE001 - release routing fails closed
-        logger.warning("Agent rollout lookup failed; use active model: %s", exc)
-        model_id = cfg.xgboost_model_id
-    cache_key = model_id or "active"
+            shadow_observer = get_agent_shadow_observer()
+            routed_model_id = shadow_observer.route_model_id(str(context["alert_id"]))
+            if routed_model_id is not None:
+                model_id = routed_model_id
+        except Exception as exc:  # noqa: BLE001 - release routing fails closed
+            logger.warning("Agent rollout lookup failed; use active model: %s", exc)
+            model_id = cfg.xgboost_model_id
+    cache_key = (
+        f"{model_id}:{artifact_sha256}"
+        if optimizer_evaluation
+        else model_id or "active"
+    )
     result = cache.get(cache_key)
     if result is None:
         from src.infrastructure.workflows.celery.task_factories import (
@@ -295,11 +345,18 @@ def _score_with_xgboost(
         )
 
         try:
-            result = get_model_scoring_port().score_alert(
-                str(context["alert_id"]), model_id
+            scoring_port = get_model_scoring_port()
+            result = (
+                scoring_port.score_pinned_row(
+                    model_id, artifact_sha256, _alert_payload(context)
+                )
+                if optimizer_evaluation
+                else scoring_port.score_alert(str(context["alert_id"]), model_id)
             )
         except Exception as exc:  # noqa: BLE001 - scoring outage falls back to LLM
             logger.warning("MCP scoring failed; alert continues LLM-only: %s", exc)
+            if optimizer_evaluation:
+                raise
             return None
         if "error" in result:
             logger.warning(
@@ -307,6 +364,8 @@ def _score_with_xgboost(
                 context.get("alert_id"),
                 result["error"],
             )
+            if optimizer_evaluation:
+                raise ValueError("OPTIMIZER_PINNED_MODEL_SCORING_FAILED")
             return None
         cache[cache_key] = result
     if shadow_observer is not None:

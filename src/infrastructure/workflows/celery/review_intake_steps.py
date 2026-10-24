@@ -69,9 +69,16 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
             alert_id=UUID(context["alert_id"]),
             payload=payload,
             schema=candidate_schema,
+            skip_external_enrichment=(
+                workflow_input.get("origin")
+                == AlertOrigin.OPTIMIZER_EVALUATION.value
+            ),
         )
     )
-    if workflow_input.get("origin") != AlertOrigin.TEST_RUN.value:
+    if workflow_input.get("origin") not in {
+        AlertOrigin.TEST_RUN.value,
+        AlertOrigin.OPTIMIZER_EVALUATION.value,
+    }:
         return candidate
     # With no pin the candidate was already produced from the active schema;
     # avoid a second repository read and preserve the single pre-process pass.
@@ -94,6 +101,10 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
                 alert_id=UUID(context["alert_id"]),
                 payload=payload,
                 schema=active_schema,
+                skip_external_enrichment=(
+                    workflow_input.get("origin")
+                    == AlertOrigin.OPTIMIZER_EVALUATION.value
+                ),
             )
         )
     context["schema_comparison"] = {

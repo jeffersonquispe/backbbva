@@ -17,6 +17,7 @@ from src.application.dtos.post_process_alert_dtos import (
     PostProcessAlertOutput,
 )
 from src.application.use_cases.alerts.alert_review_policy import active_segment
+from src.domain.alerts.entities import AlertOrigin
 from src.domain.configurations.entities import (
     DocumentationStrategy,
 )
@@ -59,6 +60,18 @@ def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
             if classification_vector_store.enabled
             else None
         )
+    workflow_input = context.get("input") or {}
+    component_pins = workflow_input.get("optimizer_component_pins") or {}
+    if workflow_input.get("origin") == AlertOrigin.OPTIMIZER_EVALUATION.value:
+        library_pin = component_pins.get("library")
+        vector_store_pin = component_pins.get("vector_store")
+        if not isinstance(library_pin, dict) or not isinstance(vector_store_pin, dict):
+            raise ValueError("OPTIMIZER_KNOWLEDGE_PINS_REQUIRED")
+        segment_kwargs["library_revision_pin"] = library_pin
+        if segment is not None and classification_vector_store.enabled:
+            segment_kwargs["vector_store_instance_id"] = vector_store_pin.get(
+                "entity_id"
+            )
     use_case = get_analyst_review_alert_use_case(
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,
@@ -93,6 +106,21 @@ def _generate_agent_text(
 def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
     analyst: AnalystReviewAlertOutput = context["analyst"]
     alert_id = UUID(context["alert_id"])
+
+    # Dataset/test runs evaluate a proposed decision. They must never reserve
+    # operational capacity or dispatch a real block, voicebot, or escalation.
+    # Keep the proposed action visible in the persisted step output instead.
+    workflow_input = context.get("input") or {}
+    if workflow_input.get("origin") in {
+        AlertOrigin.TEST_RUN.value,
+        AlertOrigin.OPTIMIZER_EVALUATION.value,
+    }:
+        return {
+            "executed_action": "simulated",
+            "proposed_action": analyst.decision,
+            "detail": "Test run: operational action was not dispatched.",
+        }
+
     segment = active_segment(context)
     executor_cfg = segment.agent.executor if segment is not None else None
 
