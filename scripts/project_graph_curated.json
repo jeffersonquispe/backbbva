@@ -1,0 +1,599 @@
+{
+  "views": {
+    "/": {
+      "label": "Inicio",
+      "description": "Punto de entrada: redirige al usuario a su primera vista disponible según su rol, o al login si no hay sesión."
+    },
+    "/login": {
+      "label": "Acceso",
+      "description": "Pantalla de acceso a ARIA con correo y contraseña.",
+      "aliases": [
+        "iniciar sesión",
+        "entrar",
+        "ingresar"
+      ]
+    },
+    "/dashboard": {
+      "description": "Panel operativo: alertas vivas por etapa, capacidad de analistas y desbordamiento, con filtros por segmento, canal, subcanal, monto y método de resolución. Permite exportar un reporte.",
+      "aliases": [
+        "panel",
+        "alertas vivas",
+        "capacidad de analistas",
+        "embudo"
+      ]
+    },
+    "/cola": {
+      "description": "Cola de trabajo. Pestaña «Pending Alerts for Analyst»: alertas escaladas que esperan analista (Ver, Seguir o Tomar caso). Pestaña «Alertas en proceso»: casos que ARIA todavía analiza.",
+      "aliases": [
+        "en proceso",
+        "cola de alertas",
+        "alertas pendientes",
+        "tomar caso"
+      ]
+    },
+    "/historico-fraude": {
+      "description": "Histórico de gestión de fraude: alertas ya marcadas, con su marca y resultado, filtros por rango, búsqueda y paginación. Desde aquí se revisa y corrige la marca real de fraude (Revisar fraude) y se consulta la auditoría de cada revisión.",
+      "aliases": [
+        "historial de fraude",
+        "histórico",
+        "revisar fraude",
+        "marca de fraude"
+      ]
+    },
+    "/monitor": {
+      "description": "Monitor del agente: indicadores operativos y de calidad de ARIA, analistas, voicebot y Bidi (falsos positivos, fraude no detectado, pasos fallidos). Permite exportar reporte.",
+      "aliases": [
+        "métricas",
+        "indicadores",
+        "desempeño del agente",
+        "falsos positivos"
+      ]
+    },
+    "/testing": {
+      "description": "Testing del agente: historial de pruebas que ejecutan el pipeline de 7 pasos sobre un dataset controlado. Permite lanzar una prueba nueva, repetir una anterior, filtrar y borrar.",
+      "aliases": [
+        "pruebas",
+        "ejecuciones de prueba",
+        "nueva prueba"
+      ]
+    },
+    "/testing/$runId": {
+      "label": "Detalle de prueba",
+      "description": "Detalle de una prueba: avance de casos, métricas de clasificación, tiempos de ejecución y lista compacta de casos con el detalle del caso seleccionado.",
+      "aliases": [
+        "detalle de prueba",
+        "resultado de la prueba",
+        "casos de la prueba"
+      ]
+    },
+    "/testing/scenarios/$scenarioId": {
+      "label": "Escenario de simulación",
+      "description": "Detalle de un escenario de simulación de eventos: iniciar, pausar, reanudar o detener, con destino, eventos emitidos y curva de llegada.",
+      "aliases": [
+        "escenario",
+        "simulación",
+        "generador de eventos"
+      ]
+    },
+    "/alerta/$id": {
+      "label": "Detalle de alerta",
+      "description": "Detalle de una alerta: resumen, razonamiento del agente, datos de la alerta, historial y resolución. Permite tomar, liberar, resolver o cerrar el caso y agregarlo a un dataset.",
+      "aliases": [
+        "detalle de alerta",
+        "razonamiento del agente",
+        "resolver alerta"
+      ]
+    },
+    "/biblioteca": {
+      "description": "Biblioteca de conocimiento: Vector store, taxonomías de fraude, modus operandi (con playbook), yellow/red flags y casos similares; además catálogos de eventos, canales, listas negras/blancas, datasets y esquema de alerta.",
+      "aliases": [
+        "catálogos",
+        "base de conocimiento",
+        "listas negras",
+        "datasets"
+      ]
+    },
+    "/modelos": {
+      "description": "Modelos de fraude: catálogo con estado, métricas y fecha de creación; permite crear y entrenar modelos, ver su detalle, activarlos en producción y borrarlos.",
+      "aliases": [
+        "modelo",
+        "entrenamiento",
+        "xgboost"
+      ]
+    },
+    "/configuracion": {
+      "description": "Configuración versionada del agente por segmento (agente, evaluación, rúbricas), esquema de alerta, operación, infraestructura y ajustes del asistente/optimizador. Los cambios se guardan como versión nueva y se despliegan con solicitud y aprobación.",
+      "aliases": [
+        "ajustes",
+        "versiones de configuración",
+        "desplegar configuración"
+      ]
+    },
+    "/backups": {
+      "description": "Respaldos: crea y consulta copias de DynamoDB, OpenSearch y almacenamiento de objetos, con su estado.",
+      "aliases": [
+        "copias de seguridad",
+        "backup"
+      ]
+    }
+  },
+  "components": {
+    "agent/AgentPanel": {
+      "description": "Panel del asistente ARIA: chat denso con insights propuestos dentro del feed, borradores de modus operandi con confirmación explícita, resumen de sesión y acceso al optimizador. El botón flotante se puede arrastrar."
+    },
+    "agent/AgentOptimizerPanel": {
+      "description": "Panel del optimizador: lanzar, pausar, reanudar o cancelar sesiones de optimización, ver objetivo activo, hipótesis, experimentos, iteraciones y auditoría. Solo el channel manager puede lanzarlo."
+    },
+    "biblioteca/WatchlistManager": {
+      "description": "Tabla de listas negras y blancas (watchlists): crear, editar, borrar y abrir los elementos de cada lista."
+    },
+    "biblioteca/WatchlistElementsModal": {
+      "description": "Modal con los elementos de una lista: agregar un valor, importar un archivo .csv/.txt (carga masiva) y quitar elementos."
+    },
+    "biblioteca/DatasetLibraryManager": {
+      "description": "Biblioteca de datasets: subir un CSV, crear uno vacío, extraer o derivar de otros, analizar, visualizar, descargar la plantilla y ver procesos en segundo plano."
+    },
+    "biblioteca/VectorStoreSearchPanel": {
+      "description": "Probar la búsqueda semántica sobre una instancia de Vector store: elegir tipo (modus operandi, taxonomía, caso similar, red/yellow flag) y modo (balanceado) y consultar."
+    },
+    "biblioteca/ModusOperandiPlaybookModal": {
+      "description": "Editor del playbook de un modus operandi: estrategia, método de resolución y qué hacer si no hay voicebot o no hay analista."
+    },
+    "datasets/UploadDatasetModal": {
+      "description": "Modal para subir un archivo CSV como dataset nuevo; avisa si ya existe uno con el mismo nombre."
+    },
+    "modelos/ModelTrainingWizard": {
+      "description": "Asistente por pasos para crear y entrenar un modelo: nombre, dataset, mapeo de campos y entrenamiento, con guardado de borrador y reintento."
+    },
+    "modelos/ModelTrainingResults": {
+      "description": "Detalle de un modelo entrenado: desempeño, curvas, características, ejecución y receta, y prueba del contrato."
+    },
+    "testing/NewTestRunModal": {
+      "description": "Modal para lanzar una prueba nueva del pipeline: elegir entre dataset, formulario o generador de escenario."
+    },
+    "testing/CasesPanel": {
+      "description": "Panel de casos de una prueba: filtro por desenlace y lista compacta de casos con detalle."
+    },
+    "fraude/FraudReview": {
+      "description": "Flujo para revisar y corregir la marca real de fraude de una alerta, con resultado real, nota obligatoria y confirmación; queda auditado."
+    },
+    "configuracion/AgentSettingsPanel": {
+      "description": "Ajustes del asistente y el optimizador: habilitar el asistente, límites de mensajes y sesiones, retención, y la muestra madura para experimentos."
+    },
+    "configuracion/OperationsPanel": {
+      "description": "Operación en vivo: cupos y capacidad de analistas, voicebot y métodos de resolución, con historial de cambios; se aplica con «Guardar y aplicar»."
+    },
+    "configuracion/AnalystCapacityEditor": {
+      "description": "Disponibilidad de analistas: perfiles por defecto y por día del mes, con importación desde la plantilla Excel."
+    },
+    "configuracion/schema/AlertSchemaEditor": {
+      "description": "Editor del esquema de alerta: campos de sistema y del cliente, propuestas y sugerencias que se aprueban o rechazan, con borrador y versión activa."
+    },
+    "ui/DataTable": {
+      "description": "Tabla reutilizable: cabeceras ordenables, búsqueda, filtros, paleta de columnas, acciones a la izquierda, paginación con primera/última página y scroll interno."
+    }
+  },
+  "tasks": [
+    {
+      "id": "crear-lista",
+      "name": "Crear una lista negra o blanca",
+      "description": "En Biblioteca, pestaña «Listas negras/blancas», pulsa «Nueva lista», completa nombre, tipo y descripción y guarda.",
+      "aliases": [
+        "crear watchlist",
+        "nueva lista",
+        "lista negra",
+        "lista blanca"
+      ],
+      "view": "/biblioteca",
+      "steps": [
+        "action:Nueva lista@component:biblioteca/WatchlistManager",
+        "api:watchlist.createWatchlist",
+        "endpoint:POST /api/v0/watchlists"
+      ]
+    },
+    {
+      "id": "importar-elementos-lista",
+      "name": "Importar elementos a una lista",
+      "description": "En la fila de la lista pulsa «Elementos». En el modal usa «Importar .csv/.txt» para cargas masivas o «Agregar un valor» para uno solo.",
+      "aliases": [
+        "importar watchlist",
+        "cargar elementos",
+        "subir lista",
+        "agregar elementos a la lista"
+      ],
+      "view": "/biblioteca",
+      "steps": [
+        "action:Elementos@component:biblioteca/WatchlistManager",
+        "component:biblioteca/WatchlistElementsModal",
+        "api:watchlist.importWatchlistElements",
+        "endpoint:POST /api/v0/watchlists/{watchlist_id}/elements/import"
+      ]
+    },
+    {
+      "id": "subir-dataset",
+      "name": "Subir un dataset en CSV",
+      "description": "En Biblioteca, pestaña «Datasets», pulsa «Subir CSV» y elige el archivo. También puedes crear uno vacío, extraerlo de otros o descargar la plantilla.",
+      "aliases": [
+        "cargar dataset",
+        "subir csv",
+        "nuevo dataset"
+      ],
+      "view": "/biblioteca",
+      "steps": [
+        "action:Subir CSV@component:biblioteca/DatasetLibraryManager",
+        "component:datasets/UploadDatasetModal"
+      ]
+    },
+    {
+      "id": "crear-modus-operandi",
+      "name": "Crear un modus operandi",
+      "description": "En Biblioteca, sección «Modus operandi», pulsa «Nuevo modus operandi» y completa narrativa, taxonomía y variables; el playbook se edita con «Playbook». También puedes pedirle un borrador al asistente ARIA y confirmarlo tras revisar el diff.",
+      "aliases": [
+        "nuevo modus operandi",
+        "borrador de modus operandi",
+        "playbook"
+      ],
+      "view": "/biblioteca",
+      "steps": [
+        "action:Nuevo modus operandi@view:/biblioteca",
+        "action:Playbook@view:/biblioteca",
+        "component:biblioteca/ModusOperandiPlaybookModal",
+        "component:agent/AgentPanel"
+      ]
+    },
+    {
+      "id": "entrenar-modelo",
+      "name": "Entrenar un modelo",
+      "description": "En Modelos pulsa «Nuevo modelo» y sigue el asistente por pasos (nombre, dataset, mapeo de campos) hasta entrenar. El progreso se ve en el catálogo.",
+      "aliases": [
+        "crear modelo",
+        "nuevo modelo",
+        "entrenamiento"
+      ],
+      "view": "/modelos",
+      "steps": [
+        "action:Nuevo modelo@view:/modelos",
+        "component:modelos/ModelTrainingWizard",
+        "api:models.trainModel",
+        "endpoint:POST /api/v0/models/{model_id}/train"
+      ]
+    },
+    {
+      "id": "activar-modelo",
+      "name": "Activar un modelo en producción",
+      "description": "En el catálogo de Modelos pulsa «Activar» en la fila del modelo entrenado que quieres poner en producción.",
+      "aliases": [
+        "poner modelo en producción",
+        "activar modelo"
+      ],
+      "view": "/modelos",
+      "steps": [
+        "action:Activar en producción@view:/modelos",
+        "api:models.activateModel",
+        "endpoint:POST /api/v0/models/{model_id}/activate"
+      ]
+    },
+    {
+      "id": "ejecutar-prueba",
+      "name": "Ejecutar una prueba del agente",
+      "description": "En Testing pulsa «Nueva prueba» y elige cómo lanzarla (dataset, formulario o generador). También puedes «Repetir» una prueba del historial.",
+      "aliases": [
+        "nueva prueba",
+        "lanzar prueba",
+        "probar el agente",
+        "repetir prueba"
+      ],
+      "view": "/testing",
+      "steps": [
+        "action:Nueva prueba@view:/testing",
+        "component:testing/NewTestRunModal",
+        "api:testing.startTestRun"
+      ]
+    },
+    {
+      "id": "ver-detalle-prueba",
+      "name": "Ver el detalle de una prueba",
+      "description": "En el historial de Testing pulsa «Ver» en la prueba. Verás avance, métricas de clasificación, tiempos y la lista de casos con su detalle.",
+      "aliases": [
+        "resultado de prueba",
+        "casos de la prueba",
+        "métricas de la prueba"
+      ],
+      "view": "/testing",
+      "steps": [
+        "action:Ver@view:/testing",
+        "view:/testing/$runId",
+        "component:testing/CasesPanel"
+      ]
+    },
+    {
+      "id": "tomar-caso",
+      "name": "Tomar un caso de la cola",
+      "description": "En «Pending Alerts for Analyst» pulsa «Tomar caso» en una alerta sin analista (rol analista de fraude); con «Ver» o «Seguir» abres su detalle.",
+      "aliases": [
+        "tomar alerta",
+        "asignarme un caso",
+        "seguir caso"
+      ],
+      "view": "/cola",
+      "steps": [
+        "action:Tomar caso@view:/cola",
+        "api:operations.takeAlert",
+        "view:/alerta/$id"
+      ]
+    },
+    {
+      "id": "revisar-fraude",
+      "name": "Corregir la marca de fraude de una alerta",
+      "description": "En el Histórico de gestión de fraude pulsa «Revisar fraude» en la alerta, elige el resultado real y escribe la nota. Requiere el permiso de revisión de fraude; queda en la auditoría.",
+      "aliases": [
+        "revisar fraude",
+        "cambiar marca",
+        "corregir etiqueta",
+        "fraude no detectado"
+      ],
+      "view": "/historico-fraude",
+      "steps": [
+        "action:Revisar fraude@view:/historico-fraude",
+        "component:fraude/FraudReview",
+        "api:alerts.reviewFraudLabel"
+      ]
+    },
+    {
+      "id": "desplegar-configuracion",
+      "name": "Cambiar y desplegar la configuración del agente",
+      "description": "En Configuración edita los valores (se guardan como versión nueva), pulsa «Probar configuración» si quieres validarla y luego «Solicitar despliegue»; otra persona aprueba con «Aprobar y desplegar».",
+      "aliases": [
+        "nueva configuración",
+        "activar configuración",
+        "versión de configuración",
+        "solicitar despliegue"
+      ],
+      "view": "/configuracion",
+      "steps": [
+        "action:Nueva configuración@view:/configuracion",
+        "action:Probar configuración@view:/configuracion",
+        "action:Solicitar despliegue@view:/configuracion",
+        "action:Aprobar y desplegar@view:/configuracion",
+        "api:configurations.createConfigurationDeployRequest",
+        "api:configurations.approveConfigurationDeployRequest"
+      ]
+    },
+    {
+      "id": "ajustar-asistente",
+      "name": "Ajustar los límites del asistente",
+      "description": "En Configuración, pestaña «Asistente y optimizador», cambia si el asistente está habilitado, el máximo de caracteres por mensaje, mensajes por sesión y sesiones simultáneas; se aplica de inmediato.",
+      "aliases": [
+        "límites del chat",
+        "habilitar asistente",
+        "retención del chat"
+      ],
+      "view": "/configuracion",
+      "steps": [
+        "component:configuracion/AgentSettingsPanel"
+      ]
+    },
+    {
+      "id": "importar-disponibilidad-analistas",
+      "name": "Importar la disponibilidad de analistas",
+      "description": "En Configuración (operación) descarga la plantilla Excel de disponibilidad, complétala y súbela desde el editor de capacidad de analistas.",
+      "aliases": [
+        "capacidad de analistas",
+        "plantilla de analistas",
+        "perfiles de analistas"
+      ],
+      "view": "/configuracion",
+      "steps": [
+        "action:Descargar plantilla@component:configuracion/AnalystCapacityEditor",
+        "asset:templates/plantilla-disponibilidad-analistas.xlsx",
+        "api:analystCapacity.uploadAnalystCapacityImport"
+      ]
+    },
+    {
+      "id": "editar-esquema-alerta",
+      "name": "Editar el esquema de alerta",
+      "description": "En Configuración, pestaña «Esquema», edita el borrador (campos, propuestas y sugerencias) y guárdalo; la versión se aprueba para activarla.",
+      "aliases": [
+        "campos de la alerta",
+        "esquema",
+        "propuesta de esquema"
+      ],
+      "view": "/configuracion",
+      "steps": [
+        "component:configuracion/schema/AlertSchemaEditor"
+      ]
+    },
+    {
+      "id": "lanzar-optimizador",
+      "name": "Lanzar el optimizador",
+      "description": "Abre el asistente ARIA (botón flotante), ve a la pestaña «Optimizador» y pulsa «Lanzar optimizador», eligiendo alcance y notas iniciales. Solo el rol channel manager puede lanzarlo.",
+      "aliases": [
+        "optimizador",
+        "sesión de optimización",
+        "experimentos del agente"
+      ],
+      "view": "/configuracion",
+      "steps": [
+        "component:agent/AgentOptimizerPanel"
+      ]
+    },
+    {
+      "id": "crear-respaldo",
+      "name": "Crear un respaldo",
+      "description": "En Respaldos pulsa «Crear respaldo»; la lista muestra el estado (en cola, en curso, completado o fallido) con el conteo de registros, documentos y objetos.",
+      "aliases": [
+        "backup",
+        "copia de seguridad"
+      ],
+      "view": "/backups",
+      "steps": [
+        "action:Crear respaldo@view:/backups",
+        "api:backups.requestBackup"
+      ]
+    },
+    {
+      "id": "revisar-desempeno-agente",
+      "name": "Revisar el desempeño del agente",
+      "description": "En Monitor del Agente revisa los indicadores de ARIA, analistas y voicebot (falsos positivos, fraude no detectado, pasos fallidos) y exporta el reporte.",
+      "aliases": [
+        "métricas del agente",
+        "falsos positivos",
+        "exportar reporte"
+      ],
+      "view": "/monitor",
+      "steps": [
+        "action:Exportar reporte@view:/monitor"
+      ]
+    },
+    {
+      "id": "iniciar-escenario",
+      "name": "Iniciar un escenario de simulación",
+      "description": "En el detalle del escenario usa Iniciar, Pausar, Reanudar o Detener para controlar la emisión de eventos hacia el destino.",
+      "aliases": [
+        "simular eventos",
+        "generador de escenarios"
+      ],
+      "view": "/testing/scenarios/$scenarioId",
+      "steps": [
+        "action:Iniciar@view:/testing/scenarios/$scenarioId",
+        "api:eventSimulation.startScenario"
+      ]
+    }
+  ],
+  "concepts": [
+    {
+      "id": "alerta",
+      "name": "Alerta",
+      "description": "Evento de posible fraude que entra a ARIA. Pasa por el pipeline del agente (ARIA analizando), puede escalarse a analista o voicebot y termina con una marca (fraude, no fraude) que luego puede corregirse.",
+      "aliases": [
+        "caso",
+        "evento",
+        "alerta de fraude",
+        "marca"
+      ],
+      "nodes": [
+        "view:/cola",
+        "view:/alerta/$id",
+        "view:/historico-fraude"
+      ]
+    },
+    {
+      "id": "modus-operandi",
+      "name": "Modus operandi",
+      "description": "Entrada de la Biblioteca que describe una modalidad de fraude (narrativa, taxonomía, variables) y su playbook de resolución. El agente la consulta por búsqueda semántica.",
+      "aliases": [
+        "modalidad",
+        "playbook",
+        "narrativa de fraude"
+      ],
+      "nodes": [
+        "view:/biblioteca",
+        "component:biblioteca/ModusOperandiPlaybookModal",
+        "component:biblioteca/VectorStoreSearchPanel"
+      ]
+    },
+    {
+      "id": "watchlist",
+      "name": "Watchlist (lista negra o blanca)",
+      "description": "Lista de valores (cuentas, dispositivos, etc.) que se consideran de riesgo (negra) o de confianza (blanca) al evaluar una alerta.",
+      "aliases": [
+        "lista negra",
+        "lista blanca",
+        "cuentas mula",
+        "lista de vigilancia"
+      ],
+      "nodes": [
+        "component:biblioteca/WatchlistManager",
+        "component:biblioteca/WatchlistElementsModal",
+        "resource:watchlists"
+      ]
+    },
+    {
+      "id": "dataset",
+      "name": "Dataset",
+      "description": "Conjunto de datos (CSV) usado para pruebas del agente y para entrenar modelos. Se administra en la Biblioteca.",
+      "aliases": [
+        "datos de prueba",
+        "csv",
+        "muestra"
+      ],
+      "nodes": [
+        "component:biblioteca/DatasetLibraryManager",
+        "component:datasets/UploadDatasetModal"
+      ]
+    },
+    {
+      "id": "modelo",
+      "name": "Modelo de fraude",
+      "description": "Modelo de aprendizaje automático (p. ej. XGBoost) entrenado sobre un dataset; uno activo se sirve en producción para puntuar alertas.",
+      "aliases": [
+        "xgboost",
+        "scoring",
+        "puntaje",
+        "modelo activo"
+      ],
+      "nodes": [
+        "view:/modelos",
+        "component:modelos/ModelTrainingWizard",
+        "component:modelos/ModelTrainingResults"
+      ]
+    },
+    {
+      "id": "configuracion-agente",
+      "name": "Configuración del agente",
+      "description": "Parámetros versionados del agente por segmento (prompts, reglas, rúbricas). Cada cambio crea una versión nueva que se prueba y se despliega con aprobación.",
+      "aliases": [
+        "versión de configuración",
+        "prompts del agente",
+        "segmento"
+      ],
+      "nodes": [
+        "view:/configuracion",
+        "resource:configurations"
+      ]
+    },
+    {
+      "id": "vector-store",
+      "name": "Vector store",
+      "description": "Índice de búsqueda semántica con versiones auditables sobre el conocimiento de la Biblioteca; agregar o retirar un documento solo modifica su relación con la instancia.",
+      "aliases": [
+        "búsqueda semántica",
+        "embeddings",
+        "instancia de vector store"
+      ],
+      "nodes": [
+        "component:biblioteca/VectorStoreSearchPanel",
+        "resource:vector-store-instances"
+      ]
+    },
+    {
+      "id": "insight",
+      "name": "Insight del asistente",
+      "description": "Propuesta que el asistente extrae de la conversación (observación, hipótesis, restricción, preferencia, directiva, pregunta o decisión). Es una sugerencia sin efecto hasta que el usuario la confirma o la rechaza en el feed del chat.",
+      "aliases": [
+        "propuesta",
+        "insight propuesto",
+        "confirmar insight"
+      ],
+      "nodes": [
+        "component:agent/AgentPanel"
+      ]
+    },
+    {
+      "id": "rol-permisos",
+      "name": "Roles y permisos",
+      "description": "El rol del usuario (manager, release manager, channel manager, analista de datos, analista de fraude, analista de operaciones) define qué vistas ve y qué acciones puede ejecutar.",
+      "aliases": [
+        "acceso",
+        "no veo la vista",
+        "quién puede",
+        "permiso"
+      ],
+      "nodes": [
+        "role:channel_manager",
+        "role:manager",
+        "role:fraud_analyst"
+      ]
+    }
+  ]
+}

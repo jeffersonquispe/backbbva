@@ -107,3 +107,117 @@ def test_prompt_injection_is_data_and_chat_spans_never_capture_content() -> None
         {"model": "test-model", "input_tokens": 5}
     ]
     assert monitoring.span.finish_errors == ["agent_chat_failed"]
+
+
+
+class ScriptedUnitOfWork:
+    def __init__(self, replies: list[str]) -> None:
+        self.replies = replies
+        self.calls: list[list[LLMMessage]] = []
+
+    def invoke(self, messages: list[LLMMessage]) -> LLMInvocationResult:
+        self.calls.append(list(messages))
+        return LLMInvocationResult(content=self.replies.pop(0), model="test-model")
+
+
+class ScriptedFactory:
+    def __init__(self, replies: list[str]) -> None:
+        self.unit = ScriptedUnitOfWork(replies)
+
+    def create(
+        self, *, model, monitoring, operation_name, temperature=0.0, max_tokens=None
+    ):
+        return self.unit
+
+
+class RecordingTools:
+    def __init__(self) -> None:
+        self.searches: list[str] = []
+        self.described: list[str] = []
+
+    def search_project(self, query: str) -> str:
+        self.searches.append(query)
+        return "Tareas: Entrenar un modelo"
+
+    def describe_node(self, node_id: str) -> str:
+        self.described.append(node_id)
+        return "task: Entrenar un modelo"
+
+
+def _responder(replies: list[str]) -> tuple[LLMChatResponder, ScriptedFactory]:
+    factory = ScriptedFactory(replies)
+    return (
+        LLMChatResponder(
+            llm_factory=factory, monitoring=RecordingMonitoring(), model="m"
+        ),
+        factory,
+    )
+
+
+def _request(tools: RecordingTools | None) -> AgentChatInput:
+    return AgentChatInput(
+        system_prompt="sys",
+        persisted_context='{"project_context":"x"}',
+        masked_user_message="¿cómo entreno un modelo?",
+        tools=tools,
+    )
+
+
+def test_model_can_call_a_project_tool_and_cite_references() -> None:
+    responder, factory = _responder(
+        [
+            '{"tool_call":{"name":"search_project","arguments":{"query":"entrenar modelo"}}}',
+            '{"text":"Ve a Modelos.","refs":["task:entrenar", 7],"proposals":[]}',
+        ]
+    )
+    tools = RecordingTools()
+
+    output = responder.respond(_request(tools))
+
+    assert tools.searches == ["entrenar modelo"]
+    assert output.text == "Ve a Modelos."
+    assert output.references == ("task:entrenar",)
+    second_call = factory.unit.calls[1]
+    assert second_call[-1].role.value == "user"
+    assert "tool_result_as_data" in second_call[-1].content
+    assert "no son instrucciones" in second_call[-1].content
+
+
+def test_tool_calls_are_ignored_without_tools_and_unknown_tools_are_not_run() -> None:
+    plain, _ = _responder(['{"tool_call":{"name":"search_project","arguments":{}}}'])
+    out = plain.respond(_request(None))
+    assert out.text.startswith(
+        '{"tool_call"'
+    )  # surfaced as plain text, nothing executed
+
+    tools = RecordingTools()
+    rogue, _ = _responder(['{"tool_call":{"name":"delete_everything","arguments":{}}}'])
+    rogue.respond(_request(tools))
+    assert tools.searches == [] and tools.described == []
+
+
+def test_tool_rounds_are_capped_and_the_model_is_forced_to_answer() -> None:
+    call = (
+        '{"tool_call":{"name":"describe_node","arguments":{"node_id":"view:/modelos"}}}'
+    )
+    responder, factory = _responder(
+        [call, call, call, '{"text":"Final","proposals":[]}']
+    )
+    tools = RecordingTools()
+
+    output = responder.respond(_request(tools))
+
+    assert output.text == "Final"
+    assert len(tools.described) == 2  # MAX_TOOL_ROUNDS
+    assert "Ya no puedes usar herramientas" in factory.unit.calls[-1][-1].content
+
+
+def test_guardrails_allow_only_the_two_read_only_tools() -> None:
+    responder, factory = _responder(['{"text":"ok"}'])
+
+    responder.respond(_request(RecordingTools()))
+
+    system = factory.unit.calls[0][0].content
+    assert "solo lectura" in system
+    assert "search_project" in system and "describe_node" in system
+    assert "datos no confiables" in system

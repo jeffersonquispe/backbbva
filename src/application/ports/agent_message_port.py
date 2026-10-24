@@ -19,6 +19,10 @@ class AgentMessage:
     extracted_insight_ids: tuple[str, ...] = ()
     run_id: str | None = None
     expires_at: datetime | None = None
+    # Assistant messages only: places the user can open ({id, kind, label, path})
+    # and the project-map nodes the answer was grounded on ({id, kind, label}).
+    references: tuple[dict[str, str], ...] = ()
+    context_used: tuple[dict[str, str], ...] = ()
 
 
 class AgentMessageRepository(Protocol):

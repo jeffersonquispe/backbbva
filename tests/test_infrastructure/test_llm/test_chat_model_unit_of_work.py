@@ -69,6 +69,19 @@ class _FakeChatModel:
         return self._response
 
 
+class _FlakyChatModel(_FakeChatModel):
+    def __init__(self, response: _FakeResponse, failures: list[Exception]) -> None:
+        super().__init__(response)
+        self.failures = failures
+        self.call_count = 0
+
+    def invoke(self, messages):
+        self.call_count += 1
+        if self.failures:
+            raise self.failures.pop(0)
+        return super().invoke(messages)
+
+
 def test_invoke_returns_result_and_instruments_monitoring():
     monitoring = RecordingMonitoring()
     fake_client = _FakeChatModel(
@@ -138,3 +151,63 @@ def test_finish_reason_falls_back_to_stop_reason_key():
     result = uow.invoke([LLMMessage(role=LLMMessageRole.USER, content="hi")])
 
     assert result.finish_reason == "end_turn"
+
+
+def test_invoke_retries_once_after_transient_provider_error(monkeypatch):
+    monitoring = RecordingMonitoring()
+    fake_client = _FlakyChatModel(
+        _FakeResponse(content="recovered"),
+        [ConnectionError("provider details must not be logged")],
+    )
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(
+        "src.infrastructure.llm.langchain._chat_model_unit_of_work.time.sleep",
+        sleep_calls.append,
+    )
+    uow = LangchainChatModelUnitOfWork(
+        client=fake_client,
+        monitoring=monitoring,
+        operation_name="agent_specialist",
+        model="test-model",
+        provider="azure_openai",
+    )
+
+    result = uow.invoke([LLMMessage(role=LLMMessageRole.USER, content="hi")])
+
+    assert result.content == "recovered"
+    assert fake_client.call_count == 2
+    assert sleep_calls == [0.25]
+    assert monitoring.spans[0].metas["retry_count"] == 1
+    assert monitoring.spans[0].metas["provider_attempts"] == 2
+    assert monitoring.spans[0].error is None
+
+
+def test_invoke_does_not_retry_non_transient_provider_error(monkeypatch):
+    monitoring = RecordingMonitoring()
+    fake_client = _FlakyChatModel(
+        _FakeResponse(content="not used"), [ValueError("invalid request")]
+    )
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(
+        "src.infrastructure.llm.langchain._chat_model_unit_of_work.time.sleep",
+        sleep_calls.append,
+    )
+    uow = LangchainChatModelUnitOfWork(
+        client=fake_client,
+        monitoring=monitoring,
+        operation_name="agent_specialist",
+        model="test-model",
+        provider="azure_openai",
+    )
+
+    try:
+        uow.invoke([LLMMessage(role=LLMMessageRole.USER, content="hi")])
+    except ValueError as error:
+        assert str(error) == "invalid request"
+    else:
+        raise AssertionError("non-transient provider error should be raised")
+
+    assert fake_client.call_count == 1
+    assert sleep_calls == []
+    assert monitoring.spans[0].metas["retry_count"] == 0
+    assert monitoring.spans[0].metas["provider_error_type"] == "ValueError"

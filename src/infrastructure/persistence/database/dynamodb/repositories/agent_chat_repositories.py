@@ -281,6 +281,8 @@ def _message(item: dict[str, Any]) -> AgentMessage:
         extracted_insight_ids=tuple(item.get("extracted_insight_ids", [])),
         run_id=item.get("run_id"),
         expires_at=_expires(item.get("expires_at")),
+        references=tuple(dict(entry) for entry in item.get("references", [])),
+        context_used=tuple(dict(entry) for entry in item.get("context_used", [])),
     )
 
 

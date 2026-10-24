@@ -34,8 +34,18 @@ from src.application.ports.agent_verification_port import (
     AgentVerificationRepository,
 )
 from src.application.ports.personal_data_masker_port import PersonalDataMasker
+from src.application.ports.project_graph_port import ProjectGraphRepository
+from src.application.ports.project_graph_semantic_port import (
+    ProjectGraphSemanticSearch,
+)
 from src.infrastructure.agents.agent_experiment_component_resolver import (
     StoredAgentExperimentComponentResolver,
+)
+from src.infrastructure.agents.embedding_project_graph_search import (
+    EmbeddingProjectGraphSemanticSearch,
+)
+from src.infrastructure.agents.json_project_graph_repository import (
+    JsonProjectGraphRepository,
 )
 from src.infrastructure.agents.llm_chat_responder import LLMChatResponder
 from src.infrastructure.agents.llm_structured_agent_generator import (
@@ -51,6 +61,9 @@ from src.infrastructure.agents.rule_based_personal_data_masker import (
     RuleBasedPersonalDataMasker,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.embedding.langchain import (
+    get_embedding_unit_of_work_factory,
+)
 from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_audit_repository import (
@@ -208,6 +221,24 @@ def get_agent_session_summary_repository() -> AgentSessionSummaryRepository:
 @lru_cache
 def get_personal_data_masker() -> PersonalDataMasker:
     return RuleBasedPersonalDataMasker()
+
+
+@lru_cache
+def get_project_graph_repository() -> ProjectGraphRepository:
+    return JsonProjectGraphRepository()
+
+
+@lru_cache
+def get_project_graph_semantic_search() -> ProjectGraphSemanticSearch | None:
+    """Embedding search over the project map; None (BM25 only) without a model."""
+    if not genai_config.EMBEDDING_MODEL:
+        return None
+    return EmbeddingProjectGraphSemanticSearch(
+        graph=get_project_graph_repository(),
+        embeddings=get_embedding_unit_of_work_factory(),
+        monitoring=get_monitoring(),
+        model=genai_config.EMBEDDING_MODEL,
+    )
 
 
 @lru_cache

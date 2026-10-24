@@ -119,6 +119,14 @@ class AgentPackageSummaryResponse(BaseModel):
 class SendAgentMessageRequest(BaseModel):
     client_message_id: str = Field(min_length=1, max_length=128)
     content: str = Field(min_length=1)
+    page_path: str = Field(default="", max_length=200)
+
+
+class AgentMessageReferenceResponse(BaseModel):
+    id: str
+    kind: str
+    label: str
+    path: str = ""
 
 
 class AgentMessageResponse(BaseModel):
@@ -132,6 +140,8 @@ class AgentMessageResponse(BaseModel):
     created_at: datetime
     redaction_counts: dict[str, int]
     extracted_insight_ids: tuple[str, ...] = ()
+    references: list[AgentMessageReferenceResponse] = Field(default_factory=list)
+    context_used: list[AgentMessageReferenceResponse] = Field(default_factory=list)
 
 
 class AgentChatTurnResponse(BaseModel):

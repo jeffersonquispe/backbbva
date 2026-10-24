@@ -37,11 +37,21 @@ from src.application.ports.assistant_optimizer_settings_port import (
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.personal_data_masker_port import PersonalDataMasker
+from src.application.use_cases.agent.project_toolbox import ProjectToolbox
+from src.application.use_cases.agent.retrieve_project_context import (
+    ProjectContext,
+    ProjectReference,
+    RetrieveProjectContextInput,
+    RetrieveProjectContextUseCase,
+)
 
 CHAT_PROMPT = "agent.chat.system"
 RECENT_CONTEXT_MESSAGES = 8
 SUMMARY_MAX_CHARS = 4_000
 MAX_INSIGHT_PROPOSALS = 5
+MAX_REFERENCES = 3
+HISTORY_WINDOW = 6
+MAX_CONTEXT_USED = 20
 CHAT_STATUSES = {
     AgentSessionStatus.DRAFT,
     AgentSessionStatus.ACTIVE,
@@ -73,6 +83,10 @@ class ChatWithAgentInput:
     owner_id: str
     client_message_id: str
     content: str
+    # Route the user is looking at; only used as a lookup key into the project graph.
+    page_path: str = ""
+    # Server-side role of the caller (never taken from the model or the message).
+    role: str = ""
 
 
 @dataclass(frozen=True)
@@ -99,6 +113,7 @@ class ChatWithAgentUseCase:
         responder: AgentChatResponder,
         clock: Clock,
         id_generator: IdGenerator,
+        project_context: RetrieveProjectContextUseCase | None = None,
     ) -> None:
         self._sessions = sessions
         self._messages = messages
@@ -111,6 +126,7 @@ class ChatWithAgentUseCase:
         self._responder = responder
         self._clock = clock
         self._ids = id_generator
+        self._project_context = project_context
 
     def execute(self, request: ChatWithAgentInput) -> AgentChatTurn:
         session = self._sessions.get(request.session_id)
@@ -193,6 +209,19 @@ class ChatWithAgentUseCase:
         active_insights = self._insights.list_for_session(
             request.session_id, status=AgentInsightStatus.ACTIVE, limit=50
         )
+        # Earlier user messages, even ones a summary already covers: they only
+        # steer project-map retrieval for vague follow-ups.
+        history = tuple(
+            message.content
+            for message in self._messages.list_after_seq(
+                request.session_id,
+                max(0, user_message.seq - HISTORY_WINDOW),
+                limit=HISTORY_WINDOW,
+            )
+            if message.role == "user" and message.seq < user_message.seq
+        )
+        toolbox = self._toolbox(request, history)
+        project = self._project_context_for(masked_input.text, request, history)
         context = {
             "session": {
                 "mode": session.mode,
@@ -211,18 +240,21 @@ class ChatWithAgentUseCase:
             "recent_messages": [
                 {"role": message.role, "content": message.content} for message in recent
             ],
+            "project_context": project.text,
         }
         response = self._responder.respond(
             AgentChatInput(
                 system_prompt=prompt.content,
                 persisted_context=json.dumps(context, ensure_ascii=False),
                 masked_user_message=masked_input.text,
+                tools=toolbox,
             )
         )
         if not response.proposals:
             response = AgentChatOutput(
                 text=response.text,
                 proposals=_rule_based_proposal(masked_input.text),
+                references=response.references,
             )
         masked_response = self._masker.mask(response.text)
         proposed = self._persist_proposals(
@@ -238,11 +270,88 @@ class ChatWithAgentUseCase:
             author_id="aria",
             redaction_counts=masked_response.counts,
             extracted_insight_ids=tuple(item.insight_id for item in proposed),
+            references=self._references(
+                response, project, toolbox, request.role, request.page_path
+            ),
+            context_used=self._context_used(project, toolbox, request.role),
         )
         self._append_summary(
             request.session_id, user_message, assistant_message, proposed
         )
         return AgentChatTurn(user_message, assistant_message, tuple(proposed))
+
+    def _toolbox(
+        self, request: ChatWithAgentInput, history: tuple[str, ...]
+    ) -> ProjectToolbox | None:
+        if self._project_context is None:
+            return None
+        return ProjectToolbox(
+            retriever=self._project_context,
+            role=request.role,
+            page_path=request.page_path[:200],
+            history=history,
+        )
+
+    def _project_context_for(
+        self,
+        masked_text: str,
+        request: ChatWithAgentInput,
+        history: tuple[str, ...],
+    ) -> ProjectContext:
+        if self._project_context is None:
+            return ProjectContext(text="")
+        return self._project_context.execute(
+            RetrieveProjectContextInput(
+                query=masked_text,
+                page_path=request.page_path[:200],
+                role=request.role,
+                history=history,
+            )
+        )
+
+    def _references(
+        self,
+        response: AgentChatOutput,
+        project: ProjectContext,
+        toolbox: ProjectToolbox | None,
+        role: str,
+        page_path: str,
+    ) -> tuple[dict[str, str], ...]:
+        """Chips for the answer: what the model cites, but only if we showed it
+        that node and the user's role can reach it; otherwise the strongest
+        lexical match, so a navigation question still gets a link."""
+        if self._project_context is None:
+            return ()
+        shown = set(project.node_ids) | (toolbox.surfaced if toolbox else set())
+        current = "/" + page_path.strip().strip("/") if page_path.strip() else ""
+        chosen: list[ProjectReference] = []
+        for node_id in response.references:
+            if node_id not in shown or any(ref.node_id == node_id for ref in chosen):
+                continue
+            ref = self._project_context.reference_for(node_id, role)
+            # A chip to the page the user is already on would go nowhere.
+            if ref is not None and ref.path != current:
+                chosen.append(ref)
+        if not chosen:
+            chosen = list(project.suggested)
+        return tuple(
+            {"id": ref.node_id, "kind": ref.kind, "label": ref.label, "path": ref.path}
+            for ref in chosen[:MAX_REFERENCES]
+        )
+
+    def _context_used(
+        self, project: ProjectContext, toolbox: ProjectToolbox | None, role: str
+    ) -> tuple[dict[str, str], ...]:
+        if self._project_context is None:
+            return ()
+        ids = list(project.node_ids)
+        ids += sorted(toolbox.surfaced - set(ids)) if toolbox else []
+        used: list[dict[str, str]] = []
+        for node_id in ids[:MAX_CONTEXT_USED]:
+            ref = self._project_context.node_ref(node_id, role)
+            if ref is not None:
+                used.append({"id": ref.node_id, "kind": ref.kind, "label": ref.label})
+        return tuple(used)
 
     def _save_message(
         self,
@@ -254,6 +363,8 @@ class ChatWithAgentUseCase:
         author_id: str,
         redaction_counts: dict[str, int],
         extracted_insight_ids: tuple[str, ...] = (),
+        references: tuple[dict[str, str], ...] = (),
+        context_used: tuple[dict[str, str], ...] = (),
     ) -> AgentMessage:
         session = self._sessions.get(session_id)
         if session is None:
@@ -271,6 +382,8 @@ class ChatWithAgentUseCase:
                 created_at=self._clock.now(),
                 redaction_counts=redaction_counts,
                 extracted_insight_ids=extracted_insight_ids,
+                references=references,
+                context_used=context_used,
                 expires_at=self._clock.now()
                 + timedelta(days=self._settings.get().chat_retention_days),
             )

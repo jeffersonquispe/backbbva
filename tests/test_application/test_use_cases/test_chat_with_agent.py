@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
@@ -30,6 +31,7 @@ from src.application.ports.personal_data_masker_port import (
     MaskedPersonalData,
     PersonalDataMasker,
 )
+from src.application.ports.project_graph_port import ProjectGraphRepository
 from src.application.use_cases.agent.chat_with_agent import (
     AgentMessageTooLongError,
     ChatWithAgentInput,
@@ -38,6 +40,67 @@ from src.application.use_cases.agent.chat_with_agent import (
 from src.application.use_cases.agent.manage_agent_insight import (
     ManageAgentInsightUseCase,
 )
+from src.application.use_cases.agent.retrieve_project_context import (
+    RetrieveProjectContextUseCase,
+)
+from src.domain.project_graph.entities import (
+    GraphEdge,
+    GraphNode,
+    NodeKind,
+    ProjectGraph,
+)
+
+
+class InMemoryProjectGraph(ProjectGraphRepository):
+    def load(self) -> ProjectGraph:
+        nodes = [
+            GraphNode(
+                "view:/biblioteca", NodeKind.VIEW, "/biblioteca", "Vista «Biblioteca»."
+            ),
+            GraphNode(
+                "component:WatchlistManager",
+                NodeKind.COMPONENT,
+                "WatchlistManager",
+                "Gestiona watchlists.",
+                ("Nueva watchlist",),
+            ),
+        ]
+        return ProjectGraph(
+            nodes={node.node_id: node for node in nodes},
+            edges=(
+                GraphEdge("view:/biblioteca", "component:WatchlistManager", "renders"),
+            ),
+        )
+
+
+class RoleProjectGraph(ProjectGraphRepository):
+    """/modelos (data_analyst only) with an "entrenar" task, and /cola (fraud_analyst)."""
+
+    def load(self) -> ProjectGraph:
+        nodes = [
+            GraphNode(
+                "view:/modelos", NodeKind.VIEW, "/modelos", "Modelos.", (), "Modelos"
+            ),
+            GraphNode(
+                "view:/cola", NodeKind.VIEW, "/cola", "Cola de trabajo.", (), "Cola"
+            ),
+            GraphNode(
+                "task:entrenar",
+                NodeKind.TASK,
+                "Entrenar un modelo",
+                "Nuevo modelo y asistente.",
+            ),
+            GraphNode("role:data_analyst", NodeKind.ROLE, "data_analyst"),
+            GraphNode("role:fraud_analyst", NodeKind.ROLE, "fraud_analyst"),
+        ]
+        return ProjectGraph(
+            nodes={n.node_id: n for n in nodes},
+            edges=(
+                GraphEdge("role:data_analyst", "view:/modelos", "can_open"),
+                GraphEdge("role:fraud_analyst", "view:/cola", "can_open"),
+                GraphEdge("task:entrenar", "view:/modelos", "starts_at"),
+            ),
+        )
 
 
 class InMemoryClock:
@@ -217,7 +280,10 @@ class RecordingResponder:
         return self.output
 
 
-def build_fixture(settings: AssistantOptimizerSettings | None = None):
+def build_fixture(
+    settings: AssistantOptimizerSettings | None = None,
+    project_context: RetrieveProjectContextUseCase | None = None,
+):
     session = AgentSession(
         session_id="session-1",
         mode="assistant",
@@ -258,6 +324,7 @@ def build_fixture(settings: AssistantOptimizerSettings | None = None):
         responder=responder,
         clock=clock,
         id_generator=InMemoryIds(),
+        project_context=project_context,
     )
     return use_case, sessions, messages, insights, links, summaries, responder, clock
 
@@ -351,3 +418,150 @@ def test_message_limit_comes_from_settings() -> None:
 
     assert messages.count_for_session("session-1") == 0
     assert responder.calls == []
+
+
+def test_chat_injects_project_graph_context_for_the_current_page() -> None:
+    use_case, _sessions, _messages, _insights, _links, _summaries, responder, _clock = (
+        build_fixture(
+            project_context=RetrieveProjectContextUseCase(graph=InMemoryProjectGraph())
+        )
+    )
+
+    use_case.execute(
+        ChatWithAgentInput(
+            "session-1",
+            "owner-1",
+            "00000000-0000-0000-0000-000000000001",
+            "¿Cómo creo una watchlist?",
+            page_path="/biblioteca",
+        )
+    )
+
+    context = json.loads(responder.calls[0].persisted_context)
+    assert "WatchlistManager" in context["project_context"]
+    assert "/biblioteca" in context["project_context"]
+
+
+def test_chat_without_project_graph_sends_empty_project_context() -> None:
+    use_case, _sessions, _messages, _insights, _links, _summaries, responder, _clock = (
+        build_fixture()
+    )
+
+    use_case.execute(
+        ChatWithAgentInput(
+            "session-1", "owner-1", "00000000-0000-0000-0000-000000000001", "Hola"
+        )
+    )
+
+    assert json.loads(responder.calls[0].persisted_context)["project_context"] == ""
+
+
+def _role_chat(responder_refs: tuple[str, ...], role: str):
+    use_case, _s, _m, _i, _l, _sum, responder, _c = build_fixture(
+        project_context=RetrieveProjectContextUseCase(graph=RoleProjectGraph())
+    )
+    responder.output = AgentChatOutput(text="Ve a Modelos.", references=responder_refs)
+    turn = use_case.execute(
+        ChatWithAgentInput(
+            "session-1",
+            "owner-1",
+            "00000000-0000-0000-0000-000000000001",
+            "¿Cómo entreno un modelo?",
+            page_path="/cola",
+            role=role,
+        )
+    )
+    return turn.assistant_message, responder
+
+
+def test_cited_references_become_chips_only_if_shown_and_reachable() -> None:
+    message, _ = _role_chat(
+        ("task:entrenar", "view:/cola", "view:/inventado"), "data_analyst"
+    )
+
+    assert [ref["id"] for ref in message.references] == ["task:entrenar"]
+    assert message.references[0] == {
+        "id": "task:entrenar",
+        "kind": "task",
+        "label": "Entrenar un modelo",
+        "path": "/modelos",
+    }
+
+
+def test_a_role_without_access_gets_no_chip_for_a_cited_hidden_task() -> None:
+    message, responder = _role_chat(("task:entrenar",), "fraud_analyst")
+
+    assert message.references == ()
+    context = json.loads(responder.calls[0].persisted_context)["project_context"]
+    assert "Entrenar un modelo" not in context
+    assert "su rol no tiene acceso" in context
+
+
+def test_without_citations_the_strongest_match_is_suggested() -> None:
+    message, _ = _role_chat((), "data_analyst")
+
+    assert [ref["id"] for ref in message.references] == ["task:entrenar"]
+
+
+def test_context_used_lists_what_the_answer_was_grounded_on() -> None:
+    message, _ = _role_chat((), "data_analyst")
+
+    assert {"id": "task:entrenar", "kind": "task", "label": "Entrenar un modelo"} in (
+        message.context_used
+    )
+    assert all(set(item) == {"id", "kind", "label"} for item in message.context_used)
+
+
+def test_chat_passes_role_history_and_scoped_tools_to_the_responder() -> None:
+    use_case, _s, _m, _i, _l, _sum, responder, _c = build_fixture(
+        project_context=RetrieveProjectContextUseCase(graph=RoleProjectGraph())
+    )
+    first = "00000000-0000-0000-0000-000000000001"
+    second = "00000000-0000-0000-0000-000000000002"
+    use_case.execute(
+        ChatWithAgentInput(
+            "session-1",
+            "owner-1",
+            first,
+            "quiero entrenar un modelo",
+            role="data_analyst",
+        )
+    )
+    use_case.execute(
+        ChatWithAgentInput(
+            "session-1", "owner-1", second, "¿y dónde está eso?", role="data_analyst"
+        )
+    )
+
+    tools = responder.calls[1].tools
+    assert tools is not None
+    # History feeds the scoped tool: a vague follow-up still finds the topic.
+    assert "Entrenar un modelo" in tools.search_project("dónde está eso")
+    assert (
+        "Entrenar un modelo"
+        in json.loads(responder.calls[1].persisted_context)["project_context"]
+    )
+    # A role-hidden node is invisible even if the model asks for it by id.
+    assert tools.describe_node("view:/cola").startswith("Sin resultados")
+
+
+def test_a_cited_chip_for_the_page_the_user_is_already_on_is_dropped() -> None:
+    use_case, _s, _m, _i, _l, _sum, responder, _c = build_fixture(
+        project_context=RetrieveProjectContextUseCase(graph=RoleProjectGraph())
+    )
+    responder.output = AgentChatOutput(
+        text="Estás en Modelos.", references=("view:/modelos", "task:entrenar")
+    )
+
+    turn = use_case.execute(
+        ChatWithAgentInput(
+            "session-1",
+            "owner-1",
+            "00000000-0000-0000-0000-000000000001",
+            "¿Cómo entreno un modelo?",
+            page_path="/modelos",
+            role="data_analyst",
+        )
+    )
+
+    assert turn.assistant_message.references == ()

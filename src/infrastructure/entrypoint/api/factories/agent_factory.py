@@ -15,6 +15,9 @@ from src.application.use_cases.agent.manage_agent_session import (
     ManageAgentSessionUseCase,
 )
 from src.application.use_cases.agent.renew_agent_budget import RenewAgentBudgetUseCase
+from src.application.use_cases.agent.retrieve_project_context import (
+    RetrieveProjectContextUseCase,
+)
 from src.infrastructure.agents.factories import (
     get_agent_audit_repository,
     get_agent_budget_ledger_repository,
@@ -29,6 +32,8 @@ from src.infrastructure.agents.factories import (
     get_agent_session_repository,
     get_agent_session_summary_repository,
     get_personal_data_masker,
+    get_project_graph_repository,
+    get_project_graph_semantic_search,
 )
 from src.infrastructure.core.runtime.system_clock import get_clock
 from src.infrastructure.core.runtime.uuid_generator import get_id_generator
@@ -79,6 +84,10 @@ def get_chat_with_agent_use_case() -> ChatWithAgentUseCase:
         responder=get_agent_chat_responder(),
         clock=get_clock(),
         id_generator=get_id_generator(),
+        project_context=RetrieveProjectContextUseCase(
+            graph=get_project_graph_repository(),
+            semantic=get_project_graph_semantic_search(),
+        ),
     )
 
 

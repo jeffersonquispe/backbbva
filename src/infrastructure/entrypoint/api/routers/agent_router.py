@@ -299,6 +299,8 @@ def list_session_iterations(
             "specialist": item.decision.get("specialist"),
             "verification_status": item.decision.get("verification_status"),
             "specialist_verified": item.decision.get("specialist_verified", False),
+            "failure_stage": item.decision.get("failure_stage"),
+            "failure_code": item.decision.get("failure_code"),
             "experiment_verified": item.decision.get("experiment_verified", False),
             "decision": item.decision.get("action"),
             "reason": item.decision.get("reason"),
@@ -359,6 +361,8 @@ def send_message(
                 owner_id=str(user.id),
                 client_message_id=request.client_message_id,
                 content=request.content,
+                page_path=request.page_path,
+                role=str(getattr(user.role, "value", user.role)),
             )
         )
     except AgentChatNotFoundError as error:
