@@ -536,6 +536,30 @@ Frontend (`../frontend_mockup`):
   `CANARY_5`, avance `CANARY_25`/`CANARY_50`/`FULL`, rollback posterior a FULL,
   y la promoción bloqueada/desbloqueada de extremo a extremo. La aprobación
   debe reintentarse con alertas que superen la política real de revisión.
+  - Reejecución `make e2e-agent-h12-full-local` (2026-10-22): H8 y H11 pasaron
+    por nginx; experimento `d5e2e491-f87f-4382-9d8e-83c49ac510ea`, snapshot
+    `604667118b18f7d0a7122b0c22643b0d`, SHA-256
+    `a29cf05f88f5849c6643186020bcf725f3ff8c35c925d90bf3524bd0bba1bf4b`.
+    H12 validó retrospectiva y creó SHADOW, pero el primer review worker falló
+    tras tres ciclos: el revisor encontró solo evidencia de alta velocidad y
+    rechazó que `score=1.0` dominado por `amount` probara fraude. No hubo
+    observaciones ni promoción. El prompt de clasificación se reforzó contra
+    inferencias desde campos ausentes, velocidad y score, pero el fixture aún
+    carece de evidencia positiva suficiente. El E2E no leyó el agregado tras el
+    fallo; como el comparador registra activo/candidato antes de la revisión
+    adversarial, el conteo de esta alerta queda sin verificar. No se relajaron guardrails; falta
+    preparar un fixture con señal verificable o cubrir el bloqueo ante
+    desacuerdo. El stack terminó abajo y el puerto 80 liberado.
+  - Segundo intento (2026-10-22): enviar temporalmente `biocatch.isRat=true`
+    tampoco completó el review worker. El adaptador ARIC local devuelve
+    `aric_signals.is_rat=false`, prevalece sobre el payload, y el revisor marcó
+    la inconsistencia tras tres ciclos. El E2E no consultó el agregado; pudo
+    registrarse la comparación activo/candidato antes de la revisión. El worker terminó con
+    `AdversarialFeedbackLimitExceededError`; el E2E venció la espera de 180 s.
+    Los logs registran un reintento de llamada LLM y una respuesta posterior,
+    así que no fue un fallo terminal de transporte. Se retiró el valor
+    contradictorio; falta una fuente ARIC coherente o un fixture con decisiones
+    concordantes. El stack quedó apagado.
 - **Límites:** el E2E de claims cubre interferencia entre una sesión activa y
   una draft, no dos sesiones activas; el backend bloquea la segunda con 409.
   La edición asistida se ejecutó pero su aserción de auditoría aún requiere

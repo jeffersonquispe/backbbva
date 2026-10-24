@@ -30,6 +30,17 @@ read it before adding files. Rules every agent must follow:
   runs with `/tmp/aria-e2e.lock`; do not wait for the default frontend container
   to disappear before starting a run.
 
+- Before intensive agent-pipeline E2E runs, inspect available host/container
+  CPU and memory, current worker usage, and the worker service's configured
+  concurrency. Choose a safe worker replica count from those measurements,
+  leaving at least 20% memory headroom; then start/scale the test workers from
+  the CLI via `LOCAL_DOCKER_TEST_WORKERS=<count> make local-docker-run` (or the
+  corresponding Compose `--scale` command). Do not recreate or scale workers
+  while a test is actively processing jobs. The local baseline measured on
+  2026-10-22 was 15 CPUs and 7.75 GiB RAM; three total test-worker replicas
+  were the conservative setting for H9/H11. Re-measure on each machine/run
+  rather than assuming that count is universally safe.
+
 ## Always run before finishing a change
 
 ```bash

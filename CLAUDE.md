@@ -137,6 +137,19 @@ like `libgomp1`, CMD, ports) must be mirrored in the other.
   service. Extend this scenario when those contracts change.
 - Full real API browser suite: `make e2e-all-local`.
 
+### Intensive local agent E2E worker scaling
+
+Before intensive agent-pipeline E2E runs, inspect available host/container
+CPU and memory, current worker usage, and the worker service's configured
+concurrency. Choose a safe worker replica count from those measurements,
+leaving at least 20% memory headroom; then start/scale the test workers from
+the CLI via `LOCAL_DOCKER_TEST_WORKERS=<count> make local-docker-run` (or the
+corresponding Compose `--scale` command). Do not recreate or scale workers
+while a test is actively processing jobs. The local baseline measured on
+2026-10-22 was 15 CPUs and 7.75 GiB RAM; three total test-worker replicas
+were the conservative setting for H9/H11. Re-measure on each machine/run
+rather than assuming that count is universally safe.
+
 - **Hand-written in-memory fakes**, local to the test file. No
   `unittest.mock`, no shared `conftest.py` (none exists in the repo).
   Pattern: `class InMemoryXRepository` / `class RecordingXPort(XPort)` that
@@ -272,3 +285,37 @@ performance, and business decisions are tracked in `PENDIENTES.md` §6.
 - Fraud-knowledge use cases are internal capabilities used by worker/API
   flows. They intentionally have no dedicated public router or API surface;
   do not register one without an architecture decision.
+
+## Project graph — graph-RAG context for the chat agent
+
+`src/infrastructure/agents/project_graph/project_graph.json` is a generated
+property graph of ARIA: views, components, user actions, frontend API calls,
+endpoints, use cases, ports/adapters, API resources, assets, roles/permissions,
+plus curated **tasks** (ordered how-to steps) and **concepts** (domain terms).
+Never edit the JSON by hand: `make project-graph` rebuilds it from
+`scripts/ts_scan.mjs` (frontend, TypeScript compiler API), Python `ast` over the
+routers/use cases/ports/adapters, and `scripts/project_graph_curated.json`
+(descriptions, tasks, concepts; every id it references is validated, a dangling
+one fails the build). Rebuild whenever routes, components, API functions,
+routers, roles or the curated file change; `make project-graph-check` (also a
+pre-commit hook, skipped when `../frontend_mockup` is absent) fails if stale.
+
+Retrieval (`RetrieveProjectContextUseCase`): BM25 over name/keywords/
+description with a light Spanish stemmer + intent boosts ("qué es" → concepts,
+"cómo/dónde" → tasks) + history terms, optionally fused (RRF) with embeddings
+(`ProjectGraphSemanticSearch`, only when `EMBEDDING_MODEL` is set), the current
+view as a seed, then hub-damped 2-hop spreading activation over typed edges.
+**Role filtering is server-side**: `ProjectGraph.hidden_for(role)` drops views,
+tasks, actions, components, API calls and endpoints the role cannot reach
+(`ROLE_NAV` + `ROLE_PERMISSIONS` + `require_permission`); the role comes from
+the authenticated user, never from the message or the model. `page_path` is only
+a lookup key. `ChatWithAgentUseCase` injects the result as `project_context`,
+gives the model two read-only tools (`search_project`, `describe_node`, scoped
+to the same role/page and capped at 2 rounds) and stores validated
+`references` (chips; only nodes the model was shown and the role can reach) and
+`context_used` on the assistant message.
+
+Quality gate: `tests/test_infrastructure/test_agents/project_graph_golden.json`
+is the golden question set (every question must retrieve an expected node, for
+every role nothing hidden may leak). Add a golden question whenever a real
+question is answered badly, then fix the graph or the retrieval.

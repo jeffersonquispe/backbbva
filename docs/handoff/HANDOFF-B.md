@@ -664,3 +664,153 @@ a despliegue ni promoción productiva.
   productiva; el flujo de liberación gradual corresponde a H12.
 
 No se creó commit ni se hizo push.
+
+### Datos de entrenamiento y Excel de modus operandi — 2026-10-21
+
+Revisé `/Users/davidrojas/Downloads/Modus Operandi.xlsx`. Las hojas `Digital`
+y `Tarjetas` describen señales/reglas por canal; las hojas `Diccionario ...`
+aportan catálogos, entre ellos integration points y canales digitales. Los dos
+diccionarios de Integration Point aparecen duplicados. `Diccionario EventTypes`
+y `Diccionario Triggered Rules` no contienen valores aparte de sus encabezados.
+La hoja no debe cargarse como si fuera un dataset etiquetado de entrenamiento.
+
+El snapshot de entrenamiento ahora construye predictores solo con campos del
+esquema que no sean sensibles ni estén marcados como etiqueta, y excluye
+además los campos configurados para marca inicial, fecha inicial de marca,
+fecha de última marca y objetivo. La única columna de resultado que se guarda
+para entrenar es `fraud_label`; el mapeo de marcas sigue usándose internamente
+para elegir alertas maduras y derivar esa etiqueta. El snapshot registra la
+lista de campos excluidos para poder auditar la separación.
+
+La separación evita que decisiones de marcación posteriores se conviertan en
+predictores. Las reglas del Excel que usan expresiones como “sin marcación
+fraude” o describen hechos “previos o posteriores a la transacción fraude”
+requieren una definición temporal/as-of antes de convertirse en features; no
+se deben importar literalmente como señales de entrenamiento.
+
+Validación focalizada: `tests/test_application/test_use_cases/test_create_mature_sample_snapshot.py`
+comprueba que las marcas y otras etiquetas del esquema no aparecen en las filas
+de entrenamiento y que `fraud_label` es el target. El E2E global se ejecutó
+por nginx el 2026-10-21: 3.000 alertas elegibles,
+2.991 de tamaño estimado y 280 filas etiquetadas en la partición final;
+baseline y candidato quedaron comparados sobre esa partición. `make lint`
+pasó (Ruff/mypy 0), arquitectura 251/251 y la prueba focalizada 1/1. El stack
+local se apagó después de la corrida y el lock quedó liberado. La suite completa
+de Playwright no se ejecutó: este cambio afecta la construcción de snapshots,
+y se corrió el E2E global que crea y consume esa muestra.
+
+### Reintento acotado de llamadas LLM — 2026-10-22
+
+El adaptador compartido `LangchainChatModelUnitOfWork` ahora reintenta una vez
+ante fallos transitorios del proveedor (conexión, timeout, HTTP 429/5xx y
+códigos transitorios de Bedrock), con espera de 250 ms. Errores no transitorios
+siguen fallando de inmediato. El span registra cantidad de reintentos/intentos
+y tipo de error, sin persistir el mensaje del proveedor.
+
+Pruebas del adaptador y consumidores: 10/10; `make lint` (Ruff/mypy 0/0) y
+`make test-architecture` (251/251) pasaron. `make e2e-agent-h11-local` pasó
+por nginx: H8 evaluó 316 filas etiquetadas y H11 terminó `SUCCEEDED`; su
+escenario H9 confirmó los campos de diagnóstico en la API. La corrida no
+inyectó un error transitorio, por lo que valida la integración, no el camino
+de reintento en el proveedor real. El stack se apagó al terminar.
+
+### Reanudación del diagnóstico H11 — 2026-10-23
+
+Se conservaron los artefactos locales y se repitió el smoke con 3 workers.
+Primer intento: H8 reservó 36 filas finales de 360 elegibles; H11 terminó con
+`GLOBAL_EVALUATION_FAILED`. Los 36 workflows quedaron persistidos: 9
+`SUCCEEDED`, 27 `FAILED`, mayormente por objeciones adversariales sobre scores
+sin calibrar, señales ARIC nulas y uso de `retail` como contraparte.
+
+Segundo intento: como no se borraron los fixtures anteriores, el muestreador
+vio 720 alertas elegibles y reservó 61 filas finales. H11 volvió a fallar;
+27 workflows `SUCCEEDED` y 34 `FAILED`. El revisor identificó además que el
+perfil determinista no separaba explícitamente el score BioCatch de los flags
+ARIC, que la ausencia de cambios reportados podía leerse como ausencia de
+cambios, y que `approved` no verifica legitimidad. El código ahora separa
+esas evidencias, evita inferir recurrencia de beneficiario desde `retail` y
+añade criterios simétricos al prompt adversarial. Los códigos seguros de
+fallo del scorer se conservan (`PIPELINE_REPLAY_WORKFLOW_FAILED`) sin guardar
+mensajes de excepción ni payloads.
+
+Pruebas focalizadas actuales: 47/47; `make lint`: Ruff/mypy 0/0, baseline 0;
+`make test-architecture`: 253/253. El segundo E2E se construyó antes de la
+última precisión de la narración sobre flags, estados históricos y cambios
+reportados, por lo que esas correcciones aún requieren una nueva verificación
+E2E. H11 no se declara verificado por esta repetición fallida. Los registros
+de ambas corridas se conservaron; el stack quedó restaurado a una réplica del
+worker de test y configuración normal.
+
+### Reanudación del trabajo — 2026-10-23
+
+Se repitió H9 sobre el snapshot ya existente de 61 alertas, sin sembrar ni
+eliminar datos. En DynamoDB local quedaron 29 workflows `SUCCEEDED` y 32
+`FAILED`; el experimento terminó con `PIPELINE_REPLAY_WORKFLOW_FAILED`. Los
+errores detallados muestran tres patrones que la narración y los prompts aún
+deben resolver: (1) reviewers y clasificadores confunden scores disponibles
+pero no calibrados con ausencia de señales, y flags ARIC nulos con señales
+limpias; (2) asocian `retail` o tres transacciones `approved` con recurrencia o
+legitimidad; (3) omiten o no ponderan una hora exacta repetida en varias fechas
+y una fecha de modificación sin detalle. El perfil determinista ahora expone
+la fecha de modificación, califica la muestra como rango observado y narra la
+hora repetida como un patrón a revisar; los prompts del clasificador y revisor
+se reforzaron para mantener esas distinciones.
+
+El script Playwright detectó `fetch failed` al restaurar settings mediante
+`fetch` de Node directo y dejó el proceso de navegador abierto. Se corrigió la
+limpieza para usar el proxy same-origin `/api/...` del navegador y cerrar el
+navegador aun si una restauración falla. Se restauraron los valores previos de
+settings (optimizador apagado, máximo 5 sesiones, cero renovaciones) mediante
+el repositorio y se registró la restauración en auditoría. No se borró ningún
+workflow, snapshot o sesión. El stack volvió a un worker de test y
+`E2E_PRESERVE_DATA=0`.
+
+Después de los cambios, pruebas focalizadas: 50/50; `make lint`: Ruff/mypy 0/0,
+baseline 0; `make test-architecture`: 253/253; `node --check` y
+`git diff --check` limpios. El E2E no pasó y no se repitió tras los últimos
+cambios de prompts; no se declara H11 verificado.
+
+### Estado corregido de la reanudación — 2026-10-23
+
+La corrida H9 lanzada sobre el snapshot preservado de 61 alertas terminó con
+37 workflows `SUCCEEDED` y 24 `FAILED`. Playwright salió con
+`page.evaluate: TypeError: Failed to fetch` durante la restauración final de
+settings; por eso ese E2E no pasó, aunque los workflows terminaron después.
+Actualicé la corrida a `FAILED`, el experimento y la iteración a `FAILED` con
+`PIPELINE_REPLAY_WORKFLOW_FAILED`, y cancelé la sesión mediante el caso de uso
+auditado. Los 61 workflows, el snapshot y sus evidencias siguen preservados.
+El optimizador quedó apagado, con máximo 5 sesiones y 0 renovaciones; la cola
+de test está en una réplica y el frontend sigue arriba.
+
+El perfil determinista ahora acepta roles de esquema `biocatch_score`,
+`model_score` y `max_amount_*` aunque cambien los nombres fuente. Para los
+máximos legados usa el nombre del campo seleccionado como etiqueta, sin
+depender de un catálogo fijo de columnas fuente. Verificación tras el cambio:
+51 pruebas focalizadas, Ruff/mypy 0/0, arquitectura 253/253 y
+`git diff --check` limpio. Sigue pendiente validar el comportamiento con un
+E2E real pequeño; no se repitió el H9 de 61 alertas.
+
+El endpoint de cola `GET /api/v0/analyst-queue/in-process` respondió por nginx
+en `http://localhost` (401 sin autenticación), confirmando que la ruta está
+disponible. No corrí `analyst-queue-real.spec.ts`: faltan las cuatro variables
+`E2E_MANAGER_*` y `E2E_FRAUD_ANALYST_*`; el stack tampoco se reconstruyó después
+de los últimos cambios de perfil. No modifiqué ni limpié el workspace frontend.
+
+### Smoke H8 preservando datos — 2026-10-23
+
+Reconstruí solo API, MCP y los workers backend necesarios; el worker de test se
+quedó en una réplica. El E2E H8 por nginx se lanzó con
+`E2E_AGENT_FAST=1 E2E_PRESERVE_DATA=1`, de modo que no se borraron fixtures ni
+artefactos previos. El fixture agregó 360 alertas sintéticas, pero el muestreador
+encontró 1.079 alertas elegibles y evaluó 101 filas etiquetadas en la partición
+final al combinar datos preservados. H8 terminó `SUCCEEDED`.
+
+No inicié H9: la muestra efectiva no era de aproximadamente 30 casos, como se
+había pedido. El intento anterior con `poetry run` no aplicaba porque este repo
+no tiene `pyproject.toml`; el comando ejecutado con éxito fue
+`python -u scripts/e2e_global_pipeline_local.py`. API y nginx quedaron sanos,
+los workers reportaron cero tareas activas/reservadas y los ajustes mutables
+fueron restaurados por el `finally` del guion. Los registros sintéticos nuevos,
+el snapshot y los modelos de esta corrida se conservaron. El próximo paso es
+aislar una muestra de 30 sin limpiar datos existentes y recién entonces correr
+el Playwright H9.

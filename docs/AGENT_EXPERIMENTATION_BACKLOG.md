@@ -68,9 +68,170 @@ channel manager, en dos modos:
   crea o edita entidades (Biblioteca, configuración del agente, Vector Stores,
   modelos XGBoost) como borradores que el usuario confirma.
 - **Optimizador**: ciclo largo y autónomo que diagnostica, prueba, analiza
-  fallos y decide el siguiente experimento. No pide aprobación entre pasos ni
-  construye paquetes de resultados. Al detenerse presenta el estado acumulado;
-  `manager` o `release_manager` debe aprobar cualquier promoción a producción.
+  fallos y decide el siguiente experimento sobre las capacidades existentes de
+  pruebas, configuraciones y modelos. El usuario puede iniciar con un objetivo
+  amplio o un síntoma concreto y agregar observaciones/feedback durante la
+  misma conversación. El agente los investiga como hipótesis, no como verdad
+  automática. No pide aprobación entre pasos ni construye paquetes de
+  resultados. Muestra actividad útil (herramienta, acción y estado/progreso) y,
+  al detenerse, entrega hallazgos, evidencia, cambios probados y un candidato
+  si existe. Si no mejora, explica qué falló y por qué con evidencia; si queda
+  bloqueado, pausa conservando el contexto para que el usuario pueda aportar
+  feedback. `manager` o `release_manager` debe aprobar cualquier promoción a
+  producción.
+
+**Alcance acordado del MVP (2026-10-21).** El optimizador es una capacidad
+adicional: no reemplaza ni restringe los flujos manuales existentes. El usuario
+debe poder seguir configurando y ejecutando desde las pantallas actuales todo
+lo que el agente usa. La autonomía para elegir hipótesis y el siguiente
+experimento es la capacidad nueva del agente; sus herramientas no se vuelven
+pasos exclusivos del chat. El agente puede trabajar a lo largo del pipeline de
+pruebas, configuraciones y modelos. La UI presenta sus herramientas y avance
+para dar visibilidad, sin pedir aprobación por cada acción. Sus informes,
+insights y feedback usan agregados con el umbral mínimo de 30 casos; para
+investigar casos individuales el usuario navega las páginas existentes según
+sus permisos. La evidencia requerida para este MVP demuestra que el agente
+recorre el pipeline y produce una explicación/candidato útil; no exige una
+configuración lista para producción, despliegue productivo ni mejorar con un
+dataset de producción. La preparación de un dataset nuevo y la homologación en
+OKD se difieren y no bloquean este alcance.
+
+**Puerta mínima para un piloto del MVP:** (1) demostrar en el stack integrado
+una sesión completa del optimizador que haga al menos un cambio de
+configuración en una etapa y lo pruebe con el flujo real de revisión de alertas
+(perfilamiento, XGBoost, LLM/revisión adversarial y decisión final), mida el
+efecto global, acepte feedback y termine con un informe explicable y un
+candidato; (2) H12 debe recorrer aprobación, despliegue gradual simulado en el
+stack local y rollback del conjunto exacto de configuración y modelo evaluado,
+con aprobación humana y E2E real; (3) reconstruir el stack y repetir los E2E de
+agente y la suite general, resolviendo o aislando los fallos conocidos. No son
+bloqueantes para este piloto el dataset nuevo, OKD ni demostrar calidad de
+producción.
+
+**Backlog futuro, fuera del enfoque de este MVP (acuerdo 2026-10-22):**
+
+- **Checkpoints y reinicios.** Permitir pausar una optimización larga y
+  retomarla después, incluso tras reinicios de workers o despliegues, desde el
+  último lote confirmado. Conservar y validar el snapshot, sus hashes, los pins
+  de componentes, el avance y los resultados parciales; reintentar solo el
+  trabajo pendiente de forma idempotente. El MVP actual no requiere pausar y
+  reanudar una evaluación interrumpida.
+- **Observabilidad ampliada y correlacionada.** Mostrar qué desencadenó cada
+  decisión del agente (objetivo inicial, feedback del usuario, hallazgo o
+  resultado anterior) y enlazarla con la hipótesis, la herramienta invocada,
+  sus parámetros seguros, el experimento/test run y las acciones y resultados
+  de cada etapa del pipeline de pruebas. Esto va más allá de la actividad e
+  informe visibles requeridos por el MVP; no bloquea su cierre.
+- **Alertas administrables de los monitores.** Persistir una entidad de alerta
+  derivada de indicadores y reglas versionadas del monitor. Debe guardar el
+  indicador y la condición que disparó, ventana/valor agregado, severidad,
+  huella de deduplicación, primera y última observación, estado, responsable,
+  acuse, resolución e historial de auditoría. Relacionarla con la configuración
+  y ejecución del monitor y, cuando aplique, con la sesión/experimento del
+  optimizador. Incluir una vista para filtrar, asignar, reconocer, silenciar y
+  resolver alertas; empezar con reglas deterministas y sin payloads ni filas de
+  alertas fuente. Fuera del MVP actual.
+
+**Decisiones para planificar esta fase:** confirmar si las alertas son para
+operadores de plataforma, usuarios del optimizador o ambos; los canales de
+entrega y severidades; quién puede reconocer/asignar/resolver/silenciar; y si
+una sesión interrumpida por reinicio debe reanudarse automáticamente o esperar
+a que el usuario la reanude. La implementación debe cubrir deduplicación y
+transiciones idempotentes, retención, permisos, trazabilidad de cambios y
+recuperación segura ante reintentos.
+
+**Secuencia sugerida:** (1) correlación de disparador → decisión → herramienta →
+pipeline → resultado; (2) entidad y ciclo de vida de alertas del monitor,
+consumiendo los indicadores existentes; (3) checkpoints durables sobre estados
+correlacionados, con reanudación idempotente tras reiniciar workers. Cada etapa
+queda fuera del alcance y de los criterios de salida del MVP actual.
+
+**Plan técnico de cierre — listo para ejecutar, sin decisiones de producto
+pendientes:**
+
+1. **Aislar el replay del pipeline.** Añadir un origen/modo explícito de
+   evaluación del optimizador que invoque los mismos pasos y adaptadores que
+   `RunAlertReviewWorkflowUseCase`, fijando configuration/schema/model/library/
+   vector-store por versión y hash. La ejecución conserva las salidas de
+   Detector, revisión adversarial, Clasificación, Adversarial, Analista y
+   resolución final; no llama despachadores reales de bloqueo, voz, escalamiento
+   o documentación, no cambia `mark`/`fraud_label`, no escribe rollups y no
+   cambia componentes activos. Los datos del caso viven solo en memoria del
+   worker; persisten identificadores de experimento, pins, tiempos, estado,
+   códigos seguros y agregados protegidos. El replay debe poder ejecutarse dos
+   veces sobre la misma fila y producir una pareja comparable.
+2. **Corregir el evaluador de iteraciones.** Ejecutar baseline y candidato
+   sobre los mismos IDs de la partición `validation`; nunca pasar a los pasos
+   del pipeline las columnas de marca/resultado, fechas de marcación ni campos
+   derivados de ellas. Esas columnas se leen aparte para puntuar según el
+   mapping del esquema y solo para filas maduras, clasificables y con etiqueta
+   `fraud`/`no_fraud`. Las filas `pending`, fallidas o no clasificables no
+   cuentan en precisión/recall; se informan en cobertura/fallos. Usar la
+   partición `training` para entrenar modelos candidatos; reservar `final`
+   intacta hasta que la sesión termine y medir allí una sola vez el pipeline
+   global elegido. La decisión final se deriva del mismo mapping operativo de
+   `workflow_resolution`; una resolución `pending` no se convierte en negativa.
+3. **Evaluar señales por etapa y resultado global.** Por cada pareja, derivar
+   categorías normalizadas de Detector, Clasificación, revisiones adversariales
+   y resolución final; comparar también la salida global `mark` que corresponda
+   a `fraud`/`no_fraud`/`pending`. Perfilamiento, features, rúbricas y herramientas
+   se conservan como evidencia de ejecución y uso, no se fuerzan a una métrica
+   binaria. Calcular precisión/recall/F1 y delta pareado con IC 95 %; publicar
+   segmentos solo con soporte mínimo 30. Mantener el piso de precisión y
+   maximizar recall según el objetivo versionado. No declarar ganador cuando
+   haya fallos críticos, muestra inválida o cobertura insuficiente.
+4. **Conectar especialistas al evaluador real.** La vista previa de
+   configuración solo valida estructura/diff; no puede marcar el cambio como
+   probado. Una ejecución de configuración/modelo/Vector Store solo se sella
+   `PASSED` cuando el replay y sus controles terminan. El loop selecciona la
+   siguiente herramienta a partir de los resultados agregados; el feedback del
+   usuario se registra como hipótesis investigable. Las llamadas LLM conservan
+   reintentos acotados y reportan un código final si agotan reintentos.
+5. **Promover como conjunto en H12.** Persistir pins exactos baseline/candidato
+   (modelo, configuración, Biblioteca, Vector Store), sin rellenar componentes
+   cambiados con valores activos posteriores. Introducir un puntero único a
+   `ActiveAgentBundle` y leerlo una vez por alerta; el cambio a FULL y rollback
+   hacen compare-and-swap de ese puntero, evitando mezclar pins de distinta
+   generación. SHADOW ejecuta ambas versiones sobre la misma alerta; la versión
+   activa conserva todas las acciones y la candidata corre en sandbox sin
+   efectos. CANARY asigna alertas con hash estable; el candidato controla solo
+   su cohorte y la réplica baseline queda sin efectos para comparar por pares.
+   Aplicar 30 observaciones mínimas por etapa para habilitar avance y un máximo
+   de 5 % de desacuerdo en salidas decisorias normalizadas. Calcularlo por
+   segmento; publicar segmentos solo con soporte mínimo 30. Si falta soporte o
+   se excede el desacuerdo, congelar avance y ofrecer rollback. FULL y rollback
+   cambian/restauran atómicamente todos los pins. Solo
+   `manager`/`release_manager` solicitan/aprueban avances; el optimizador nunca
+   promueve.
+6. **Completar interfaz y prueba integrada.** Mostrar etapa/herramienta,
+   progreso, reintentos, errores seguros, feedback, métricas agregadas y
+   explicación final; no mostrar filas ni identificadores individuales. E2E
+   Playwright por nginx recorre: iniciar sesión, observar cambio real en una
+   etapa, confirmar que ambas variantes ejecutaron los mismos casos, verificar
+   una salida candidata y su agregado, enviar feedback, terminar con informe,
+   solicitar H12, rechazar rol no autorizado, aprobar como manager, progresar
+   con observaciones reales del worker y revertir todos los pins. La prueba
+   debe leer respuestas reales de API/worker y no interceptar ni simular
+   solicitudes API.
+
+**Ejemplo de aceptación de configuración:** el baseline no crea una feature
+derivada de historial; el candidato añade esa feature en el enriquecedor y
+ajusta el prompt del clasificador para usarla. Ambos se ejecutan sobre la misma
+alerta sintética sin enviar sus campos de marca/fecha. La evidencia debe
+mostrar que el paso de perfilamiento produjo la feature, que el clasificador
+recibió la configuración/version candidata y que se conservaron sus salidas
+de detector, revisiones, clasificación y decisión final. La UI muestra el
+agregado pareado; el usuario puede dejar feedback y el optimizador lo usa como
+hipótesis para su siguiente iteración. No se exige que el candidato gane; si
+no mejora, debe explicar el resultado y no solicitar promoción automáticamente.
+
+**Reglas de aislamiento para implementación:** crear/usar datos de origen de
+prueba con IDs dedicados; excluirlos de métricas de operación y acciones
+externas; asegurar que `fraud_label`, marcas y sus fechas nunca entren al prompt,
+features ni herramientas del pipeline; guardar solo resultados agregados con
+procedencia de snapshot/schema/pins; borrar artefactos temporales según la
+retención existente. Ninguna configuración, modelo, Biblioteca o Vector Store
+activos cambia durante exploración o SHADOW.
 
 **Cómo trabajar con el usuario** (no volver a preguntar lo decidido):
 - Hablar en español. Los términos abstractos le confunden: explicar con un
@@ -95,8 +256,11 @@ channel manager, en dos modos:
 | Alcance del asistente | Biblioteca (crear, editar, proponer eliminar), configuraciones versionadas, Vector Stores y modelos XGBoost. Nunca `OperationalSettings` | Dec. 10, 16, 18 |
 | Roles del asistente | Los mismos que crean a mano cada entidad | Dec. 11 |
 | Roles del optimizador | Solo `channel_manager` lo activa y decide lo que el agente le escala | Dec. 15, 23 |
-| Interfaz | Panel lateral derecho superpuesto en Configuración, Testing, Biblioteca y Modelos. El optimizador es una pestaña (conversación) con su progreso y no bloquea el chat | Dec. 15, 20 |
+| Interfaz | Panel lateral derecho superpuesto en Configuración, Testing, Biblioteca y Modelos. El optimizador es una pestaña/conversación con actividad y progreso visibles; el usuario puede agregar feedback durante la sesión y el panel no bloquea el chat | Dec. 15, 20; alcance MVP 2026-10-21 |
 | Interferencia | Si un optimizador trabaja sobre lo mismo, el asistente muestra un aviso (informativo, no bloquea) | Dec. 16, BM.8 |
+| Paridad manual | Todas las capacidades existentes usadas por el agente siguen disponibles en sus pantallas manuales; el optimizador es opcional y no convierte sus herramientas en flujos exclusivos | Acuerdo de producto, 2026-10-21 |
+| Feedback e insights | El usuario puede aportar observaciones en cualquier momento de la conversación; se investigan como hipótesis. Insights y explicación de resultados usan agregados protegidos; los casos individuales se consultan en las pantallas existentes y bajo los permisos actuales | Acuerdo de producto, 2026-10-21 |
+| Evidencia MVP | Demostrar el recorrido autónomo por pruebas, configuraciones y modelos, visibilidad de actividad y un informe útil aunque no haya mejora. No se exige preparación del nuevo dataset ni calidad de producción | Acuerdo de producto, 2026-10-21 |
 | Chat | Polling con `after_seq` | Dec. 12 |
 | Prompts del agente | Versionados e inmutables; los gestionan los desarrolladores; sin evaluación previa por ahora; el agente no edita los suyos | Dec. 17, B1.6 |
 | Éxito | `fraud_label` una vez pasada la ventana de maduración (única, configurable); las alertas inmaduras se ven en el monitoreo pero no las usan el reentrenamiento ni el agente | Dec. 1, B0.1 |
@@ -1738,6 +1902,12 @@ evaluada. La suite completa registró 19 pasadas, 7 fallidas y 1 omitida;
 los fallos de la suite completa. **Este estado es el corte histórico del
 2026-10-20; H11 se inició después.**
 
+**Alcance real de la prueba de configuración:** el ejecutor H10 genera una
+versión candidata después de validarla con `PreviewConfigurationUseCase`; esa
+validación compara y revisa cambios, pero no ejecuta la candidata sobre
+alertas. La prueba E2E H10 del modelo no demuestra que los cambios de
+configuración alteren y mejoren el resultado del pipeline.
+
 ### H11 — Combinaciones, revisión y operación
 Evaluación adaptativa de combinaciones (B3.3), comparación de experimentos y
 resultados acumulados (FP6), herramientas operativas, historial y auditoría en
@@ -1749,8 +1919,13 @@ intermedia; la aprobación de promoción queda en el flujo existente de
 **H11 cerrado por decisión del usuario (2026-10-21); ver estado consolidado en
 `docs/handoff/HANDOFF-B.md`.** El worker compone resolver, runner pareado y
 scorer MCP para evaluar los cuatro componentes sobre un snapshot final común
-con hash reproducible. La política versionada `evidence_only_v1` limita
-Biblioteca/Vector Store a evidencia. Playwright por nginx comprobó soporte 29
+con hash reproducible. Precisión del alcance técnico: el endpoint MCP
+`score-pinned-pipeline` puntúa XGBoost y aplica filtro/umbral de la
+configuración; no ejecuta el flujo real de perfilamiento, LLM, revisión
+adversarial, analista y ejecutor. Biblioteca y Vector Store aportan un conteo
+de evidencia, pero sus búsquedas tampoco recorren ese flujo. La política
+versionada `evidence_only_v1` limita Biblioteca/Vector Store a evidencia.
+Playwright por nginx comprobó soporte 29
 suprimido y soporte 30 publicado (`event_type_E2E_SUPPORT_30`: 30), cuatro pins,
 auditoría y candidato inactivo. Snapshot
 `ee2a1ca652f851b5c86c8a5968d789cf`, SHA-256
@@ -1764,6 +1939,30 @@ producción. El último build del target completo tuvo una falla transitoria al
 descargar Poetry; el sembrado H8 y Playwright H11 se ejecutaron directamente
 por nginx en el stack local levantado.
 
+**Reejecución diagnóstica (2026-10-23):** dos smokes H11 por nginx no
+completaron el replay del pipeline real. El primer lote tuvo 9/36 workflows
+`SUCCEEDED`; el segundo, 27/61. Los errores están persistidos en DynamoDB local
+porque se desactivó la limpieza para esta corrida. Las objeciones apuntaron a
+ambigüedades de narración entre score BioCatch y flags ARIC, inferencias sobre
+estados `approved`, falta de datos y contraparte genérica `retail`. Se corrigió
+esa narración y se añadió al revisor una política explícita para scores no
+calibrados, campos no disponibles y categorías genéricas. También se conserva
+el código seguro `PIPELINE_REPLAY_WORKFLOW_FAILED` en el experimento. Pruebas
+focalizadas 47/47, lint 0/0 y arquitectura 253/253; falta repetir el E2E con
+estas últimas correcciones, así que no se declara verde.
+
+**Reanudación de desarrollo (2026-10-23):** la repetición sobre el snapshot
+preservado de 61 filas terminó con 29 workflows `SUCCEEDED`, 32 `FAILED` y
+`PIPELINE_REPLAY_WORKFLOW_FAILED`. El patrón horario repetido y la fecha de
+modificación del cliente no se estaban incorporando bien al razonamiento; la
+muestra corta y `retail` también se sobreinterpretaban como historial
+confirmatorio. El perfil determinista y los prompts del clasificador/revisor
+se ajustaron para distinguir señal no calibrada, dato no disponible, muestra
+observada, fecha de modificación y patrón temporal. También se corrigió la
+limpieza del Playwright H9 para restaurar settings por `/api` same-origin y
+cerrar Chromium ante errores. Pruebas focalizadas 50/50, lint 0/0, arquitectura
+253/253. El E2E aún no pasa y requiere repetición con estas últimas correcciones.
+
 ### H12 — Validación y salida gradual
 Evaluación retrospectiva, shadow mode, promoción gradual con rollback
 (X8.1 a X8.3) y E2E de punta a punta del optimizador (FP8).
@@ -1775,9 +1974,65 @@ retrospectivo recarga el snapshot final, comprueba su hash persistido y vuelve
 a calcular el objetivo y los pins. SHADOW no cambia decisiones; el canary usa
 bucket estable por alerta y registra comparaciones deduplicadas en el review
 worker. Se exige mínimo 30 observaciones y desacuerdo máximo 5 % en cada etapa.
-Solo manager/release_manager pueden aprobar, avanzar o revertir. La versión 1
-permite rollout de modelo únicamente y conserva iguales los pins de
-configuración, Biblioteca y Vector Store.
+Solo manager/release_manager pueden aprobar, avanzar o revertir. La política
+implementada actualmente permite rollout de modelo únicamente y conserva
+iguales los pins de configuración, Biblioteca y Vector Store; esto es una
+limitación de implementación, no el alcance de producto acordado.
+
+**Alcance objetivo de promoción H12:** el candidato promovible es el conjunto
+versionado que produjo el resultado evaluado: modelo, configuración completa
+del pipeline y, cuando cambien, Biblioteca y Vector Store. La configuración
+incluye las etapas ajustables existentes, por ejemplo enriquecimiento y
+features, reglas/rúbricas, detector/XGBoost, clasificación, revisión
+adversarial y ajustes del analista/ejecutor. El optimizador puede hacer varios
+cambios en esas etapas, medir sus interacciones y volver a iterar sin pedir
+aprobación entre pruebas. H12 debe fijar los pins exactos del conjunto,
+validarlo sobre el mismo snapshot, ejecutar SHADOW/canary con ese conjunto y
+restaurar el conjunto previo completo al hacer rollback. El agente solo
+presenta el resultado y solicita aprobación; no activa ni escala candidatos.
+La promoción sigue requiriendo aprobación de `manager` o `release_manager`.
+Los componentes sin cambios conservan el pin de baseline. Los ajustes globales
+reservados a esos roles siguen fuera de la configuración candidata.
+
+**Brecha pendiente:** ampliar la política y los contratos H12 para aceptar
+candidatos que cambien configuración y combinaciones de componentes, y
+verificar que el runtime del review worker aplique los pins del mismo conjunto
+durante SHADOW, canary, FULL y rollback. El observador actual compara la salida
+de XGBoost; no ejecuta baseline y candidato sobre la misma alerta ni compara
+la decisión final bajo dos configuraciones. Antes de permitir configuración
+en el rollout, H12 debe evaluar ambos pipelines en modo aislado, sin repetir
+efectos productivos (marcación, escalamiento, voz o escritura), y comparar sus
+resultados de extremo a extremo. El canary debe servir el candidato solo al
+porcentaje asignado, conservar la evaluación pareada y restaurar el conjunto
+previo al rollback. Añadir E2E real que pruebe una configuración modificada en
+una o más etapas, aprobación humana, progresión, guardrails y restauración del
+conjunto completo. La cobertura actual de modelo solo no cierra este alcance.
+
+**Guard de aislamiento separado de corridas existentes (2026-10-22):** el paso
+`executor` simula la acción propuesta para `TEST_RUN` y
+`OPTIMIZER_EVALUATION`, sin routing, reservas ni despachos de bloqueo, voz o
+escalamiento. Ambos orígenes omiten documentación asíncrona, juez LLM y
+escalamiento operativo por fallo. `TEST_RUN` conserva sus métricas históricas;
+`OPTIMIZER_EVALUATION` omite tanto eventos de métricas operativas como rollups
+por etapa, incluida la métrica de llegada al crear la corrida. Las pruebas
+focalizadas comprueban ambos comportamientos. Esto no implementa todavía
+replay pareado aislado con configuración candidata, ni demuestra todas las
+etapas con variantes.
+Verificación actual: pruebas focalizadas 40/40; `make lint` Ruff/mypy 0;
+arquitectura 251/251; suite completa 1513 pasadas/8 omitidas. `make
+e2e-all-local` reconstruyó el stack y terminó con 19/27 pasadas, 5 fallidas
+(FP2/FP3, FP4/FP5, alerta canónica/historial, E05 activación por rol y E10
+reporte), 3 no ejecutadas; sus causas no se atribuyen a este guard. La alerta
+de esquema que excluye labels del input sí pasó. `make e2e-observability`
+pasó 1/1. La suite E2E general no queda verde.
+
+**Alcance de producto para H12 (acuerdo 2026-10-21):** H12 sigue dentro del
+MVP porque conserva la validación y la promoción controlada del candidato. El
+agente puede investigar y recomendar de forma autónoma, pero no activa ni
+promueve por sí mismo; la aprobación de `manager` o `release_manager` sigue
+siendo obligatoria. El MVP debe comprobar los flujos existentes con sus E2E
+reales. Esto no exige desplegar en OKD ni demostrar rendimiento con el dataset
+que se preparará después.
 
 `make e2e-agent-h12-local` encadena H11 y H12; el H12 resume target reusa un
 resultado H11 guardado para iterar sin reentrenar. En 2026-10-21 pasó el tramo
@@ -1827,6 +2082,85 @@ cada etapa para reunir 30 observaciones por ventana, validar avance de
 aprobada. La cobertura de routing/observación canary actual es unitaria con
 fakes; el E2E no inyecta conteos falsos. H12 no se declara cerrado hasta que
 FP8 ejecute ese recorrido real integrado.
+
+**Reejecución integradora posterior (2026-10-21):** se repitieron los E2E
+después de acordar el alcance de producto. `make e2e-agent-h12-local` no llegó
+a H12: el H11 encadenado falló en
+`scripts/e2e_agent_h9_local.mjs:207` porque la evaluación devolvió segmentos
+vacíos (`{}`) y no publicó `E2E_SUPPORT_30` con soporte exacto 30. La
+reanudación `make e2e-agent-h12-resume-local`, usando el JSON H11 que ya estaba
+guardado, sí entró al flujo H12 pero recibió `422 SNAPSHOT_INVALID` al validar
+retrospectivamente. Por tanto, la ejecución histórica descrita arriba queda
+como evidencia histórica; esta repetición no quedó verde y H12 aún requiere
+una corrida nueva aprobada. No se confirmó la causa de ninguno de los dos
+fallos. El stack local se apagó al terminar y el puerto 80 quedó liberado.
+
+**Seguimiento de la reejecución (2026-10-21):** se corrigió el fixture H8 para
+usar la fecha UTC del API y el mapping completo del sampler. `make
+e2e-agent-global-pipeline-local` pasó (3.000 alertas elegibles); H11 pasó
+repetidamente por nginx, incluyendo los cuatro pins y la publicación de
+`E2E_SUPPORT_30` con soporte 30. La última corrida dejó el experimento
+`477e2d0c-f83d-41d0-9409-a95f22003fda`, snapshot
+`99f4c694086ef072864331d18272974a` y candidato inactivo. H12 validó el snapshot,
+creó SHADOW y llegó al review worker con una alerta real. Se corrigió el detector
+para que los reintentos tras objeción adversarial pasen por el LLM con el score
+como evidencia y el feedback del revisor. Ruff/mypy quedaron en 0, arquitectura
+en 251/251 y `test_run_detector.py` en 13/13; el proceso pytest quedó atascado
+en el cierre de OpenTelemetry y se interrumpió. En la siguiente corrida H11
+volvió a pasar (experimento `a78bc710-f105-45e5-811c-913bf3b067d7`, snapshot
+`5a535b0fbeec943b02a1a43a720225ee`) y el review worker llegó a tres ciclos,
+pero falló porque no pudo verificar una contraparte del evento actual en el
+contexto normalizado por el esquema activo. El fixture usa ahora los nombres de
+historia reconocidos por el preprocesador; la contraparte actual aún no aparece
+de forma reconocible para el revisor. No se relajaron guardrails ni se
+inyectaron observaciones. H12 FULL, las 30 observaciones por etapa y rollback
+posterior a FULL siguen sin verificar. El stack se apagó y el puerto 80 quedó
+liberado; no hay evidencia de despliegue ni de rendimiento productivo.
+
+**Último intento (2026-10-21):** se amplió el schema seed del E2E para exponer
+los campos semánticos `counterparty`, `device_id` y `session_id`, además de los
+campos parametrizados del historial. La corrida no llegó a H12: H11 se detuvo
+tras una iteración con `stopped_no_signal` y sin hipótesis que conservara
+evidencia. Los logs del worker confirman el cierre sin señal, pero no aíslan si
+lo provocó este cambio o la variabilidad del optimizador. No se cuenta como
+verificación aprobada del nuevo schema seed; H11 debe repetirse y producir la
+hipótesis evaluada antes de reintentar el review worker de H12.
+
+**Corrida H12 FULL (2026-10-22):** `make e2e-agent-h12-full-local` reconstruyó
+el stack y pasó H8 por nginx con 3.000 alertas elegibles (2.991 estimadas; 305
+filas etiquetadas en final). H11 pasó con experimento
+`d5e2e491-f87f-4382-9d8e-83c49ac510ea`, snapshot
+`604667118b18f7d0a7122b0c22643b0d`, SHA-256
+`a29cf05f88f5849c6643186020bcf725f3ff8c35c925d90bf3524bd0bba1bf4b`, pins de
+los cuatro componentes, soporte publicado de 30 y candidato inactivo. H12
+validó retrospectivamente y creó SHADOW, pero el primer review worker falló
+después de tres ciclos adversariales. La objeción concreta fue que la evidencia
+solo apoyaba alta velocidad y que un score 1.0 dominado por `amount` no
+demostraba fraude. El prompt de clasificación ahora indica tratar campos
+ausentes como no disponibles y score/velocidad como señales, no pruebas; la
+repetición muestra que el fixture H12 todavía no aporta evidencia positiva
+suficiente para la decisión del detector. El E2E no consultó el agregado H12
+después del fallo; el comparador registra activo/candidato durante el scoring,
+antes de la revisión adversarial, así que no se puede afirmar que el conteo
+quedó en cero. Aprobación, progresión CANARY/FULL y rollback posterior a FULL
+no quedaron cubiertos. Mantener guardrails: preparar un fixture con evidencia positiva
+verificable compatible con el esquema o verificar el rechazo esperado ante
+desacuerdo. Lint, arquitectura y prueba focalizada de clasificación pasaron; el
+stack se apagó con `make local-docker-down` y se liberó el puerto 80.
+
+**Segundo intento H12 FULL (2026-10-22):** se probó temporalmente `isRat=true`
+en el payload de la alerta. H8 y H11 volvieron a pasar (experimento
+`5215c2fb-7e86-43ed-b5dc-3aa2505e79ba`, snapshot
+`f5b55ac4aae6e8ae366ef08a9aa25a3c`), pero H12 no generó observaciones. El
+adaptador ARIC local devuelve `aric_signals.is_rat=false` y prevalece sobre el
+campo del payload; el revisor detectó la contradicción y mantuvo el rechazo
+tras tres ciclos. El worker acabó con `AdversarialFeedbackLimitExceededError`,
+después del timeout de 180 s del E2E. El E2E no consultó el agregado H12 tras
+el fallo; la observación activo/candidato puede haberse registrado antes de la
+revisión adversarial. Los logs muestran un reintento de llamada LLM y una
+respuesta posterior, no un fallo terminal de transporte. Se retiró el valor
+contradictorio del fixture. No se debe alterar el preprocesador para aceptar
+datos en conflicto.
 
 ### Qué se puede hacer en paralelo
 - H1 y H0 pueden empezar ya.
@@ -2157,3 +2491,77 @@ El modo asistente es el primer vertical: cubre toda la columna vertebral con
 una sola entidad y un verificador ligero, entrega valor inmediato y permite
 validar los contratos antes de apostar por el ciclo prolongado de
 optimización.
+
+### Control de fuga de etiquetas en muestras maduras — 2026-10-21
+
+El dataset que consume el entrenamiento usa únicamente `fraud_label` como
+columna objetivo. La marca inicial, sus fechas, la última fecha de marcación,
+el objetivo de origen y cualquier otro campo `is_label` se usan solo durante
+elegibilidad/derivación de etiqueta y quedan excluidos de las columnas de
+entrenamiento. Los campos excluidos quedan registrados en la especificación
+del snapshot.
+
+El Excel `Modus Operandi.xlsx` aporta reglas y catálogos separados para los
+canales Digital y Tarjetas; no es una tabla de ejemplos etiquetados. Las
+referencias temporales a fraude o marcación dentro de esas reglas requieren
+revisión as-of antes de usarse como predictores.
+
+### Estado H9 actualizado — 2026-10-23
+
+La última corrida del optimizador usó el snapshot preservado de 61 alertas:
+37 workflows `SUCCEEDED`, 24 `FAILED`; el experimento global quedó
+`PIPELINE_REPLAY_WORKFLOW_FAILED`. Playwright falló durante la limpieza final
+con `Failed to fetch`; no se declara H9 verificado. Corrida, snapshot,
+workflows y evidencia permanecen guardados. Se cerró la sesión incompleta con
+estado terminal auditado y se restauró el optimizador apagado. No volver a
+lanzar 61 alertas para el próximo smoke: preparar una muestra de 30 antes de
+repetir el flujo.
+
+El perfil determinista ya lee scores y máximos por roles de esquema
+(`biocatch_score`, `model_score`, `max_amount_*`) para tolerar nombres fuente
+renombrados; los máximos exportados sin rol muestran la etiqueta de su campo
+seleccionado. Validación local: 51 pruebas focalizadas, Ruff/mypy 0/0,
+arquitectura 253/253. Falta E2E real de este cambio con fixture pequeño.
+
+**Intento de smoke H8 — 2026-10-23:** con `E2E_PRESERVE_DATA=1` no se eliminó
+ningún fixture previo. Se agregaron 360 alertas sintéticas; como el muestreador
+también incluyó datos conservados, reportó 1.079 elegibles y evaluó 101 casos
+finales. H8 pasó; H9 no se lanzó porque la muestra superó el tamaño acordado.
+Para continuar, aislar una muestra de 30 sin borrar datos existentes.
+
+**Reintento aislado H8/H9 — 2026-10-23:** se aisló H8 usando valores de marca
+únicos para la corrida, con restauración de la configuración en `finally` y sin
+borrar datos previos. `E2E_AGENT_FAST=1 E2E_PRESERVE_DATA=1` produjo exactamente
+360 alertas elegibles y H8 pasó por nginx con 33 filas etiquetadas en la
+partición final. Después se lanzó H9 sobre ese snapshot, con preservación de
+datos. Para corregir el `E2E_PRESERVE_DATA` que faltaba en el entorno inicial
+del agent worker, fue necesario recrearlo durante la corrida; esto interrumpió
+el orquestador activo, aunque el worker de revisión siguió procesando tareas
+reales con llamadas LLM. El escalado posterior del worker de pruebas también
+recreó la réplica 1; Celery reencoló y completó el trabajo de revisión
+interrumpido, sin recuperar el orquestador. Playwright agotó su espera y falló
+con `la hipótesis no conservó el resultado de la evaluación del especialista`.
+La sesión quedó `ACTIVE` con lease vencido; iteración 1 y experimento
+`395e0a49-da32-4f31-a2d1-7a81f6cfb473` quedaron `RUNNING`, sin `evidence_id`,
+mientras el paquete del especialista sí aparece `VERIFIED`. Ningún artefacto se
+borró. La limpieza restauró `optimizer_enabled=false`, sin renovaciones; se
+redujo el pool de pruebas a una réplica. H9 no está verificado: antes de repetir
+hay que implementar/ejercitar recuperación idempotente del orquestador y luego
+usar una muestra pequeña.
+
+**Segundo intento H9 — 2026-10-23:** se prepararon tres workers de prueba
+(concurrencia 1; medición previa: 15 CPUs, 8,3 GB y ~230 MiB por réplica),
+lock E2E y preservación de datos. Playwright terminó con
+`ERR_CONNECTION_REFUSED` al abrir `http://localhost/` durante la limpieza y
+`Failed to fetch` al restaurar settings por API. No se declara pasado. El estado
+previo se restauró directamente en DynamoDB (`optimizer_enabled=false`,
+renovaciones `0`). La nueva sesión `bb35e5c6-4577-4ca7-89f9-2d5f3fffcd53`
+seguía `ACTIVE`, con lease vencido, iteración y experimento `RUNNING`; aún
+había una tarea de orquestación y tres workflows activos al registrar el fallo.
+Después de drenar Celery, la sesión pasó a `PAUSED`, la iteración a `SUCCEEDED`
+sin `evidence_id` y el experimento a `FAILED` (`PIPELINE_REPLAY_WORKFLOW_FAILED`).
+Los workers registraron fallos de revisión adversarial en varias alertas. No se
+borró ningún dato. El frontend nginx volvió a estar disponible después. Se
+redujo el pool de pruebas a una réplica cuando Celery informó que no había jobs
+activos. Investigar por qué el puerto 80 desapareció y asegurar cierre y
+restauración ante caída de frontend antes de repetir.
