@@ -165,7 +165,10 @@ services:
     build:
       context: ../../..
       dockerfile: deploy/local/docker/Dockerfile.worker
-      no_cache: true
+      # Keep the dependency layers cached. Dockerfile.worker copies the
+      # requirements manifest before installing dependencies, so code-only
+      # changes reuse Poetry and the virtualenv layers. Use
+      # LOCAL_DOCKER_BUILD_ARGS=--no-cache for an intentional clean rebuild.
       args:
         GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
     image: aria-worker-main:${LOCAL_IMAGE_TAG:-local}
@@ -245,6 +248,7 @@ services:
       COMPONENT_DESCRIPTION: Isolated assistant and optimizer worker
       CELERY_AGENT_QUEUE: ${CELERY_AGENT_QUEUE:-agent}
       AGENT_STUB_DELAY_SECONDS: ${AGENT_STUB_DELAY_SECONDS:-0}
+      E2E_PRESERVE_DATA: ${E2E_PRESERVE_DATA:-0}
 
   aria-agent-beat:
     extends:
@@ -304,7 +308,6 @@ services:
   # consumed by `worker` on CELERY_DEFAULT_QUEUE.
   aria-worker-test:
     image: aria-worker-main:${LOCAL_IMAGE_TAG:-local}
-    container_name: aria-worker-test
     command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=${CELERY_TEST_WORKER_CONCURRENCY:-1}", "-Q", "${CELERY_TEST_QUEUE:-test}"]
     volumes:
       - ../../../config:/code/config:ro
@@ -427,7 +430,6 @@ services:
     build:
       context: ../../..
       dockerfile: deploy/local/docker/Dockerfile.simulator.worker
-      no_cache: true
       args:
         GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
     image: aria-event-simulator-worker:${LOCAL_IMAGE_TAG:-local}
@@ -480,7 +482,6 @@ services:
     build:
       context: ../../..
       dockerfile: deploy/local/docker/Dockerfile.mcp
-      no_cache: true
       args:
         GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
     image: aria-mcp:${LOCAL_IMAGE_TAG:-local}

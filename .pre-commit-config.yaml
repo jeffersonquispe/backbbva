@@ -15,3 +15,9 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
+      - id: project-graph
+        name: project graph is up to date (skipped without ../frontend_mockup)
+        entry: make project-graph-check
+        language: system
+        pass_filenames: false
+        files: ^(scripts/(build_project_graph\.py|ts_scan\.mjs|project_graph_curated\.json)|src/infrastructure/entrypoint/api/routers/|src/application/ports/local_auth_port\.py)

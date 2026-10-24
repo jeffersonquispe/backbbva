@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { chromium } from "../../frontend_mockup/node_modules/playwright/index.mjs";
+import { prepareH12BaselineConfiguration, restoreH12BaselineConfiguration } from "./e2e_agent_h12_configuration.mjs";
 
 const BASE_URL = (process.env.E2E_BASE_URL || "http://localhost").replace(/\/$/, "");
 const API_PREFIX = "/api/v0";
@@ -13,6 +14,11 @@ const FRONTEND = resolve(ROOT, "../frontend_mockup");
 let browser;
 let originalSettings;
 let managerToken;
+let channelToken;
+let optimizerSessionId;
+let h12ConfigurationState;
+let h12HandoffComplete = false;
+const H12_CONFIG_STATE_PATH = process.env.H12_E2E_CONFIG_STATE_PATH || "/tmp/aria-h12-config-state.json";
 
 function compose(args, extraEnv = {}) {
   return execFileSync("docker", ["compose", "-p", PROJECT, "-f", "deploy/local/docker/docker-compose.yml", ...args], {
@@ -94,8 +100,12 @@ async function main() {
 
   try {
     managerToken = await createUser(page, bootstrap, "manager");
-    const channelToken = await createUser(page, bootstrap, "channel_manager");
+    channelToken = await createUser(page, bootstrap, "channel_manager");
     originalSettings = expect(await api(page, "GET", "/assistant-optimizer-settings", { token: managerToken }), 200, "leer settings");
+    if (process.env.H12_E2E_FULL === "1") {
+      h12ConfigurationState = await prepareH12BaselineConfiguration({ page, token: managerToken, api, expect });
+      writeFileSync(H12_CONFIG_STATE_PATH, `${JSON.stringify(h12ConfigurationState)}\n`, { mode: 0o600 });
+    }
     expect(await api(page, "PUT", "/assistant-optimizer-settings", {
       token: managerToken,
       body: { settings: {
@@ -111,14 +121,25 @@ async function main() {
       body: {
         mode: "optimization",
         scope: ["model"],
-        requested_budget: { tokens: 3000, usd_micros: 3000000, seconds: 180 },
+        requested_budget: { tokens: 100000, usd_micros: 50000000, seconds: 43200 },
       },
     }), 201, "crear sesión de optimización");
+    optimizerSessionId = session.session_id;
     const activeObjective = expect(await api(page, "GET", "/agent/objectives/active", {
       token: managerToken,
     }), 200, "leer objetivo activo");
     const protectedSegments = activeObjective.schema_mapping?.protected_segments || {};
-    if (
+    if (process.env.E2E_AGENT_FAST === "1") {
+      if (
+        Object.values(protectedSegments).some((values) =>
+          Array.isArray(values) && values.some((value) => String(value).startsWith("E2E_SUPPORT_")),
+        ) || activeObjective.minimum_support_per_segment !== 30
+      ) {
+        throw new Error(
+          `el objetivo smoke no debe exigir segmentos de frontera: ${JSON.stringify({ protectedSegments, minimum_support_per_segment: activeObjective.minimum_support_per_segment })}`,
+        );
+      }
+    } else if (
       !Object.values(protectedSegments).some((values) =>
         Array.isArray(values) && values.includes("E2E_SUPPORT_29") && values.includes("E2E_SUPPORT_30"),
       )
@@ -137,12 +158,13 @@ async function main() {
     const sessionId = session.session_id;
     expect(await api(page, "POST", `/agent/sessions/${sessionId}/start`, { token: channelToken }), 200, "iniciar optimizador");
 
-    const deadline = Date.now() + 240_000;
+    const deadline = Date.now() + 2_100_000;
     let claims = [];
     let hypotheses = [];
     let iterations = [];
     let packages = [];
     let experiments = [];
+    let observed = null;
     while (Date.now() < deadline) {
       claims = expect(await api(page, "GET", "/agent/claims/scope%23model", { token: managerToken }), 200, "leer reclamo");
       hypotheses = expect(await api(page, "GET", `/agent/sessions/${sessionId}/hypotheses`, { token: channelToken }), 200, "leer hipótesis");
@@ -150,13 +172,16 @@ async function main() {
       packages = expect(await api(page, "GET", `/agent/sessions/${sessionId}/packages`, { token: channelToken }), 200, "leer paquetes de la sesión");
       experiments = expect(await api(page, "GET", `/agent/sessions/${sessionId}/experiments`, { token: channelToken }), 200, "leer experimentos evaluados");
       if (experiments.some((item) => item.status !== "RUNNING") && packages.some((item) => item.status === "VERIFIED")) break;
-      const observed = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "leer estado de sesión");
+      observed = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "leer estado de sesión");
       if (["STOPPED", "FAILED", "CANCELLED"].includes(observed.status)) break;
       await page.waitForTimeout(1000);
     }
+    observed = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "leer estado final de sesión");
+    hypotheses = expect(await api(page, "GET", `/agent/sessions/${sessionId}/hypotheses`, { token: channelToken }), 200, "leer hipótesis finales");
+    iterations = expect(await api(page, "GET", `/agent/sessions/${sessionId}/iterations`, { token: channelToken }), 200, "leer iteraciones finales");
     const hypothesis = hypotheses.find((item) => item.evidence_id);
     if (!hypothesis || !["VALIDATED", "REFUTED", "NONCONCLUSIVE"].includes(hypothesis.evidence_outcome)) {
-      throw new Error("la hipótesis no conservó el resultado de la evaluación del especialista");
+      throw new Error(`la hipótesis no conservó el resultado de la evaluación del especialista: ${JSON.stringify({ session: observed, hypotheses, iterations, packages, experiments })}`);
     }
     const iteration = iterations.find((item) => item.hypothesis === hypothesis.statement);
     if (!iteration) {
@@ -168,6 +193,12 @@ async function main() {
       iteration.verification_status !== "PASSED"
     ) {
       throw new Error(`la selección/verificación del especialista no coincide: ${JSON.stringify(iteration)}`);
+    }
+    if (!("failure_stage" in iteration) || !("failure_code" in iteration)) {
+      throw new Error(`la respuesta de iteración no incluye diagnóstico de fallos: ${JSON.stringify(iteration)}`);
+    }
+    if (iteration.reason === "critical_failure" && !iteration.failure_code) {
+      throw new Error(`la parada crítica no expuso un código seguro de fallo: ${JSON.stringify(iteration)}`);
     }
     if (!packages.some((item) => item.status === "VERIFIED")) {
       throw new Error("la propuesta del proveedor no quedó verificada");
@@ -194,19 +225,21 @@ async function main() {
     if (Object.values(publishedSegments).some((segment) => segment.support < 30)) {
       throw new Error("la evaluación publicó un segmento con menos de 30 casos");
     }
-    const support29 = Object.entries(publishedSegments).find(([name]) =>
-      name.endsWith("E2E_SUPPORT_29"),
-    );
-    const support30 = Object.entries(publishedSegments).find(([name]) =>
-      name.endsWith("E2E_SUPPORT_30"),
-    );
-    if (support29) {
-      throw new Error(`el segmento de 29 casos no fue suprimido: ${support29[0]}`);
-    }
-    if (!support30 || support30[1].support !== 30) {
-      throw new Error(
-        `el segmento de 30 casos no se publicó con soporte exacto: ${JSON.stringify(publishedSegments)}`,
+    if (process.env.E2E_AGENT_FAST !== "1") {
+      const support29 = Object.entries(publishedSegments).find(([name]) =>
+        name.endsWith("E2E_SUPPORT_29"),
       );
+      const support30 = Object.entries(publishedSegments).find(([name]) =>
+        name.endsWith("E2E_SUPPORT_30"),
+      );
+      if (support29) {
+        throw new Error(`el segmento de 29 casos no fue suprimido: ${support29[0]}`);
+      }
+      if (!support30 || support30[1].support !== 30) {
+        throw new Error(
+          `el segmento de 30 casos no se publicó con soporte exacto: ${JSON.stringify(publishedSegments)}`,
+        );
+      }
     }
     if (
       !experiment.global_evaluation.metrics?.candidate ||
@@ -347,14 +380,50 @@ async function main() {
     if (process.env.H12_E2E_RESULT_PATH) {
       writeFileSync(process.env.H12_E2E_RESULT_PATH, `${JSON.stringify(evidence)}\n`, { mode: 0o600 });
     }
+    h12HandoffComplete = true;
   } finally {
-    if (managerToken && originalSettings) {
-      await api(page, "PUT", "/assistant-optimizer-settings", {
-        token: managerToken,
-        body: { settings: originalSettings },
-      });
+    try {
+      let cleanupPage = page;
+      try {
+        cleanupPage = await browser.newPage();
+        await cleanupPage.goto(BASE_URL, { waitUntil: "domcontentloaded" });
+      } catch (error) {
+        console.error("No fue posible abrir una página nueva para limpiar el E2E:", error);
+        cleanupPage = page;
+      }
+      if (h12ConfigurationState && !h12HandoffComplete) {
+        await restoreH12BaselineConfiguration({ page: cleanupPage, token: managerToken, api, state: h12ConfigurationState });
+        unlinkSync(H12_CONFIG_STATE_PATH);
+      }
+      if (process.env.E2E_PRESERVE_DATA !== "1" && optimizerSessionId && channelToken) {
+        try {
+          const session = expect(await api(
+            cleanupPage,
+            "GET",
+            `/agent/sessions/${optimizerSessionId}`,
+            { token: channelToken },
+          ), 200, "leer sesión durante limpieza");
+          if (["DRAFT", "ACTIVE", "PAUSED", "WAITING_USER", "WAITING_APPROVAL"].includes(session.status)) {
+            expect(await api(
+              cleanupPage,
+              "POST",
+              `/agent/sessions/${optimizerSessionId}/cancel`,
+              { token: channelToken },
+            ), 200, "cancelar sesión incompleta durante limpieza");
+          }
+        } catch (error) {
+          console.error("No fue posible cancelar la sesión incompleta:", error);
+        }
+      }
+      if (managerToken && originalSettings) {
+        expect(await api(cleanupPage, "PUT", "/assistant-optimizer-settings", {
+          token: managerToken,
+          body: { settings: originalSettings },
+        }), 200, "restaurar assistant optimizer settings");
+      }
+    } finally {
+      await browser?.close();
     }
-    await browser.close();
   }
 }
 

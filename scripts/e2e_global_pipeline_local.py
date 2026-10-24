@@ -36,7 +36,10 @@ from src.domain.datasets.mature_sampling import (
     deterministic_partition,
 )
 
-BASE_ALERT_COUNT = 3_000
+FAST_E2E = os.getenv("E2E_AGENT_FAST") == "1"
+PRESERVE_E2E_DATA = os.getenv("E2E_PRESERVE_DATA") == "1"
+BASE_ALERT_COUNT = 360 if FAST_E2E else 3_000
+MINIMUM_FINAL_ROWS = 30 if FAST_E2E else 200
 TABLE_NAME = "alerts"
 
 
@@ -65,6 +68,99 @@ def cleanup_synthetic_alerts() -> None:
             if not last_key:
                 break
             scan["ExclusiveStartKey"] = last_key
+
+
+def _synthetic_field_timestamp(
+    field_name: str, alert_timestamp: datetime, index: int
+) -> datetime:
+    """Give KYC and event dates plausible, distinct values in local fixtures."""
+    name = field_name.casefold()
+    if any(token in name for token in ("nacimiento", "birth")):
+        return alert_timestamp - timedelta(days=365 * (25 + index % 25))
+    if any(token in name for token in ("expedicion", "expedition", "issue")):
+        return alert_timestamp - timedelta(days=365 * (3 + index % 8))
+    if any(token in name for token in ("alta", "onboard", "created")):
+        return alert_timestamp - timedelta(days=365 * (1 + index % 10))
+    if any(token in name for token in ("modificacion", "modified", "updated")):
+        return alert_timestamp - timedelta(days=1 + index % 365)
+    if any(
+        token in name
+        for token in ("event", "transaccion", "transaction", "alert", "timestamp")
+    ):
+        return alert_timestamp
+    return alert_timestamp - timedelta(days=1 + index % 30)
+
+
+def _synthetic_history(
+    schema: dict,
+    alert_timestamp: datetime,
+    index: int,
+    current_input: dict[str, object],
+) -> list[dict]:
+    fields = [
+        field
+        for field in schema["fields"]
+        if field.get("is_history") and not field.get("is_sensible") and not field.get("is_label")
+    ]
+    amount_fields = [
+        field
+        for field in schema["fields"]
+        if field["type"] == "number"
+        and field.get("is_alert")
+        and any(token in field["field"].casefold() for token in ("amount", "monto"))
+        and "alto" not in field["field"].casefold()
+    ]
+    current_amount = next(
+        (
+            Decimal(str(current_input[field["field"]]))
+            for field in amount_fields
+            if field["field"] in current_input
+        ),
+        Decimal("80"),
+    )
+    history_amounts = tuple(
+        max(Decimal("1"), current_amount + offset)
+        for offset in (Decimal("-10"), Decimal("0"), Decimal("10"))
+    )
+    history: list[dict] = []
+    for history_index in range(3):
+        entry: dict[str, object] = {}
+        occurred_at = alert_timestamp - timedelta(days=30 * (history_index + 1))
+        for field in fields:
+            name = field["field"]
+            normalized = name.casefold()
+            if field["type"] == "number":
+                if "amount" in normalized or "monto" in normalized:
+                    value: object = (
+                        history_amounts[-1]
+                        if "alto" in normalized
+                        else history_amounts[history_index]
+                    )
+                else:
+                    value = current_input.get(name, Decimal(1))
+            elif field["type"] in {"date", "datetime"}:
+                value = (
+                    occurred_at.date().isoformat()
+                    if field["type"] == "date"
+                    else occurred_at.isoformat()
+                )
+            elif field["type"] == "bool":
+                value = False
+            elif name in current_input:
+                value = current_input[name]
+            elif "geo" in normalized or "country" in normalized:
+                value = "CO"
+            elif "channel" in normalized:
+                value = "APP"
+            elif "type" in normalized or "tipo" in normalized:
+                value = "payment"
+            elif "status" in normalized or "estado" in normalized:
+                value = "approved"
+            else:
+                value = "retail"
+            entry[name] = value
+        history.append(entry)
+    return history
 
 
 def wait_operation(token: str, operation_id: str, timeout: int = 240) -> dict:
@@ -242,10 +338,37 @@ def _mapping_and_schema(token: str) -> tuple[dict, dict, dict]:
     }
 
 
+def unused_sampler_period_days() -> int:
+    """Choose a valid period that yields a fresh append-only snapshot ID."""
+    client = boto3.resource(
+        "dynamodb",
+        endpoint_url=f"http://localhost:{os.getenv('LOCAL_DYNAMODB_PORT', '8002')}",
+        region_name="us-east-1",
+        aws_access_key_id="local",
+        aws_secret_access_key="local",
+    )
+    table = client.Table("dataset_snapshots")
+    used: set[int] = set()
+    response = table.scan()
+    while True:
+        for item in response.get("Items", []):
+            period = item.get("specification", {}).get("sampler_period_days")
+            if isinstance(period, int):
+                used.add(period)
+        key = response.get("LastEvaluatedKey")
+        if not key:
+            break
+        response = table.scan(ExclusiveStartKey=key)
+    available = sorted(set(range(30, 366)) - used)
+    if not available:
+        raise RuntimeError("all mature-snapshot period values are already reserved")
+    return secrets.choice(available)
+
+
 def seed_mature_alerts(
     *, token: str, schema: dict, mapping: dict, fields: dict, maturity_days: int,
     settings: dict,
-) -> None:
+) -> tuple[str, dict[str, object]]:
     del token  # The fixture writes only generated, non-customer test alerts.
     client = boto3.resource(
         "dynamodb",
@@ -256,11 +379,29 @@ def seed_mature_alerts(
     )
     table = client.Table(TABLE_NAME)
     timezone = ZoneInfo(os.getenv("OPERATIONS_TIMEZONE", "America/Bogota"))
-    today = datetime.now(UTC).astimezone(timezone).date()
-    created_day = today - timedelta(days=max(maturity_days, 1))
+    # The sampler's SystemClock uses UTC; derive the fixture window from that
+    # same clock so host/container dates cannot diverge around local midnight.
+    today = datetime.now(UTC).date()
+    # Keep labels one full day beyond the maturity boundary. This remains
+    # inside the sampling period and avoids date parsing/timezone edge cases.
+    mature_mark_day = today - timedelta(days=max(maturity_days + 1, 1))
+    created_day = mature_mark_day
     period_end = today - timedelta(days=maturity_days)
     period_start = period_end - timedelta(days=settings["sampler_period_days"] - 1)
     schema_versions = [int(value) for value in settings["sampler_compatible_schema_versions"]]
+    outcome_fields = {
+        field["field"]
+        for field in schema["fields"]
+        if field.get("field") and field.get("is_label")
+    }
+    outcome_fields.update(
+        {
+            mapping["initial_mark_field"],
+            mapping["initial_marking_date_field"],
+            mapping["marking_date_field"],
+            mapping["target_field"],
+        }
+    )
     specification = {
         "period_start": period_start.isoformat(),
         "period_end": period_end.isoformat(),
@@ -272,6 +413,9 @@ def seed_mature_alerts(
         "target_field": mapping["target_field"],
         "marking_date_field": mapping["marking_date_field"],
         "label_value_mapping": dict(mapping["label_value_mapping"]),
+        "excluded_outcome_fields": sorted(outcome_fields),
+        "training_target_field": "fraud_label",
+        "optimizer_replay_history_format": "schema_mapped_history_v1",
         "schema_versions": schema_versions,
         "sampler_period_days": settings["sampler_period_days"],
         "sampler_minimum_per_stratum": settings["sampler_minimum_per_stratum"],
@@ -283,10 +427,10 @@ def seed_mature_alerts(
         "sampler_confidence_pct": settings["sampler_confidence_pct"],
         "sampler_seed_policy": settings["sampler_seed_policy"],
     }
-    snapshot_id = hashlib.sha256(
+    expected_snapshot_id = hashlib.sha256(
         json.dumps(specification, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()[:32]
-    seed = int(snapshot_id[:16], 16)
+    seed = int(expected_snapshot_id[:16], 16)
     partition_spec = MatureSampleSpec(
         as_of=today,
         period_start=period_start,
@@ -298,29 +442,57 @@ def seed_mature_alerts(
         validation_proportion=settings["sampler_validation_proportion"],
         test_proportion=settings["sampler_test_proportion"],
     )
-    all_alert_ids = [str(uuid4()) for _ in range(BASE_ALERT_COUNT)]
-    final_ids = [
-        alert_id for alert_id in all_alert_ids
-        if deterministic_partition(alert_id, partition_spec) == "final"
-    ]
-    if len(final_ids) < 59:
-        raise RuntimeError(f"final partition too small for segment-boundary fixture: {len(final_ids)}")
+    all_alert_ids: list[str] = []
+    final_ids: list[str] = []
+    required_final_ids = 30 if FAST_E2E else 59
+    for _ in range(10):
+        all_alert_ids = [str(uuid4()) for _ in range(BASE_ALERT_COUNT)]
+        final_ids = [
+            alert_id for alert_id in all_alert_ids
+            if deterministic_partition(alert_id, partition_spec) == "final"
+        ]
+        if len(final_ids) >= required_final_ids:
+            break
+    if len(final_ids) < required_final_ids:
+        raise RuntimeError(
+            "final partition is too small for this fixture: "
+            f"{len(final_ids)} rows; required={required_final_ids}"
+        )
     segment_values = {alert_id: "E2E_CHANNEL" for alert_id in all_alert_ids}
-    segment_values.update({alert_id: "E2E_SUPPORT_29" for alert_id in final_ids[:29]})
-    segment_values.update({alert_id: "E2E_SUPPORT_30" for alert_id in final_ids[29:59]})
+    if not FAST_E2E:
+        segment_values.update({alert_id: "E2E_SUPPORT_29" for alert_id in final_ids[:29]})
+        segment_values.update({alert_id: "E2E_SUPPORT_30" for alert_id in final_ids[29:59]})
     timestamp = datetime.combine(
         created_day, datetime_time(hour=12), tzinfo=timezone
     ).astimezone(UTC)
-    marked = (today - timedelta(days=max(maturity_days, 1))).isoformat()
+    marked = mature_mark_day.isoformat()
     alert_ids: list[str] = []
     try:
         for index, alert_id in enumerate(all_alert_ids):
             alert_timestamp = timestamp + timedelta(seconds=index)
             positive = index % 2 == 0
+            numeric_field_name = fields["numeric"].casefold()
+            transaction_amount = (
+                Decimal("100")
+                if positive and any(token in numeric_field_name for token in ("amount", "monto"))
+                else Decimal("50")
+                if not positive and any(token in numeric_field_name for token in ("amount", "monto"))
+                else Decimal(80 + index % 10)
+            )
             input_data: dict[str, object] = {}
             for field in schema["fields"]:
                 name = field["field"]
                 if not field["is_alert"] or field["is_sensible"] or field["is_label"]:
+                    continue
+                # Keep optional free text absent in this mechanics fixture.
+                # Placeholder strings such as "e2e-1" look like poisoned
+                # alert data to the real adversarial review step and make
+                # the test validate fixture quality instead of replay wiring.
+                if (
+                    field["type"] == "string"
+                    and not field.get("is_mandatory", False)
+                    and name != fields["strata"]
+                ):
                     continue
                 if name == mapping["initial_mark_field"]:
                     value: object = "e2e_initial_review"
@@ -330,17 +502,38 @@ def seed_mature_alerts(
                 }:
                     value = marked
                 elif name == fields["numeric"]:
-                    value = Decimal(index % 97) + (Decimal("100") if positive else Decimal("0"))
+                    value = Decimal("100") if positive else Decimal("50")
                 elif name == fields["strata"]:
                     value = segment_values[alert_id]
                 elif field["type"] == "number":
-                    value = Decimal(index % 113)
+                    normalized_name = name.casefold()
+                    if "monto" in normalized_name and "alto" in normalized_name:
+                        value = transaction_amount + Decimal("10")
+                    elif "monto" in normalized_name or "amount" in normalized_name:
+                        value = transaction_amount
+                    else:
+                        value = Decimal(index % 90)
                 elif field["type"] in {"date", "datetime"}:
-                    value = alert_timestamp.isoformat()
+                    fixture_timestamp = _synthetic_field_timestamp(
+                        name, alert_timestamp, index
+                    )
+                    value = (
+                        fixture_timestamp.date().isoformat()
+                        if field["type"] == "date"
+                        else fixture_timestamp.isoformat()
+                    )
                 elif field["type"] == "bool":
                     value = bool(index % 2)
+                elif "geo" in name.casefold() or "country" in name.casefold():
+                    value = "CO"
+                elif "channel" in name.casefold() or "canal" in name.casefold():
+                    value = "APP"
+                elif "type" in name.casefold() or "tipo" in name.casefold():
+                    value = "payment"
+                elif "status" in name.casefold() or "estado" in name.casefold():
+                    value = "approved"
                 else:
-                    value = f"e2e-{index % 4}"
+                    value = "retail"
                 input_data[name] = value
 
             item = {
@@ -357,7 +550,9 @@ def seed_mature_alerts(
                     if positive
                     else fields["negative"]
                 },
-                "history_prev_alerta": [],
+                "history_prev_alerta": _synthetic_history(
+                    schema, alert_timestamp, index, input_data
+                ),
                 "agent_output": {},
                 "created_at": alert_timestamp.isoformat(),
                 "updated_at": alert_timestamp.isoformat(),
@@ -381,7 +576,7 @@ def seed_mature_alerts(
                 mark_date = alert_field_date(hydrated, mapping["marking_date_field"])
                 if not is_mature(
                     hydrated,
-                    as_of=datetime.now(UTC).astimezone(timezone).date(),
+                    as_of=datetime.now(UTC).date(),
                     maturing_days=maturity_days,
                     target_field=mapping["target_field"],
                     marking_date_field=mapping["marking_date_field"],
@@ -390,7 +585,7 @@ def seed_mature_alerts(
                     raise RuntimeError(
                         "synthetic alert fails the shared maturity rule: "
                         f"mapped_label={label!r}, marking_date={mark_date!r}, "
-                        f"as_of={datetime.now(UTC).astimezone(timezone).date()}, "
+                        f"as_of={datetime.now(UTC).date()}, "
                         f"maturity_days={maturity_days}"
                     )
     except Exception:
@@ -426,6 +621,7 @@ def seed_mature_alerts(
             f"index={count}/{BASE_ALERT_COUNT}, expected_day={created_day.isoformat()}, "
             f"scan_count={probe.get('Count', 0)}, scan_sample={probe.get('Items', [])}"
         )
+    return expected_snapshot_id, specification
 
 
 def main() -> int:
@@ -463,7 +659,7 @@ def main() -> int:
         sampler_enabled=True,
         # Make each run reserve a fresh snapshot ID: final-partition
         # evaluations are deliberately single-use and append-only.
-        sampler_period_days=30 + secrets.randbelow(336),
+        sampler_period_days=unused_sampler_period_days(),
         sampler_error_margin_pct=0.1,
         sampler_minimum_per_stratum=30,
         sampler_fraud_oversampling_ratio=1.0,
@@ -471,7 +667,29 @@ def main() -> int:
         sampler_compatible_schema_versions=[str(schema["version"])],
         sampler_seed_policy="fixed_per_sample",
     )
+    if FAST_E2E:
+        # The production policy keeps at least 100 globally eligible cases.
+        # Use its supported 30-case floor only for this local smoke fixture.
+        settings["objective_minimum_support_per_segment"] = 30
     try:
+        # Give this run private label values so preserved fixtures and ordinary
+        # local data cannot silently enlarge its evaluation population. The
+        # previous mapping is restored in finally; the tagged alerts stay
+        # persisted but are ineligible under that restored mapping.
+        fixture_label_prefix = f"h8_e2e_{uuid4().hex}"
+        mapping["label_value_mapping"] = {
+            f"{fixture_label_prefix}_fraud": "fraud",
+            f"{fixture_label_prefix}_no_fraud": "no_fraud",
+        }
+        fields["positive"] = f"{fixture_label_prefix}_fraud"
+        fields["negative"] = f"{fixture_label_prefix}_no_fraud"
+        status, saved_mapping = request(
+            "PUT",
+            "/assistant-optimizer-settings/sampler/schema-configuration",
+            token,
+            mapping,
+        )
+        check(status, 200, "isolate labels for this H8 fixture", saved_mapping)
         update_settings(token, settings)
         status, applied_settings = request(
             "GET", "/assistant-optimizer-settings", token
@@ -481,7 +699,8 @@ def main() -> int:
             raise RuntimeError("sampler precision setting did not persist")
         if applied_settings["sampler_minimum_per_stratum"] != 30:
             raise RuntimeError("sampler stratum floor did not persist")
-        cleanup_synthetic_alerts()
+        if not PRESERVE_E2E_DATA:
+            cleanup_synthetic_alerts()
         status, operation = request(
             "POST", "/agent/objectives", token
         )
@@ -499,7 +718,7 @@ def main() -> int:
         else:
             check(status, 409, "create an additional objective version", operation)
         objective = operation
-        seed_mature_alerts(
+        expected_snapshot_id, expected_specification = seed_mature_alerts(
             token=token,
             schema=schema,
             mapping=mapping,
@@ -514,30 +733,39 @@ def main() -> int:
             aws_access_key_id="local",
             aws_secret_access_key="local",
         ).Table("agent_objectives")
-        objective_table.update_item(
-            Key={"objective_id": objective["objective_id"], "version": int(objective["version"])},
-            UpdateExpression=(
-                "SET schema_mapping.protected_segments = :segments, "
-                "minimum_support_per_segment = :minimum_support"
-            ),
-            ExpressionAttributeValues={
-                ":segments": {
-                    fields["strata"]: ["E2E_SUPPORT_29", "E2E_SUPPORT_30"]
+        if not FAST_E2E:
+            objective_table.update_item(
+                Key={"objective_id": objective["objective_id"], "version": int(objective["version"])},
+                UpdateExpression=(
+                    "SET schema_mapping.protected_segments = :segments, "
+                    "minimum_support_per_segment = :minimum_support"
+                ),
+                ExpressionAttributeValues={
+                    ":segments": {
+                        fields["strata"]: ["E2E_SUPPORT_29", "E2E_SUPPORT_30"]
+                    },
+                    ":minimum_support": 30,
                 },
-                ":minimum_support": 30,
-            },
-        )
+            )
         status, preview = request(
             "POST", "/assistant-optimizer-settings/sampler/preview", token, {}
         )
         check(status, 200, "preview mature evaluation population", preview)
-        if preview["eligible_alerts"] < 2_500:
+        expected_eligible = BASE_ALERT_COUNT if FAST_E2E else None
+        if expected_eligible is not None and preview["eligible_alerts"] != expected_eligible:
+            raise RuntimeError(
+                "H8 smoke sample is not isolated to its fixture: "
+                f"{preview['eligible_alerts']} eligible alerts; "
+                f"expected exactly {expected_eligible}. No prior data was removed."
+            )
+        if not FAST_E2E and preview["eligible_alerts"] < 2_500:
             raise RuntimeError(
                 "mature evaluation fixture was not fully discovered: "
                 f"{preview['eligible_alerts']} eligible alerts"
             )
         print(
-            "Muestra H8: "
+            f"Muestra H8 ({'smoke' if FAST_E2E else 'completa'}): "
+            f"fixture={BASE_ALERT_COUNT}, "
             f"eligible={preview['eligible_alerts']}, "
             f"estimated={preview['estimated_sample_size']}"
         )
@@ -548,7 +776,25 @@ def main() -> int:
         check(status, 202, "start mature sample", sample_operation)
         sample = wait_operation(token, sample_operation["id"])
         snapshot_id = sample["snapshot_id"]
-        if sample["partition_counts"].get("final", 0) < 200:
+        if snapshot_id != expected_snapshot_id:
+            snapshot_table = boto3.resource(
+                "dynamodb",
+                endpoint_url=f"http://localhost:{os.getenv('LOCAL_DYNAMODB_PORT', '8002')}",
+                region_name="us-east-1",
+                aws_access_key_id="local",
+                aws_secret_access_key="local",
+            ).Table("dataset_snapshots")
+            actual_snapshot = snapshot_table.get_item(
+                Key={"snapshot_id": snapshot_id}
+            )["Item"]
+            raise RuntimeError(
+                "fixture snapshot specification drifted from the sampler: "
+                f"expected={expected_snapshot_id}, actual={snapshot_id}, "
+                f"expected_spec={json.dumps(expected_specification, sort_keys=True)}, "
+                "actual_spec="
+                f"{json.dumps(actual_snapshot['specification'], sort_keys=True, default=str)}"
+            )
+        if sample["partition_counts"].get("final", 0) < MINIMUM_FINAL_ROWS:
             raise RuntimeError(
                 "reserved final partition is too small to satisfy global support "
                 f"({sample['partition_counts'].get('final', 0)} rows; "
@@ -607,13 +853,14 @@ def main() -> int:
             metrics.get("partition") != "final"
             or metrics.get("baseline_model_id") != baseline_id
             or metrics.get("candidate_model_id") != candidate_id
-            or metrics.get("eligible_count", 0) < 200
+            or metrics.get("eligible_count", 0) < MINIMUM_FINAL_ROWS
             or not metrics.get("candidate")
             or not metrics.get("baseline")
         ):
             raise RuntimeError("evaluation result did not pin both models and final data")
         print(
-            "H8 E2E por nginx: baseline READY vs candidato READY evaluados "
+            f"H8 E2E por nginx ({'smoke' if FAST_E2E else 'completo'}): "
+            "baseline READY vs candidato READY evaluados "
             f"sobre partición final ({metrics['eligible_count']} filas etiquetadas)."
         )
         return 0
@@ -628,7 +875,8 @@ def main() -> int:
                 token,
                 original_mapping,
             )
-        cleanup_synthetic_alerts()
+        if not PRESERVE_E2E_DATA:
+            cleanup_synthetic_alerts()
         compose(
             "up",
             "-d",

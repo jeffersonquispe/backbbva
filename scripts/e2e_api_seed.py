@@ -60,6 +60,20 @@ def _outcome(identifier: str, name: str, location: str) -> dict:
     return _optional(identifier, name, location, is_label=True, group="Desenlace")
 
 
+def _history(identifier: str, name: str, location: str, kind: str = "string") -> dict:
+    return _field(
+        identifier,
+        name,
+        location,
+        kind,
+        data_source="host",
+        is_alert=False,
+        is_mandatory=False,
+        is_history=True,
+        group="Historial de transacciones",
+    )
+
+
 FIELDS = [
     _field("event-id", "event_id", "eventid"),
     _field("event-time", "event_time", "fecha_transaccion", "datetime"),
@@ -112,7 +126,10 @@ FIELDS = [
         "biocatch_screenBroadcast",
         "biocatch_screenBroadcast",
     ),
-    _optional("device-id", "deviceid", "deviceid"),
+    _optional("device-id", "device_id", "deviceid"),
+    _optional("session-id", "session_id", "session.sessionId"),
+    _optional("device-ip", "device_ip", "device.ipAddress"),
+    _optional("transaction-status", "transaction_status", "status"),
     _optional("triggered-rules", "triggered_rules", "triggered_rules"),
     _optional(
         "device-ip-encrypted",
@@ -121,7 +138,7 @@ FIELDS = [
     ),
     _optional(
         "counterparty-entity-encrypted",
-        "counterpartyentityid_encrypted",
+        "counterparty",
         "counterpartyentityid_encrypted",
     ),
     _optional("transaction-id", "transactionid", "transactionid"),
@@ -188,6 +205,12 @@ FIELDS = [
     _outcome("tipo", "tipo", "tipo"),
     _optional("transacciones-json", "transacciones_json", "transacciones_json"),
     _optional("alertas-json", "alertas_json", "alertas_json"),
+    _history("history-event-time", "event_time", "event_time", "datetime"),
+    _history("history-event-type", "event_type", "event_type"),
+    _history("history-amount", "amount", "amount", "number"),
+    _history("history-channel", "channel", "channel"),
+    _history("history-counterparty", "counterparty", "counterparty"),
+    _history("history-status", "status", "alerts"),
 ]
 
 ROLES = {
@@ -299,7 +322,94 @@ def _schema_seed(manager_token: str, release_token: str) -> tuple[int, int]:
         active = approved
         versions = _json("GET", "/alert-schema/versions", manager_token)
 
+    desired_by_id = {item["id"]: item for item in FIELDS}
+    active_by_id = {item["id"]: item for item in active["fields"]}
+    contract_keys = (
+        "field",
+        "field_name",
+        "data_source",
+        "field_ds_loc",
+        "type",
+        "is_alert",
+        "is_mandatory",
+        "is_history",
+        "is_label",
+        "is_sensible",
+    )
+    schema_needs_upgrade = any(
+        active["field_roles"].get(role) != field_id
+        for role, field_id in ROLES.items()
+    ) or any(
+        field_id not in active_by_id
+        or any(
+            active_by_id[field_id].get(key) != desired.get(key)
+            for key in contract_keys
+        )
+        for field_id, desired in desired_by_id.items()
+    )
+    if schema_needs_upgrade:
+        stale_proposals = [item for item in versions if item["status"] == "proposed"]
+        for proposal in stale_proposals:
+            _json(
+                "POST",
+                f"/alert-schema/versions/{proposal['version']}/reject",
+                manager_token,
+                {},
+            )
+        desired_names = {item["field"] for item in FIELDS}
+        merged_fields = [
+            dict(item)
+            for item in active["fields"]
+            if item["id"] not in desired_by_id
+            and item["field"] not in desired_names
+            and not str(item.get("field_name", "")).startswith(
+                "e2e_candidate_marker"
+            )
+        ]
+        merged_fields.extend(FIELDS)
+        draft = _json(
+            "POST",
+            "/alert-schema/drafts",
+            manager_token,
+            {
+                "fields": merged_fields,
+                "field_roles": {**active["field_roles"], **ROLES},
+                "based_on_version": active["version"],
+            },
+            expected={201},
+        )
+        version = draft["version"]
+        _json("POST", f"/alert-schema/versions/{version}/propose", manager_token, {})
+        approved_status, approved = _request(
+            "POST",
+            f"/alert-schema/versions/{version}/approve",
+            release_token,
+            {"impact_acknowledged": True},
+        )
+        _expect(
+            approved_status,
+            {200},
+            approved,
+            f"/alert-schema/versions/{version}/approve",
+        )
+        active = approved
+        versions = _json("GET", "/alert-schema/versions", manager_token)
+
     proposed = next((item for item in versions if item["status"] == "proposed"), None)
+    if proposed is not None and (
+        proposed.get("based_on_version") != active["version"]
+        or not any(
+            str(item.get("field_name", "")).startswith("e2e_candidate_marker")
+            for item in proposed["fields"]
+        )
+    ):
+        _json(
+            "POST",
+            f"/alert-schema/versions/{proposed['version']}/reject",
+            manager_token,
+            {},
+        )
+        proposed = None
     if proposed is None:
         candidate_fields = [dict(item) for item in active["fields"]]
         candidate_fields = [

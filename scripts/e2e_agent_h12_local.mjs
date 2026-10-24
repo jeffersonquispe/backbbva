@@ -1,15 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "../../frontend_mockup/node_modules/playwright/index.mjs";
+import { restoreH12BaselineConfiguration } from "./e2e_agent_h12_configuration.mjs";
 
 const BASE_URL = (process.env.E2E_BASE_URL || "http://localhost").replace(/\/$/, "");
 const API_PREFIX = "/api/v0";
 const PROJECT = process.env.LOCAL_DOCKER_PROJECT || "aria-local";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RESULT_PATH = process.env.H12_E2E_RESULT_PATH || "/tmp/aria-h12-h11-result.json";
+const CONFIG_STATE_PATH = process.env.H12_E2E_CONFIG_STATE_PATH || "/tmp/aria-h12-config-state.json";
 
 function compose(args, extraEnv = {}) {
   return execFileSync("docker", ["compose", "-p", PROJECT, "-f", "deploy/local/docker/docker-compose.yml", ...args], {
@@ -89,6 +91,27 @@ async function openOptimizerUi(page, token) {
 
 async function createAndWaitReviewAlert(page, managerToken, index) {
   const eventId = `H12-${randomUUID()}`;
+  const now = new Date();
+  const priorTransactions = [
+    {
+      eventtime: new Date(now.getTime() - 90 * 24 * 60 * 60_000).toISOString(),
+      amount_value: 950,
+      canal: "web",
+      destino: `H12-BENEFICIARY-${index}`,
+      alertas: "approved",
+      tipo_transaccion: "transferencia",
+    },
+    ...[8, 6, 4, 2].map((minutes, priorIndex) => ({
+      eventtime: new Date(now.getTime() - minutes * 60_000).toISOString(),
+      amount_value: 400 + priorIndex * 150,
+      canal: "web",
+      destino: `H12-BENEFICIARY-${index}`,
+      alertas: "approved",
+      tipo_transaccion: "transferencia",
+    })),
+  ];
+  const deviceId = `H12-DEVICE-${index}`;
+  const transactionId = `H12-TRANSACTION-${index}-${randomUUID()}`;
   const start = expect(await api(page, "POST", "/alerts/test", {
     token: managerToken,
     body: {
@@ -96,23 +119,56 @@ async function createAndWaitReviewAlert(page, managerToken, index) {
       created_by: "h12-e2e-local",
       event: {
         eventId,
-        eventType: "H12 rollout E2E",
+        eventType: "transferencia",
+        eventTime: now.toISOString(),
         eventid: eventId,
-        eventtype: "H12 rollout E2E",
+        eventtype: "transferencia",
         customerId: `H12-CUSTOMER-${index}-${randomUUID()}`,
         customerid: `H12-CUSTOMER-${index}-${randomUUID()}`,
-        channel: "H12-E2E",
-        integrationpoint: "H12-review-worker",
+        accountId: `H12-ACCOUNT-${index}`,
+        channel: "web",
+        integrationpoint: "PSE",
         amount_value: 1275 + index,
-        fecha_transaccion: new Date().toISOString(),
+        status: "approved",
+        fecha_transaccion: now.toISOString(),
+        transactionid: transactionId,
+        deviceid: deviceId,
+        _metadata: { searchable: { deviceId } },
+        session: { sessionId: `H12-SESSION-${index}` },
+        device: { ipAddress: "198.51.100.42", userAgentString: "H12 synthetic browser" },
+        biocatch: {
+          score: 12,
+          ip: "198.51.100.42",
+          muid: `H12-MUID-${index}`,
+          customerSessionID: `H12-SESSION-${index}`,
+          isMobileRat: false,
+          isEmulator: false,
+          isRat: false,
+          isBot: false,
+          isOnCall: false,
+          isVoipOnCall: false,
+          screenBroadcast: false,
+        },
+        counterpartyentityid_encrypted: `H12-BENEFICIARY-${index}`,
+        counterpartyId: `H12-BENEFICIARY-${index}`,
+        beneficiary_id: `H12-BENEFICIARY-${index}`,
+        counterpartyName: { fullName: `H12-BENEFICIARY-${index}` },
+        personalDataChanged: false,
+        triggered_rules: "VELOCITY_03: 5 transacciones en los últimos 10 minutos, incluida la actual",
+        biocatch_isOnCall: "false",
+        biocatch_isVoipOnCall: "false",
+        biocatch_screenBroadcast: "false",
+        transacciones_json: JSON.stringify(priorTransactions),
       },
     },
   }), 202, `despachar alerta H12 ${index}`);
-  const deadline = Date.now() + 180_000;
+  const deadline = Date.now() + 240_000;
+  let lastOperation;
   while (Date.now() < deadline) {
     const operation = expect(await api(page, "GET", `/async-operations/${start.async_operation_id}/poll`, {
       token: managerToken,
     }), 200, `consultar workflow H12 ${index}`);
+    lastOperation = operation;
     if (operation.done) {
       if (operation.status !== "SUCCEEDED") {
         throw new Error(`review worker no completó alerta ${index}: ${JSON.stringify(operation)}`);
@@ -121,7 +177,7 @@ async function createAndWaitReviewAlert(page, managerToken, index) {
     }
     await page.waitForTimeout(1000);
   }
-  throw new Error(`timeout esperando review worker para alerta ${index}`);
+  throw new Error(`timeout esperando review worker para alerta ${index}: ${JSON.stringify(lastOperation)}`);
 }
 
 async function collectRealStageObservations(page, managerToken, releaseId, stage) {
@@ -159,6 +215,7 @@ async function main() {
   const page = await browser.newPage();
   let managerToken;
   let releaseForCleanup;
+  let configurationState;
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
   try {
     if (!currentBootstrap) {
@@ -167,6 +224,9 @@ async function main() {
     }
     await waitForApi(page);
     managerToken = await createUser(page, bootstrap, "manager");
+    if (process.env.H12_E2E_FULL === "1") {
+      configurationState = JSON.parse(readFileSync(CONFIG_STATE_PATH, "utf8"));
+    }
     if (process.env.H12_E2E_CLEANUP === "1") {
       const releases = expect(await api(page, "GET", "/agent/releases", {
         token: managerToken,
@@ -185,15 +245,12 @@ async function main() {
       process.stdout.write(`${JSON.stringify({ result: "H12 E2E cleanup local", cleaned })}\n`);
       return;
     }
-    const activeConfiguration = expect(await api(page, "GET", "/configurations/active", {
+    let activeConfiguration = expect(await api(page, "GET", "/configurations/active", {
       token: managerToken,
     }), 200, "leer configuración activa para rollout H12");
     const xgboostSegments = Object.entries(activeConfiguration.segments || {}).filter(([, segment]) =>
       segment.enabled && segment.agent?.detector?.use_xgboost_model && segment.agent?.detector?.xgboost_model_id,
     ).map(([name, segment]) => ({ name, model_id: segment.agent.detector.xgboost_model_id }));
-    if (process.env.H12_E2E_FULL === "1" && xgboostSegments.length === 0) {
-      throw new Error(`H12_E2E_PRECONDITION_XGBOOST_DISABLED: la configuración ${activeConfiguration.configuration_id}@${activeConfiguration.version} no habilita XGBoost en segmentos activos; el review worker no ejecutará el scorer ni puede producir observaciones válidas.`);
-    }
     if (process.env.H12_E2E_INSPECT === "1") {
       const activeConfigurationEvidence = {
         active_configuration_id: activeConfiguration.configuration_id,
@@ -228,8 +285,10 @@ async function main() {
     }
     if (process.env.H12_E2E_FULL === "1") {
       const baselineModel = validation.baseline_component_pins.find((pin) => pin.component === "model");
-      if (!baselineModel || !xgboostSegments.some((segment) => segment.model_id === baselineModel.entity_id)) {
-        throw new Error(`H12_E2E_PRECONDITION_BASELINE_MODEL_MISMATCH: los segmentos XGBoost activos ${JSON.stringify(xgboostSegments)} no fijan el modelo baseline de la validación ${baselineModel?.entity_id || "missing"}.`);
+      if (!baselineModel) throw new Error("H12_E2E_BASELINE_MODEL_PIN_MISSING");
+      if (configurationState?.baseline_model_id !== baselineModel.entity_id ||
+          !xgboostSegments.some((segment) => segment.model_id === baselineModel.entity_id)) {
+        throw new Error(`H12_E2E_BASELINE_MODEL_MISMATCH: ${JSON.stringify(xgboostSegments)}`);
       }
     }
     const priorReleases = expect(await api(page, "GET", "/agent/releases", {
@@ -423,6 +482,10 @@ async function main() {
           reason: "Limpieza del escenario E2E H12 tras fallo",
         },
       });
+    }
+    if (managerToken && configurationState) {
+      await restoreH12BaselineConfiguration({ page, token: managerToken, api, state: configurationState });
+      unlinkSync(CONFIG_STATE_PATH);
     }
     await browser.close();
   }

@@ -385,10 +385,19 @@ LOCAL_API_PORT ?= 8000
 LOCAL_DYNAMODB_PORT ?= 8002
 LOCAL_REDIS_PORT ?= 6379
 LOCAL_IMAGE_TAG ?= local
+LOCAL_DOCKER_TEST_WORKERS ?= 1
 
 # Sibling repo, not part of this git tree - guard every target below so a
 # checkout without it (e.g. CI, a fresh clone) doesn't fail the backend stack.
 FRONTEND_DIR ?= ../frontend_mockup
+
+.PHONY: project-graph
+project-graph:  ## Rebuild the project knowledge graph (views, components, actions, API, assets) used by the chat agent's graph-RAG. Var: FRONTEND_DIR(../frontend_mockup)
+	python3 scripts/build_project_graph.py --frontend $(or $(FRONTEND_DIR),../frontend_mockup)
+
+.PHONY: project-graph-check
+project-graph-check:  ## Fail if src/infrastructure/agents/project_graph/project_graph.json is stale.
+	python3 scripts/build_project_graph.py --check --frontend $(or $(FRONTEND_DIR),../frontend_mockup)
 
 .PHONY: frontend
 frontend:  ## Build and run the sibling frontend project from ../frontend.
@@ -462,14 +471,14 @@ local-e2e-logs:  ## Show recent local API and E2E worker logs.
 
 .PHONY: local-worker-stats
 local-worker-stats:  ## Show a point-in-time CPU/RAM reading for local worker services.
-	@$(DOCKER) stats --no-stream aria-worker-main aria-agent-worker aria-agent-beat aria-worker-training aria-worker-test aria-worker-scheduler aria-worker-simulator
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) ps -q aria-worker-main aria-agent-worker aria-agent-beat aria-worker-training aria-worker-test aria-worker-scheduler aria-worker-simulator | xargs $(DOCKER) stats --no-stream
 
 .PHONY: local-docker-run
-local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, default ../frontend_mockup). LLM/other app config comes from config/$(LOCAL_DOCKER_ENV)/config.cfg, mounted read-only - edit it and re-run this to pick up changes. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG
+local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, default ../frontend_mockup). Set LOCAL_DOCKER_TEST_WORKERS to scale isolated test workers. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG, LOCAL_DOCKER_TEST_WORKERS
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		up -d --remove-orphans
+		up -d --remove-orphans --scale aria-worker-test=$(LOCAL_DOCKER_TEST_WORKERS)
 	@# config.cfg is a mounted file, not a compose-level env var - `up -d`
 	@# alone won't notice its content changed, so always restart the services
 	@# services that read it. Cheap (no rebuild, no image pull) and a no-op
@@ -653,7 +662,7 @@ e2e-agent-h9-local:  ## Run the H9 optimizer Playwright flow through nginx local
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
 		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-agent-worker aria-agent-beat; \
-	$(MAKE) local-docker-run; \
+	LOCAL_DOCKER_TEST_WORKERS=3 $(MAKE) local-docker-run; \
 	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
 	node scripts/e2e_agent_h9_local.mjs
@@ -673,10 +682,14 @@ e2e-agent-h11-local:  ## Seed a real mature final sample, then evaluate the four
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
 		build $(LOCAL_DOCKER_BUILD_ARGS) api mcp aria-agent-worker aria-agent-beat; \
-	$(MAKE) local-docker-run; \
+	LOCAL_DOCKER_TEST_WORKERS=3 $(MAKE) local-docker-run; \
 	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
 	node scripts/e2e_agent_h9_local.mjs
+
+.PHONY: e2e-agent-h11-smoke-local
+e2e-agent-h11-smoke-local:  ## Run the H11 real pipeline smoke E2E on about 30 final alerts through nginx.
+	@E2E_AGENT_FAST=1 $(MAKE) e2e-agent-h11-local
 
 .PHONY: e2e-agent-h12-local
 e2e-agent-h12-local:  ## Run H11 plus H12 retrospective/shadow/role/rollback through local nginx.
@@ -699,10 +712,11 @@ e2e-agent-h12-resume-local:  ## Rerun H12 against the latest H11 evidence JSON w
 .PHONY: e2e-agent-h12-full-local
 e2e-agent-h12-full-local:  ## Run real H12 alert traffic through SHADOW, all canary stages, FULL and rollback via nginx.
 	@set -euo pipefail; \
-	H12_E2E_RESULT_PATH=/tmp/aria-h12-h11-result.json $(MAKE) e2e-agent-h11-local; \
+	H12_E2E_FULL=1 H12_E2E_CONFIG_STATE_PATH=/tmp/aria-h12-config-state.json H12_E2E_RESULT_PATH=/tmp/aria-h12-h11-result.json $(MAKE) e2e-agent-h11-local; \
 	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
 	H12_E2E_RESULT_PATH=/tmp/aria-h12-h11-result.json \
+	H12_E2E_CONFIG_STATE_PATH=/tmp/aria-h12-config-state.json \
 	H12_E2E_FULL=1 node scripts/e2e_agent_h12_local.mjs
 
 .PHONY: e2e-agent-h12-full-resume-local
@@ -723,7 +737,7 @@ e2e-agent-global-pipeline-local:  ## Compare READY baseline/candidate over a rea
 	$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-training aria-agent-worker; \
+		build $(LOCAL_DOCKER_BUILD_ARGS) api mcp aria-worker-training aria-agent-worker; \
 	$(MAKE) local-docker-run; \
 	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
