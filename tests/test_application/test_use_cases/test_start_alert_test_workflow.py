@@ -16,6 +16,7 @@ from src.application.use_cases.alerts.start_alert_test_workflow import (
     StartAlertTestWorkflowUseCase,
 )
 from src.domain.alerts.entities import (
+    AlertOrigin,
     AlertRecord,
     AlertStatus,
 )
@@ -176,6 +177,14 @@ class RecordingWorkflowExecutor(WorkflowExecutor):
         return WorkflowExecutionRef(backend="celery", external_id="task-123")
 
 
+class RecordingMetricsRecorder:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def execute(self, input) -> None:
+        self.calls.append(input)
+
+
 def test_start_alert_test_workflow_creates_tracking_records() -> None:
     alerts = InMemoryAlertRepository()
     operations = InMemoryAsyncOperationRepository()
@@ -236,6 +245,29 @@ def test_start_alert_test_workflow_honors_custom_max_feedback_iterations() -> No
     )
 
     assert workflows.get(output.workflow_execution_id).max_feedback_iterations == 5
+
+
+def test_optimizer_evaluation_creation_does_not_write_operational_metrics() -> None:
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    metrics = RecordingMetricsRecorder()
+    use_case = StartAlertTestWorkflowUseCase(
+        alert_repository=alerts,
+        async_operation_repository=operations,
+        workflow_repository=workflows,
+        workflow_executor=RecordingWorkflowExecutor(),
+        metrics_recorder=metrics,
+    )
+
+    use_case.execute(
+        StartAlertWorkflowInput(
+            payload={"eventId": "event-test"},
+            origin=AlertOrigin.OPTIMIZER_EVALUATION,
+        )
+    )
+
+    assert metrics.calls == []
 
 
 def test_start_alert_test_workflow_passes_payload_to_repository() -> None:

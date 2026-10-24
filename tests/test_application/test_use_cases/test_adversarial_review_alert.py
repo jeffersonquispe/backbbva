@@ -253,6 +253,16 @@ def test_adversarial_review_sends_base_system_prompt_verbatim_by_default() -> No
     assert system_message.content == _DEFAULT_SYSTEM_PROMPT
 
 
+def test_adversarial_prompt_preserves_uncalibrated_and_unavailable_evidence() -> None:
+    assert "señal disponible pero no calibrada" in _DEFAULT_SYSTEM_PROMPT
+    assert "no una señal limpia" in _DEFAULT_SYSTEM_PROMPT
+    assert "no identifica un beneficiario" in _DEFAULT_SYSTEM_PROMPT
+    assert "Un estado histórico `approved`" in _DEFAULT_SYSTEM_PROMPT
+    assert "siguen siendo señales conductuales" in _DEFAULT_SYSTEM_PROMPT
+    assert "fecha de última modificación" in _DEFAULT_SYSTEM_PROMPT
+    assert "posible automatización o artefacto de timestamp" in _DEFAULT_SYSTEM_PROMPT
+
+
 def test_adversarial_review_appends_segment_extra_instructions() -> None:
     responses = [
         'Thought: done\nFinal Answer: {"has_issues": false, "feedback": "", '

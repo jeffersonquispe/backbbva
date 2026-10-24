@@ -12,6 +12,7 @@ from src.application.ports.fraud_knowledge_port import (
 )
 from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryEntry,
+    ModusOperandiLibraryRevision,
     ModusOperandiPlaybook,
 )
 from src.application.ports.vector_store_instance_port import VectorStoreInstance
@@ -34,6 +35,12 @@ class InMemoryModusOperandiLibraryRepository:
 
     def get(self, entry_id: str) -> ModusOperandiLibraryEntry | None:
         return self._entries.get(entry_id)
+
+    def get_revision(self, entry_id: str, revision_sha256: str):
+        entry = self._entries.get(entry_id)
+        if entry is None or revision_sha256 != "revision-pin":
+            return None
+        return ModusOperandiLibraryRevision(entry_id, revision_sha256, entry)
 
 
 _VOICEBOT_PLAYBOOK = ModusOperandiPlaybook(
@@ -223,6 +230,22 @@ def test_returns_none_when_no_hit_has_a_library_entry() -> None:
     use_case, _ = _use_case([_mo_document("mo-999", score=0.9)], [_entry("mo-1")])
 
     assert use_case.execute("query", vector_store_instance_id="vs-1") is None
+
+
+def test_optimizer_uses_only_the_pinned_library_revision() -> None:
+    use_case, _ = _use_case(
+        [_mo_document("mo-other", score=0.95), _mo_document("mo-pin", score=0.8)],
+        [_entry("mo-other"), _entry("mo-pin")],
+    )
+
+    resolved = use_case.execute(
+        "query",
+        vector_store_instance_id="vs-1",
+        library_revision_pin={"entity_id": "mo-pin", "version": "revision-pin"},
+    )
+
+    assert resolved is not None
+    assert resolved.modus_operandi_id == "mo-pin"
 
 
 def test_fails_open_when_vector_store_not_promoted() -> None:

@@ -34,6 +34,11 @@ class StartAlertWorkflowInput:
     schema_version: int | None = None
     active_schema_version: int | None = None
     origin: AlertOrigin = AlertOrigin.MANUAL
+    # Correlates an optimizer replay output with its source snapshot row;
+    # never inserted into the alert payload sent to the model.
+    optimizer_row_index: int | None = None
+    optimizer_model_pin: dict[str, str] | None = None
+    optimizer_component_pins: dict[str, dict[str, str]] | None = None
 
 
 @dataclass

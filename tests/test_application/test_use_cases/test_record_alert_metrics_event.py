@@ -106,6 +106,7 @@ class InMemoryAlertRepository:
         status=None,
         async_operation_id=None,
         workflow_execution_id=None,
+        analyst_resolution=None,
     ):
         current = self.alerts.get(alert_id)
         if current is None:
@@ -116,6 +117,7 @@ class InMemoryAlertRepository:
             async_operation_id=async_operation_id or current.async_operation_id,
             workflow_execution_id=workflow_execution_id
             or current.workflow_execution_id,
+            analyst_resolution=analyst_resolution or current.analyst_resolution,
         )
         self.alerts[alert_id] = updated
         return updated

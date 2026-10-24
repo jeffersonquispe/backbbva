@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from typing import Any
 from uuid import UUID
 
 from src.application.dtos.analyst_review_alert_dtos import (
@@ -129,6 +130,7 @@ class AnalystReviewAlertUseCase:
         # watchlist_ids - built per call by get_analyst_review_alert_use_case
         # from the active segment, not stable adapter state.
         vector_store_instance_id: str | None = None,
+        library_revision_pin: dict[str, str] | None = None,
         handling_prompt: str = "",
     ) -> None:
         self._llm_factory = llm_unit_of_work_factory
@@ -141,6 +143,7 @@ class AnalystReviewAlertUseCase:
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
         self._vector_store_instance_id = vector_store_instance_id
+        self._library_revision_pin = library_revision_pin
         self._handling_prompt = handling_prompt
 
     def _report_progress(self, detail: str) -> None:
@@ -158,10 +161,15 @@ class AnalystReviewAlertUseCase:
 
     def execute(self, input: AnalystReviewAlertInput) -> AnalystReviewAlertOutput:
         self._report_progress("resolving_modus_operandi_playbook")
+        playbook_kwargs: dict[str, Any] = {
+            "vector_store_instance_id": self._vector_store_instance_id,
+        }
+        if self._library_revision_pin is not None:
+            playbook_kwargs["library_revision_pin"] = self._library_revision_pin
         resolved = self._resolve_analyst_playbook.execute(
             f"{input.classification.fraud_classification}. "
             f"{input.classification.reasoning}".strip(),
-            vector_store_instance_id=self._vector_store_instance_id,
+            **playbook_kwargs,
         )
         self._report_progress("fetching_operations_capacity")
         capacity = _channel_data(self._operations_capacity_port.get_capacity())

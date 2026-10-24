@@ -523,7 +523,7 @@ class ScriptedResolveAnalystPlaybookUseCase:
     def __init__(self, resolved: ResolvedPlaybook | None) -> None:
         self._resolved = resolved
 
-    def execute(self, query, *, vector_store_instance_id):
+    def execute(self, query, *, vector_store_instance_id, library_revision_pin=None):
         return self._resolved
 
 
@@ -794,10 +794,17 @@ def in_memory_alert_schema_repository(monkeypatch):
     monkeypatch.setattr(
         factories_module, "get_alert_schema_repository", lambda: repository
     )
+    monkeypatch.setattr(
+        workflow_module, "get_alert_schema_repository", lambda: repository
+    )
     return repository
 
 
-def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
+def _run_full_pipeline(
+    monkeypatch,
+    resolved: ResolvedPlaybook | None,
+    origin: AlertOrigin = AlertOrigin.MANUAL,
+):
     now = datetime.now(UTC)
 
     alerts = InMemoryAlertRepository()
@@ -906,7 +913,32 @@ def _run_full_pipeline(monkeypatch, resolved: ResolvedPlaybook | None):
             async_operation_id=async_operation_id,
             workflow_name="alert_review",
             status=WorkflowStatus.PENDING,
-            input={"alert_payload": SYNTHETIC_ALERT_PAYLOAD},
+            input={
+                "alert_payload": SYNTHETIC_ALERT_PAYLOAD,
+                "origin": origin.value,
+                **(
+                    {
+                        "optimizer_model_pin": {
+                            "model_id": "optimizer-test-model",
+                            "artifact_sha256": "a" * 64,
+                        },
+                        "optimizer_component_pins": {
+                            "library": {
+                                "entity_id": "optimizer-test-library",
+                                "version": "1" * 64,
+                                "content_sha256": "b" * 64,
+                            },
+                            "vector_store": {
+                                "entity_id": "optimizer-test-vector-store",
+                                "version": "1",
+                                "content_sha256": "c" * 64,
+                            },
+                        },
+                    }
+                    if origin == AlertOrigin.OPTIMIZER_EVALUATION
+                    else {}
+                ),
+            },
             output=None,
             error=None,
             current_step=None,
@@ -1816,6 +1848,34 @@ def test_reasoning_evaluation_dispatched_only_when_sampled(
     )
     _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
     assert evaluation_dispatches.calls == []
+
+
+@pytest.mark.parametrize(
+    ("origin", "records_metrics"),
+    [
+        (AlertOrigin.TEST_RUN, True),
+        (AlertOrigin.OPTIMIZER_EVALUATION, False),
+    ],
+)
+def test_isolated_runs_execute_pipeline_without_operational_dispatches(
+    monkeypatch, evaluation_dispatches, metrics_events, step_metrics, origin, records_metrics
+):
+    run = _run_full_pipeline(
+        monkeypatch, _ARIA_PLAYBOOK, origin=origin
+    )
+
+    assert run["result"]["status"] == "ok"
+    assert run["action_dispatcher"].calls == []
+    assert run["escalation_dispatcher"].calls == []
+    assert run["documenter_dispatcher"].calls == []
+    assert evaluation_dispatches.calls == []
+    assert bool(metrics_events.events) is records_metrics
+    assert bool(step_metrics.inputs) is records_metrics
+    executor_step = next(
+        step for step in run["steps"].list_by_workflow(run["workflow_id"])
+        if step.step_name == "executor"
+    )
+    assert executor_step.output["executed_action"] == "simulated"
 
 
 # --- T2/T3: workflow + step spans and explicit workflow metrics -------------------

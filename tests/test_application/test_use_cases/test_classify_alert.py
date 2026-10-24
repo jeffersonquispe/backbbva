@@ -324,6 +324,12 @@ def test_classify_alert_sends_base_system_prompt_verbatim_by_default() -> None:
 
     system_message = llm_factory.created[0].received_messages[0][0]
     assert system_message.content == _DEFAULT_SYSTEM_PROMPT
+    assert "campo ausente, nulo o sin historial comparable" in system_message.content
+    assert "Una regla de velocidad acredita frecuencia, no fraude" in system_message.content
+    assert "aunque el score sea alto" in system_message.content
+    assert "no lo llames patrón habitual" in system_message.content
+    assert "misma hora exacta se repite" in system_message.content
+    assert "fecha de última modificación" in system_message.content
 
 
 def test_classify_alert_appends_segment_extra_instructions() -> None:

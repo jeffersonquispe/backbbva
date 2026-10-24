@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,7 @@ class TransactionHistoryEntry:
     integration_point: str | None = None
     channel: str | None = None
     counterparty: str | None = None
+    additional_fields: dict[str, Any] = field(default_factory=dict)
 
 
 class HostServiceTransactionHistoryPort(ABC):

@@ -47,6 +47,29 @@ _INTRO = (
     "herramientas de investigación que usó el analista, en cualquier "
     "orden, tantas o tan pocas veces como necesites, para verificar sus "
     "afirmaciones de forma independiente.\n\n"
+    "Criterios para datos incompletos: un valor de score presente sin escala "
+    "o umbral es una señal disponible pero no calibrada; no exijas que se "
+    "califique como alto/bajo ni que determine la decisión. Acepta que se "
+    "mencione como potencialmente informativo e inconcluso. Un campo null o "
+    "no reportado es no disponible, no una señal limpia ni evidencia de que "
+    "el riesgo esté ausente. Si falta un perfil enriquecido, distingue esa "
+    "ausencia de los atributos personales que sí puedan venir en la alerta. "
+    "Los puntajes BioCatch/modelo siguen siendo señales conductuales aunque "
+    "no estén calibrados; son inconclusos, no equivalen a que no haya señales. "
+    "La ausencia de cambios reportados por una fuente no descarta cambios; "
+    "si la alerta incluye una fecha de última modificación, indica que se "
+    "registró alguna modificación, aunque no se conozca qué cambió. "
+    "Un estado histórico `approved` describe el "
+    "resultado del procesamiento; por sí solo no verifica legitimidad ni "
+    "descarta fraude. "
+    "Un valor genérico idéntico en punto de entrada y contraparte no identifica "
+    "un beneficiario y no demuestra recurrencia; limita la comparación a "
+    "canal, tipo y monto, y aclara el tamaño de una muestra histórica pequeña. "
+    "Si la misma hora aparece exactamente en alertas de fechas distintas, "
+    "evalúa el patrón como posible automatización o artefacto de timestamp, "
+    "sin tratarlo por sí solo como prueba. No pidas una conclusión de "
+    "fraude o no fraude cuando los datos solo sostienen unknown; da feedback "
+    "solo por una contradicción factual o lógica concreta.\n\n"
 )
 
 # Same tool catalog as classify_alert.py's _TOOL_DESCRIPTIONS - only the
@@ -150,6 +173,7 @@ def _review_context(input: AdversarialReviewAlertInput) -> dict[str, Any]:
             "fraud_classification": input.classification.fraud_classification,
             "reasoning": input.classification.reasoning,
             "chain_of_thought": input.classification.cot,
+            "model_output": input.classification.model_output,
         },
     }
 

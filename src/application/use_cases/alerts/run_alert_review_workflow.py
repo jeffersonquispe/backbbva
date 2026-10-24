@@ -350,11 +350,15 @@ class RunAlertReviewWorkflowUseCase:
                     # Fire-and-forget: runs in its own task, concurrently
                     # with the rest of this workflow, so a slow/failed
                     # report never blocks or fails the alert review itself.
-                    self._documenter.dispatch(
-                        workflow.alert_id,
-                        workflow.id,
-                        context_steps_snapshot(context),
-                    )
+                    if origin not in {
+                        AlertOrigin.TEST_RUN,
+                        AlertOrigin.OPTIMIZER_EVALUATION,
+                    }:
+                        self._documenter.dispatch(
+                            workflow.alert_id,
+                            workflow.id,
+                            context_steps_snapshot(context),
+                        )
 
             if discarded:
                 match = context["deterministic"]
@@ -408,7 +412,10 @@ class RunAlertReviewWorkflowUseCase:
                 ),
             )
             self._record_step_metrics(workflow)
-            if not discarded:
+            if not discarded and origin not in {
+                AlertOrigin.TEST_RUN,
+                AlertOrigin.OPTIMIZER_EVALUATION,
+            }:
                 self._dispatch_reasoning_evaluation(workflow)
             return RunAlertReviewWorkflowOutput(
                 status="ok", workflow_execution_id=str(workflow.id)
@@ -434,10 +441,13 @@ class RunAlertReviewWorkflowUseCase:
                 AlertMetricsEventType.WORKFLOW_FINISHED,
                 status=AlertStatus.FAILED,
             )
+            # Test runs are isolated from operational analyst escalation.
+            if origin in {AlertOrigin.TEST_RUN, AlertOrigin.OPTIMIZER_EVALUATION}:
+                pass
             # AdversarialFeedbackLimitExceededError is excluded from the
             # delivery layer's automatic retry, so it's terminal on this one
             # raise regardless of is_final_attempt - escalate every time.
-            if isinstance(exc, AdversarialFeedbackLimitExceededError):
+            elif isinstance(exc, AdversarialFeedbackLimitExceededError):
                 self._escalate_to_analyst(workflow, error)
             # Only on the final attempt: a retry re-runs this whole method
             # from scratch, so escalating on every attempt would fire one
@@ -507,6 +517,11 @@ class RunAlertReviewWorkflowUseCase:
         event_type: AlertMetricsEventType,
         **fields: Any,
     ) -> None:
+        if (
+            AlertOrigin((workflow.input or {}).get("origin") or "manual")
+            == AlertOrigin.OPTIMIZER_EVALUATION
+        ):
+            return
         # Best effort: a metrics failure must never fail (and so retry) the
         # alert review. Re-recording the same event on a retry is a no-op
         # (RecordAlertMetricsEvent compares snapshots), and the daily
@@ -529,6 +544,11 @@ class RunAlertReviewWorkflowUseCase:
             )
 
     def _record_step_metrics(self, workflow: WorkflowExecutionRecord) -> None:
+        if (
+            AlertOrigin((workflow.input or {}).get("origin") or "manual")
+            == AlertOrigin.OPTIMIZER_EVALUATION
+        ):
+            return
         # R8 technical rollups from the run's persisted step records (call
         # after self._status.flush()). Best effort like _record_metrics:
         # exactly-once per step execution is RecordWorkflowStepMetrics'

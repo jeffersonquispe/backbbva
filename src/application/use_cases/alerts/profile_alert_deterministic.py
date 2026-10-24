@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import hashlib
 import statistics
+import unicodedata
 from collections import Counter
 from typing import Any
 from uuid import UUID
@@ -32,27 +32,63 @@ _ARIC_FLAG_LABELS = (
     ("screen_broadcast", "transmisión de pantalla"),
 )
 
-_HISTORICAL_MAX_LABELS = (
-    ("max_amount_pse", "PSE"),
-    ("max_amount_payment_gateway", "pasarela"),
-    ("max_amount_breb", "Bre-B"),
-    ("max_amount_glomo", "GloMo"),
-    ("max_amount_net", "Net"),
-    ("max_amount_loan", "préstamos"),
-    ("max_amount_bills", "facturas"),
-    ("max_amount_card_withdrawals", "retiros con tarjeta"),
-)
-
-# New-destination detection is still simulated because this narrator does
-# not yet receive the history alongside the current transaction. The new
-# export adapter now preserves each historical counterparty, so this can be
-# replaced with a real comparison when that contract is expanded.
-_SIMULATED_NEW_DESTINATION_RATE = 30  # out of 100, arbitrary
+_MAX_AMOUNT_ROLE_LABELS = {
+    "breb": "Bre-B",
+    "card withdrawals": "retiros con tarjeta",
+    "payment gateway": "pasarela",
+    "pse": "PSE",
+    "glomo": "GloMo",
+    "net": "Net",
+    "loan": "préstamos",
+    "bills": "facturas",
+}
 
 
-def _simulate_is_new_destination(customer_id: str, counterparty: str) -> bool:
-    digest = hashlib.sha256(f"{customer_id}:{counterparty}".encode()).hexdigest()
-    return int(digest[:8], 16) % 100 < _SIMULATED_NEW_DESTINATION_RATE
+def _historical_maxima(
+    fields: dict[str, Any], roles: dict[str, Any]
+) -> list[tuple[str, float]]:
+    """Return selected, schema-backed historical maxima without fixed aliases."""
+    values: list[tuple[str, float]] = []
+    seen: set[str] = set()
+
+    # Schema roles let the manager keep the meaning stable while changing the
+    # source field name. The role suffix is only a display label.
+    for role, value in roles.items():
+        if role.startswith("max_amount_") and (amount := _to_float(value)) is not None:
+            label = role.removeprefix("max_amount_").replace("_", " ")
+            label = _MAX_AMOUNT_ROLE_LABELS.get(label, label)
+            source_name = next(
+                (
+                    name
+                    for name, source_value in fields.items()
+                    if source_value == value
+                ),
+                None,
+            )
+            values.append((label, amount))
+            if source_name is not None:
+                seen.add(_normalized_field_name(str(source_name)))
+
+    # Existing flat exports predate schema roles. They are still manager
+    # selected fields, so expose their source name as the label rather than
+    # requiring a hard-coded product catalogue.
+    for name, value in fields.items():
+        normalized = _normalized_field_name(str(name))
+        role_name = normalized.removeprefix("max_amount_")
+        if normalized in seen:
+            continue
+        if normalized.startswith("max_amount_"):
+            label = role_name.replace("_", " ")
+            label = _MAX_AMOUNT_ROLE_LABELS.get(label, label)
+        elif normalized.startswith("montomasalto"):
+            label = str(name)
+        else:
+            continue
+        if label:
+            if (amount := _to_float(value)) is not None:
+                values.append((label, amount))
+                seen.add(normalized)
+    return values
 
 
 def _to_float(value: Any) -> float | None:
@@ -64,12 +100,41 @@ def _to_float(value: Any) -> float | None:
         return None
 
 
+def _normalized_field_name(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value.casefold())
+    return "".join(char for char in normalized if not unicodedata.combining(char))
+
+
+def _last_modified_field(
+    fields: dict[str, Any], roles: dict[str, Any]
+) -> tuple[str, Any] | None:
+    """Resolve the configurable customer-modification timestamp, when present.
+
+    A schema may map any source field to the optional ``customer_last_modified``
+    role. For older schemas without that role, recognize common field-name
+    variants so the profile does not contradict an available source timestamp.
+    """
+    mapped = roles.get("customer_last_modified")
+    if mapped is not None:
+        return "customer_last_modified", mapped
+    for name, value in fields.items():
+        normalized = _normalized_field_name(str(name))
+        if value is not None and any(
+            token in normalized
+            for token in ("modificacion", "modification", "modified", "last_updated")
+        ):
+            return str(name), value
+    return None
+
+
 def _narrate_user(
     customer_profile: Any,
     personal_data_changes: list[Any],
     mandatory: dict[str, Any],
+    roles: dict[str, Any] | None = None,
 ) -> str:
     parts: list[str] = []
+    roles = roles or {}
 
     name = getattr(customer_profile, "customer_name", None)
     document = getattr(customer_profile, "document_number", None)
@@ -80,7 +145,9 @@ def _narrate_user(
         parts.append(identity + ".")
     else:
         parts.append(
-            "No se encontró un registro de identidad del cliente para " "esta alerta."
+            "El servicio de perfilamiento no encontró un registro enlazado con "
+            "nombre o documento para esta alerta; esto no permite afirmar que "
+            "no existan otros atributos del cliente en los datos recibidos."
         )
     if address:
         parts.append(f"Dirección registrada: {address}.")
@@ -94,7 +161,21 @@ def _narrate_user(
             f"registrados, el más reciente: {recent}."
         )
     else:
-        parts.append("No hay cambios de datos personales registrados.")
+        parts.append(
+            "La fuente de cambios de datos personales no reportó registros; "
+            "esos cambios no están disponibles para esta revisión y esta ausencia "
+            "de reporte no confirma que no hayan ocurrido."
+        )
+
+    last_modified = _last_modified_field(mandatory, roles)
+    if last_modified is not None:
+        field_name, value = last_modified
+        parts.append(
+            f"El campo de fecha de modificación {field_name} contiene {value}; "
+            "esto indica una modificación registrada, pero no identifica qué dato "
+            "cambió ni permite evaluar su naturaleza o relación con la alerta. "
+            "Conviene revisar el detalle de ese cambio si está disponible."
+        )
 
     device_id = mandatory.get("device_id")
     ip = mandatory.get("ip_channel") or mandatory.get("ip_biocatch")
@@ -123,6 +204,7 @@ def _narrate_transaction(
     mandatory: dict[str, Any],
     aric_signals: Any,
     customer_id: str | None,
+    transaction_history: list[TransactionHistoryEntry],
     roles: dict[str, Any] | None = None,
 ) -> str:
     roles = roles or {}
@@ -147,35 +229,116 @@ def _narrate_transaction(
 
     scores = []
     for key, label in (("biocatch_score", "BioCatch"), ("model_score", "modelo")):
-        value = mandatory.get(key)
+        value = roles.get(key, mandatory.get(key))
         if value is not None:
             scores.append(f"{label}: {value}")
     if scores:
         parts.append("Puntajes de riesgo: " + ", ".join(scores) + ".")
+        parts.append(
+            "El perfil no incluye la escala ni el umbral operativo de esos "
+            "puntajes. Son valores presentes y potencialmente informativos, "
+            "pero no se pueden calificar como altos o bajos ni descartarse "
+            "como neutros solo por su valor numérico."
+        )
 
+    signal_values = [
+        getattr(aric_signals, attr, None) for attr, _label in _ARIC_FLAG_LABELS
+    ]
     flags = [
-        label for attr, label in _ARIC_FLAG_LABELS if getattr(aric_signals, attr, None)
+        label
+        for (attr, label) in _ARIC_FLAG_LABELS
+        if getattr(aric_signals, attr, None) is True
     ]
     if flags:
         parts.append(f"BioCatch marcó esta sesión como: {', '.join(flags)}.")
+    elif not any(value is not None for value in signal_values):
+        parts.append(
+            "No se recibieron flags de comportamiento interpretables (RAT, bot, "
+            "llamada o pantalla); estos flags no están disponibles, no se han "
+            "verificado como limpios. Los puntajes numéricos listados arriba son "
+            "señales distintas y no se deben confundir con estos flags."
+        )
+    elif any(value is None for value in signal_values):
+        parts.append(
+            "Entre los flags de comportamiento disponibles no se reportaron "
+            "anomalías; otros flags no están disponibles, por lo que esto no "
+            "permite afirmar su ausencia ni descartar riesgo. Los puntajes "
+            "numéricos listados arriba son señales distintas."
+        )
     else:
         parts.append(
-            "No se detectaron señales anómalas de dispositivo o sesión en " "BioCatch."
+            "BioCatch no reportó señales anómalas entre los indicadores " "revisados."
         )
 
-    if counterparty and customer_id:
-        if _simulate_is_new_destination(customer_id, str(counterparty)):
+    historical_counterparties = {
+        entry.counterparty.strip().casefold()
+        for entry in transaction_history
+        if entry.counterparty and entry.counterparty.strip()
+    }
+    if (
+        counterparty
+        and integration_point
+        and str(counterparty).strip().casefold()
+        == str(integration_point).strip().casefold()
+    ):
+        parts.append(
+            f"El valor de contraparte {counterparty} coincide con el punto de "
+            "entrada y no identifica por sí solo un comercio o beneficiario "
+            "específico; no se usa como coincidencia de destino con el historial."
+        )
+        counterparty = None
+
+    if counterparty and historical_counterparties:
+        if str(counterparty).strip().casefold() not in historical_counterparties:
             parts.append(
-                "El destino no se había visto antes en la actividad "
-                "reciente de este cliente (señal simulada - aún no hay "
-                "historial real de destinos disponible)."
+                "La contraparte actual no aparece en las transacciones del "
+                "historial disponible para este cliente."
             )
         else:
             parts.append(
-                "El destino es consistente con la actividad reciente de "
-                "este cliente (señal simulada - aún no hay historial real "
-                "de destinos disponible)."
+                "La contraparte actual también aparece en el historial "
+                "disponible; esa coincidencia no demuestra por sí sola "
+                "que sea habitual para el cliente."
             )
+    elif counterparty:
+        parts.append(
+            f"La alerta identifica la contraparte actual como {counterparty}, "
+            "pero el historial disponible no contiene una contraparte "
+            "comparable."
+        )
+    elif integration_point and historical_counterparties:
+        history_values = ", ".join(sorted(historical_counterparties)[:5])
+        if any(
+            value == str(integration_point).strip().casefold()
+            for value in historical_counterparties
+        ):
+            parts.append(
+                f"El punto de entrada informado es {integration_point}; no hay "
+                "un identificador específico de comercio o beneficiario en la "
+                "alerta para compararlo. El historial registra la categoría "
+                f"genérica {integration_point} como contraparte ({history_values}), "
+                "pero esto no identifica el mismo destino ni demuestra "
+                "recurrencia de beneficiario."
+            )
+        else:
+            parts.append(
+                f"El punto de entrada informado es {integration_point}; no hay "
+                "un identificador específico de comercio o beneficiario en la "
+                f"alerta para compararlo. El historial contiene contraparte(s) "
+                f"{history_values}; el punto de entrada y la contraparte son "
+                "campos distintos y no deben tratarse como una comparación directa."
+            )
+    elif integration_point:
+        parts.append(
+            f"El punto de entrada informado es {integration_point}; la alerta "
+            "no contiene un identificador específico de comercio o beneficiario."
+        )
+    elif historical_counterparties:
+        history_values = ", ".join(sorted(historical_counterparties)[:5])
+        parts.append(
+            "La alerta no contiene una contraparte actual para comparar; "
+            f"el historial contiene contraparte(s) {history_values}."
+        )
     else:
         parts.append("No había destino/contraparte disponible para evaluar.")
 
@@ -186,12 +349,12 @@ def _narrate_transactional(
     transaction_history: list[TransactionHistoryEntry],
     current_amount: float | None,
     fields: dict[str, Any],
+    roles: dict[str, Any] | None = None,
 ) -> str:
     parts: list[str] = []
+    roles = roles or {}
     historical_maxima = [
-        f"{label}: {value:,.0f}"
-        for key, label in _HISTORICAL_MAX_LABELS
-        if (value := _to_float(fields.get(key))) is not None
+        f"{label}: {value:,.0f}" for label, value in _historical_maxima(fields, roles)
     ]
     if historical_maxima:
         parts.append(
@@ -212,7 +375,26 @@ def _narrate_transactional(
     summary += f", entre {times[0]} y {times[-1]}" if times else ""
     parts.append(summary + ".")
 
+    current_time = roles.get("event_time")
+    if current_time and times:
+        current_timestamp = str(current_time)
+        current_clock = current_timestamp.split("T")[-1].removesuffix("Z")
+        historical_clocks = [
+            str(value).split("T")[-1].removesuffix("Z") for value in times
+        ]
+        if historical_clocks and all(
+            value == current_clock for value in historical_clocks
+        ):
+            parts.append(
+                f"La transacción actual y las {len(historical_clocks)} transacción(es) "
+                f"histórica(s) disponible(s) tienen la misma hora ({current_clock}); "
+                "conviene validar si corresponde a una programación o a un artefacto "
+                "de timestamp/normalización. Por sí solo no identifica automatización "
+                "fraudulenta ni permite salir de unknown."
+            )
+
     median_amount = statistics.median(amounts) if amounts else None
+    min_amount = min(amounts) if amounts else None
     max_amount = max(amounts) if amounts else None
     if amounts:
         parts.append(
@@ -224,8 +406,62 @@ def _narrate_transactional(
         breakdown = ", ".join(f"{t} ({n})" for t, n in types.most_common(5))
         parts.append(f"Tipo(s) de transacción más común(es): {breakdown}.")
 
+    comparison_counts: list[str] = []
+    current_channel = roles.get("channel")
+    if current_channel:
+        matches = sum(
+            entry.channel is not None
+            and entry.channel.strip().casefold()
+            == str(current_channel).strip().casefold()
+            for entry in transaction_history
+        )
+        comparison_counts.append(
+            f"canal {current_channel}: {matches}/{len(transaction_history)}"
+        )
+    current_type = roles.get("event_type")
+    if current_type:
+        matches = sum(
+            entry.event_type.strip().casefold() == str(current_type).strip().casefold()
+            for entry in transaction_history
+        )
+        comparison_counts.append(
+            f"tipo {current_type}: {matches}/{len(transaction_history)}"
+        )
+    if current_amount is not None:
+        amount_matches = sum(
+            entry.amount is not None and entry.amount == current_amount
+            for entry in transaction_history
+        )
+        comparison_counts.append(
+            f"monto {current_amount:,.0f}: {amount_matches}/{len(transaction_history)}"
+        )
+    if comparison_counts:
+        parts.append(
+            "Coincidencias exactas descriptivas con el historial: "
+            + "; ".join(comparison_counts)
+            + ". Son coincidencias observadas, no establecen recurrencia, "
+            "normalidad ni legitimidad."
+        )
+
+    statuses = Counter(t.status for t in transaction_history if t.status)
+    if statuses:
+        status_summary = ", ".join(
+            f"{status} ({count})" for status, count in statuses.most_common(5)
+        )
+        parts.append(
+            f"Estados reportados en el historial: {status_summary}. Estos estados "
+            "describen el resultado registrado del procesamiento y no confirman "
+            "por sí solos que una transacción fuera legítima o no fraudulenta."
+        )
+
     if current_amount is not None and amounts and max_amount is not None:
-        if current_amount > max_amount:
+        if min_amount is not None and current_amount < min_amount:
+            parts.append(
+                f"El monto actual de {current_amount:,.0f} está por debajo "
+                f"del mínimo histórico observado ({min_amount:,.0f}); no "
+                "está dentro del rango registrado."
+            )
+        elif current_amount > max_amount:
             parts.append(
                 f"El monto actual de {current_amount:,.0f} supera el "
                 f"monto más alto registrado ({max_amount:,.0f})."
@@ -238,8 +474,11 @@ def _narrate_transactional(
             )
         else:
             parts.append(
-                f"El monto actual de {current_amount:,.0f} está dentro "
-                "del rango habitual del cliente."
+                f"El monto actual de {current_amount:,.0f} está dentro del rango "
+                f"observado ({min_amount:,.0f}–{max_amount:,.0f}) en las "
+                f"{len(amounts)} transacción(es) histórica(s) con monto disponible; "
+                "una muestra limitada no establece por sí sola el comportamiento "
+                "habitual ni es evidencia contra fraude."
             )
 
     return " ".join(parts)
@@ -300,6 +539,7 @@ class DeterministicProfileAlertUseCase:
                 "device_id": fields.get("device_id"),
                 "ip_channel": fields.get("ip_channel"),
             },
+            roles=roles,
         )
 
         self._report_progress("transaction_profile")
@@ -307,6 +547,7 @@ class DeterministicProfileAlertUseCase:
             mandatory=fields,
             aric_signals=enrichment.get("aric_signals"),
             customer_id=roles.get("customer_id"),
+            transaction_history=transaction_history,
             roles=roles,
         )
 
@@ -315,6 +556,7 @@ class DeterministicProfileAlertUseCase:
             transaction_history=transaction_history,
             current_amount=_to_float(roles.get("amount")),
             fields=fields,
+            roles=roles,
         )
 
         return ProfileAlertOutput(

@@ -19,11 +19,14 @@ class AlertStatus(StrEnum):
 class AlertOrigin(StrEnum):
     MANUAL = "manual"
     TEST_RUN = "test_run"
+    OPTIMIZER_EVALUATION = "optimizer_evaluation"
     SIMULATOR = "simulator"
     PRODUCTION = "production"
 
 
-PROCESSED_WHILE_AGENT_OFF = frozenset({AlertOrigin.MANUAL, AlertOrigin.TEST_RUN})
+PROCESSED_WHILE_AGENT_OFF = frozenset(
+    {AlertOrigin.MANUAL, AlertOrigin.TEST_RUN, AlertOrigin.OPTIMIZER_EVALUATION}
+)
 
 
 class Mark(StrEnum):
@@ -81,3 +84,7 @@ class AlertRecord:
     configuration_id: str | None = None
     configuration_version: int | None = None
     metrics: AlertMetricsSnapshot | None = None
+    # How a human analyst closed an escalated alert: decision, notes,
+    # resolved_by (user id) and resolved_at. Stored on the alert so the
+    # detail of a CLOSED alert needs no scan of the reservation audit trail.
+    analyst_resolution: dict[str, Any] = field(default_factory=dict)

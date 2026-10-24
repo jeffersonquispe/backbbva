@@ -32,6 +32,7 @@ class AlertRepository(Protocol):
         history_prev_alerta: list[dict[str, Any]] | None = None,
         agent_output: dict[str, Any] | None = None,
         agent_output_ref: Any | None = None,
+        analyst_resolution: dict[str, Any] | None = None,
     ) -> AlertRecord | None: ...
 
     def delete(self, alert_id: UUID) -> None: ...

@@ -91,6 +91,7 @@ class DynamoAlertRepository:
         history_prev_alerta: list[dict[str, Any]] | None = None,
         agent_output: dict[str, Any] | None = None,
         agent_output_ref: ObjectStorageRef | None = None,
+        analyst_resolution: dict[str, Any] | None = None,
     ) -> AlertRecord | None:
         # UpdateItem on just the given fields, never a whole-item put: the
         # metrics snapshot (and its snapshot_version guard) is written by a
@@ -133,6 +134,12 @@ class DynamoAlertRepository:
                     }
                 )
                 if agent_output_ref
+                else None,
+            ),
+            (
+                "analyst_resolution",
+                to_dynamodb(analyst_resolution)
+                if analyst_resolution is not None
                 else None,
             ),
         ):
@@ -433,6 +440,8 @@ def _to_item(alert: AlertRecord, timezone_name: str | None = None) -> dict[str, 
         "created_at": alert.created_at.isoformat(),
         "updated_at": alert.updated_at.isoformat(),
     }
+    if alert.analyst_resolution:
+        item["analyst_resolution"] = to_dynamodb(alert.analyst_resolution)
     if alert.metrics is not None:
         item[METRICS_ATTRIBUTE] = snapshot_to_item(alert.metrics)
     return item
@@ -479,4 +488,5 @@ def _from_item(item: dict[str, Any]) -> AlertRecord:
             if item.get("agent_output_ref")
             else None
         ),
+        analyst_resolution=from_dynamodb(item.get("analyst_resolution") or {}),
     )

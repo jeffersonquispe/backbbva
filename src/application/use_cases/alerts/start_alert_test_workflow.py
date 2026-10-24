@@ -35,6 +35,7 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
 )
 from src.domain.alerts.entities import (
+    AlertOrigin,
     AlertRecord,
     AlertStatus,
 )
@@ -115,6 +116,9 @@ class StartAlertTestWorkflowUseCase:
                     "event_type": alert.event_type,
                     "created_by": input.created_by,
                     "origin": input.origin.value,
+                    "optimizer_row_index": input.optimizer_row_index,
+                    "optimizer_model_pin": input.optimizer_model_pin,
+                    "optimizer_component_pins": input.optimizer_component_pins,
                 },
                 result=None,
                 error=None,
@@ -147,6 +151,9 @@ class StartAlertTestWorkflowUseCase:
                         else None
                     ),
                     "origin": input.origin.value,
+                    "optimizer_row_index": input.optimizer_row_index,
+                    "optimizer_model_pin": input.optimizer_model_pin,
+                    "optimizer_component_pins": input.optimizer_component_pins,
                 },
                 output=None,
                 error=None,
@@ -190,7 +197,7 @@ class StartAlertTestWorkflowUseCase:
         # Best effort: never fail alert intake over metrics; a missed
         # arrival snapshot is rebuilt by the alert's next event or the
         # daily reconciliation.
-        if self._metrics is None:
+        if self._metrics is None or input.origin == AlertOrigin.OPTIMIZER_EVALUATION:
             return
         try:
             self._metrics.execute(

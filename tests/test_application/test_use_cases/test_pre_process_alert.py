@@ -28,6 +28,9 @@ from src.application.use_cases.alerts.pre_process_alert import (
     PreProcessAlertUseCase,
 )
 from src.domain.alerts.exceptions import MandatoryAlertDataMissingError
+from src.domain.datasets.mature_sample_entities import (
+    OPTIMIZER_REPLAY_HISTORY_COLUMN,
+)
 
 VALID_PAYLOAD = {
     "eventId": "evt-1",
@@ -204,6 +207,15 @@ def _schema() -> AlertSchemaVersion:
                 is_alert=False,
                 is_history=True,
             ),
+            AlertSchemaField(
+                "history-geolocation",
+                AlertSchemaDataSource.HOST,
+                "geolocation",
+                field_ds_loc="location.country",
+                type=AlertSchemaFieldType.STRING,
+                is_alert=False,
+                is_history=True,
+            ),
         ]
     )
     return AlertSchemaVersion(
@@ -272,6 +284,34 @@ def test_pre_process_maps_only_is_history_fields_to_canonical_history() -> None:
     ).execute(PreProcessAlertInput(alert_id=uuid.uuid4(), payload=VALID_PAYLOAD))
 
     assert output.history == [{"amount": 63800.0, "event_time": "2026-10-08T14:30:00Z"}]
+
+
+def test_optimizer_replay_maps_manager_configured_nested_history_fields() -> None:
+    output = _use_case().execute(
+        PreProcessAlertInput(
+            alert_id=uuid.uuid4(),
+            payload={
+                **VALID_PAYLOAD,
+                OPTIMIZER_REPLAY_HISTORY_COLUMN: [
+                    {
+                        "amount": 63800.0,
+                        "event_time": "2026-10-08T14:30:00Z",
+                        "location": {"country": "CO"},
+                    }
+                ],
+            },
+            skip_external_enrichment=True,
+        )
+    )
+
+    assert output.history == [
+        {
+            "amount": 63800.0,
+            "event_time": "2026-10-08T14:30:00Z",
+            "geolocation": "CO",
+        }
+    ]
+    assert "unavailable rather than negative evidence" in output.pre_process_note
 
 
 # Real column names from Muestra_total_ARIA.csv - the reference dataset.

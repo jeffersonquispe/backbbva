@@ -40,6 +40,9 @@ from src.domain.alerts.exceptions import (
     MandatoryAlertDataMissingError,
     NoActiveAlertSchemaError,
 )
+from src.domain.datasets.mature_sample_entities import (
+    OPTIMIZER_REPLAY_HISTORY_COLUMN,
+)
 from src.domain.workflows.entities import (
     WorkflowStepStatus,
 )
@@ -290,6 +293,9 @@ def _history_values(
     result: list[dict[str, Any]] = []
     for entry in entries:
         source = dataclasses.asdict(entry)
+        additional = source.pop("additional_fields", {})
+        if isinstance(additional, dict):
+            source = {**additional, **source}
         values, _, _ = _extract_fields(
             history_fields,
             {
@@ -299,6 +305,63 @@ def _history_values(
         )
         result.append(values)
     return result
+
+
+def _optimizer_replay_history(
+    schema: AlertSchemaVersion, payload: dict[str, Any]
+) -> tuple[list[TransactionHistoryEntry], list[dict[str, Any]]] | None:
+    raw = payload.get(OPTIMIZER_REPLAY_HISTORY_COLUMN)
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise ValueError("OPTIMIZER_REPLAY_HISTORY_INVALID") from error
+    if not isinstance(raw, list):
+        raise ValueError("OPTIMIZER_REPLAY_HISTORY_INVALID")
+    fields = [
+        field for field in schema.fields if field.is_history and not field.is_label
+    ]
+    sources = {field.data_source for field in fields}
+    entries: list[TransactionHistoryEntry] = []
+    mapped_history: list[dict[str, Any]] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError("OPTIMIZER_REPLAY_HISTORY_INVALID")
+        values, _, missing = _extract_fields(
+            fields, {source: item for source in sources}
+        )
+        if missing:
+            raise ValueError("OPTIMIZER_REPLAY_HISTORY_INVALID")
+        mapped_history.append(values)
+        amount = values.get("amount")
+        entries.append(
+            TransactionHistoryEntry(
+                event_id=str(values.get("event_id") or f"optimizer-history-{index}"),
+                event_type=str(values.get("event_type") or "unknown"),
+                event_time=str(values.get("event_time") or ""),
+                amount=(
+                    float(amount)
+                    if isinstance(amount, (int, float)) and not isinstance(amount, bool)
+                    else None
+                ),
+                status=_optional_history_text(values.get("status")),
+                alerts=_optional_history_text(values.get("alerts")),
+                account_id=_optional_history_text(values.get("account_id")),
+                integration_point=_optional_history_text(
+                    values.get("integration_point")
+                ),
+                channel=_optional_history_text(values.get("channel")),
+                counterparty=_optional_history_text(values.get("counterparty")),
+                additional_fields=values,
+            )
+        )
+    return entries, mapped_history
+
+
+def _optional_history_text(value: Any) -> str | None:
+    return str(value) if value is not None else None
 
 
 def _merge_aric_signals(
@@ -428,29 +491,53 @@ class PreProcessAlertUseCase:
         account_id = roles.get("account_id")
         session_id = roles.get("session_id")
         event_id = str(roles["event_id"])
+        transaction_history: list[TransactionHistoryEntry] | None
+        replay_history: list[dict[str, Any]] | None = None
 
-        self._report_progress("fetching_aric_signals")
-        fetched_aric_signals = _with_retry(
-            lambda: self._aric.fetch_signals(event_id, session_id)
-        )
-        aric_signals = _merge_aric_signals(input.payload, fetched_aric_signals)
-        self._report_progress("fetching_customer_profile")
-        customer_profile = _with_retry(
-            lambda: self._host_customer.fetch_customer_profile(customer_id)
-        )
-        self._report_progress("fetching_transaction_history")
-        transaction_history = _transaction_history_from_payload(input.payload)
-        if transaction_history is None:
-            transaction_history = _with_retry(
-                lambda: self._host_tx_history.fetch_transaction_history(
-                    customer_id, account_id
+        if input.skip_external_enrichment:
+            # Optimizer replay must not call customer, ARIC, or history
+            # services using identities intentionally absent from snapshots.
+            aric_signals = AricAlertSignals()
+            customer_profile = input.payload.get("customer_profile", {})
+            mapped_replay = _optimizer_replay_history(schema, input.payload)
+            if mapped_replay is None:
+                transaction_history = (
+                    _transaction_history_from_payload(input.payload) or []
                 )
+            else:
+                transaction_history, replay_history = mapped_replay
+        else:
+            self._report_progress("fetching_aric_signals")
+            fetched_aric_signals = _with_retry(
+                lambda: self._aric.fetch_signals(event_id, session_id)
             )
-        history = _history_values(schema, transaction_history)
-        self._report_progress("fetching_personal_data_changes")
-        personal_data_changes = _with_retry(
-            lambda: self._host_data_changes.fetch_personal_data_changes(customer_id)
+            aric_signals = _merge_aric_signals(input.payload, fetched_aric_signals)
+            self._report_progress("fetching_customer_profile")
+            customer_profile = _with_retry(
+                lambda: self._host_customer.fetch_customer_profile(customer_id)
+            )
+            self._report_progress("fetching_transaction_history")
+            transaction_history = _transaction_history_from_payload(input.payload)
+            if transaction_history is None:
+                transaction_history = _with_retry(
+                    lambda: self._host_tx_history.fetch_transaction_history(
+                        customer_id, account_id
+                    )
+                )
+        if transaction_history is None:
+            transaction_history = []
+        history = (
+            replay_history
+            if replay_history is not None
+            else _history_values(schema, transaction_history)
         )
+        if input.skip_external_enrichment:
+            personal_data_changes = input.payload.get("personal_data_changes", {})
+        else:
+            self._report_progress("fetching_personal_data_changes")
+            personal_data_changes = _with_retry(
+                lambda: self._host_data_changes.fetch_personal_data_changes(customer_id)
+            )
 
         host_sources = {
             AlertSchemaDataSource.ARIC: input.payload,
@@ -468,10 +555,19 @@ class PreProcessAlertUseCase:
         if missing:
             raise MandatoryAlertDataMissingError(missing)
 
+        enrichment_note = (
+            "used snapshot-only enrichment; external ARIC, customer-profile, "
+            "and history lookups were not run, so missing values mean unavailable "
+            "rather than negative evidence; identity/date fields in the alert "
+            "payload are not verified identity records; mapped snapshot history "
+            "is the only history evidence when present; "
+            if input.skip_external_enrichment
+            else "fetched ARIC signals, host customer profile, "
+        )
         note = (
             f"pre_process: validated schema version {schema.version}, "
             f"{len(aric_input)} input field(s), {len(labels)} label(s); "
-            "fetched ARIC signals, host customer profile, "
+            f"{enrichment_note}"
             f"{len(transaction_history)} transaction history record(s), "
             f"{len(personal_data_changes)} personal data change record(s)."
         )

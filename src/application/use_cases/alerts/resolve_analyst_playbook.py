@@ -58,6 +58,7 @@ class ResolveAnalystPlaybookUseCase:
         query: str,
         *,
         vector_store_instance_id: str | None,
+        library_revision_pin: dict[str, str] | None = None,
     ) -> ResolvedPlaybook | None:
         if not vector_store_instance_id:
             return None
@@ -76,7 +77,15 @@ class ResolveAnalystPlaybookUseCase:
             assert isinstance(document, ModusOperandiDocument)
             if not document.library_id:
                 continue
-            entry = self._library.get(document.library_id)
+            if library_revision_pin is not None:
+                if document.library_id != library_revision_pin.get("entity_id"):
+                    continue
+                revision = self._library.get_revision(
+                    document.library_id, library_revision_pin.get("version", "")
+                )
+                entry = revision.content if revision is not None else None
+            else:
+                entry = self._library.get(document.library_id)
             if entry is None or not entry.active or entry.playbook is None:
                 continue
             return ResolvedPlaybook(

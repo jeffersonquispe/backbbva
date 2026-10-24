@@ -10,6 +10,7 @@ class PreProcessAlertInput:
     alert_id: UUID
     payload: dict[str, Any]
     schema: Any | None = None
+    skip_external_enrichment: bool = False
 
 
 @dataclass
