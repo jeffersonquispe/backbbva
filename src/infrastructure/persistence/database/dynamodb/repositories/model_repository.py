@@ -42,11 +42,14 @@ class DynamoModelRepository(ModelRepository):
         return _from_item(item)
 
     def list(self) -> list[ModelRecord]:
-        response = self._table.scan()
-        return [_from_item(item) for item in response.get("Items", [])]
+        return [_from_item(item) for item in self._scan_all()]
 
     def get_active(self) -> ModelRecord | None:
-        for model in self.list():
+        # Activation is followed immediately by a serving reload in the API.
+        # A default eventually consistent scan can miss that just-written
+        # active flag and leave MCP without a model.
+        for item in self._scan_all(consistent_read=True):
+            model = _from_item(item)
             if model.active:
                 return model
         return None
@@ -60,7 +63,9 @@ class DynamoModelRepository(ModelRepository):
         target = self.get(model_id)
         if target is None:
             raise ModelNotFoundError(model_id)
-        for model in self.list():
+        # Read the current activation state consistently before replacing it.
+        for item in self._scan_all(consistent_read=True):
+            model = _from_item(item)
             if model.id != model_id and model.active:
                 model.active = False
                 self.update(model)
@@ -69,6 +74,19 @@ class DynamoModelRepository(ModelRepository):
 
     def delete(self, model_id: UUID) -> None:
         self._table.delete_item(Key={"model_id": str(model_id)})
+
+    def _scan_all(self, *, consistent_read: bool = False) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        scan_kwargs: dict[str, Any] = {}
+        if consistent_read:
+            scan_kwargs["ConsistentRead"] = True
+        while True:
+            response = self._table.scan(**scan_kwargs)
+            items.extend(response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                return items
+            scan_kwargs["ExclusiveStartKey"] = last_key
 
 
 def _to_item(model: ModelRecord) -> dict[str, Any]:

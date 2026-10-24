@@ -84,6 +84,27 @@ _SAFE_AUDIT_REASONS = {
     "PROMPT_VERSION_MISMATCH",
     "RUN_CANCELLED",
     "WORKER_LEASE_EXPIRED",
+    "CONFIGURATION_CHANGES_REQUIRED",
+    "ACTIVE_CONFIGURATION_REQUIRED",
+    "CONFIGURATION_PATH_OR_VALUE_INVALID",
+    "CONFIGURATION_CANDIDATE_REJECTED",
+    "LIBRARY_DRAFT_INVALID",
+    "PERSONAL_DATA_BLOCKED",
+    "LIBRARY_REFERENCE_INVALID",
+    "LIBRARY_DUPLICATE",
+    "PLAYBOOK_FALLBACK_INVALID",
+    "VECTOR_QUERY_NOT_AUTHORIZED",
+    "VECTOR_MANIFEST_UNAVAILABLE",
+    "VECTOR_MANIFEST_EMPTY",
+    "VECTOR_CANDIDATE_BUILD_FAILED",
+    "VECTOR_CANDIDATE_VERIFICATION_FAILED",
+    "AUTHORIZED_MODEL_BASELINE_REQUIRED",
+    "TRAINING_PARAMETER_NOT_SUPPORTED",
+    "MODEL_CANDIDATE_LOST",
+    "MODEL_TRAINING_FAILED",
+    "MODEL_CANDIDATE_START_FAILED",
+    "MODEL_TRAINING_BUDGET_INVALID",
+    "MODEL_REPORT_INCOMPLETE",
 }
 
 
@@ -715,6 +736,10 @@ class OrchestrateAgentIterationUseCase:
         decision["specialist"] = selected_subagent.name
         decision["verification_status"] = output.verification_status
         decision["specialist_verified"] = verified
+        decision["failure_stage"] = (
+            "specialist_execution" if output.error_code else None
+        )
+        decision["failure_code"] = _safe_specialist_error_code(output.error_code)
         decision["experiment_verified"] = bool(
             experiment is not None and experiment.status.value == "SUCCEEDED"
         )
@@ -977,6 +1002,15 @@ def _iteration_decision(
     if stale >= settings.optimizer_iterations_without_improvement:
         decision.update({"action": "stop", "reason": "stagnation"})
     return decision
+
+
+def _safe_specialist_error_code(error_code: str | None) -> str | None:
+    """Expose only bounded, known codes; never persist exception text in decisions."""
+    if error_code is None:
+        return None
+    if error_code in _SAFE_AUDIT_REASONS:
+        return error_code
+    return "SPECIALIST_FAILED"
 
 
 def _stale_iteration_count(prior: list[AgentIteration]) -> int:

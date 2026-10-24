@@ -153,6 +153,22 @@ class EvaluateAgentExperiment:
                 ),
                 expected_status=AgentExperimentStatus.RUNNING.value,
             )
+        except ValueError as error:
+            # Evaluation adapters may expose a stable, non-sensitive failure
+            # code (for example PIPELINE_REPLAY_WORKFLOW_FAILED). Preserve
+            # only that restricted form; never persist exception text or data.
+            code = str(error)
+            if not re.fullmatch(r"[A-Z0-9_]+", code):
+                code = "GLOBAL_EVALUATION_FAILED"
+            return self._experiments.update(
+                replace(
+                    running,
+                    status=AgentExperimentStatus.FAILED,
+                    completed_at=self._clock.now(),
+                    error_code=code,
+                ),
+                expected_status=AgentExperimentStatus.RUNNING.value,
+            )
         except Exception:  # noqa: BLE001 - do not persist evaluator payloads/errors
             return self._experiments.update(
                 replace(

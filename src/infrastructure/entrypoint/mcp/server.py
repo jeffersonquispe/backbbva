@@ -94,6 +94,47 @@ async def score_row_http(request: Request) -> JSONResponse:
     return JSONResponse(result, status_code=404 if "error" in result else 200)
 
 
+@mcp.custom_route("/internal/score-pinned-row", methods=["POST"])
+async def score_pinned_row_http(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+        model_id = str(UUID(body["model_id"]))
+        digest = body["artifact_sha256"]
+        row = body["row"]
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(char not in "0123456789abcdef" for char in digest)
+            or not isinstance(row, dict)
+            or not row
+        ):
+            raise ValueError("invalid pinned model row")
+    except (KeyError, TypeError, ValueError):
+        return JSONResponse({"error": "PINNED_MODEL_INPUT_INVALID"}, status_code=422)
+    result = await run_in_threadpool(_score_pinned_model_row, model_id, digest, row)
+    return JSONResponse(result, status_code=422 if "error" in result else 200)
+
+
+def _score_pinned_model_row(
+    model_id: str, artifact_sha256: str, row: dict[str, Any]
+) -> dict[str, Any]:
+    model = get_model_repository().get(UUID(model_id))
+    if model is None:
+        return {"error": "PINNED_MODEL_UNAVAILABLE"}
+    storage_ref = f"models/sha256/{artifact_sha256}.joblib"
+    try:
+        artifact = get_model_storage().get_bytes(storage_ref)
+    except (KeyError, OSError):
+        return {"error": "PINNED_MODEL_ARTIFACT_UNAVAILABLE"}
+    if sha256(artifact).hexdigest() != artifact_sha256:
+        return {"error": "PINNED_MODEL_ARTIFACT_MISMATCH"}
+    result = score_row(get_model_bundle(storage_ref), row)
+    result["model_id"] = model_id
+    result["model_tag"] = model.tag
+    result["artifact_sha256"] = artifact_sha256
+    return result
+
+
 @mcp.custom_route("/internal/score-pinned-pipeline", methods=["POST"])
 async def score_pinned_pipeline_http(request: Request) -> JSONResponse:
     try:

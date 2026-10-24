@@ -63,10 +63,21 @@ class PairedAgentExperimentRunner(AgentExperimentEvaluator):
             raise ValueError("PINNED_OBJECTIVE_NOT_FOUND")
         candidate = self._resolve(components)
         baseline = self._resolve(baseline_components)
-        candidate_result = self._scorer.predict_positive(candidate, final_rows)
-        baseline_result = self._scorer.predict_positive(baseline, final_rows)
-        candidate_predictions, candidate_evidence = _scorer_result(candidate_result)
-        baseline_predictions, baseline_evidence = _scorer_result(baseline_result)
+        candidate_result = self._scorer.predict_positive(
+            candidate, final_rows, snapshot=snapshot
+        )
+        baseline_result = self._scorer.predict_positive(
+            baseline, final_rows, snapshot=snapshot
+        )
+        # A long replay must not silently span mutable component changes.
+        self._assert_pins_unchanged(components)
+        self._assert_pins_unchanged(baseline_components)
+        candidate_predictions, candidate_evidence, candidate_undecided = _scorer_result(
+            candidate_result
+        )
+        baseline_predictions, baseline_evidence, baseline_undecided = _scorer_result(
+            baseline_result
+        )
         if len(candidate_predictions) != len(final_rows) or len(
             baseline_predictions
         ) != len(final_rows):
@@ -104,12 +115,22 @@ class PairedAgentExperimentRunner(AgentExperimentEvaluator):
             "eligible_count": len(eligible_indices),
             "positive_support": support,
             "mature_label_coverage_pct": round(coverage, 4),
+            "undecided_count": candidate_undecided,
+            "decision_coverage_pct": round(
+                100 * (len(final_rows) - candidate_undecided) / max(1, len(final_rows)),
+                4,
+            ),
         }
         baseline_global = {
             **baseline_metrics,
             "eligible_count": len(eligible_indices),
             "positive_support": support,
             "mature_label_coverage_pct": round(coverage, 4),
+            "undecided_count": baseline_undecided,
+            "decision_coverage_pct": round(
+                100 * (len(final_rows) - baseline_undecided) / max(1, len(final_rows)),
+                4,
+            ),
         }
         sample = {
             "snapshot_id": snapshot.snapshot_id,
@@ -155,6 +176,22 @@ class PairedAgentExperimentRunner(AgentExperimentEvaluator):
             },
         }
 
+    def _assert_pins_unchanged(
+        self, references: tuple[ComponentVersionReference, ...]
+    ) -> None:
+        for reference in references:
+            resolved = self._components.resolve(reference)
+            if resolved is None or resolved.reference != reference:
+                raise ValueError("COMPONENT_PIN_CHANGED_DURING_EVALUATION")
+            actual = ComponentVersionReference.pin(
+                reference.component,
+                reference.entity_id,
+                reference.version,
+                resolved.content,
+            )
+            if actual.content_sha256 != reference.content_sha256:
+                raise ValueError("COMPONENT_PIN_CHANGED_DURING_EVALUATION")
+
     def _resolve(
         self, references: tuple[ComponentVersionReference, ...]
     ) -> tuple[ResolvedAgentComponent, ...]:
@@ -189,15 +226,27 @@ def _metrics(truth: list[bool], predicted: list[bool]) -> dict[str, float | int]
     }
 
 
-def _scorer_result(result: list[bool] | AgentPipelineScore) -> tuple[list[bool], int]:
+def _scorer_result(
+    result: list[bool] | AgentPipelineScore,
+) -> tuple[list[bool], int, int]:
     if isinstance(result, AgentPipelineScore):
         if (
             isinstance(result.knowledge_evidence_asset_count, bool)
             or result.knowledge_evidence_asset_count < 0
         ):
             raise ValueError("SCORER_EVIDENCE_COUNT_INVALID")
-        return result.predictions, result.knowledge_evidence_asset_count
-    return result, 0
+        if (
+            isinstance(result.undecided_count, bool)
+            or result.undecided_count < 0
+            or result.undecided_count > len(result.predictions)
+        ):
+            raise ValueError("SCORER_UNDECIDED_COUNT_INVALID")
+        return (
+            result.predictions,
+            result.knowledge_evidence_asset_count,
+            result.undecided_count,
+        )
+    return result, 0, 0
 
 
 def _paired_bootstrap_delta(

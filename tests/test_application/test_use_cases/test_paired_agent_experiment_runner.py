@@ -35,8 +35,8 @@ class RecordingPipelineScorer(AgentPipelineScorer):
     def __init__(self):
         self.calls = []
 
-    def predict_positive(self, components, rows):
-        self.calls.append((components, rows))
+    def predict_positive(self, components, rows, *, snapshot):
+        self.calls.append((components, rows, snapshot))
         return [all(component.content["positive"] for component in components)] * len(rows)
 
 

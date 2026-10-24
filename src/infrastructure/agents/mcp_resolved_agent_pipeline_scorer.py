@@ -10,6 +10,7 @@ from src.application.ports.agent_pipeline_scorer_port import (
     AgentPipelineScore,
     AgentPipelineScorer,
 )
+from src.domain.datasets.mature_sample_entities import DatasetSnapshot
 from src.infrastructure.core.config import genai_config
 
 
@@ -20,7 +21,10 @@ class MCPResolvedAgentPipelineScorer(AgentPipelineScorer):
         self,
         components: tuple[ResolvedAgentComponent, ...],
         rows: list[dict[str, Any]],
+        *,
+        snapshot: DatasetSnapshot,
     ) -> AgentPipelineScore:
+        del snapshot  # H12's pinned scoring contract is snapshot-row based.
         by_type = {item.reference.component: item for item in components}
         if set(by_type) != {"model", "configuration", "library", "vector_store"}:
             raise ValueError("COMPLETE_COMPONENT_STACK_REQUIRED")

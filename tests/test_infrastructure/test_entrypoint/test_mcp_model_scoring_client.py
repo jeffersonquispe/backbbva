@@ -81,6 +81,38 @@ def test_client_posts_contract_row_and_model_to_mcp(monkeypatch) -> None:
     assert result["score"] == 0.42
 
 
+def test_client_posts_exact_artifact_pin_for_optimizer_row(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def open_request(request, timeout):
+        captured["url"] = request.full_url
+        captured["body"] = json.loads(request.data)
+        captured["timeout"] = timeout
+        return InMemoryHTTPResponse(
+            {"score": 0.9, "model_id": "model-2", "artifact_sha256": "a" * 64}
+        )
+
+    monkeypatch.setattr(client_module, "urlopen", open_request)
+    monkeypatch.setattr(client_module.genai_config, "MCP_BASE_URL", "http://mcp:8100")
+    monkeypatch.setattr(client_module.genai_config, "MCP_TIMEOUT_SECONDS", 4.0)
+    row = {"amount_value": 125.0}
+
+    result = MCPModelScoringClient().score_pinned_row(
+        "00000000-0000-0000-0000-000000000002", "a" * 64, row
+    )
+
+    assert captured == {
+        "url": "http://mcp:8100/internal/score-pinned-row",
+        "body": {
+            "model_id": "00000000-0000-0000-0000-000000000002",
+            "artifact_sha256": "a" * 64,
+            "row": row,
+        },
+        "timeout": 4.0,
+    }
+    assert result["artifact_sha256"] == "a" * 64
+
+
 def test_client_reloads_the_model_activated_in_repository(monkeypatch) -> None:
     captured: dict[str, object] = {}
 

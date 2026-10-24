@@ -713,6 +713,25 @@ def test_evaluator_error_is_safely_failed():
     assert evaluated.global_evaluation == {}
 
 
+def test_evaluator_preserves_safe_failure_code_without_exception_details():
+    evaluated = _use_case(
+        evaluator=RecordingEvaluator(error=ValueError("PIPELINE_REPLAY_WORKFLOW_FAILED"))
+    ).execute(
+        experiment_id="exp-1",
+        session_id="session-1",
+        kind=AgentExperimentKind.ISOLATED,
+        iteration_number=1,
+        components=(_reference(),),
+        baseline_components=_baseline((_reference(),)),
+        objective_id="fraud",
+        objective_version=4,
+    )
+
+    assert evaluated.status == AgentExperimentStatus.FAILED
+    assert evaluated.error_code == "PIPELINE_REPLAY_WORKFLOW_FAILED"
+    assert evaluated.global_evaluation == {}
+
+
 def test_reference_hash_must_be_exact_sha256():
     ref = replace(_reference(), content_sha256="not-a-hash")
     with pytest.raises(AgentExperimentPolicyError, match="COMPONENT_REFERENCE_INVALID"):

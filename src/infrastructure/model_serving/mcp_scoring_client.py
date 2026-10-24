@@ -57,6 +57,36 @@ class MCPModelScoringClient(ModelScoringPort):
             raise RuntimeError(str(result["error"]))
         return result
 
+    def score_pinned_row(self, model_id: str, artifact_sha256: str, row: dict) -> dict:
+        body = json.dumps(
+            {
+                "model_id": model_id,
+                "artifact_sha256": artifact_sha256,
+                "row": row,
+            }
+        ).encode()
+        request = Request(
+            f"{genai_config.MCP_BASE_URL.rstrip('/')}/internal/score-pinned-row",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=genai_config.MCP_TIMEOUT_SECONDS) as response:
+                result = json.loads(response.read())
+        except HTTPError as exc:
+            try:
+                result = json.loads(exc.read())
+            except (json.JSONDecodeError, OSError):
+                raise RuntimeError(f"MCP scoring returned HTTP {exc.code}") from exc
+        except (URLError, TimeoutError, OSError) as exc:
+            raise RuntimeError("MCP scoring service is unavailable") from exc
+        if not isinstance(result, dict):
+            raise RuntimeError("MCP scoring returned an invalid response")
+        if "error" in result:
+            raise RuntimeError(str(result["error"]))
+        return result
+
     def reload_active_model(self) -> dict:
         request = Request(
             f"{genai_config.MCP_BASE_URL.rstrip('/')}/internal/reload-active-model",

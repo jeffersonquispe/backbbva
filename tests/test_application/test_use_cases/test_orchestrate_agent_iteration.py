@@ -320,6 +320,17 @@ class MetricSubagent:
         )
 
 
+class FailedSpecialistSubagent:
+    name = "xgboost"
+
+    def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
+        return AgentSubagentOutput(
+            subagent=self.name,
+            verification_status="NOT_VERIFIED",
+            error_code="MODEL_REPORT_INCOMPLETE",
+        )
+
+
 class RecordingAgentSpan(MonitoringSpan):
     def __init__(self, name: str, metadata: dict) -> None:
         self.name = name
@@ -582,6 +593,55 @@ def test_optimizer_routes_to_specialist_for_hypothesis_area() -> None:
     assert decision["specialist"] == "vector_store"
     assert decision["specialist_verified"] is True
     assert decision["experiment_verified"] is False
+
+
+def test_critical_specialist_failure_is_visible_as_a_safe_failure_code() -> None:
+    session = replace(_session("optimization"), scope={"areas": ["model"]})
+    audit = InMemoryAgentAudit()
+    use_case, repositories = _use_case(
+        session,
+        InMemorySettings(
+            AssistantOptimizerSettings(
+                optimizer_enabled=True,
+                optimizer_stop_on_critical_failure=True,
+            )
+        ),
+        subagent=FailedSpecialistSubagent(),
+        audit=audit,
+    )
+
+    assert use_case.execute("s1") == "stopped_by_critical_failure"
+
+    iteration = repositories["iterations"].items[1]
+    assert iteration.decision["reason"] == "critical_failure"
+    assert iteration.decision["failure_stage"] == "specialist_execution"
+    assert iteration.decision["failure_code"] == "MODEL_REPORT_INCOMPLETE"
+    assert any(
+        event.category == "specialist"
+        and event.status == "failed"
+        and event.reason_code == "MODEL_REPORT_INCOMPLETE"
+        for event in audit.events
+    )
+
+
+def test_unknown_specialist_error_is_not_exposed_verbatim() -> None:
+    class UnsafeErrorSubagent(FailedSpecialistSubagent):
+        def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
+            return AgentSubagentOutput(
+                subagent=self.name,
+                verification_status="NOT_VERIFIED",
+                error_code="database failed for customer 123456",
+            )
+
+    session = replace(_session("optimization"), scope={"areas": ["model"]})
+    use_case, repositories = _use_case(
+        session,
+        InMemorySettings(AssistantOptimizerSettings(optimizer_enabled=True)),
+        subagent=UnsafeErrorSubagent(),
+    )
+
+    assert use_case.execute("s1") == "stopped_by_critical_failure"
+    assert repositories["iterations"].items[1].decision["failure_code"] == "SPECIALIST_FAILED"
 
 
 class NamedStubSubagent(InMemoryStubSubagent):
