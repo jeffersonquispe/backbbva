@@ -158,11 +158,26 @@ class GenerateFlagDraftUseCase:
         if prompt is None:
             raise FlagDraftPolicyError("flag prompt version unavailable")
         old = _entity(current) if current else None
+        related_modus_operandi = [
+            {
+                "id": entry.id,
+                "title": entry.title,
+                "taxonomy_library_id": entry.taxonomy_library_id,
+                "active": entry.active,
+            }
+            for entry in self._modus.list()[:50]
+            if entry.active
+        ]
         raw = self._generator.generate(
             AgentStructuredGenerationInput(
                 system_prompt=prompt.content,
                 persisted_context=json.dumps(
-                    {"operation": request.operation, "current_entry": old},
+                    {
+                        "operation": request.operation,
+                        "current_entry": old,
+                        "flag_type_enum": ["red", "yellow"],
+                        "related_modus_operandi": related_modus_operandi,
+                    },
                     ensure_ascii=False,
                 ),
                 masked_user_message=source,

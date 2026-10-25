@@ -108,9 +108,23 @@ class GenerateSimilarCaseDraftUseCase:
         if prompt is None:
             raise SimilarCaseDraftPolicyError("similar case prompt version unavailable")
         old = _entity(current) if current else None
+        context = {
+            "operation": request.operation,
+            "current_entry": old,
+            "modus_operandi_entries": [
+                {"id": entry.id, "title": entry.title, "taxonomy_library_id": entry.taxonomy_library_id}
+                for entry in self._modus.list()[:50]
+                if entry.active
+            ],
+            "taxonomies": [
+                {"id": entry.id, "code": entry.code, "name": entry.name}
+                for entry in self._taxonomies.list()[:50]
+                if entry.active
+            ],
+        }
         raw = self._generator.generate(AgentStructuredGenerationInput(
             system_prompt=prompt.content,
-            persisted_context=json.dumps({"operation": request.operation, "current_entry": old}, ensure_ascii=False),
+            persisted_context=json.dumps(context, ensure_ascii=False),
             masked_user_message=source,
         ))
         try:

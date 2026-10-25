@@ -97,9 +97,18 @@ class GenerateTaxonomyDraftUseCase:
         if prompt is None:
             raise TaxonomyDraftPolicyError("taxonomy prompt version unavailable")
         old = _entity(current) if current else None
+        catalog = [
+            {"code": entry.code, "name": entry.name}
+            for entry in self._entries.list()[:50]
+            if entry.id != request.target_id
+        ]
         raw = self._generator.generate(AgentStructuredGenerationInput(
             system_prompt=prompt.content,
-            persisted_context=json.dumps({"operation": request.operation, "current_entry": old}, ensure_ascii=False),
+            persisted_context=json.dumps({
+                "operation": request.operation,
+                "current_entry": old,
+                "existing_taxonomies": catalog,
+            }, ensure_ascii=False),
             masked_user_message=masked_source,
         ))
         try:

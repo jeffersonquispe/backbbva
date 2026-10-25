@@ -176,6 +176,11 @@ class GenerateModusOperandiDraftUseCase:
                     "operation": request.operation,
                     "target_id": request.target_id,
                     "current_entry": current_data,
+                    "available_taxonomies": [
+                        {"id": entry.id, "code": entry.code, "name": entry.name}
+                        for entry in self._taxonomies.list(active_only=True)[:50]
+                    ],
+                    "resolution_tag_enum": [tag.value for tag in ResolutionTag],
                     "system_prompt": prompt.content,
                 },
                 hypothesis=source.text,

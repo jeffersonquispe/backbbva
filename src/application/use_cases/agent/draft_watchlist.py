@@ -143,11 +143,22 @@ class GenerateWatchlistDraftUseCase:
         if prompt is None:
             raise WatchlistDraftPolicyError("watchlist prompt version unavailable")
         old = _entity(current) if current else None
+        existing_watchlists = [
+            {"name": entry.name, "list_type": entry.list_type.value}
+            for entry in self._entries.list()[:50]
+            if entry.id != request.target_id
+        ]
         raw = self._generator.generate(
             AgentStructuredGenerationInput(
                 system_prompt=prompt.content,
                 persisted_context=json.dumps(
-                    {"operation": request.operation, "current_entry": old},
+                    {
+                        "operation": request.operation,
+                        "current_entry": old,
+                        "list_type_enum": [item.value for item in WatchlistType],
+                        "existing_watchlists": existing_watchlists,
+                        "watchlist_elements": "not loaded or modified by this action",
+                    },
                     ensure_ascii=False,
                 ),
                 masked_user_message=source,

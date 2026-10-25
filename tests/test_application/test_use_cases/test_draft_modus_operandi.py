@@ -154,6 +154,10 @@ class InMemoryTaxonomies:
             active=True,
         )
 
+    def list(self, *, active_only: bool = False):
+        entry = self.get("tax-1")
+        return [entry] if entry is not None and (entry.active or not active_only) else []
+
 
 class InMemorySettings:
     def get(self) -> AssistantOptimizerSettings:
@@ -318,6 +322,10 @@ def test_generate_draft_verifies_and_tracks_field_provenance_without_writing_liv
     assert not entries.rows
     assert subagent.request is not None
     assert subagent.request.scope["system_prompt"] == "prompt immutable"
+    assert subagent.request.scope["available_taxonomies"] == [
+        {"id": "tax-1", "code": "digital", "name": "Canal digital"}
+    ]
+    assert "handle_by_aria" in subagent.request.scope["resolution_tag_enum"]
     assert packages.get(result.package.package_id) == result.package
 
 

@@ -19,7 +19,7 @@ from src.infrastructure.agents.factories import (
     get_agent_session_repository,
     get_agent_verification_repository,
 )
-from src.infrastructure.entrypoint.api.authorization import require_library_access
+from src.infrastructure.entrypoint.api.authorization import require_agent_draft_access
 from src.infrastructure.entrypoint.api.factories.agent_modus_operandi_draft_factory import (
     get_confirm_modus_operandi_draft_use_case,
     get_generate_modus_operandi_draft_use_case,
@@ -36,7 +36,7 @@ from src.infrastructure.entrypoint.api.schemas.agent import (
 router = APIRouter(
     prefix="/agent/sessions",
     tags=["agent-drafts"],
-    dependencies=[Depends(require_library_access)],
+    dependencies=[Depends(require_agent_draft_access)],
 )
 
 

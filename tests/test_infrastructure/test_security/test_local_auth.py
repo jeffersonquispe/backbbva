@@ -66,6 +66,7 @@ def test_local_login_returns_signed_token_and_fixed_permissions():
         "fraud_history",
         "fraud_review",
         "in_progress",
+        "library",
         "monitor",
     ]
 

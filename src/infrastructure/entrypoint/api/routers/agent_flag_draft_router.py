@@ -16,7 +16,7 @@ from src.infrastructure.agents.factories import (
     get_agent_session_repository,
     get_agent_verification_repository,
 )
-from src.infrastructure.entrypoint.api.authorization import require_library_access
+from src.infrastructure.entrypoint.api.authorization import require_agent_draft_access
 from src.infrastructure.entrypoint.api.factories.agent_flag_draft_factory import (
     get_confirm_flag_draft_use_case,
     get_generate_flag_draft_use_case,
@@ -26,7 +26,7 @@ from src.infrastructure.entrypoint.api.routers.auth_router import get_current_us
 router = APIRouter(
     prefix="/agent/sessions",
     tags=["agent-flag-drafts"],
-    dependencies=[Depends(require_library_access)],
+    dependencies=[Depends(require_agent_draft_access)],
 )
 
 

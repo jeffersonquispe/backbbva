@@ -28,6 +28,7 @@ ROLE_PERMISSIONS: dict[LocalRole, frozenset[str]] = {
             "fraud_review",
             "monitor",
             "configuration",
+            "library",
             "alert_schema",
         }
     ),

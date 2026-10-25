@@ -30,6 +30,19 @@ def require_library_access(
     return user
 
 
+def require_agent_draft_access(
+    user: Annotated[LocalUser, Depends(get_current_user)],
+) -> LocalUser:
+    """Draft generation requires both assistant access and library write access."""
+    permissions = ROLE_PERMISSIONS.get(user.role, frozenset())
+    if not {"configuration", "library"}.issubset(permissions):
+        raise HTTPException(
+            status_code=403,
+            detail="Role is not permitted to create agent library drafts",
+        )
+    return user
+
+
 def require_permission(permission: str):
     """Dependency factory: the caller's role must grant `permission`
     (ROLE_PERMISSIONS - the same list /auth/me returns to the frontend).

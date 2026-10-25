@@ -21,6 +21,9 @@ from src.infrastructure.entrypoint.api.initialization.cors import (
 from src.infrastructure.entrypoint.api.initialization.startup import (
     run_startup_initializers,
 )
+from src.infrastructure.entrypoint.api.routers.agent_draft_actions_router import (
+    router as agent_draft_actions_router,
+)
 from src.infrastructure.entrypoint.api.routers.agent_flag_draft_router import (
     router as agent_flag_draft_router,
 )
@@ -159,6 +162,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(auth_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_router, prefix=genai_config.API_V0_STR)
+    app.include_router(agent_draft_actions_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_modus_operandi_draft_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_taxonomy_draft_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_similar_case_draft_router, prefix=genai_config.API_V0_STR)
