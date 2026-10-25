@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aria-event-api-config
+  labels: {app.kubernetes.io/name: event-api, app.kubernetes.io/component: event-api, app.kubernetes.io/part-of: aria-main-services, app.kubernetes.io/managed-by: argocd}
+data:
+  EVENT_API_OIDC_ISSUER: ""
+  EVENT_API_OIDC_AUDIENCE: aria-event-api
+  EVENT_API_OIDC_JWKS_URL: ""
+  EVENT_API_OIDC_ALLOWED_CLIENT_ID: frm
+  EVENT_API_MAX_BODY_BYTES: "262144"
+  EVENT_API_REDIS_URL: redis://redis:6379/2
+  EVENT_API_CELERY_BROKER_URL: redis://redis:6379/0
+  EVENT_API_PRODUCTION_QUEUE: production_events
+  EVENT_API_IDEMPOTENCY_TTL_SECONDS: "2592000"

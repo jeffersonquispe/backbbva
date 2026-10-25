@@ -161,6 +161,96 @@ services:
       retries: 12
       start_period: 20s
 
+  event-api:
+    build:
+      context: ../../..
+      dockerfile: deploy/local/docker/Dockerfile.eventapi
+    image: aria-event-api:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-event-api
+    ports:
+      - "${LOCAL_EVENT_API_PORT:-8001}:8080"
+    environment:
+      EVENT_API_OIDC_ISSUER: ${EVENT_API_OIDC_ISSUER:-http://event-api-oidc:8080/realms/aria}
+      EVENT_API_OIDC_AUDIENCE: ${EVENT_API_OIDC_AUDIENCE:-aria-event-api}
+      EVENT_API_OIDC_JWKS_URL: ${EVENT_API_OIDC_JWKS_URL:-http://event-api-oidc:8080/realms/aria/protocol/openid-connect/certs}
+      EVENT_API_OIDC_ALLOWED_CLIENT_ID: ${EVENT_API_OIDC_ALLOWED_CLIENT_ID:-frm}
+      EVENT_API_MAX_BODY_BYTES: ${EVENT_API_MAX_BODY_BYTES:-262144}
+      EVENT_API_REDIS_URL: redis://redis:6379/2
+      EVENT_API_CELERY_BROKER_URL: redis://redis:6379/0
+      EVENT_API_PRODUCTION_QUEUE: ${EVENT_API_PRODUCTION_QUEUE:-production_events}
+      EVENT_API_IDEMPOTENCY_TTL_SECONDS: ${EVENT_API_IDEMPOTENCY_TTL_SECONDS:-2592000}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - aria-net
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=4)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  event-api-unavailable:
+    profiles: [event-api-e2e]
+    build:
+      context: ../../..
+      dockerfile: deploy/local/docker/Dockerfile.eventapi
+    image: aria-event-api:${LOCAL_IMAGE_TAG:-local}
+    container_name: aria-event-api-unavailable
+    ports:
+      - "${LOCAL_EVENT_API_UNAVAILABLE_PORT:-8003}:8080"
+    environment:
+      EVENT_API_OIDC_ISSUER: ${EVENT_API_OIDC_ISSUER:-http://event-api-oidc:8080/realms/aria}
+      EVENT_API_OIDC_AUDIENCE: ${EVENT_API_OIDC_AUDIENCE:-aria-event-api}
+      EVENT_API_OIDC_JWKS_URL: ${EVENT_API_OIDC_JWKS_URL:-http://event-api-oidc:8080/realms/aria/protocol/openid-connect/certs}
+      EVENT_API_OIDC_ALLOWED_CLIENT_ID: ${EVENT_API_OIDC_ALLOWED_CLIENT_ID:-frm}
+      EVENT_API_MAX_BODY_BYTES: ${EVENT_API_MAX_BODY_BYTES:-262144}
+      EVENT_API_REDIS_URL: redis://redis:6379/2
+      EVENT_API_CELERY_BROKER_URL: redis://redis:6399/0
+      EVENT_API_PRODUCTION_QUEUE: ${EVENT_API_PRODUCTION_QUEUE:-production_events}
+      EVENT_API_IDEMPOTENCY_TTL_SECONDS: ${EVENT_API_IDEMPOTENCY_TTL_SECONDS:-2592000}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - aria-net
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=4)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  event-api-oidc:
+    profiles: [event-api-e2e]
+    image: quay.io/keycloak/keycloak:26.2
+    container_name: aria-event-api-oidc
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: local-only
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME: http://event-api-oidc:8080
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "${LOCAL_EVENT_API_OIDC_PORT:-8085}:8080"
+    volumes:
+      - ./event-api-realm:/opt/keycloak/data/import:ro
+    networks:
+      - aria-net
+    restart: unless-stopped
+
   aria-worker-main:
     build:
       context: ../../..

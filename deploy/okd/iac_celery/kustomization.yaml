@@ -7,6 +7,7 @@ resources:
   - storage/broker/redis
   - observability
   - computation/api
+  - computation/event-api
   - computation/mcp
   - computation/celery-workers/worker
   - computation/celery-workers/training-worker

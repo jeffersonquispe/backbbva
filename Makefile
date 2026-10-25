@@ -619,6 +619,27 @@ e2e-alert-processing:  ## Run E07 alert intake, real workflow, escalation and an
 		E2E_WORKFLOW_TIMEOUT=$(if $(E2E_WORKFLOW_TIMEOUT),$(E2E_WORKFLOW_TIMEOUT),600) \
 		$(PYTHON) scripts/e2e_alert_processing_local.py
 
+.PHONY: e2e-event-api-local
+e2e-event-api-local:  ## Run the Event API OIDC, idempotency, payload-limit and queue-failure E2E checks.
+	@set -euo pipefail; \
+	lock=/tmp/aria-e2e.lock; \
+	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
+	trap 'rmdir "$$lock"' EXIT; \
+	$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		--profile event-api-e2e \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		up -d --build event-api event-api-unavailable event-api-oidc; \
+	EVENT_API_BASE_URL=http://127.0.0.1:$${LOCAL_EVENT_API_PORT:-8001} \
+	EVENT_API_UNAVAILABLE_URL=http://127.0.0.1:$${LOCAL_EVENT_API_UNAVAILABLE_PORT:-8003} \
+	EVENT_API_OIDC_BASE_URL=http://127.0.0.1:$${LOCAL_EVENT_API_OIDC_PORT:-8085} \
+	EVENT_API_MAX_BODY_BYTES=$${EVENT_API_MAX_BODY_BYTES:-262144} \
+	EVENT_API_PRODUCTION_QUEUE=$${EVENT_API_PRODUCTION_QUEUE:-production_events} \
+	EVENT_API_BROKER_URL=redis://localhost:$${LOCAL_REDIS_PORT:-6379}/0 \
+	CELERY_TEST_QUEUE=$${CELERY_TEST_QUEUE:-test} \
+	CELERY_SIMULATOR_ALERT_QUEUE=$${CELERY_SIMULATOR_ALERT_QUEUE:-simulator_alerts} \
+	$(PYTHON) scripts/e2e_event_api_local.py
+
 .PHONY: e2e-fraud-review
 e2e-fraud-review:  ## Run E08 fraud marking, correction and audit-history E2E through nginx/API.
 	@$(MAKE) -C ../frontend_mockup run
