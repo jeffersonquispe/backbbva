@@ -11,7 +11,7 @@ Archivo aparte de `PENDIENTES.md`. Anotado 2026-10-24.
   - Cubrir con E2E Playwright real (sin mocks), a través de nginx en `http://localhost`.
   - **Recordar el estado de la barra (colapsada/abierta):** persistir la última elección del usuario en `localStorage` (una clave, p. ej. `aria.sidebar.collapsed`) y usarla como valor inicial: si la colapsó, arranca colapsada; si la dejó abierta, abierta. Leer/escribir dentro de try/catch (puede fallar en ventana privada) con la barra abierta como valor por defecto. Leer el valor antes del primer render para no repetir el parpadeo de este mismo punto; considerar clave por usuario si el equipo comparte navegador. Incluirlo en el E2E (colapsar, recargar, verificar).
 - [x] **#2 [I] Alertas iniciales del dashboard (rangos y falsos positivos): simplificar el texto.** Los avisos del inicio sobre rangos y falsos positivos tienen textos demasiado largos y contaminan visualmente. Reescribirlos cortos y fáciles de explicar al usuario (una frase; detalle bajo demanda, por ejemplo tooltip o "ver más"). ✅ Hecho 2026-10-24: avisos de una línea con "Ver más" (`MetricsNotices`); E2E en `observability-real.spec.ts`.
-- [ ] **#3 [D][I] Filtros: reubicarlos o mejorarlos.** Repartir los filtros en otra sección (panel/drawer o barra propia) o rediseñarlos, para despejar la vista principal del dashboard.
+- [x] **#3 [D][I] Filtros: reubicarlos o mejorarlos.** Repartir los filtros en otra sección (panel/drawer o barra propia) o rediseñarlos, para despejar la vista principal del dashboard. ✅ Hecho (ver #13): filtros del Dashboard en su propia tira bajo el título.
 - [x] **#4 [V] Botón "Rango personalizado".** Hoy no está probado de ninguna forma. Verificar el flujo completo (selección, validación de fechas, lectura de métricas vía `range_planner`) y agregar E2E. ✅ Verificado 2026-10-24 por E2E real (`reports-real.spec.ts`): selección, mismo día como rango válido, días futuros deshabilitados, lectura con el rango aplicado en Dashboard y Monitor, preset que lo reemplaza; API 422 en rango invertido/mal formado y vacío con ceros. Pendiente: inspección visual en Chrome (sesión expirada).
 - [x] **#5 [V] Botón "Exportar reporte".** Tampoco está probado. Verificar que descarga el reporte correcto para el rango/filtros activos y agregar E2E. ✅ Verificado 2026-10-24 por E2E real (`reports-real.spec.ts`): el CSV lleva el rango personalizado y el filtro activo (Estado en Dashboard, Canal en Monitor). Pendiente: inspección visual en Chrome.
 
@@ -22,16 +22,16 @@ Archivo aparte de `PENDIENTES.md`. Anotado 2026-10-24.
 
 ## 2. Alertas en proceso
 
-- [ ] **#6 [D][I] Filtros mal ubicados y poco claros.** Siguen pegados al título; no se distingue qué es filtro, qué es título y qué es el botón/indicador de actualización. Separar visualmente en tres zonas: encabezado (título), barra de filtros propia debajo (o panel/drawer) y la acción de actualizar con su indicador de última actualización, claramente diferenciada.
+- [x] **#6 [D][I] Filtros mal ubicados y poco claros.** Siguen pegados al título; no se distingue qué es filtro, qué es título y qué es el botón/indicador de actualización. Separar visualmente en tres zonas: encabezado (título), barra de filtros propia debajo (o panel/drawer) y la acción de actualizar con su indicador de última actualización, claramente diferenciada. ✅ Hecho (ver #13): título / tira de filtros / "Actualizar" con "Última actualización" aparte.
 
 ## 3. Histórico de fraude
 
-- [ ] **#7 [D][I] Filtros en la parte superior.** Mismo problema que #6; usar el mismo patrón de barra de filtros compartida.
+- [x] **#7 [D][I] Filtros en la parte superior.** Mismo problema que #6; usar el mismo patrón de barra de filtros compartida. ✅ Hecho (ver #13): mismo patrón; plantilla y carga CSV en el encabezado.
 - [x] **#8 [V] Botones "Descargar plantilla" y "Cargar CSV".** No sabemos si funcionan. Verificar descarga de la plantilla, carga de un CSV válido, y manejo de CSV inválido (errores claros); agregar E2E real. ✅ Verificado 2026-10-24 por E2E real (`fraud-review-real.spec.ts`): plantilla (nombre y cabecera), carga mixta con reporte por fila, `;`/BOM/mayúsculas, archivos rechazados (sin columna, vacío, no UTF-8), solo encabezado y reenvío. Sin bugs de producto. Pendiente: inspección visual en Chrome.
 
 ## 4. Monitor del agente
 
-- [ ] **#9 [D][I] Filtros en la parte superior.** Mismo problema que #6 y #7.
+- [x] **#9 [D][I] Filtros en la parte superior.** Mismo problema que #6 y #7. ✅ Hecho (ver #13): mismo patrón en el Monitor.
 - [x] **#10 [I] Exceso de alertas en muchos lugares.** Consolidar y reducir los avisos repartidos por la página (ver también #2). ✅ Hecho 2026-10-24: varios avisos se agrupan en uno ("N avisos sobre este rango") y el banner de agente degradado pasó a una línea.
 - [x] **#11 [D][I] Página demasiado larga: convertir en tabs.** Los indicadores operativos y el resto se reparten en pestañas para no scrollear hasta el final: ✅ Hecho 2026-10-24: seis tabs (`MONITOR_TABS`), última pestaña recordada en `aria.monitor.tab`; test de componente y `observability-real.spec.ts` adaptados. "Porcentaje de recomendaciones" quedó como `% Recomendaciones`.
   - Indicadores generales
@@ -44,7 +44,7 @@ Archivo aparte de `PENDIENTES.md`. Anotado 2026-10-24.
 
 ## Transversal
 
-- [ ] **#13 [D] Un solo componente de barra de filtros** reutilizado en dashboard (#3), alertas en proceso, histórico de fraude y monitor del agente, para que el patrón sea idéntico.
+- [x] **#13 [D] Un solo componente de barra de filtros** reutilizado en dashboard (#3), alertas en proceso, histórico de fraude y monitor del agente, para que el patrón sea idéntico. ✅ Hecho 2026-10-24: `PageHeader` + `FilterBar` (`components/PageHeader.tsx`) en Dashboard, En proceso, Histórico y Monitor; tres zonas separadas, contador de filtros activos y "Limpiar filtros", rango a la derecha de la tira. E2E en `data-tables-real.spec.ts`.
 
 ## 5. Componente de tabla (compartido)
 
