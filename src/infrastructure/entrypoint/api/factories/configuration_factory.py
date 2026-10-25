@@ -40,10 +40,15 @@ def get_configuration_repository() -> ConfigurationRepository:
 
 
 def get_create_configuration_use_case() -> CreateConfigurationUseCase:
+    from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
+        get_alert_schema_repository,
+    )
+
     return CreateConfigurationUseCase(
         get_configuration_repository(),
         clock=get_clock(),
         id_generator=get_id_generator(),
+        schema_repository=get_alert_schema_repository(),
     )
 
 
@@ -76,4 +81,10 @@ def get_get_active_configuration_use_case() -> GetActiveConfigurationUseCase:
 
 
 def get_test_configuration_use_case() -> PreviewConfigurationUseCase:
-    return PreviewConfigurationUseCase(get_configuration_repository())
+    from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
+        get_alert_schema_repository,
+    )
+
+    return PreviewConfigurationUseCase(
+        get_configuration_repository(), get_alert_schema_repository()
+    )

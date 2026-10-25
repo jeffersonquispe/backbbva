@@ -9,6 +9,7 @@ from src.domain.configurations.entities import (
     AnalystConfig,
     ClassificationConfig,
     ConfigurationRecord,
+    ConfigurationRef,
     DayProfile,
     DelegatedResearchSettings,
     DeterministicConfig,
@@ -108,6 +109,7 @@ def test_owner_item_round_trips_through_to_item_and_from_item() -> None:
         created_by="carlos",
         ever_activated=True,
         ever_tested=True,
+        parent_ref=ConfigurationRef("cfg-root", 2),
         activated_at=datetime(2026, 10, 9, tzinfo=UTC),
     )
 
@@ -120,6 +122,7 @@ def test_owner_item_round_trips_through_to_item_and_from_item() -> None:
     assert restored.active is True
     assert restored.ever_activated is True
     assert restored.ever_tested is True
+    assert restored.parent_ref == ConfigurationRef("cfg-root", 2)
     assert restored.activated_at == record.activated_at
     assert restored.created_by == "carlos"
     assert restored.general == GeneralSettings()

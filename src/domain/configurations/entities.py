@@ -625,4 +625,8 @@ class ConfigurationRecord:
     # new one: a version that ever reached production is frozen for audit.
     ever_activated: bool = False
     ever_tested: bool = False
+    # Provenance only; this schema is not owned by or coupled to the config.
+    schema_version_at_creation: int | None = None
+    # Immediate predecessor in the version graph; absent for the root version.
+    parent_ref: ConfigurationRef | None = None
     segments: dict[str, SegmentSettings] = field(default_factory=default_segments)

@@ -10,6 +10,7 @@ from src.domain.configurations.entities import (
     AnalystConfig,
     ClassificationConfig,
     ConfigurationRecord,
+    ConfigurationRef,
     DayProfile,
     DelegatedResearchSettings,
     DetectorAdversarialConfig,
@@ -74,6 +75,15 @@ def _to_item(config: ConfigurationRecord) -> dict[str, Any]:
         "active": config.active,
         "ever_activated": config.ever_activated,
         "ever_tested": config.ever_tested,
+        "parent_ref": (
+            {
+                "configuration_id": config.parent_ref.configuration_id,
+                "version": config.parent_ref.version,
+            }
+            if config.parent_ref is not None
+            else None
+        ),
+        "schema_version_at_creation": config.schema_version_at_creation,
         "created_at": config.created_at.isoformat(),
         "updated_at": config.updated_at.isoformat(),
         "activated_at": config.activated_at.isoformat()
@@ -120,6 +130,19 @@ def _from_item(item: dict[str, Any]) -> ConfigurationRecord:
         active=bool(item.get("active", False)),
         ever_activated=bool(item.get("ever_activated", False)),
         ever_tested=bool(item.get("ever_tested", False)),
+        schema_version_at_creation=(
+            int(item["schema_version_at_creation"])
+            if item.get("schema_version_at_creation") is not None
+            else None
+        ),
+        parent_ref=(
+            ConfigurationRef(
+                configuration_id=item["parent_ref"]["configuration_id"],
+                version=int(item["parent_ref"]["version"]),
+            )
+            if item.get("parent_ref")
+            else None
+        ),
         general=GeneralSettings(),
         infra=InfraSettings(),
         test=TestSettings(),

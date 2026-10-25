@@ -18,6 +18,7 @@ class CreateConfigurationRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     configuration_id: str | None = None
     based_on_version: int | None = None
+    parent_ref: dict[str, str | int] | None = None
     description: str = ""
     general: GeneralSettingsSchema = Field(default_factory=GeneralSettingsSchema)
     infra: InfraSettingsSchema = Field(default_factory=InfraSettingsSchema)
@@ -92,6 +93,7 @@ class ConfigurationSummaryResponse(BaseModel):
     ever_tested: bool = False
     created_at: datetime
     updated_at: datetime
+    parent_ref: dict[str, str | int] | None = None
 
 
 class ConfigurationDetailResponse(ConfigurationSummaryResponse):
@@ -100,3 +102,4 @@ class ConfigurationDetailResponse(ConfigurationSummaryResponse):
     test: TestSettingsSchema
     segments: dict[str, SegmentSettingsSchema] = Field(default_factory=dict)
     created_by: str | None = None
+    schema_version_at_creation: int | None = None

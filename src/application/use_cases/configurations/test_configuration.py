@@ -9,11 +9,13 @@ from src.application.dtos.configuration_dtos import (
     CreateConfigurationInput,
 )
 from src.application.errors import NotFoundError
+from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.configuration_port import (
     ConfigurationRepository,
 )
 from src.application.use_cases.configurations.create_configuration import (
     ConfigurationVersionConflictError,
+    merge_stale_configuration,
 )
 from src.domain.configurations.entities import (
     ConfigurationRecord,
@@ -28,15 +30,26 @@ HIGH_IMPACT_WARNING = (
     "Los cambios en el estado del agente, infraestructura u operación pueden "
     "modificar considerablemente la operación, alterar su funcionamiento o bloquearlo."
 )
+SCHEMA_VERSION_WARNING = (
+    "Esta configuración se creó con el esquema de alertas v{created}; "
+    "la prueba usa el esquema activo v{active}. Verifica que sus campos y "
+    "reglas sigan siendo compatibles."
+)
 
 
 class PreviewConfigurationUseCase:
     """Compare a proposed configuration without persisting it."""
 
-    def __init__(self, configuration_repository: ConfigurationRepository) -> None:
+    def __init__(
+        self,
+        configuration_repository: ConfigurationRepository,
+        schema_repository: AlertSchemaRepository | None = None,
+    ) -> None:
         self._configurations = configuration_repository
+        self._schemas = schema_repository
 
     def execute(self, input: CreateConfigurationInput) -> ConfigurationPreviewOutput:
+        input, _ = merge_stale_configuration(input, self._configurations)
         baseline = self._resolve_baseline(input)
         previous = _record_values(baseline) if baseline is not None else {}
         proposed = _input_values(input)
@@ -46,6 +59,22 @@ class PreviewConfigurationUseCase:
             if any(_is_high_impact(change.path) for change in changes)
             else []
         )
+        if (
+            baseline is not None
+            and baseline.schema_version_at_creation is not None
+            and self._schemas is not None
+        ):
+            active_schema = self._schemas.get_active()
+            if (
+                active_schema is not None
+                and active_schema.version != baseline.schema_version_at_creation
+            ):
+                warnings.append(
+                    SCHEMA_VERSION_WARNING.format(
+                        created=baseline.schema_version_at_creation,
+                        active=active_schema.version,
+                    )
+                )
         return ConfigurationPreviewOutput(changes=changes, warnings=warnings)
 
     def _resolve_baseline(

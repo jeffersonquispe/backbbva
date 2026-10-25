@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.domain.configurations.entities import (
+    ConfigurationRef,
     GeneralSettings,
     InfraSettings,
     SegmentSettings,
@@ -23,6 +24,8 @@ class CreateConfigurationInput:
     # version, CreateConfigurationUseCase raises instead of silently
     # overwriting a version the caller never saw.
     based_on_version: int | None = None
+    # Optional source version when creating a separate configuration lineage.
+    parent_ref: ConfigurationRef | None = None
     description: str = ""
     general: GeneralSettings = field(default_factory=GeneralSettings)
     infra: InfraSettings = field(default_factory=InfraSettings)

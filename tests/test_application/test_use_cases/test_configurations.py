@@ -26,6 +26,7 @@ from src.application.use_cases.configurations.activate_configuration import (
     ConfigurationNotTestedError,
 )
 from src.application.use_cases.configurations.create_configuration import (
+    ConfigurationMergeConflictError,
     ConfigurationVersionConflictError,
     CreateConfigurationUseCase,
 )
@@ -154,6 +155,7 @@ def _with_active(
         ever_activated=config.ever_activated
         if ever_activated is None
         else ever_activated,
+        schema_version_at_creation=config.schema_version_at_creation,
         general=config.general,
         infra=config.infra,
         test=config.test,
@@ -320,31 +322,100 @@ def test_create_configuration_appends_new_version_to_existing_lineage() -> None:
     assert v2.version == 2
     assert v2.active is False
     assert v2.infra.max_instances == 12
+    assert v1.parent_ref is None
+    assert v2.parent_ref is not None
+    assert (v2.parent_ref.configuration_id, v2.parent_ref.version) == (
+        v1.configuration_id,
+        v1.version,
+    )
     # v1 untouched by creating v2.
     assert repo.get(v1.configuration_id, 1) == v1
 
 
-def test_create_configuration_rejects_stale_based_on_version() -> None:
+def test_create_configuration_branch_records_parent_version() -> None:
+    repo = InMemoryConfigurationRepository()
+    use_case = _create_use_case(repo)
+    root = use_case.execute(CreateConfigurationInput(name="Producción"))
+
+    branch = use_case.execute(
+        CreateConfigurationInput(
+            name="Canary",
+            parent_ref=ConfigurationRef(root.configuration_id, root.version),
+        )
+    )
+
+    assert branch.configuration_id != root.configuration_id
+    assert branch.version == 1
+    assert branch.parent_ref == ConfigurationRef(root.configuration_id, root.version)
+
+
+def test_create_configuration_merges_independent_stale_channel_edits() -> None:
     repo = InMemoryConfigurationRepository()
     use_case = _create_use_case(repo)
 
     v1 = use_case.execute(CreateConfigurationInput(name="Producción"))
-    # Someone else appends v2 while our draft still thinks v1 is latest.
-    use_case.execute(
+    # One editor changes the digital channel while another edits cards from
+    # the same base version. Saving the stale draft should retain both edits.
+    digital = replace(v1.segments["canales_digitales"], enabled=True)
+    cards = replace(v1.segments["tarjetas"], enabled=True)
+    v2 = use_case.execute(
         CreateConfigurationInput(
-            name="Producción", configuration_id=v1.configuration_id
+            name="Producción",
+            configuration_id=v1.configuration_id,
+            based_on_version=1,
+            segments={**v1.segments, "canales_digitales": digital},
+        )
+    )
+    v3 = use_case.execute(
+        CreateConfigurationInput(
+            name="Producción",
+            configuration_id=v1.configuration_id,
+            based_on_version=1,
+            segments={**v1.segments, "tarjetas": cards},
         )
     )
 
-    with pytest.raises(ConfigurationVersionConflictError):
+    assert v2.version == 2
+    assert v3.version == 3
+    assert v3.segments["canales_digitales"].enabled is True
+    assert v3.segments["tarjetas"].enabled is True
+    assert repo.get(v1.configuration_id, 1).segments["canales_digitales"].enabled is False
+
+
+def test_create_configuration_reports_conflicting_stale_channel_edits() -> None:
+    repo = InMemoryConfigurationRepository()
+    use_case = _create_use_case(repo)
+
+    v1 = use_case.execute(CreateConfigurationInput(name="Producción"))
+    use_case.execute(
+        CreateConfigurationInput(
+            name="Producción",
+            configuration_id=v1.configuration_id,
+            based_on_version=1,
+            segments={
+                **v1.segments,
+                "canales_digitales": replace(
+                    v1.segments["canales_digitales"], order=3
+                ),
+            },
+        )
+    )
+
+    with pytest.raises(ConfigurationMergeConflictError) as error:
         use_case.execute(
             CreateConfigurationInput(
                 name="Producción",
                 configuration_id=v1.configuration_id,
                 based_on_version=1,
+                segments={
+                    **v1.segments,
+                    "canales_digitales": replace(
+                        v1.segments["canales_digitales"], order=5
+                    ),
+                },
             )
         )
-    # The conflict must not have created a v3 out of the stale draft.
+    assert "segments.canales_digitales.order" in error.value.paths
     assert repo.get_latest_version(v1.configuration_id).version == 2
 
 
@@ -556,6 +627,9 @@ def test_list_configuration_versions_returns_all_versions_sorted() -> None:
     versions = list_versions.execute(v1.configuration_id)
 
     assert [v.version for v in versions] == [1, 2]
+    assert versions[0].parent_ref is None
+    assert versions[1].parent_ref is not None
+    assert versions[1].parent_ref.version == versions[0].version
 
 
 def test_get_configuration_by_id_and_version() -> None:

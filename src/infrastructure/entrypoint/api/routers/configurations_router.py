@@ -121,6 +121,16 @@ def get_active_configuration(
     return to_detail_response(record)
 
 
+@router.get("/graph", response_model=list[ConfigurationSummaryResponse])
+def list_configuration_graph(
+    use_case: Annotated[
+        ListConfigurationsUseCase, Depends(get_list_configurations_use_case)
+    ],
+):
+    """Read every configuration version with its parent reference."""
+    return [to_summary_response(record) for record in use_case.execute_graph()]
+
+
 @router.get("/{configuration_id}", response_model=list[ConfigurationSummaryResponse])
 def list_configuration_versions(
     configuration_id: str,

@@ -14,6 +14,7 @@ def test_configuration_mapper_round_trips_request_through_record_response() -> N
         {
             "name": "Fraude tarjetas",
             "configuration_id": "fraude-tarjetas",
+            "parent_ref": {"configuration_id": "config-origen", "version": 2},
             "description": "Configuración de prueba",
             "segments": {"tarjetas": {"enabled": True, "order": 2}},
         }
@@ -33,6 +34,7 @@ def test_configuration_mapper_round_trips_request_through_record_response() -> N
         infra=mapped_input.infra,
         test=mapped_input.test,
         segments=mapped_input.segments,
+        parent_ref=mapped_input.parent_ref,
     )
 
     detail = to_detail_response(record)
@@ -46,3 +48,4 @@ def test_configuration_mapper_round_trips_request_through_record_response() -> N
     assert summary.configuration_id == detail.configuration_id
     assert summary.version == detail.version
     assert summary.name == detail.name
+    assert summary.parent_ref == {"configuration_id": "config-origen", "version": 2}

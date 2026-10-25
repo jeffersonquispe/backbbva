@@ -11,6 +11,7 @@ from src.domain.configurations.entities import (
     AnalystConfig,
     ClassificationConfig,
     ConfigurationRecord,
+    ConfigurationRef,
     DelegatedResearchSettings,
     DetectorAdversarialConfig,
     DetectorConfig,
@@ -86,6 +87,14 @@ def input_from_request(
         name=request.name,
         configuration_id=request.configuration_id,
         based_on_version=request.based_on_version,
+        parent_ref=(
+            ConfigurationRef(
+                configuration_id=str(request.parent_ref["configuration_id"]),
+                version=int(request.parent_ref["version"]),
+            )
+            if request.parent_ref is not None
+            else None
+        ),
         description=request.description,
         general=_general_from_schema(request.general),
         infra=_infra_from_schema(request.infra),
@@ -109,6 +118,14 @@ def to_summary_response(record: ConfigurationRecord) -> ConfigurationSummaryResp
         ever_tested=record.ever_tested,
         created_at=record.created_at,
         updated_at=record.updated_at,
+        parent_ref=(
+            {
+                "configuration_id": record.parent_ref.configuration_id,
+                "version": record.parent_ref.version,
+            }
+            if record.parent_ref is not None
+            else None
+        ),
     )
 
 
@@ -123,7 +140,16 @@ def to_detail_response(record: ConfigurationRecord) -> ConfigurationDetailRespon
         ever_tested=record.ever_tested,
         created_at=record.created_at,
         updated_at=record.updated_at,
+        parent_ref=(
+            {
+                "configuration_id": record.parent_ref.configuration_id,
+                "version": record.parent_ref.version,
+            }
+            if record.parent_ref is not None
+            else None
+        ),
         created_by=record.created_by,
+        schema_version_at_creation=record.schema_version_at_creation,
         general=GeneralSettingsSchema(**record.general.__dict__),
         infra=InfraSettingsSchema(**record.infra.__dict__),
         test=TestSettingsSchema(**record.test.__dict__),
