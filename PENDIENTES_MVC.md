@@ -32,7 +32,7 @@ Archivo aparte de `PENDIENTES.md`. Anotado 2026-10-24.
 
 - [ ] **#9 [D][I] Filtros en la parte superior.** Mismo problema que #6 y #7.
 - [x] **#10 [I] Exceso de alertas en muchos lugares.** Consolidar y reducir los avisos repartidos por la página (ver también #2). ✅ Hecho 2026-10-24: varios avisos se agrupan en uno ("N avisos sobre este rango") y el banner de agente degradado pasó a una línea.
-- [ ] **#11 [D][I] Página demasiado larga: convertir en tabs.** Los indicadores operativos y el resto se reparten en pestañas para no scrollear hasta el final:
+- [x] **#11 [D][I] Página demasiado larga: convertir en tabs.** Los indicadores operativos y el resto se reparten en pestañas para no scrollear hasta el final: ✅ Hecho 2026-10-24: seis tabs (`MONITOR_TABS`), última pestaña recordada en `aria.monitor.tab`; test de componente y `observability-real.spec.ts` adaptados. "Porcentaje de recomendaciones" quedó como `% Recomendaciones`.
   - Indicadores generales
   - Indicadores de área
   - Analistas (nuestra perspectiva) y otros canales
