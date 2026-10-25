@@ -57,14 +57,11 @@ Archivo aparte de `PENDIENTES.md`. Anotado 2026-10-24.
 
 - [~] **#17 [D][I] Unificar en un único drawer lateral derecho superpuesto.** Los formularios de alta y edición usan el `SideDrawer` común: panel fijo a la derecha, cierre, foco atrapado y aviso de cambios sin guardar.
   - **Avance 2026-10-25:** `ui/side-drawer.tsx` ya se usa en Nueva prueba, Nuevo modelo/entrenamiento, datasets (crear vacío, subir, extraer, elegir registros, detalle y fila JSON), detalle de dataset de Testing, mapeo de campos y los tres catálogos de Configuración. Se migraron también alta/edición de listas negras/blancas, gestión de sus elementos y edición de playbook. La spec `e2e/side-drawer-real.spec.ts` se amplió para crear y editar una lista con API real.
-  - **Inventario pendiente de migración:** cinco formularios inline de `biblioteca.tsx` (canal, taxonomía, modus operandi, flag y caso similar) y el formulario de nueva configuración en `configuracion.tsx`. Revisar además los flujos de diseño/resultados de modelo y cualquier formulario de edición inline restante; documentar si son formularios de alta/edición o vistas/acciones operativas.
+  - **Inventario actualizado 2026-10-25:** los formularios de canal, taxonomía, modus operandi, flags, casos similares, playbook, watchlists y sus elementos en Biblioteca usan `SideDrawer`; las operaciones de dataset de Biblioteca también usan el drawer compartido. El formulario de nueva configuración en `configuracion.tsx` sigue pendiente.
   - **Decisiones de alcance:** `RoleModal` ya no presenta formulario (devuelve `null`, los roles vienen del JWT/API); `FraudReview` es una acción de revisión/auditoría, no un formulario CRUD. `ModelDesignStudio` no tiene consumidores en el frontend y `ModelTrainingResults` es una vista de consulta; ambos quedan fuera de la migración CRUD. Los diálogos de confirmación y solicitudes/despliegues son acciones operativas, no formularios de alta/edición.
-  - **E2E:** se conserva la cobertura existente y se añadió alta/edición real de watchlist, incluida la alerta de cambios sin guardar. Falta ampliar cobertura para cada formulario migrado y correr los E2E focalizados y `make e2e-all-local` a través de nginx en `http://localhost:80`; todavía no se ejecutó ninguna corrida de esta tanda.
-  - Crear un componente drawer compartido (extraer del Asistente ARIA) con encabezado, botón cerrar, cuerpo con scroll y pie de acciones.
-  - Aplicarlo a: **Nueva prueba**, **Nueva flaca**, todos los formularios modales de **Biblioteca**, el modal de **Nuevo modelo** y todo lo de **Configuración** que hoy use modales u otro tipo de render.
-  - Hacer un inventario previo (grep de modales/paneles en `../frontend_mockup`) para no dejar ninguno.
-  - Definir comportamiento común: cerrar con Esc y clic fuera, foco atrapado, aviso si hay cambios sin guardar.
-  - Actualizar E2E de cada flujo afectado (real, vía nginx en `http://localhost`) y correr `make project-graph` si cambian componentes.
+  - **E2E:** `side-drawer-real.spec.ts` cubre apertura de los formularios de Biblioteca con datos reales, alta/edición de watchlist y aviso de cambios sin guardar. Sigue pendiente correr los E2E focalizados y `make e2e-all-local` a través de nginx en `http://localhost:80`; todavía no se ejecutó ninguna corrida de esta tanda.
+  - **Pendiente de implementación:** migrar el formulario de nueva configuración en `configuracion.tsx` al drawer compartido.
+  - **Pendiente de verificación:** ejecutar E2E focalizados para los flujos de Biblioteca y después `make e2e-all-local` por nginx en `http://localhost:80`. No cerrar el ítem antes de esa corrida.
 
 ## 7. Agente operador de formularios (crear/editar objetos)
 
