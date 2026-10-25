@@ -27,7 +27,7 @@ Archivo aparte de `PENDIENTES.md`. Anotado 2026-10-24.
 ## 3. Histórico de fraude
 
 - [ ] **#7 [D][I] Filtros en la parte superior.** Mismo problema que #6; usar el mismo patrón de barra de filtros compartida.
-- [ ] **#8 [V] Botones "Descargar plantilla" y "Cargar CSV".** No sabemos si funcionan. Verificar descarga de la plantilla, carga de un CSV válido, y manejo de CSV inválido (errores claros); agregar E2E real.
+- [x] **#8 [V] Botones "Descargar plantilla" y "Cargar CSV".** No sabemos si funcionan. Verificar descarga de la plantilla, carga de un CSV válido, y manejo de CSV inválido (errores claros); agregar E2E real. ✅ Verificado 2026-10-24 por E2E real (`fraud-review-real.spec.ts`): plantilla (nombre y cabecera), carga mixta con reporte por fila, `;`/BOM/mayúsculas, archivos rechazados (sin columna, vacío, no UTF-8), solo encabezado y reenvío. Sin bugs de producto. Pendiente: inspección visual en Chrome.
 
 ## 4. Monitor del agente
 
