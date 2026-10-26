@@ -164,6 +164,25 @@ rather than assuming that count is universally safe.
   `[tool.pytest.ini_options]` block in `deploy/requirements/pyproject.toml`,
   it's a different project and not the one that runs when you `pytest` from
   repo root).
+- For API route or method changes, run `make test-api-contracts`. It compares
+  all frontend API-client route/method shapes with the generated backend
+  OpenAPI surface. It does not compare every request/response field: add or
+  update focused API response/request contract tests for changed schemas,
+  preserving the active/versioned dynamic alert schema contract.
+- For Celery task changes, run
+  `GENAI_ENVIRONMENT=test pytest tests/test_infrastructure/test_entrypoint/test_celery_task_signature_contracts.py`
+  and the task's focused behavior tests. All registered project tasks must
+  retain annotated input/output signatures and JSON message serialization.
+- For domain or workflow invariants, add Hypothesis properties beside the
+  corresponding unit tests where generated inputs add value. Existing property
+  coverage includes rule comparisons, history selection, mature sampling and
+  partitioning, alert rollups, and async-operation reconciliation.
+- To assess endpoint removal, use
+  `python scripts/report_api_endpoint_usage.py --from-day YYYY-MM-DD
+  --to-day YYYY-MM-DD --include-unused` against the intended environment. The
+  report combines frontend references and HTTP audit traffic. A route with no
+  frontend reference or no traffic in the selected window is only a candidate
+  for review; check external consumers and periodic callers before removal.
 
 ## Before you call a change done — always run these
 

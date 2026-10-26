@@ -48,9 +48,16 @@ make lint                # ruff + mypy ratchet (.lint-baseline.json must not gro
 make lint-baseline       # only after fixing errors: lowers the baseline; never commit a raised one
 make test-architecture   # AST fitness tests (tests/test_architecture/)
 GENAI_ENVIRONMENT=test pytest   # tests for the code you touched
+make test-api-contracts  # when frontend API routes/methods or backend routes change
 make e2e-all-local       # full real Playwright suite through nginx localhost:80
 make e2e-observability   # focused observability flows through local nginx
 ```
+
+For Celery task changes, also run
+`GENAI_ENVIRONMENT=test pytest tests/test_infrastructure/test_entrypoint/test_celery_task_signature_contracts.py`
+and the task's focused behavior tests. For endpoint deprecation, consult
+`python scripts/report_api_endpoint_usage.py --help`; zero frontend references
+or zero traffic in one time window is not sufficient evidence for deletion.
 
 Jenkins runs `make lint` and `make test-architecture` on every build
 (`Lint` and `Architecture` stages in the `Jenkinsfile`).

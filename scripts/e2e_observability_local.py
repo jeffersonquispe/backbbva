@@ -157,6 +157,31 @@ def main() -> int:
                         f"{env_prefix}_PASSWORD": role_password,
                     }
                 )
+            if os.getenv("E2E_ISOLATE_WORKER_USERS") == "1":
+                worker_count = int(os.getenv("E2E_PLAYWRIGHT_WORKERS", "1"))
+                if not 1 <= worker_count <= 11:
+                    raise RuntimeError("Isolated E2E worker users support 1 to 11 workers")
+                for worker_index in range(worker_count):
+                    for role_key, role, label in (
+                        ("CHANNEL_MANAGER", "channel_manager", "Channel Manager"),
+                        ("MANAGER", "manager", "Manager"),
+                    ):
+                        email = (
+                            f"e2e-pw-worker-{worker_index}-{role_key.lower()}@example.com"
+                        )
+                        password = provision_user(
+                            temporary,
+                            email,
+                            f"E2E Playwright worker {worker_index} {label}",
+                            role,
+                        )
+                        prefix = f"E2E_{role_key}_W{worker_index}"
+                        playwright_env.update(
+                            {
+                                f"{prefix}_EMAIL": email,
+                                f"{prefix}_PASSWORD": password,
+                            }
+                        )
             fraud_review_password = provision_user(
                 temporary,
                 playwright_env["E2E_FRAUD_REVIEW_EMAIL"],

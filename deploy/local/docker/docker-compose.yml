@@ -85,6 +85,7 @@ services:
         GENAI_ENVIRONMENT: ${GENAI_ENVIRONMENT:-local}
     image: aria-api:${LOCAL_IMAGE_TAG:-local}
     container_name: aria-api
+    command: ["uvicorn", "src.infrastructure.entrypoint.api.fastapi_app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "${API_SERVER_WORKERS:-1}"]
     ports:
       - "${LOCAL_API_PORT:-8000}:8000"
     volumes:

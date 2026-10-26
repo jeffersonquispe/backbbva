@@ -221,6 +221,74 @@ confirmar Celery sin jobs activos, se redujo el pool de tres a una réplica.
 - [ ] **Tablas pendientes de `DataTable`** — managers de catálogos de configuración, `ModelTrainingResults`, `FraudReview`, monitor/dashboard, `AmountTierEditor`, `AlertSchemaEditor`, `DatasetRowsTab`.
 - [ ] **Deuda previa** — `operations.amount-tiers.test.tsx` (vitest) ya fallaba antes de estos cambios.
 
+## 11. Metodologías de prueba — pendientes
+
+- [x] **Carga fragmentada de datasets por la API REST** — el frontend inicia una sesión y envía partes de 5 MiB como `application/octet-stream`; el backend persiste y ensambla las partes mediante el repositorio de datasets existente. El navegador no accede a S3. Las sesiones se pueden completar idempotentemente, abortar y expiran a las 24 h; la limpieza de sesiones vencidas se ejecuta al iniciar otra carga o al tocar una sesión vencida. Unit tests y E04 por la UI real (incluido un CSV de 28,6 MB) pasaron; E05 también verificó la carga fragmentada antes de entrenar y probar el modelo.
+- [ ] **Triage de regresiones Playwright (2026-10-25)** — el full run previo registró 81 tests, 55 pasados, 6 fallidos y 20 omitidos. En una repetición posterior del full run a 1 worker, Playwright duró aproximadamente 18 min y terminó con 38 fallos registrados; los artefactos apuntan a respuestas 500/socket hang up y recreación fallida de nginx durante E05. Esa corrida no sirve como línea base funcional hasta estabilizar el stack, y no debe usarse para estimar aceleración del full suite. Retestes focalizados por nginx confirmaron:
+  - Asistente/chat: `agent-assistant-views-real` 21/21 y `agent-chat-dense-real` 3/3 pasaron. Se corrigió un helper que consumía dos veces el cuerpo de respuestas HTTP y provocaba fallos intermitentes de limpieza de sesión.
+  - Simulación: E06 pasó; la vista previa usa 30 filas y el pipeline emite como máximo 25 alertas.
+  - Entrenamiento: E05 pasó con un dataset de 100 filas, 13 alertas de prueba y el modelo activo restaurado/limpiado al terminar. Se corrigió el locator del botón de contrato y se limitó a 15 s la espera de acciones de UI.
+  - Side drawer: 8/8 pasaron en la última repetición; se ajustó la espera para respetar la animación de cierre del diálogo.
+  - Auth/reportes: 12/12 pasaron con 1 worker y con 2 workers.
+  - Paralelización del asistente/chat: 24/24 casos pasaron con 1 worker (2,3 min), 2 workers (1,3 min) y 5 workers (52,9 s de Playwright; ~2,6× frente a 1 worker y ~32% menos que con 2). El grupo usa cuentas manager/channel_manager aisladas por `parallelIndex`; Celery tuvo cinco réplicas de concurrencia 1. El target `e2e-agent-assistant-parallel` usa ahora 5 workers por defecto (máximo soportado por el aprovisionamiento actual).
+  - Clusters de paralelismo validados: assistant views + dense chat (24 casos) pasaron con 5 workers; el cluster de lectura `auth-real` + `reports-real` + `data-tables-real` pasó 26/26 con 3 workers; el cluster biblioteca/observability pasó 26/26 con 11 workers tras añadir `assistant-optimizer-settings-real`. No generalizar esos resultados al full suite: entrenamiento recrea API/nginx; otras specs de configuración, simulación, alertas y datasets necesitan validación/aislamiento propios.
+  - `assistant-optimizer-settings-real` guardó, verificó y restauró su ajuste durante la corrida paralela con `operational-settings-real`; 26/26 casos pasaron en 32,8 s con 11 workers. `data-tables-real` pasó integrada en ambos clusters (14/14). Falta estabilizar el API/nginx, repetir el full run funcional, verificar las 81 pruebas juntas y revisar los 20 casos omitidos; este ítem sigue abierto hasta entonces.
+  - `datasets-real` + `entities-advanced-real` pasaron juntas 2/2 en 33,8 s con 2 workers, frente a 46,0 s sumados en sus líneas base de 1 worker: reducción de 26,5% (1,36×). Sin interferencia observada en esta corrida; repetir para confirmar estabilidad.
+  - Línea base serial de seis specs con un worker: datasets 16,5 s; entities advanced 29,5 s; simulación 19,6 s; fraud review 10,7 s (dos casos); mature sampler 6,1 s; entrenamiento 11,4 s. Resultado conjunto: 7/7 casos en 2,0 min. E06 emite como máximo 25 alertas y E05 prueba 13; ambos respetan el límite de 30. Entorno: 15 CPUs, 15,6 GiB; al iniciar no había tareas activas, test workers 5×3 y training worker 1×1. Durante E05, training worker llegó a ~441 MiB y ~177% CPU. Esta medición no valida paralelismo entre specs.
+- [x] **Contrato de rutas frontend/backend** — `make test-api-contracts` compara los 180 pares únicos de método/ruta consumidos por los módulos API frontend contra el OpenAPI que genera el backend; la prueba de alerta valida además su sobre estable y campos por versión. Pendiente enlazarlo a CI y comparar automáticamente todos los tipos de payload frontend con sus request/response schemas OpenAPI.
+- [x] **Pruebas basadas en propiedades de alertas** — Hypothesis cubre condiciones numéricas, selección de historial, muestreo y partición maduros, deltas de rollups y retención de agregados diarios. Ampliar según aparezcan invariantes críticas en otras partes del dominio.
+- [x] **Reporte de uso de endpoints** — `scripts/report_api_endpoint_usage.py` cruza OpenAPI, referencias estáticas del frontend y auditoría HTTP por rango de fechas; solo consulta `audit_log`. Pendiente ejecutar sobre el entorno/ventana acordados y revisar consumidores externos antes de cualquier baja.
+- [x] **Contratos iniciales de tasks Celery y propiedad de reintento** — las 27 tasks registradas deben tener firma anotada y configuración JSON; Hypothesis verifica resultado persistido y cierre terminal idempotente en la reconciliación de operaciones async. Ampliar a contratos explícitos de payload por familia y transiciones del workflow de revisión de alertas.
+- [ ] **Pruebas de rendimiento con objetivos** — elegir flujos y endpoints críticos, carga representativa, entorno y umbrales de latencia/errores/recursos; automatizar una línea base y detectar regresiones.
+
+### Tiempos E2E Playwright tras las modificaciones (2026-10-25)
+
+**Full run anterior:** `make e2e-all-local` con 11 workers de Playwright y 5
+workers Celery con concurrencia 3: 86 casos en 1,7 min, 28 pasaron, 53
+fallaron y 5 no corrieron. No produjo tiempos individuales por spec y mostró
+respuestas 502 y errores de estado compartido. No usarlo como benchmark.
+
+**Revalidación por clusters, en secuencia (2026-10-25):** cada cluster terminó
+antes de iniciar el siguiente; se conservaron sus workers Playwright
+paralelos. Los tiempos son los reportados por Playwright y no incluyen
+preparación del stack.
+
+| E2E / spec | Tiempo medido | Workers (Playwright; Celery) | Resultado / alcance |
+|---|---:|---:|---|
+| `agent-assistant-base` | 56,2 s serie → 25,7 s paralelo (−54,3%); incluida en full run fallido, sin tiempo individual | 1; agent-worker 1×1; API 4 workers | 1/1 pasó en ambas mediciones; crea modus operandi y, en tres sesiones independientes, propone y confirma en paralelo red flag, yellow flag y caso similar. Tiempos del test, excluyen preparación del stack. |
+| `agent-assistant-views-real` | 42,8 s junto con `agent-chat-dense-real` (corrida secuencial de clusters); medición previa: 52,9 s | 5; 5×1 | Grupo actual: 24/24 pasaron |
+| `agent-chat-dense-real` | Incluido en los 42,8 s del grupo; medición previa: incluido en 52,9 s | 5; 5×1 | Grupo actual: 24/24 pasaron; no se midió por separado |
+| `agent-optimizer-real` | N/D; incluida en full run fallido sin tiempo individual por spec | N/D | Sin medición individual |
+| `alert-schema-real-api` | 1 min 12 s (6 casos); full run fallido sin tiempo individual por spec | 1; Celery 5×3 | Medición previa: 6/6 pasaron; los dos flujos de procesamiento tardaron 31,3 s y 30,7 s |
+| `analyst-queue-real` | 31,7 s; full run fallido sin tiempo individual por spec | 1; Celery 5×3 | Medición previa: 1/1 pasó; flujo real de escalamiento, toma, resolución y verificación |
+| `assistant-optimizer-settings-real` | 8,0 s en el cluster biblioteca actual; antes incluida en 32,8 s | 11; 5×3 | Pasó y restauró el ajuste |
+| `auth-real` | Incluida en 32,4 s del cluster de lectura (26 casos); medición anterior: 25,8 s junto con reports | 3; Celery 1×1 | Cluster actual pasó 26/26 |
+| `backups-real` | 2 min; full run fallido sin tiempo individual por spec | 1; Celery 5×3 | Medición previa: 1/1 pasó; el job de respaldo domina el tiempo |
+| `configuration-concurrency-real` | 1,8 s en el cluster secuencial actual; anteriores: 5,2 s individual, 6,5–7,4 s en cluster | 2; Celery 5×3 | Pasó; cluster completo: 1/3 |
+| `configuration-deploy-real` | Fallo previo: timeout a 180 s junto al grafo; después de corregir el listado y correr aislado: 8,6 s | 1 en retest; Celery 5×3 | Retest pasó; el fallo previo coincidió con el otro spec de configuración |
+| `configuration-graph-real` | Fallo previo: 11,3 s junto al deploy; después de corregir el helper del selector: 1,8 s | 1 en retest; Celery 5×3 | Retest pasó |
+| `data-tables-real` | Incluida en 38,5 s del cluster biblioteca y 32,4 s del cluster lectura; los 26 casos de lectura pasaron | 11 (biblioteca); 3 (lectura) | Cluster lectura 26/26; en biblioteca, 14 casos de esta spec pasaron |
+| `datasets-real` | 19,9 s en el par paralelo actual; anteriores: 16,5 s serial y 18,6 s en el par | 2; Celery 5×3 | Pasó; particiones de 25, 100, 300 y 900 filas |
+| `entities-advanced-real` | 35,3 s en el par paralelo actual; anteriores: 29,5 s serial y 30,4 s en el par | 2; Celery 5×3 | Pasó; reindexación de dos instancias |
+| `event-simulation-real` | 19,6 s; full run fallido sin tiempo individual por spec | 1; Celery 5×3 | Medición previa: 1/1 pasó; emisión acotada a 25 alertas |
+| `fraud-review-real` | 10,7 s acumulados (2 casos); full run fallido sin tiempo individual por spec | 1; Celery 5×3 | Medición previa: 2/2 pasaron |
+| `mature-sampler-real` | 6,1 s; full run fallido sin tiempo individual por spec | 1; Celery 5×3 | Medición previa: 1/1 pasó |
+| `models-training-real` | 11,4 s; full run fallido sin tiempo individual por spec | 1; worker training 1×1 | Medición previa: 1/1 pasó; 13 alertas de prueba |
+| `observability-real` | 21,8 s en el cluster biblioteca actual; anterior: 11,9 s inicial y 11,0–12,3 s paralelo | 11; 5×3 | Pasó 1/1 |
+| `operational-settings-real` | 6,2 s en el cluster biblioteca actual; anterior: 1,3 s inicial y 3,1–3,5 s paralelo | 11; 5×3 | Pasó 1/1 |
+| `reports-real` | Incluida en 32,4 s/26 casos del cluster lectura; anterior: 25,8 s con auth | 3; Celery 1×1 | Cluster actual pasó todos los casos |
+| `side-drawer-real` | Fallo previo: caso de 19,9 s en cluster; retest aislado de las 11 pruebas dentro de la suite de 46,3 s | 1 en retest; Celery 5×3 | Retest pasó; locator de pestaña acotado al primer botón coincidente |
+| `vector-store-real` | 18,2 s en el cluster biblioteca actual; anterior: 12,6 s inicial | 11; 5×3 | Pasó 1/1 |
+| **TOTAL** | **Clusters secuenciales: assistant/chat 24/24 en 42,8 s; biblioteca/observability 28/29 en 38,5 s; lectura 26/26 en 32,4 s; datasets/entidades 2/2 en 38,7 s; configuración 1/3 en 3 min.** | **Cada cluster se ejecutó por separado; Playwright: 5, 11, 3, 2 y 2 workers; Celery: hasta 5×3** | **Fallaron tres casos, detallados abajo. El full run anterior (86 casos, 53 fallidos) fue concurrente entre todas las specs y queda separado de estos resultados.** |
+
+#### Fallos de los clusters secuenciales
+
+1. **Biblioteca — `side-drawer-real.spec.ts:282`**, “Biblioteca: los formularios de conocimiento abren el drawer compartido” (19,9 s). En la línea 341, el locator `getByRole("button", { name: "Modus operandi", exact: true })` encontró dos botones (pestaña y encabezado de tabla); Playwright falló por strict mode. Corregir el locator para acotarlo al control esperado.
+2. **Configuración — `configuration-graph-real.spec.ts:38`** (11,3 s). No apareció en el selector la configuración creada por el test (`E2E grafo aparte 8119e84f`); falló la espera de visibilidad de la fila antes de hacer clic.
+3. **Configuración — `configuration-deploy-real.spec.ts:78`** (180 s). Excedió el timeout del test. Al ejecutarse la limpieza, `activeConfiguration` recibió `Target page, context or browser has been closed`. Reproducir deploy sin el test del grafo en paralelo para separar timeout propio de interferencia entre specs.
+
+**Correcciones y retest:** `list_latest()` ahora pagina el scan de DynamoDB y usa los owner items de resumen, sin hidratar todas las versiones históricas; esto evita perder configuraciones más allá de 1 MiB y reduce el costo de cargar el selector. La spec del grafo ahora cierra el selector después de cada selección. El test de side drawer limita el locator de “Modus operandi” a la pestaña, ya que la tabla también tiene un botón con ese nombre. Regresión backend: `GENAI_ENVIRONMENT=test pytest tests/test_infrastructure/test_persistence/test_configuration_repository.py -q` — 22/22 pasaron. Retest por nginx con `make e2e-selected-real` para `side-drawer-real`, `configuration-graph-real` y `configuration-deploy-real`: **13/13 pasaron en 46,3 s** (deploy 8,6 s, grafo 1,8 s). Los tres fallos anteriores quedaron resueltos en esta corrida.
+
 ---
 
 **Dependencias:** #10 es base de #11 y #19. #7, #8 y #9 comparten el patrón "estado on/off" → diseñarlos juntos. #12 y #13 comparten el patrón "reserva con expiración".
