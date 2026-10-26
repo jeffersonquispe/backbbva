@@ -212,6 +212,19 @@ Inventario preliminar a partir de `../frontend_mockup/src/components` y los rout
   - **Pendiente de #25:** (a) replay real del pipeline en la validación retrospectiva de H12 (hoy el API usa el scorer del MCP; requiere ejecutarla en el worker con un registro `RUNNING`); (b) promoción del conjunto versionado completo (hoy solo modelo; requiere enrutar configuración/Biblioteca/Vector Store por alerta en canary); (c) smoke H9 real con 30 alertas.
   - **Pruebas:** sin E2E largos. Pirámide: unit/property de la máquina de estados, contrato de subagentes y repositorios contra DynamoDB Local, y E2E de navegador por nginx con sesiones **sembradas por API** en cada estado (corriendo, bloqueada, fallida, inconclusa, completada, lease vencido), cada uno < 90 s y en paralelo con usuarios aislados. Ciclo real con subagente stub y fixture de 30 alertas. Un único smoke con LLM real, etiquetado y fuera del flujo normal. Cada E2E comprueba que lo que muestra la UI coincide con `agent_events`/registros y que un fallo inyectado aparece con razón y acción sugerida. Objetivo: conjunto del optimizador ≈ 8 min.
 
+- [ ] **#26 [D][I] H12: validación retrospectiva con el replay real y promoción del conjunto versionado completo.** Pendiente de #25 (2026-10-26).
+  - **Replay real:** hoy `POST /agent/retrospective-validations` corre en el API con el scorer del MCP (solo modelo), mientras el experimento se midió en el worker con el replay del flujo real; la evidencia puede no coincidir. Ejecutarla en el worker con un registro `RUNNING` (nuevo estado de `RetrospectiveValidationStatus`), respuesta 202 y sondeo desde `AgentReleasePanel`; reescribir `e2e_agent_h12_local.mjs`.
+  - **Promoción completa:** `ManageAgentReleaseUseCase` exige que configuración, Biblioteca y Vector Store no cambien (`h12_model_only_v1`). Enrutar esos tres componentes por alerta en canary (bucket estable) en el flujo de revisión, con shadow y rollback, y registrar cada paso en `agent_events` y en el audit log.
+  - **Decisión tuya:** si la promoción de configuración sigue por el flujo de solicitudes de despliegue existente o por el canary del release.
+- [ ] **#27 [I] Smoke real del optimizador (H9) con muestra de 30 alertas.** Los dos intentos del 2026-10-23 no se declararon verificados. Con la recuperación idempotente ya implementada, repetir `make e2e-agent-h9-local` con muestra aislada de 30, tres workers de prueba y comprobar cierre y restauración si cae el frontend (puerto 80).
+- [ ] **#28 [I] Deuda de pruebas y entorno detectada en #25.**
+  - Los 14 tests de `tests/test_infrastructure/test_workflows/test_alert_review_workflow.py` fallan sin `minio:9000`: darles un fake de almacenamiento.
+  - Los archivos `*_properties.py` necesitan `hypothesis` instalado en el entorno local.
+  - `optimizer-center-real.spec.ts` (worker caído) depende de que el barrido de 30 s no recupere la sesión antes de mirarla: reintenta hasta 4 sesiones. Las sesiones sembradas `ACTIVE` cuentan para el tope de sesiones concurrentes; el spec las limpia al terminar.
+  - Un `ruff format` accidental dejó ~37 archivos de `src/application` y `src/domain` con cambios solo de formato sin commitear: revertir con `git restore`.
+  - Inspección visual del Centro del optimizador en Chrome real (hasta ahora solo capturas de Playwright; requiere que inicies sesión).
+  - Resultado de la corrida completa `make e2e-all-local` posterior a #25: pendiente de registrar.
+
 ## 11. Panel del asistente: reducir ruido visual
 
 - [x] **Insights y contexto del grafo** — ✅ Hecho 2026-10-25: las propuestas de insight quedan plegadas por defecto y sus acciones siguen disponibles al expandirlas; el panel ya no muestra la lista «Contexto usado», pero conserva los chips de navegación. E2E real `agent-chat-dense-real.spec.ts`: 3/3 pasaron por nginx.
