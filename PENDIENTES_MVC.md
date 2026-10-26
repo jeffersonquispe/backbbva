@@ -225,6 +225,13 @@ Inventario preliminar a partir de `../frontend_mockup/src/components` y los rout
   - Inspección visual del Centro del optimizador en Chrome real (hasta ahora solo capturas de Playwright; requiere que inicies sesión).
   - Resultado de la corrida completa `make e2e-all-local` posterior a #25: pendiente de registrar.
 
+- [~] **#29 [D][I] `OptimizationRun`: una sola macroestructura para la corrida del optimizador, con experimentos en paralelo.** Acordado 2026-10-26.
+  - **Estructura:** tabla `optimization_runs`, una partición por corrida (`run_id` = sesión) con un ítem por nodo: raíz `RUN` (configuración base del optimizador, línea base fijada, presupuesto y topes, insights generales y de memoria, ganadores, configuración ganadora y estrategia), `CAND#<id>` (hipótesis, insights propios, estado y conclusión dentro del candidato, no como entidad aparte) y `EXP#<id>` (pila candidata, resultados, verificaciones y hallazgos). Hipótesis, experimentos y hallazgos dejan de vivir en tablas propias: sus puertos pasan a escribir en esta estructura.
+  - **Eventos:** solo referencias por llave. La raíz apunta a la línea de tiempo general de la sesión y cada experimento a su propia línea en `agent_events` (llave `<sesión>#exp#<experimento>`), para seguir experimentos paralelos sin mezclarlos.
+  - **Paralelización:** hasta 3 experimentos simultáneos por sesión si son independientes (cambian componentes distintos y ninguno depende del otro), 2 sesiones y 6 experimentos globales. Cada uno corre su candidato contra la misma línea base y la misma muestra madura; si varios ganan, el experimento de combinación va después, en serie. Presupuesto repartido por candidato.
+  - **Trazabilidad pendiente incluida:** acciones del usuario (iniciar, pausar, reanudar, cancelar, confirmar o rechazar insights) en `agent_events`; llamadas a herramientas y al LLM con duración, tokens y costo.
+  - **Vista:** `GET /agent/optimization-runs/<id>` devuelve el árbol completo; el Centro del optimizador lo muestra con ganadores y experimentos en paralelo.
+
 ## 11. Panel del asistente: reducir ruido visual
 
 - [x] **Insights y contexto del grafo** — ✅ Hecho 2026-10-25: las propuestas de insight quedan plegadas por defecto y sus acciones siguen disponibles al expandirlas; el panel ya no muestra la lista «Contexto usado», pero conserva los chips de navegación. E2E real `agent-chat-dense-real.spec.ts`: 3/3 pasaron por nginx.
