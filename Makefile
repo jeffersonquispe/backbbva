@@ -390,6 +390,11 @@ LOCAL_DYNAMODB_PORT ?= 8002
 LOCAL_REDIS_PORT ?= 6379
 LOCAL_IMAGE_TAG ?= local
 LOCAL_DOCKER_TEST_WORKERS ?= 1
+# Test workers for the replay-heavy agent E2E (H9/H11). Each candidate replays
+# its sample twice (baseline + candidate); a backlog older than
+# CELERY_STUCK_TASK_TIMEOUT_SECONDS fails the replay. Size it from measured
+# host memory, keeping 20% headroom.
+E2E_AGENT_TEST_WORKERS ?= 3
 
 # Sibling repo, not part of this git tree - guard every target below so a
 # checkout without it (e.g. CI, a fresh clone) doesn't fail the backend stack.
@@ -789,7 +794,7 @@ e2e-agent-h9-local:  ## Run the H9 optimizer Playwright flow through nginx local
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
 		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-agent-worker aria-agent-beat; \
-	LOCAL_DOCKER_TEST_WORKERS=3 $(MAKE) local-docker-run; \
+	LOCAL_DOCKER_TEST_WORKERS=$(E2E_AGENT_TEST_WORKERS) $(MAKE) local-docker-run; \
 	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
 	node scripts/e2e_agent_h9_local.mjs
@@ -809,7 +814,7 @@ e2e-agent-h11-local:  ## Seed a real mature final sample, then evaluate the four
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
 		build $(LOCAL_DOCKER_BUILD_ARGS) api mcp aria-agent-worker aria-agent-beat; \
-	LOCAL_DOCKER_TEST_WORKERS=3 $(MAKE) local-docker-run; \
+	LOCAL_DOCKER_TEST_WORKERS=$(E2E_AGENT_TEST_WORKERS) $(MAKE) local-docker-run; \
 	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
 	node scripts/e2e_agent_h9_local.mjs
