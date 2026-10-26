@@ -1362,6 +1362,11 @@
   },
   {
    "relation": "renders",
+   "source": "component:aria/CapabilityInfo",
+   "target": "component:ui/popover"
+  },
+  {
+   "relation": "renders",
    "source": "component:async/AsyncOperationProgressCard",
    "target": "component:ui/progress"
   },
@@ -2023,6 +2028,11 @@
   {
    "relation": "renders",
    "source": "component:configuracion/SegmentAnalystSection",
+   "target": "component:aria/CapabilityInfo"
+  },
+  {
+   "relation": "renders",
+   "source": "component:configuracion/SegmentAnalystSection",
    "target": "component:configuracion/MarcacionCatalogManager"
   },
   {
@@ -2054,6 +2064,11 @@
    "relation": "renders",
    "source": "component:configuracion/SegmentClassificationSection",
    "target": "component:configuracion/shared/PromptEditor"
+  },
+  {
+   "relation": "renders",
+   "source": "component:configuracion/SegmentDetectorSection",
+   "target": "component:aria/CapabilityInfo"
   },
   {
    "relation": "renders",
@@ -4266,6 +4281,16 @@
    "target": "use_case:GetAsyncOperationUseCase"
   },
   {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/audit-logs",
+   "target": "permission:monitor"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/audit-logs",
+   "target": "resource:audit-logs"
+  },
+  {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/auth/me",
    "target": "resource:auth"
@@ -5519,6 +5544,16 @@
    "relation": "handled_by",
    "source": "endpoint:POST /api/v0/datasets/{name}/rows",
    "target": "use_case:AppendDatasetRowsUseCase"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/datasets/{name}/splits",
+   "target": "resource:datasets"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:POST /api/v0/datasets/{name}/splits",
+   "target": "use_case:PrepareDatasetSplitUseCase"
   },
   {
    "relation": "requires",
@@ -8781,6 +8816,21 @@
   },
   {
    "relation": "uses_port",
+   "source": "use_case:PrepareDatasetSplitUseCase",
+   "target": "port:Clock"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:PrepareDatasetSplitUseCase",
+   "target": "port:DatasetRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:PrepareDatasetSplitUseCase",
+   "target": "port:DatasetSummaryRepository"
+  },
+  {
+   "relation": "uses_port",
    "source": "use_case:PreviewConfigurationUseCase",
    "target": "port:AlertSchemaRepository"
   },
@@ -10032,6 +10082,11 @@
   {
    "relation": "renders",
    "source": "view:/configuracion",
+   "target": "component:aria/CapabilityInfo"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/configuracion",
    "target": "component:configuracion/AgentSettingsPanel"
   },
   {
@@ -10133,6 +10188,11 @@
    "relation": "renders",
    "source": "view:/dashboard",
    "target": "component:PageHeader"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/dashboard",
+   "target": "component:aria/CapabilityInfo"
   },
   {
    "relation": "renders",
@@ -17505,6 +17565,19 @@
   },
   {
    "attrs": {
+    "file": "components/aria/CapabilityInfo.tsx"
+   },
+   "description": "",
+   "id": "component:aria/CapabilityInfo",
+   "keywords": [
+    "Agente ARIA",
+    "Lee el playbook y la disponibilidad"
+   ],
+   "kind": "component",
+   "name": "CapabilityInfo"
+  },
+  {
+   "attrs": {
     "file": "components/async/AsyncOperationProgressCard.tsx"
    },
    "description": "",
@@ -17748,6 +17821,7 @@
    "description": "",
    "id": "component:configuracion/ConfigurationVersionGraph",
    "keywords": [
+    "Esta configuración todavía no tiene versiones guardadas.",
     "Comentario de promoción:",
     "Selecciona una versión para ver su detalle."
    ],
@@ -17943,6 +18017,8 @@
    "id": "component:configuracion/SegmentAnalystSection",
    "keywords": [
     "Prompt del analista",
+    "rutas de resolución",
+    "Cómo se resuelve una alerta",
     "Instrucciones para resolver la alerta: el agente elige el",
     "método de resolución",
     "y, al resolver con ARIA, la categoría de",
@@ -17980,6 +18056,9 @@
    "description": "",
    "id": "component:configuracion/SegmentDetectorSection",
    "keywords": [
+    "Detector de alertas",
+    "puntuación XGBoost",
+    "Cómo puntúa el modelo",
     "Qué puede consultar el agente detector al evaluar una alerta.",
     "Prompt del detector",
     "Las variables entre llaves, ej.",
@@ -20875,6 +20954,20 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/audit-logs"
+   },
+   "description": "",
+   "id": "endpoint:GET /api/v0/audit-logs",
+   "keywords": [
+    "query audit logs",
+    "consultar buscar consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/audit-logs"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/auth/me"
    },
    "description": "",
@@ -22597,6 +22690,20 @@
   {
    "attrs": {
     "http_method": "POST",
+    "route": "/api/v0/datasets/{name}/splits"
+   },
+   "description": "",
+   "id": "endpoint:POST /api/v0/datasets/{name}/splits",
+   "keywords": [
+    "prepare dataset split",
+    "crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/datasets/{name}/splits"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
     "route": "/api/v0/e2e/clean"
    },
    "description": "Delete application data for the real E2E suite.",
@@ -24217,6 +24324,18 @@
    ],
    "kind": "resource",
    "name": "async-operations"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/entrypoint/api/routers/audit_log_router.py"
+   },
+   "description": "Recurso de API «audit-logs».",
+   "id": "resource:audit-logs",
+   "keywords": [
+    "audit logs"
+   ],
+   "kind": "resource",
+   "name": "audit-logs"
   },
   {
    "attrs": {
@@ -25998,6 +26117,16 @@
   },
   {
    "attrs": {},
+   "description": "",
+   "id": "use_case:PrepareDatasetSplitUseCase",
+   "keywords": [
+    "Prepare Dataset Split"
+   ],
+   "kind": "use_case",
+   "name": "PrepareDatasetSplitUseCase"
+  },
+  {
+   "attrs": {},
    "description": "Compare a proposed configuration without persisting it.",
    "id": "use_case:PreviewConfigurationUseCase",
    "keywords": [
@@ -26684,6 +26813,8 @@
     "Probar configuración",
     "Solicitar despliegue",
     "Configuración del Agente",
+    "flujo de revisión",
+    "Las diez etapas de revisión",
     "Cargando versión",
     "Viendo la versión",
     "Crear nueva versión basada en",
@@ -26705,8 +26836,6 @@
     "Latencia:",
     "Grafo de versiones",
     "Cargando versiones…",
-    "No se pudo cargar el grafo de versiones.",
-    "Todavía no hay versiones guardadas.",
     "ajustes",
     "versiones de configuración",
     "desplegar configuración"
@@ -26741,6 +26870,8 @@
     "Monto",
     "Falsos positivos",
     "Fraude no detectado",
+    "ciclo de una alerta",
+    "Del evento al aprendizaje",
     "Exportar reporte",
     "Calculando analíticas para el rango seleccionado…",
     "Indicadores generales",
@@ -26760,7 +26891,6 @@
     "Revisadas con cambio",
     "Revisadas confirmadas",
     "Monto en falsos positivos",
-    "Tiempo hasta la revisión:",
     "panel",
     "alertas vivas",
     "capacidad de analistas",
