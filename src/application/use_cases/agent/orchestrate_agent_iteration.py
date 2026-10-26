@@ -11,9 +11,13 @@ from src.application.ports.agent_budget_ledger_port import (
     AgentBudgetEntry,
     AgentBudgetLedgerRepository,
 )
+from src.application.ports.agent_candidate_dispatcher_port import (
+    AgentCandidateDispatcher,
+)
 from src.application.ports.agent_experiment_component_port import (
     AgentExperimentComponentResolver,
 )
+from src.application.ports.agent_experiment_port import AgentExperimentRepository
 from src.application.ports.agent_hypothesis_port import (
     AgentHypothesis,
     AgentHypothesisRepository,
@@ -52,6 +56,7 @@ from src.application.ports.agent_session_summary_port import (
 from src.application.ports.agent_subagent_port import (
     AgentSubagent,
     AgentSubagentInput,
+    AgentSubagentOutput,
 )
 from src.application.ports.agent_verification_port import (
     AgentVerification,
@@ -63,6 +68,7 @@ from src.application.ports.assistant_optimizer_settings_port import (
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.optimization_run_port import OptimizationRunRepository
 from src.application.ports.project_graph_port import ProjectGraphRepository
 from src.application.use_cases.agent.agent_timeline import AgentTimeline
 from src.application.use_cases.agent.evaluate_agent_experiment import (
@@ -71,6 +77,16 @@ from src.application.use_cases.agent.evaluate_agent_experiment import (
 from src.application.use_cases.agent.optimizer_memory import OptimizerMemory
 from src.domain.agents.event import AgentEventKind, AgentEventOutcome
 from src.domain.agents.experiment import AgentExperimentKind
+from src.domain.agents.optimization_run import (
+    COMBINATION_AREA,
+    OptimizationRun,
+    OptimizationRunConflictError,
+    OptimizationRunStatus,
+    RunWinner,
+    component_for_area,
+    experiment_stream_key,
+    rank_winners,
+)
 from src.domain.project_graph.index import tokenize
 
 LEASE_SECONDS = 90
@@ -190,6 +206,9 @@ class OrchestrateAgentIterationUseCase:
         project_graph: ProjectGraphRepository | None = None,
         timeline: AgentTimeline | None = None,
         memory: OptimizerMemory | None = None,
+        experiments: AgentExperimentRepository | None = None,
+        optimization_runs: OptimizationRunRepository | None = None,
+        dispatcher: AgentCandidateDispatcher | None = None,
     ) -> None:
         self._sessions = sessions
         self._iterations = iterations
@@ -214,21 +233,43 @@ class OrchestrateAgentIterationUseCase:
         self._project_graph = project_graph
         self._timeline = timeline
         self._memory = memory
+        self._experiments = experiments
+        self._optimization_runs = optimization_runs
+        self._dispatcher = dispatcher
 
     def execute(self, session_id: str) -> str:
-        """One orchestrator tick: admit, start, run the specialist, finish.
+        """One orchestrator tick: admit, plan, then run or dispatch candidates.
 
         Each phase persists before the next one begins and records its own
-        timeline event, so a crash leaves a visible, recoverable trace.
+        timeline event, so a crash leaves a visible, recoverable trace. With a
+        dispatcher, optimizer candidates run as separate jobs in parallel and
+        this tick only plans them; without one, the single candidate runs here.
         """
         gate = self._admit(session_id)
         if isinstance(gate, str):
             return gate
-        tick = self._start_iteration(gate)
+        planned = self._start_iteration(gate)
+        if isinstance(planned, str):
+            return planned
+        if self._parallel(gate.session) and self._dispatcher is not None:
+            self._release_lease(planned[0].leased, gate.now)
+            for candidate in planned:
+                self._dispatcher.dispatch(candidate.session_id, candidate.number)
+            return f"dispatched_{len(planned)}"
+        tick = planned[0]
+        self._run_specialist(tick)
+        return self._finish_iteration(tick)
+
+    def run_candidate(self, session_id: str, number: int) -> str:
+        """Run one planned candidate (a dispatched job) to its conclusion."""
+        tick = self._resume_candidate(session_id, number)
         if isinstance(tick, str):
             return tick
         self._run_specialist(tick)
-        return self._finish_iteration(tick)
+        return self._finish_iteration(tick, owns_lease=False)
+
+    def _parallel(self, session: AgentSession) -> bool:
+        return self._dispatcher is not None and session.mode == "optimization"
 
     # ------------------------------------------------------------------ admit
     def _admit(self, session_id: str) -> _Gate | str:
@@ -308,13 +349,14 @@ class OrchestrateAgentIterationUseCase:
                 > current_settings.optimizer_max_concurrent_sessions
             ):
                 return "deferred_by_session_limit"
-            active_runs = self._runs.list_active(now, limit=100)
-            if len(active_runs) >= current_settings.optimizer_max_concurrent_runs:
-                return "deferred_by_run_limit"
+            if self._dispatcher is None:
+                active_runs = self._runs.list_active(now, limit=100)
+                if len(active_runs) >= current_settings.optimizer_max_concurrent_runs:
+                    return "deferred_by_run_limit"
         return _Gate(session_id, session, current_settings, objective, now)
 
     # ------------------------------------------------------------------ start
-    def _start_iteration(self, gate: _Gate) -> _Tick | str:
+    def _start_iteration(self, gate: _Gate) -> list[_Tick] | str:
         session_id, now = gate.session_id, gate.now
         current_settings = gate.settings
         lease_expires = now + timedelta(seconds=LEASE_SECONDS)
@@ -352,8 +394,39 @@ class OrchestrateAgentIterationUseCase:
             )
 
         prior = self._iterations.list_for_session(session_id, limit=100)
-        hypothesis = self._select_hypothesis(leased, now, prior)
-        if leased.mode == "optimization" and self._hypotheses and hypothesis is None:
+        self._ensure_run_root(leased, current_settings, now)
+        if self._parallel(leased):
+            in_flight = [
+                item for item in prior if item.status == AgentIterationStatus.RUNNING
+            ]
+            active_runs = self._runs.list_active(now, limit=100)
+            slots = min(
+                current_settings.optimizer_max_parallel_experiments - len(in_flight),
+                current_settings.optimizer_max_concurrent_runs - len(active_runs),
+            )
+            if slots <= 0:
+                self._release_lease(leased, now)
+                return (
+                    "waiting_for_experiments" if in_flight else "deferred_by_run_limit"
+                )
+            hypotheses: list[AgentHypothesis | None] = list(
+                self._select_candidates(leased, now, prior, in_flight, slots)
+            )
+            if not hypotheses:
+                if in_flight:
+                    self._release_lease(leased, now)
+                    return "waiting_for_experiments"
+                if self._current_winners(session_id):
+                    return self._complete(leased, now)
+        else:
+            hypotheses = [self._select_hypothesis(leased, now, prior)]
+            if (
+                hypotheses == [None]
+                and leased.mode == "optimization"
+                and self._hypotheses
+            ):
+                hypotheses = []
+        if leased.mode == "optimization" and self._hypotheses and not hypotheses:
             self._save_session_memory(
                 session_id,
                 leased,
@@ -371,11 +444,34 @@ class OrchestrateAgentIterationUseCase:
             for entry in self._budget.list_for_session(session_id)
             if entry.entry_type == "SPEND" and entry.resource == "usd_micros"
         )
+        number = max((item.number for item in prior), default=0) + 1
+        planned: list[_Tick] = []
+        for hypothesis in hypotheses:
+            if not self._reserve_budget(session_id, effective_budget, now):
+                if planned:
+                    break
+                return self._block(leased, now, "BUDGET_EXHAUSTED", "blocked_by_budget")
+            planned.append(
+                self._open_candidate(
+                    gate,
+                    leased,
+                    hypothesis,
+                    prior,
+                    number,
+                    effective_budget,
+                    cost_before,
+                    lease_expires,
+                )
+            )
+            number += 1
+        return planned
+
+    def _reserve_budget(self, session_id, effective_budget, now) -> bool:
         for resource in ("tokens", "usd_micros", "seconds"):
             if not self._budget.reserve(
                 session_id, resource, 1, effective_budget[resource]
             ):
-                return self._block(leased, now, "BUDGET_EXHAUSTED", "blocked_by_budget")
+                return False
             self._budget.append(
                 AgentBudgetEntry(
                     session_id=session_id,
@@ -388,10 +484,26 @@ class OrchestrateAgentIterationUseCase:
                     created_at=now,
                 )
             )
+        return True
 
-        number = max((item.number for item in prior), default=0) + 1
+    def _open_candidate(
+        self,
+        gate: _Gate,
+        leased: AgentSession,
+        hypothesis: AgentHypothesis | None,
+        prior: list[AgentIteration],
+        number: int,
+        effective_budget: dict[str, int],
+        cost_before: int,
+        lease_expires: datetime,
+    ) -> _Tick:
+        session_id, now = gate.session_id, gate.now
         run_id = str(self._ids.new_id())
-        selected_subagent = self._select_subagent(leased, hypothesis, prior)
+        selected_subagent = (
+            _COMBINATION_SUBAGENT
+            if _is_combination(hypothesis)
+            else self._select_subagent(leased, hypothesis, prior)
+        )
         project_map = self._optimizer_project_map()
         prompt_key = (
             f"agent.specialist.{selected_subagent.name}"
@@ -422,6 +534,11 @@ class OrchestrateAgentIterationUseCase:
             status=AgentIterationStatus.RUNNING,
             started_at=now,
             run_ids=(run_id,),
+            decision=(
+                {"hypothesis_id": hypothesis.hypothesis_id, "action": "running"}
+                if hypothesis is not None
+                else {}
+            ),
         )
         self._iterations.create(iteration)
         self._record_audit(session_id, now, "session", "started")
@@ -460,7 +577,7 @@ class OrchestrateAgentIterationUseCase:
         )
         return _Tick(
             session_id=session_id,
-            settings=current_settings,
+            settings=gate.settings,
             objective=gate.objective,
             leased=leased,
             now=now,
@@ -475,6 +592,98 @@ class OrchestrateAgentIterationUseCase:
             subagent=selected_subagent,
             project_map=project_map,
             finished=now,
+        )
+
+    def _resume_candidate(self, session_id: str, number: int) -> _Tick | str:
+        """Rebuild a planned candidate from what the tick persisted."""
+        settings = self._settings.get()
+        session = self._sessions.get(session_id)
+        iteration = self._iterations.get(session_id, number)
+        if (
+            session is None
+            or iteration is None
+            or iteration.status != AgentIterationStatus.RUNNING
+            or not iteration.run_ids
+        ):
+            return "candidate_not_running"
+        run = self._runs.get(iteration.run_ids[0])
+        if run is None or run.status != AgentRunStatus.RUNNING:
+            return "candidate_not_running"
+        hypothesis_id = iteration.decision.get("hypothesis_id")
+        hypothesis = next(
+            (
+                item
+                for item in (
+                    self._hypotheses.list_for_session(session_id)
+                    if self._hypotheses is not None
+                    else []
+                )
+                if item.hypothesis_id == hypothesis_id
+            ),
+            None,
+        )
+        objective = (
+            self._objectives.get(session.objective_id, session.objective_version)
+            if self._objectives is not None
+            and session.objective_id
+            and session.objective_version is not None
+            else None
+        )
+        if objective is not None:
+            settings = replace(
+                settings, objective_precision_floor=objective.precision_floor
+            )
+        limits = {
+            "tokens": settings.optimizer_session_budget_ceiling_tokens,
+            "usd_micros": int(
+                settings.optimizer_session_budget_ceiling_usd * 1_000_000
+            ),
+            "seconds": settings.optimizer_session_budget_ceiling_seconds,
+        }
+        subagent = (
+            _COMBINATION_SUBAGENT
+            if run.subagent == _COMBINATION_SUBAGENT.name
+            else self._specialists.get(run.subagent, self._subagent)
+        )
+        now = self._clock.now()
+        return _Tick(
+            session_id=session_id,
+            settings=settings,
+            objective=objective,
+            leased=session,
+            now=now,
+            effective_budget={
+                resource: min(session.budget_limits.get(resource, maximum), maximum)
+                for resource, maximum in limits.items()
+            },
+            prior=[
+                item
+                for item in self._iterations.list_for_session(session_id, limit=100)
+                if item.number != number
+            ],
+            hypothesis=hypothesis,
+            cost_before=sum(
+                entry.amount
+                for entry in self._budget.list_for_session(session_id)
+                if entry.entry_type == "SPEND" and entry.resource == "usd_micros"
+            ),
+            number=number,
+            run_id=run.run_id,
+            run=run,
+            iteration=iteration,
+            subagent=subagent,
+            project_map=self._optimizer_project_map(),
+            finished=now,
+        )
+
+    def _release_lease(self, leased: AgentSession, now) -> None:
+        current = self._sessions.get(leased.session_id) or leased
+        self._sessions.update(
+            replace(current, lease_owner=None, lease_expires_at=None, updated_at=now),
+            expected_rev=current.rev,
+        )
+        self._record_audit(
+            leased.session_id, now, "lease", "succeeded", "LEASE_RELEASED"
         )
 
     def _block(self, leased: AgentSession, now, code: str, result: str) -> str:
@@ -522,7 +731,7 @@ class OrchestrateAgentIterationUseCase:
             project_map=tick.project_map,
         )
         if self._monitoring is None:
-            tick.output = selected_subagent.execute(subagent_input)
+            tick.output = self._call_subagent(tick, subagent_input)
         else:
             # Identifiers belong on trace spans for audit correlation, never
             # on metric dimensions. Tool/specialist names and states are
@@ -557,7 +766,7 @@ class OrchestrateAgentIterationUseCase:
                                 "agent.status": "RUNNING",
                             },
                         ) as tool_span:
-                            tick.output = selected_subagent.execute(subagent_input)
+                            tick.output = self._call_subagent(tick, subagent_input)
                     output = tick.output
                     duration_ms = max(
                         0, int((self._clock.now() - now).total_seconds() * 1000)
@@ -640,7 +849,7 @@ class OrchestrateAgentIterationUseCase:
             )
 
     # ------------------------------------------------------------------ finish
-    def _finish_iteration(self, tick: _Tick) -> str:
+    def _finish_iteration(self, tick: _Tick, *, owns_lease: bool = True) -> str:
         session_id, now, number = tick.session_id, tick.now, tick.number
         leased, hypothesis = tick.leased, tick.hypothesis
         current_settings, prior = tick.settings, tick.prior
@@ -666,18 +875,19 @@ class OrchestrateAgentIterationUseCase:
                     decision={"action": "cancelled"},
                 )
             )
-            self._sessions.update(
-                replace(
-                    current_session,
-                    lease_owner=None,
-                    lease_expires_at=None,
-                    updated_at=finished,
-                ),
-                expected_rev=current_session.rev,
-            )
-            self._record_audit(
-                session_id, finished, "lease", "succeeded", "LEASE_RELEASED"
-            )
+            if owns_lease:
+                self._sessions.update(
+                    replace(
+                        current_session,
+                        lease_owner=None,
+                        lease_expires_at=None,
+                        updated_at=finished,
+                    ),
+                    expected_rev=current_session.rev,
+                )
+                self._record_audit(
+                    session_id, finished, "lease", "succeeded", "LEASE_RELEASED"
+                )
             self._event(
                 session_id,
                 AgentEventKind.ITERATION,
@@ -736,7 +946,9 @@ class OrchestrateAgentIterationUseCase:
         experiment = self._run_experiment(tick, verified)
         outcome = None
         if hypothesis is not None and self._hypotheses is not None:
-            outcome = self._resolve_hypothesis(tick, verified, verification_id)
+            outcome = self._resolve_hypothesis(
+                tick, verified, verification_id, experiment
+            )
         self._learn(tick, experiment, outcome)
         decision = _iteration_decision(
             mode=leased.mode,
@@ -750,6 +962,7 @@ class OrchestrateAgentIterationUseCase:
         )
         if hypothesis is not None:
             decision["hypothesis"] = hypothesis.statement
+            decision["hypothesis_id"] = hypothesis.hypothesis_id
         if tick.cost_micros is not None:
             decision["cost_micros"] = tick.cost_micros
             if (
@@ -797,32 +1010,38 @@ class OrchestrateAgentIterationUseCase:
             "stagnation": "STAGNATION",
             "cost_anomaly": "COST_ANOMALY",
         }.get(str(stop_reason))
-        if current_session.mode == "assistant":
-            terminal_status = AgentSessionStatus.PAUSED
-        elif block_code is not None:
-            terminal_status = AgentSessionStatus.WAITING_USER
-        else:
-            terminal_status = current_session.status
-        self._sessions.update(
-            replace(
-                current_session,
-                status=terminal_status,
-                lease_owner=None,
-                lease_expires_at=None,
-                updated_at=finished,
-                block=(
-                    {
-                        "code": block_code,
-                        "since": finished.isoformat(),
-                        "iteration": number,
-                    }
-                    if block_code is not None and current_session.mode != "assistant"
-                    else current_session.block
+        if owns_lease:
+            if current_session.mode == "assistant":
+                terminal_status = AgentSessionStatus.PAUSED
+            elif block_code is not None:
+                terminal_status = AgentSessionStatus.WAITING_USER
+            else:
+                terminal_status = current_session.status
+            self._sessions.update(
+                replace(
+                    current_session,
+                    status=terminal_status,
+                    lease_owner=None,
+                    lease_expires_at=None,
+                    updated_at=finished,
+                    block=(
+                        {
+                            "code": block_code,
+                            "since": finished.isoformat(),
+                            "iteration": number,
+                        }
+                        if block_code is not None
+                        and current_session.mode != "assistant"
+                        else current_session.block
+                    ),
                 ),
-            ),
-            expected_rev=current_session.rev,
-        )
-        self._record_audit(session_id, finished, "lease", "succeeded", "LEASE_RELEASED")
+                expected_rev=current_session.rev,
+            )
+            self._record_audit(
+                session_id, finished, "lease", "succeeded", "LEASE_RELEASED"
+            )
+        elif block_code is not None:
+            self._set_block(session_id, block_code, finished, number)
         iteration_refs = {"iteration": number, "run_id": run_id}
         self._event(
             session_id,
@@ -874,6 +1093,7 @@ class OrchestrateAgentIterationUseCase:
                     "decision": decision,
                 },
             )
+        self._refresh_run_root(session_id, finished)
         if block_code == "CRITICAL_FAILURE":
             return "blocked_by_critical_failure"
         if block_code == "STAGNATION":
@@ -997,7 +1217,11 @@ class OrchestrateAgentIterationUseCase:
             ),
             objective_id=leased.objective_id or "",
             objective_version=leased.objective_version or 0,
+            candidate_id=(
+                tick.hypothesis.hypothesis_id if tick.hypothesis is not None else None
+            ),
         )
+        self._experiment_stream_event(session_id, experiment, refs)
         experiment_status = (
             "succeeded" if experiment.status.value == "SUCCEEDED" else "failed"
         )
@@ -1097,15 +1321,33 @@ class OrchestrateAgentIterationUseCase:
             )
 
     def _resolve_hypothesis(
-        self, tick: _Tick, verified: bool, verification_id: str
+        self,
+        tick: _Tick,
+        verified: bool,
+        verification_id: str,
+        experiment=None,
     ) -> AgentHypothesisStatus | None:
         hypothesis, output, finished = tick.hypothesis, tick.output, tick.finished
         session_id = tick.session_id
         if hypothesis is None or self._hypotheses is None:
             return None
-        precision = output.safe_metrics.get("precision")
-        recall = output.safe_metrics.get("recall")
-        if (
+        # An experiment measured against the mature sample is the strongest
+        # evidence; the specialist's own metrics are the fallback.
+        evaluation = (experiment.global_evaluation or {}) if experiment else {}
+        measured = evaluation.get("candidate") or {}
+        baseline = evaluation.get("baseline") or {}
+        precision = measured.get("precision", output.safe_metrics.get("precision"))
+        recall = measured.get("recall", output.safe_metrics.get("recall"))
+        if experiment is not None and experiment.status.value in {
+            "REJECTED_GLOBAL_CONSTRAINT",
+            "FAILED",
+        }:
+            outcome = (
+                AgentHypothesisStatus.REFUTED
+                if experiment.status.value == "REJECTED_GLOBAL_CONSTRAINT"
+                else AgentHypothesisStatus.NONCONCLUSIVE
+            )
+        elif (
             verified
             and isinstance(precision, (int, float))
             and isinstance(recall, (int, float))
@@ -1117,6 +1359,41 @@ class OrchestrateAgentIterationUseCase:
             )
         else:
             outcome = AgentHypothesisStatus.NONCONCLUSIVE
+        base_recall = baseline.get("recall")
+        recall_delta = (
+            float(recall) - float(base_recall)
+            if isinstance(recall, (int, float))
+            and isinstance(base_recall, (int, float))
+            else None
+        )
+        conclusion = {
+            "verdict": outcome.value,
+            "summary": _conclusion_summary(outcome, recall_delta),
+            "evidence": {
+                key: value
+                for key, value in {
+                    "precision": precision,
+                    "recall": recall,
+                    "baseline_recall": base_recall,
+                    "recall_delta": recall_delta,
+                    "sample_count": evaluation.get("eligible_count"),
+                }.items()
+                if isinstance(value, (int, float))
+            },
+            "experiment_id": experiment.experiment_id if experiment else None,
+            "verification_id": verification_id,
+            "decision": {
+                AgentHypothesisStatus.VALIDATED: "keep",
+                AgentHypothesisStatus.REFUTED: "discard",
+            }.get(outcome, "retry"),
+            "recommendation": {
+                AgentHypothesisStatus.VALIDATED: (
+                    "Candidato a promover o a combinar con otros ganadores."
+                ),
+                AgentHypothesisStatus.REFUTED: "Descartar este cambio.",
+            }.get(outcome, "Repetir con más evidencia o con otro enfoque."),
+            "decided_at": finished.isoformat(),
+        }
         self._hypotheses.update(
             replace(
                 hypothesis,
@@ -1124,6 +1401,7 @@ class OrchestrateAgentIterationUseCase:
                 evidence_id=verification_id,
                 evidence_outcome=outcome.value,
                 updated_at=finished,
+                conclusion=conclusion,
             ),
             expected_rev=hypothesis.rev,
         )
@@ -1183,6 +1461,400 @@ class OrchestrateAgentIterationUseCase:
                 )
             )
         return outcome
+
+    # --------------------------------------------------- parallel candidates
+    def _call_subagent(self, tick: _Tick, subagent_input: AgentSubagentInput):
+        if tick.subagent is _COMBINATION_SUBAGENT:
+            return self._combination_output(tick)
+        return tick.subagent.execute(subagent_input)
+
+    def _combination_output(self, tick: _Tick) -> AgentSubagentOutput:
+        """Merge each winner's changed component into one candidate stack."""
+        hypothesis = tick.hypothesis
+        experiments = (
+            self._experiments.list_for_session(tick.session_id, limit=200)
+            if self._experiments is not None
+            else []
+        )
+        stack = {pin.component: pin for pin in tick.leased.baseline_components}
+        merged: list[str] = []
+        for candidate_id in hypothesis.depends_on if hypothesis else ():
+            winner = next(
+                (
+                    item
+                    for item in experiments
+                    if item.candidate_id == candidate_id
+                    and item.status.value == "SUCCEEDED"
+                ),
+                None,
+            )
+            if winner is None:
+                continue
+            for pin in winner.components:
+                if pin not in winner.baseline_components:
+                    stack[pin.component] = pin
+                    merged.append(pin.component)
+        if len(set(merged)) < 2:
+            return AgentSubagentOutput(
+                subagent=_COMBINATION_SUBAGENT.name, error_code="EXECUTION_INVALID"
+            )
+        return AgentSubagentOutput(
+            subagent=_COMBINATION_SUBAGENT.name,
+            contribution={"combined_components": sorted(set(merged))},
+            verification_status="PASSED",
+            safe_metrics={"combined_components": len(set(merged))},
+            experiment_candidate_components=tuple(stack[key] for key in sorted(stack)),
+        )
+
+    def _select_candidates(
+        self,
+        session: AgentSession,
+        now,
+        prior: list[AgentIteration],
+        in_flight: list[AgentIteration],
+        slots: int,
+    ) -> list[AgentHypothesis]:
+        """Up to `slots` ready candidates that change distinct components."""
+        if self._hypotheses is None:
+            return []
+        hypotheses = self._hypotheses.list_for_session(session.session_id)
+        if not hypotheses and not prior:
+            self._create_initial_candidates(session, now)
+            hypotheses = self._hypotheses.list_for_session(session.session_id)
+        if not in_flight and self._maybe_add_combination(session, now, hypotheses):
+            hypotheses = self._hypotheses.list_for_session(session.session_id)
+        by_id = {item.hypothesis_id: item for item in hypotheses}
+        running = {str(item.decision.get("hypothesis_id")) for item in in_flight}
+        busy = {
+            _candidate_component(by_id[hypothesis_id])
+            for hypothesis_id in running
+            if hypothesis_id in by_id
+        }
+        ready = sorted(
+            (
+                item
+                for item in hypotheses
+                if item.status == AgentHypothesisStatus.ACTIVE
+                and item.hypothesis_id not in running
+                and all(
+                    dependency in by_id
+                    and by_id[dependency].status != AgentHypothesisStatus.ACTIVE
+                    for dependency in item.depends_on
+                )
+            ),
+            key=lambda item: (-item.priority, item.created_at, item.hypothesis_id),
+        )
+        chosen: list[AgentHypothesis] = []
+        for item in ready:
+            component = _candidate_component(item)
+            exclusive = component == _ALL_COMPONENTS
+            if _ALL_COMPONENTS in busy or component in busy or (exclusive and busy):
+                continue
+            chosen.append(item)
+            busy.add(component)
+            if exclusive or len(chosen) >= slots:
+                break
+        return chosen
+
+    def _create_initial_candidates(self, session: AgentSession, now) -> None:
+        """One candidate per active insight, else one per area in scope."""
+        insights = (
+            self._insights.list_for_session(
+                session.session_id, status=AgentInsightStatus.ACTIVE
+            )
+            if self._insights is not None
+            else []
+        )
+        hypotheses = self._hypotheses
+        if hypotheses is None:
+            return
+        if insights:
+            for insight in insights:
+                hypotheses.create(
+                    AgentHypothesis(
+                        session_id=session.session_id,
+                        hypothesis_id=str(self._ids.new_id()),
+                        statement=insight.statement,
+                        scope=insight.scope,
+                        priority=_insight_priority(insight.kind),
+                        status=AgentHypothesisStatus.ACTIVE,
+                        created_at=now,
+                        updated_at=now,
+                        source_insight_id=insight.insight_id,
+                        insight_ids=(insight.insight_id,),
+                    )
+                )
+            return
+        for area in sorted(session.scope.get("areas", [])) or ["pipeline"]:
+            remembered = self._memory.recall(area) if self._memory is not None else []
+            statement = (
+                f"Evaluar si el área {area} puede mejorar el recall "
+                "sin incumplir el piso de precisión."
+            )
+            scope = {"area": area}
+            if remembered:
+                statement += f" Respaldado por datos de sesiones previas: {remembered[0].statement}"
+                scope["memory"] = ",".join(item.insight_id for item in remembered)
+            hypotheses.create(
+                AgentHypothesis(
+                    session_id=session.session_id,
+                    hypothesis_id=str(self._ids.new_id()),
+                    statement=statement,
+                    scope=scope,
+                    priority=0,
+                    status=AgentHypothesisStatus.ACTIVE,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        self._event(
+            session.session_id,
+            AgentEventKind.HYPOTHESIS,
+            AgentEventOutcome.INFO,
+            "Candidatos iniciales creados, uno por área del alcance",
+            occurred_at=now,
+        )
+
+    def _maybe_add_combination(
+        self, session: AgentSession, now, hypotheses: list[AgentHypothesis]
+    ) -> bool:
+        """Winners on distinct components are measured together, once, in series."""
+        if self._hypotheses is None or any(
+            _is_combination(item) for item in hypotheses
+        ):
+            return False
+        best_by_component: dict[str, RunWinner] = {}
+        for winner in self._current_winners(session.session_id):
+            if "+" not in winner.component:
+                best_by_component.setdefault(winner.component, winner)
+        if len(best_by_component) < 2:
+            return False
+        winners = sorted(best_by_component.values(), key=lambda item: item.component)
+        self._hypotheses.create(
+            AgentHypothesis(
+                session_id=session.session_id,
+                hypothesis_id=str(self._ids.new_id()),
+                statement=(
+                    "Combinar los ganadores ("
+                    + ", ".join(item.component for item in winners)
+                    + ") y medirlos juntos contra la línea base."
+                ),
+                scope={"area": COMBINATION_AREA},
+                priority=200,
+                status=AgentHypothesisStatus.ACTIVE,
+                created_at=now,
+                updated_at=now,
+                depends_on=tuple(item.candidate_id for item in winners),
+            )
+        )
+        self._event(
+            session.session_id,
+            AgentEventKind.HYPOTHESIS,
+            AgentEventOutcome.INFO,
+            "Nuevo candidato: combinación de ganadores",
+            occurred_at=now,
+        )
+        return True
+
+    def _current_winners(self, session_id: str) -> tuple[RunWinner, ...]:
+        if self._experiments is None:
+            return ()
+        return rank_winners(
+            [
+                (item.candidate_id, item)
+                for item in self._experiments.list_for_session(session_id, limit=200)
+                if item.candidate_id
+            ]
+        )
+
+    def _set_block(self, session_id: str, code: str, now, number: int) -> None:
+        """Parallel candidates may finish together: retry on a stale revision."""
+        for _ in range(_ROOT_RETRIES):
+            current = self._sessions.get(session_id)
+            if current is None or current.status != AgentSessionStatus.ACTIVE:
+                return
+            try:
+                self._sessions.update(
+                    replace(
+                        current,
+                        status=AgentSessionStatus.WAITING_USER,
+                        updated_at=now,
+                        block={
+                            "code": code,
+                            "since": now.isoformat(),
+                            "iteration": number,
+                        },
+                    ),
+                    expected_rev=current.rev,
+                )
+                return
+            except Exception:  # noqa: BLE001 - revision race with a sibling candidate
+                continue
+
+    def _complete(self, leased: AgentSession, now) -> str:
+        winners = self._current_winners(leased.session_id)
+        self._sessions.update(
+            replace(
+                leased,
+                status=AgentSessionStatus.COMPLETED,
+                lease_owner=None,
+                lease_expires_at=None,
+                updated_at=now,
+            ),
+            expected_rev=leased.rev,
+        )
+        self._record_audit(
+            leased.session_id, now, "lease", "succeeded", "LEASE_RELEASED"
+        )
+        self._event(
+            leased.session_id,
+            AgentEventKind.SESSION,
+            AgentEventOutcome.SUCCEEDED,
+            f"Corrida terminada con {len(winners)} ganador"
+            + ("es" if len(winners) != 1 else ""),
+            occurred_at=now,
+        )
+        self._refresh_run_root(
+            leased.session_id, now, status=OptimizationRunStatus.COMPLETED
+        )
+        return "completed_with_winners"
+
+    def _ensure_run_root(self, session: AgentSession, settings, now) -> None:
+        if self._optimization_runs is None or session.mode != "optimization":
+            return
+        if self._optimization_runs.get(session.session_id) is not None:
+            return
+        areas = tuple(sorted(session.scope.get("areas", [])))
+        insight_ids = (
+            tuple(
+                item.insight_id
+                for item in self._insights.list_for_session(
+                    session.session_id, status=AgentInsightStatus.ACTIVE
+                )
+            )
+            if self._insights is not None
+            else ()
+        )
+        memory_ids = (
+            tuple(
+                item.insight_id for area in areas for item in self._memory.recall(area)
+            )
+            if self._memory is not None
+            else ()
+        )
+        self._optimization_runs.create_once(
+            OptimizationRun(
+                run_id=session.session_id,
+                status=OptimizationRunStatus.RUNNING,
+                created_at=now,
+                updated_at=now,
+                objective_id=session.objective_id,
+                objective_version=session.objective_version,
+                baseline_components=session.baseline_components,
+                budget_limits=dict(session.budget_limits),
+                optimizer_settings={
+                    "max_parallel_experiments": settings.optimizer_max_parallel_experiments,
+                    "max_concurrent_runs": settings.optimizer_max_concurrent_runs,
+                    "max_candidates_per_session": (
+                        settings.optimizer_max_candidates_per_session
+                    ),
+                    "iterations_without_improvement": (
+                        settings.optimizer_iterations_without_improvement
+                    ),
+                    "precision_floor": settings.objective_precision_floor,
+                },
+                scope_areas=areas,
+                insight_ids=insight_ids,
+                memory_insight_ids=memory_ids,
+                events_stream=session.session_id,
+            )
+        )
+
+    def _refresh_run_root(
+        self, session_id: str, now, status: OptimizationRunStatus | None = None
+    ) -> None:
+        """Winners, winning stack and strategy, recomputed after each candidate."""
+        if self._optimization_runs is None:
+            return
+        for _ in range(_ROOT_RETRIES):
+            root = self._optimization_runs.get(session_id)
+            if root is None:
+                return
+            winners = self._current_winners(session_id)
+            experiments = (
+                self._experiments.list_for_session(session_id, limit=200)
+                if self._experiments is not None
+                else []
+            )
+            best = winners[0] if winners else None
+            best_experiment = next(
+                (
+                    item
+                    for item in experiments
+                    if best is not None and item.experiment_id == best.experiment_id
+                ),
+                None,
+            )
+            hypotheses = (
+                self._hypotheses.list_for_session(session_id)
+                if self._hypotheses is not None
+                else []
+            )
+            distinct = {item.component for item in winners if "+" not in item.component}
+            if best is None:
+                strategy = {
+                    "action": "explore",
+                    "rationale": "Aún no hay un candidato que mejore el objetivo.",
+                }
+            elif len(distinct) >= 2 and not any(_is_combination(h) for h in hypotheses):
+                strategy = {
+                    "action": "combine",
+                    "rationale": "Hay ganadores en componentes distintos; se medirán juntos.",
+                }
+            else:
+                strategy = {
+                    "action": "promote",
+                    "rationale": (
+                        "El mejor candidato mejora el recall en "
+                        f"{best.recall_delta * 100:.1f} pts sobre la línea base."
+                    ),
+                    "winner": best.candidate_id,
+                }
+            try:
+                self._optimization_runs.update(
+                    replace(
+                        root,
+                        winners=winners,
+                        winning_components=(
+                            best_experiment.components if best_experiment else ()
+                        ),
+                        strategy=strategy,
+                        status=status or root.status,
+                        updated_at=now,
+                    ),
+                    expected_rev=root.rev,
+                )
+                return
+            except OptimizationRunConflictError:
+                continue
+
+    def _experiment_stream_event(self, session_id: str, experiment, refs) -> None:
+        """Each experiment keeps its own timeline, referenced from its node."""
+        stream = experiment_stream_key(session_id, experiment.experiment_id)
+        status = experiment.status.value
+        self._event(
+            stream,
+            AgentEventKind.EXPERIMENT,
+            AgentEventOutcome.SUCCEEDED
+            if status == "SUCCEEDED"
+            else AgentEventOutcome.FAILED,
+            {
+                "SUCCEEDED": "Experimento cumplió el objetivo global",
+                "REJECTED_GLOBAL_CONSTRAINT": "Experimento rechazado por una restricción",
+            }.get(status, "Experimento falló"),
+            reason_code=experiment.error_code,
+            refs=refs,
+        )
 
     def _event(
         self,
@@ -1250,6 +1922,12 @@ class OrchestrateAgentIterationUseCase:
         """Route through graph levers, retaining the legacy route as fallback."""
         if not self._specialists:
             return self._subagent
+        area = hypothesis.scope.get("area") if hypothesis is not None else None
+        if self._dispatcher is not None and area:
+            # Parallel candidates are independent: each one's own area decides.
+            specialist = "xgboost" if area == "model" else str(area)
+            if specialist in self._specialists:
+                return self._specialists[specialist]
         last = prior[-1].decision if prior else {}
         if last.get("experiment_verified") is False:
             return self._specialists.get("library", self._subagent)
@@ -1468,6 +2146,40 @@ def _iteration_decision(
     if stale >= settings.optimizer_iterations_without_improvement:
         decision.update({"action": "stop", "reason": "stagnation"})
     return decision
+
+
+_ROOT_RETRIES = 5
+_ALL_COMPONENTS = "*"
+
+
+class _CombinationSubagent:
+    """Placeholder: combinations are built deterministically, without an LLM."""
+
+    name = COMBINATION_AREA
+
+
+_COMBINATION_SUBAGENT = _CombinationSubagent()
+
+
+def _is_combination(hypothesis) -> bool:
+    return bool(hypothesis) and hypothesis.scope.get("area") == COMBINATION_AREA
+
+
+def _candidate_component(hypothesis) -> str:
+    area = hypothesis.scope.get("area")
+    if area == COMBINATION_AREA:
+        return _ALL_COMPONENTS
+    return component_for_area(area) or str(area or "pipeline")
+
+
+def _conclusion_summary(outcome, recall_delta: float | None) -> str:
+    if outcome == AgentHypothesisStatus.VALIDATED:
+        if recall_delta is not None:
+            return f"Mejora el recall en {recall_delta * 100:.1f} pts sin bajar del piso de precisión."
+        return "Cumple el piso de precisión con la evidencia disponible."
+    if outcome == AgentHypothesisStatus.REFUTED:
+        return "No cumple el objetivo: se descarta."
+    return "La evidencia no alcanza para concluir."
 
 
 _COST_ANOMALY_FACTOR = 3

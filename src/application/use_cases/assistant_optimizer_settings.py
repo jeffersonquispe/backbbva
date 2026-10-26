@@ -27,7 +27,13 @@ class GetAssistantOptimizerSettingsUseCase:
 
     def execute(self) -> AssistantOptimizerSettings:
         current = self._settings.get()
-        return replace(current, **{name: getattr(AssistantOptimizerSettings(), name) for name in _NON_PERSISTED_FIELDS})
+        return replace(
+            current,
+            **{
+                name: getattr(AssistantOptimizerSettings(), name)
+                for name in _NON_PERSISTED_FIELDS
+            },
+        )
 
 
 class UpdateAssistantOptimizerSettingsUseCase:
@@ -101,7 +107,9 @@ def _persisted_values(settings: AssistantOptimizerSettings) -> dict[str, Any]:
     }
 
 
-def _diff(previous: dict[str, Any], new: dict[str, Any]) -> list[AssistantOptimizerSettingChange]:
+def _diff(
+    previous: dict[str, Any], new: dict[str, Any]
+) -> list[AssistantOptimizerSettingChange]:
     return [
         AssistantOptimizerSettingChange(path=key, previous=previous[key], new=new[key])
         for key in sorted(previous)
@@ -117,6 +125,7 @@ def _validate(settings: AssistantOptimizerSettings) -> None:
         "chat_retention_days": (1, 730),
         "optimizer_max_concurrent_sessions": (1, 100),
         "optimizer_max_concurrent_runs": (1, 100),
+        "optimizer_max_parallel_experiments": (1, 10),
         "optimizer_max_candidates_per_session": (1, 100),
         "optimizer_session_budget_ceiling_tokens": (1, 10_000_000),
         "optimizer_session_budget_ceiling_seconds": (1, 604_800),
@@ -155,11 +164,25 @@ def _validate(settings: AssistantOptimizerSettings) -> None:
         settings.sampler_validation_proportion,
         settings.sampler_test_proportion,
     )
-    if any(not 0 < value < 1 for value in proportions) or abs(sum(proportions) - 1) > 1e-6:
-        raise ValidationError("Las proporciones de train, validation y test deben sumar 1")
+    if (
+        any(not 0 < value < 1 for value in proportions)
+        or abs(sum(proportions) - 1) > 1e-6
+    ):
+        raise ValidationError(
+            "Las proporciones de train, validation y test deben sumar 1"
+        )
     if settings.sampler_seed_policy not in {"fixed_per_sample", "random_per_sample"}:
         raise ValidationError("sampler_seed_policy no es válido")
-    if len(settings.sampler_strata) > 50 or len(settings.sampler_compatible_schema_versions) > 50:
+    if (
+        len(settings.sampler_strata) > 50
+        or len(settings.sampler_compatible_schema_versions) > 50
+    ):
         raise ValidationError("La lista no puede superar 50 elementos")
-    if any(not value.strip() for value in (*settings.sampler_strata, *settings.sampler_compatible_schema_versions)):
+    if any(
+        not value.strip()
+        for value in (
+            *settings.sampler_strata,
+            *settings.sampler_compatible_schema_versions,
+        )
+    ):
         raise ValidationError("Las listas no pueden incluir valores vacíos")

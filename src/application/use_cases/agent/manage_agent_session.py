@@ -13,6 +13,8 @@ from src.application.ports.assistant_optimizer_settings_port import (
     AssistantOptimizerSettingsPort,
 )
 from src.application.ports.clock_port import Clock
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
+from src.domain.agents.event import AgentEventKind, AgentEventOutcome
 
 
 class AgentSessionNotFoundError(Exception):
@@ -30,11 +32,13 @@ class ManageAgentSessionUseCase:
         clock: Clock,
         settings: AssistantOptimizerSettingsPort | None = None,
         audit: AgentAuditRepository | None = None,
+        timeline: AgentTimeline | None = None,
     ) -> None:
         self._repository = repository
         self._clock = clock
         self._settings = settings
         self._audit = audit
+        self._timeline = timeline
 
     def list_for_owner(self, owner_id: str, limit: int = 50) -> list[AgentSession]:
         return self._repository.list_by_owner(owner_id, limit)
@@ -114,9 +118,7 @@ class ManageAgentSessionUseCase:
             raise AgentSessionNotFoundError("session not found")
         return session
 
-    def _save(
-        self, session: AgentSession, status: AgentSessionStatus
-    ) -> AgentSession:
+    def _save(self, session: AgentSession, status: AgentSessionStatus) -> AgentSession:
         updated = replace(session, status=status, updated_at=self._clock.now())
         saved = self._repository.update(updated, expected_rev=session.rev)
         if self._audit is not None:
@@ -130,4 +132,21 @@ class ManageAgentSessionUseCase:
                     reason_code=f"SESSION_{status.value}",
                 )
             )
+        if self._timeline is not None:
+            self._timeline.record(
+                session.session_id,
+                AgentEventKind.USER_ACTION,
+                AgentEventOutcome.SUCCEEDED,
+                _SESSION_ACTION_SUMMARY.get(status, f"Sesión en estado {status.value}"),
+                reason_code=f"SESSION_{status.value}",
+                actor_id=session.owner_id,
+                occurred_at=saved.updated_at,
+            )
         return saved
+
+
+_SESSION_ACTION_SUMMARY = {
+    AgentSessionStatus.ACTIVE: "Iniciaste o reanudaste la sesión",
+    AgentSessionStatus.PAUSED: "Pausaste la sesión",
+    AgentSessionStatus.CANCELLED: "Cancelaste la sesión",
+}

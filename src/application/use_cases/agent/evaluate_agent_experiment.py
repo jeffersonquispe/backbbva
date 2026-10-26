@@ -60,6 +60,7 @@ class EvaluateAgentExperiment:
         baseline_components: tuple[ComponentVersionReference, ...],
         objective_id: str,
         objective_version: int,
+        candidate_id: str | None = None,
     ) -> AgentExperiment:
         if not session_id.strip() or not experiment_id.strip() or iteration_number < 1:
             raise AgentExperimentPolicyError("EXPERIMENT_IDENTITY_INVALID")
@@ -102,6 +103,7 @@ class EvaluateAgentExperiment:
                     objective_version=objective_version,
                     created_at=now,
                     baseline_components=baseline_components,
+                    candidate_id=candidate_id,
                     completed_at=now,
                     error_code=code,
                 )
@@ -118,6 +120,7 @@ class EvaluateAgentExperiment:
                 objective_version=objective_version,
                 created_at=now,
                 baseline_components=baseline_components,
+                candidate_id=candidate_id,
                 snapshot_id=snapshot.snapshot_id,
                 snapshot_sha256=snapshot.content_hash,
             )

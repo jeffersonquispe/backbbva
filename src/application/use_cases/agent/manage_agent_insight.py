@@ -9,6 +9,8 @@ from src.application.ports.agent_insight_port import (
 )
 from src.application.ports.agent_session_port import AgentSessionRepository
 from src.application.ports.clock_port import Clock
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
+from src.domain.agents.event import AgentEventKind, AgentEventOutcome
 
 
 class AgentInsightNotFoundError(Exception):
@@ -26,10 +28,12 @@ class ManageAgentInsightUseCase:
         sessions: AgentSessionRepository,
         insights: AgentInsightRepository,
         clock: Clock,
+        timeline: AgentTimeline | None = None,
     ) -> None:
         self._sessions = sessions
         self._insights = insights
         self._clock = clock
+        self._timeline = timeline
 
     def list_for_owner(
         self,
@@ -43,7 +47,11 @@ class ManageAgentInsightUseCase:
         for insight in insights:
             if (
                 insight.status
-                in {AgentInsightStatus.PROPOSED, AgentInsightStatus.CONFIRMED, AgentInsightStatus.ACTIVE}
+                in {
+                    AgentInsightStatus.PROPOSED,
+                    AgentInsightStatus.CONFIRMED,
+                    AgentInsightStatus.ACTIVE,
+                }
                 and insight.expires_at is not None
                 and insight.expires_at <= now
             ):
@@ -120,4 +128,24 @@ class ManageAgentInsightUseCase:
             confirmed_by=actor_id if confirmed else insight.confirmed_by,
             confirmed_at=now if confirmed else insight.confirmed_at,
         )
-        return self._insights.update(updated, expected_rev=insight.rev)
+        saved = self._insights.update(updated, expected_rev=insight.rev)
+        summary = _INSIGHT_ACTION_SUMMARY.get(status)
+        if self._timeline is not None and summary is not None:
+            self._timeline.record(
+                insight.session_id,
+                AgentEventKind.USER_ACTION,
+                AgentEventOutcome.SUCCEEDED,
+                summary,
+                reason_code=f"INSIGHT_{status.value}",
+                refs={"insight_id": insight.insight_id},
+                actor_id=actor_id,
+                occurred_at=now,
+            )
+        return saved
+
+
+# Only the person's own decisions go on the timeline; expiry is automatic.
+_INSIGHT_ACTION_SUMMARY = {
+    AgentInsightStatus.ACTIVE: "Confirmaste un insight",
+    AgentInsightStatus.REJECTED: "Rechazaste un insight",
+}

@@ -79,6 +79,7 @@ def get_manage_agent_session_use_case(
         clock=get_clock(),
         settings=settings,
         audit=get_agent_audit_repository(),
+        timeline=get_agent_timeline(),
     )
 
 
@@ -107,6 +108,7 @@ def get_manage_agent_insight_use_case() -> ManageAgentInsightUseCase:
         sessions=get_agent_session_repository(),
         insights=get_agent_insight_repository(),
         clock=get_clock(),
+        timeline=get_agent_timeline(),
     )
 
 

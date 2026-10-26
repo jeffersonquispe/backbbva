@@ -37,6 +37,10 @@ def experiment_stream_key(run_id: str, experiment_id: str) -> str:
     return f"{run_id}#exp#{experiment_id}"
 
 
+class OptimizationRunConflictError(Exception):
+    """The run root changed since it was read (another candidate finished)."""
+
+
 class OptimizationRunStatus(StrEnum):
     RUNNING = "RUNNING"
     WAITING_USER = "WAITING_USER"

@@ -27,6 +27,7 @@ from src.domain.agents.experiment import AgentExperiment, ComponentVersionRefere
 from src.domain.agents.finding import AgentFinding
 from src.domain.agents.optimization_run import (
     OptimizationRun,
+    OptimizationRunConflictError,
     OptimizationRunStatus,
     OptimizationRunTree,
     RunCandidateView,
@@ -210,7 +211,9 @@ class DynamoOptimizationRunRepository(OptimizationRunRepository):
                 ExpressionAttributeValues={":expected": expected_rev},
             )
         except ClientError as error:
-            _raise_if_conflict(error)
+            if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                raise OptimizationRunConflictError(run.run_id) from error
+            raise
         return updated
 
     def load_tree(self, run_id: str) -> OptimizationRunTree | None:

@@ -69,8 +69,14 @@ class InMemoryIterations:
 class InMemoryRuns:
     """Only RUNNING runs with an expired lease are stale; finished runs never are."""
 
+    def __init__(self, *runs) -> None:
+        self.items = {run.run_id: run for run in runs}
+
     def list_stale(self, now, limit=100):
         return []
+
+    def get(self, run_id):
+        return self.items.get(run_id)
 
     def update(self, item):
         return item
@@ -244,3 +250,35 @@ def test_recovery_leaves_a_visible_timeline_event() -> None:
     assert [(item.kind.value, item.reason_code) for item in events.items] == [
         ("recovery", "WORKER_LEASE_EXPIRED")
     ]
+
+
+def test_parallel_candidate_with_a_live_run_lease_is_not_orphaned() -> None:
+    from datetime import timedelta
+
+    from src.application.ports.agent_run_port import AgentRun, AgentRunStatus
+
+    live = AgentRun(
+        run_id="r1",
+        session_id="s1",
+        iteration_number=1,
+        subagent="xgboost",
+        status=AgentRunStatus.RUNNING,
+        prompt_ref={},
+        created_at=NOW,
+        lease_expires_at=NOW + timedelta(seconds=60),
+    )
+    sessions = InMemorySessions(_session())
+    iterations = InMemoryIterations(_iteration(AgentIterationStatus.RUNNING))
+    experiments = InMemoryExperiments(_experiment(AgentExperimentStatus.RUNNING))
+    recovery = RecoverStaleAgentRunsUseCase(
+        sessions=sessions,
+        iterations=iterations,
+        runs=InMemoryRuns(live),
+        experiments=experiments,
+        clock=FixedClock(),
+    )
+
+    recovery.execute()
+
+    assert iterations.items[("s1", 1)].status == AgentIterationStatus.RUNNING
+    assert experiments.items[("s1", "e1")].status == AgentExperimentStatus.RUNNING

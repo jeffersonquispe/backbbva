@@ -17,8 +17,11 @@ class AssistantOptimizerSettings:
 
     # Optimizer
     optimizer_enabled: bool = False
-    optimizer_max_concurrent_sessions: int = 1
-    optimizer_max_concurrent_runs: int = 1
+    # Agreed caps: two optimizer sessions, six experiments overall and up to
+    # three independent experiments per session at the same time.
+    optimizer_max_concurrent_sessions: int = 2
+    optimizer_max_concurrent_runs: int = 6
+    optimizer_max_parallel_experiments: int = 3
     optimizer_max_candidates_per_session: int = 10
     optimizer_session_budget_ceiling_tokens: int = 100_000
     optimizer_session_budget_ceiling_usd: float = 50.0

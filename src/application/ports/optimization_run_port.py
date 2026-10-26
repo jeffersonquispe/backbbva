@@ -4,12 +4,14 @@ from typing import Protocol
 
 from src.domain.agents.optimization_run import (
     OptimizationRun,
+    OptimizationRunConflictError,
     OptimizationRunStatus,
     OptimizationRunTree,
 )
 
 __all__ = [
     "OptimizationRun",
+    "OptimizationRunConflictError",
     "OptimizationRunRepository",
     "OptimizationRunStatus",
     "OptimizationRunTree",

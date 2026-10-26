@@ -59,14 +59,8 @@ class RecoverStaleAgentRunsUseCase:
             )
             iteration = self._iterations.get(run.session_id, run.iteration_number)
             if iteration and iteration.status == AgentIterationStatus.RUNNING:
-                self._iterations.update(
-                    replace(
-                        iteration,
-                        status=AgentIterationStatus.FAILED,
-                        finished_at=now,
-                        decision={"action": "recovered", "error_code": LEASE_EXPIRED},
-                    )
-                )
+                self._close_iteration(iteration, now)
+                self._close_experiments(run.session_id, {iteration.number}, now)
             session = self._sessions.get(run.session_id)
             if session is None:
                 continue
@@ -119,22 +113,50 @@ class RecoverStaleAgentRunsUseCase:
         """Close iteration/experiment records left RUNNING by a dead orchestrator.
 
         The run may already be finished (so it is not listed as stale) while the
-        orchestrator died before closing the iteration or the experiment.
+        orchestrator died before closing the iteration or the experiment. A
+        parallel candidate whose own run lease is still alive (its job keeps a
+        heartbeat) is not orphaned and is left alone.
         """
+        closed: set[int] = set()
         for iteration in self._iterations.list_for_session(session_id, limit=100):
-            if iteration.status == AgentIterationStatus.RUNNING:
-                self._iterations.update(
-                    replace(
-                        iteration,
-                        status=AgentIterationStatus.FAILED,
-                        finished_at=now,
-                        decision={"action": "recovered", "error_code": LEASE_EXPIRED},
-                    )
-                )
-        if self._experiments is None:
+            if iteration.status != AgentIterationStatus.RUNNING:
+                continue
+            if any(self._run_is_alive(run_id, now) for run_id in iteration.run_ids):
+                continue
+            self._close_iteration(iteration, now)
+            closed.add(iteration.number)
+        self._close_experiments(session_id, closed, now)
+
+    def _run_is_alive(self, run_id: str, now) -> bool:
+        run = self._runs.get(run_id)
+        return (
+            run is not None
+            and run.status == AgentRunStatus.RUNNING
+            and run.lease_expires_at is not None
+            and run.lease_expires_at > now
+        )
+
+    def _close_iteration(self, iteration, now) -> None:
+        decision = {"action": "recovered", "error_code": LEASE_EXPIRED}
+        if iteration.decision.get("hypothesis_id"):
+            decision["hypothesis_id"] = iteration.decision["hypothesis_id"]
+        self._iterations.update(
+            replace(
+                iteration,
+                status=AgentIterationStatus.FAILED,
+                finished_at=now,
+                decision=decision,
+            )
+        )
+
+    def _close_experiments(self, session_id: str, numbers: set[int], now) -> None:
+        if self._experiments is None or not numbers:
             return
         for experiment in self._experiments.list_for_session(session_id, limit=100):
-            if experiment.status == AgentExperimentStatus.RUNNING:
+            if (
+                experiment.status == AgentExperimentStatus.RUNNING
+                and experiment.iteration_number in numbers
+            ):
                 self._experiments.update(
                     replace(
                         experiment,
