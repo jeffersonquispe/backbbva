@@ -266,7 +266,11 @@ async function main() {
     }
 
     let current = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "leer sesión");
-    if (current.status === "ACTIVE") {
+    // A run that exhausts its hypotheses without a winner waits for the
+    // Channel Manager (CONTEXT_MISSING); the smoke closes it like an active one.
+    const exhaustedWithoutWinner =
+      current.status === "WAITING_USER" && current.block?.code === "CONTEXT_MISSING";
+    if (current.status === "ACTIVE" || exhaustedWithoutWinner) {
       current = expect(await api(page, "POST", `/agent/sessions/${sessionId}/cancel`, {
         token: channelToken,
       }), 200, "cancelar sesión tras verificar propuesta");
