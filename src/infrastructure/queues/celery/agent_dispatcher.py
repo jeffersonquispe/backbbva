@@ -7,6 +7,7 @@ from src.infrastructure.queues.celery.app import agent_app
 
 AGENT_TICK_TASK = "agent.orchestrate_session"
 AGENT_CANDIDATE_TASK = "agent.run_candidate"
+AGENT_RETROSPECTIVE_TASK = "agent.validate_retrospective"
 
 
 def enqueue_agent_session_tick(session_id: str, countdown: int = 0) -> None:
@@ -31,3 +32,11 @@ class CeleryAgentCandidateDispatcher(AgentCandidateDispatcher):
 
     def dispatch(self, session_id: str, iteration_number: int) -> None:
         enqueue_agent_candidate(session_id, iteration_number)
+
+
+def enqueue_retrospective_validation(validation_id: str) -> None:
+    agent_app.send_task(
+        AGENT_RETROSPECTIVE_TASK,
+        args=[validation_id],
+        queue=agent_app.conf.task_default_queue,
+    )

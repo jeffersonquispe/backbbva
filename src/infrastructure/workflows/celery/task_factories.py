@@ -533,3 +533,37 @@ def get_start_production_alert_workflow_use_case() -> StartAlertTestWorkflowUseC
         clock=get_clock(),
         id_generator=get_id_generator(),
     )
+
+
+def get_worker_retrospective_validation_use_case():
+    """Retrospective validation that replays the real alert pipeline."""
+    from src.application.use_cases.agent.paired_agent_experiment_runner import (
+        PairedAgentExperimentRunner,
+    )
+    from src.application.use_cases.agent.validate_retrospective_release import (
+        ValidateRetrospectiveReleaseUseCase,
+    )
+    from src.infrastructure.agents.factories import (
+        get_agent_audit_repository,
+        get_agent_experiment_component_resolver,
+        get_agent_experiment_repository,
+        get_agent_objective_repository,
+        get_agent_release_repository,
+    )
+
+    objectives = get_agent_objective_repository()
+    return ValidateRetrospectiveReleaseUseCase(
+        experiments=get_agent_experiment_repository(),
+        releases=get_agent_release_repository(),
+        snapshots=get_dataset_snapshot_repository(),
+        datasets=get_dataset_repository(),
+        objectives=objectives,
+        evaluator=PairedAgentExperimentRunner(
+            components=get_agent_experiment_component_resolver(),
+            scorer=get_agent_pipeline_replay_scorer(),
+            objectives=objectives,
+        ),
+        audit=get_agent_audit_repository(),
+        now=get_clock().now,
+        new_id=lambda: str(get_id_generator().new_id()),
+    )

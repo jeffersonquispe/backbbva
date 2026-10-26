@@ -274,7 +274,17 @@ async function main() {
     );
     await page.getByRole("button", { name: "Validar retrospectivamente" }).click();
     const validationResult = await validationResponse;
-    const validation = expect({ status: validationResult.status(), payload: await validationResult.json() }, 201, "validación retrospectiva UI");
+    const started = expect({ status: validationResult.status(), payload: await validationResult.json() }, 202, "validación retrospectiva UI");
+    // The real-pipeline replay runs in the agent worker; poll until it finishes.
+    let validation = started;
+    const deadline = Date.now() + 30 * 60_000;
+    while (validation.status === "RUNNING") {
+      if (Date.now() > deadline) throw new Error("H12_RETROSPECTIVE_TIMEOUT");
+      await page.waitForTimeout(5_000);
+      validation = expect(await api(page, "GET", `/agent/releases/retrospective-validations/${started.validation_id}`, {
+        token: channelToken,
+      }), 200, "consultar validación retrospectiva");
+    }
     if (
       validation.status !== "PASSED" ||
       validation.snapshot_id !== h11.snapshot_id ||

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from src.application.ports.agent_audit_port import AgentAuditEvent, AgentAuditRepository
 from src.application.ports.agent_experiment_evaluator_port import (
@@ -65,10 +65,8 @@ class ValidateRetrospectiveReleaseUseCase:
         self._now = now
         self._new_id = new_id
 
-    def execute(self, request: RetrospectiveValidationInput) -> RetrospectiveValidation:
-        experiment = self._experiments.get(request.session_id, request.experiment_id)
-        if experiment is None:
-            raise RetrospectiveValidationError("EXPERIMENT_NOT_FOUND")
+    def _measure(self, request: RetrospectiveValidationInput, experiment) -> dict:
+        """Re-run the pinned stacks on the final partition; raise on any failure."""
         try:
             self._validate(experiment)
             snapshot = self._snapshots.get(experiment.snapshot_id or "")
@@ -84,10 +82,13 @@ class ValidateRetrospectiveReleaseUseCase:
                 for name in ("training", "validation", "test", "final")
             }
             all_rows = self._datasets.get_rows(snapshot.dataset_refs["all"])
-            if any(
-                len(partitions[name]) != snapshot.partition_counts.get(name)
-                for name in ("training", "validation", "test", "final")
-            ) or not partitions["final"]:
+            if (
+                any(
+                    len(partitions[name]) != snapshot.partition_counts.get(name)
+                    for name in ("training", "validation", "test", "final")
+                )
+                or not partitions["final"]
+            ):
                 raise RetrospectiveValidationError("SNAPSHOT_INVALID")
             if content_hash({**partitions, "all": all_rows}) != snapshot.content_hash:
                 raise RetrospectiveValidationError("SNAPSHOT_INVALID")
@@ -127,7 +128,12 @@ class ValidateRetrospectiveReleaseUseCase:
                 entity_id=experiment.experiment_id,
             )
             raise
-        except (AgentExperimentPolicyError, FileNotFoundError, KeyError, OSError) as error:
+        except (
+            AgentExperimentPolicyError,
+            FileNotFoundError,
+            KeyError,
+            OSError,
+        ) as error:
             self._append_audit(
                 request,
                 "RETROSPECTIVE_FAILED",
@@ -147,6 +153,14 @@ class ValidateRetrospectiveReleaseUseCase:
                 entity_id=experiment.experiment_id,
             )
             raise RetrospectiveValidationError("VALIDATION_FAILED") from error
+        return protected_evidence
+
+    def execute(self, request: RetrospectiveValidationInput) -> RetrospectiveValidation:
+        """Synchronous validation (tests and tooling); the API uses start/complete."""
+        experiment = self._experiments.get(request.session_id, request.experiment_id)
+        if experiment is None:
+            raise RetrospectiveValidationError("EXPERIMENT_NOT_FOUND")
+        protected_evidence = self._measure(request, experiment)
         validation = RetrospectiveValidation(
             validation_id=self._new_id(),
             session_id=experiment.session_id,
@@ -171,13 +185,101 @@ class ValidateRetrospectiveReleaseUseCase:
         )
         return validation
 
+    def start(self, request: RetrospectiveValidationInput) -> RetrospectiveValidation:
+        """Check cheap preconditions now and leave the replay to the worker."""
+        experiment = self._experiments.get(request.session_id, request.experiment_id)
+        if experiment is None:
+            raise RetrospectiveValidationError("EXPERIMENT_NOT_FOUND")
+        try:
+            self._validate(experiment)
+        except RetrospectiveValidationError as error:
+            self._append_audit(
+                request,
+                "RETROSPECTIVE_FAILED",
+                error_code=str(error),
+                snapshot_id=experiment.snapshot_id,
+                content_sha256=experiment.snapshot_sha256,
+                entity_id=experiment.experiment_id,
+            )
+            raise
+        validation = self._releases.create_validation(
+            RetrospectiveValidation(
+                validation_id=self._new_id(),
+                session_id=experiment.session_id,
+                experiment_id=experiment.experiment_id,
+                status=RetrospectiveValidationStatus.RUNNING,
+                snapshot_id=experiment.snapshot_id or "",
+                snapshot_sha256=experiment.snapshot_sha256 or "",
+                component_pins=experiment.components,
+                baseline_component_pins=experiment.baseline_components,
+                evidence={},
+                created_by=request.actor,
+                created_by_id=request.actor_id,
+                created_at=self._now(),
+            )
+        )
+        self._append_audit(
+            request,
+            "RETROSPECTIVE_STARTED",
+            snapshot_id=validation.snapshot_id,
+            content_sha256=validation.snapshot_sha256,
+            entity_id=validation.experiment_id,
+        )
+        return validation
+
+    def complete(self, validation_id: str) -> RetrospectiveValidation | None:
+        """Run the replay for a RUNNING validation and record PASSED or FAILED."""
+        validation = self._releases.get_validation(validation_id)
+        if (
+            validation is None
+            or validation.status is not RetrospectiveValidationStatus.RUNNING
+        ):
+            return validation
+        request = RetrospectiveValidationInput(
+            session_id=validation.session_id,
+            experiment_id=validation.experiment_id,
+            actor=validation.created_by,
+            actor_id=validation.created_by_id,
+        )
+        experiment = self._experiments.get(
+            validation.session_id, validation.experiment_id
+        )
+        try:
+            if experiment is None:
+                raise RetrospectiveValidationError("EXPERIMENT_NOT_FOUND")
+            evidence = self._measure(request, experiment)
+        except RetrospectiveValidationError as error:
+            return self._releases.update_validation(
+                replace(
+                    validation,
+                    status=RetrospectiveValidationStatus.FAILED,
+                    error_code=str(error),
+                ),
+                expected_status=RetrospectiveValidationStatus.RUNNING.value,
+            )
+        finished = self._releases.update_validation(
+            replace(
+                validation,
+                status=RetrospectiveValidationStatus.PASSED,
+                evidence=evidence,
+            ),
+            expected_status=RetrospectiveValidationStatus.RUNNING.value,
+        )
+        self._append_audit(
+            request,
+            "RETROSPECTIVE_PASSED",
+            snapshot_id=finished.snapshot_id,
+            content_sha256=finished.snapshot_sha256,
+            entity_id=finished.experiment_id,
+        )
+        return finished
+
     @staticmethod
     def _validate(experiment) -> None:
         if experiment.status is not AgentExperimentStatus.SUCCEEDED:
             raise RetrospectiveValidationError("EXPERIMENT_NOT_SUCCEEDED")
-        if (
-            not experiment.snapshot_id
-            or not _SHA256.fullmatch(experiment.snapshot_sha256 or "")
+        if not experiment.snapshot_id or not _SHA256.fullmatch(
+            experiment.snapshot_sha256 or ""
         ):
             raise RetrospectiveValidationError("SNAPSHOT_INVALID")
         evidence = experiment.global_evaluation

@@ -9,7 +9,7 @@ TASK_GROUPS = (
     (agent_tasks.app, agent_tasks.__name__),
     (simulator_tasks.app, simulator_tasks.__name__),
 )
-EXPECTED_CELERY_TASK_COUNT = 30
+EXPECTED_CELERY_TASK_COUNT = 31
 
 
 def test_all_project_tasks_have_serializable_signature_annotations() -> None:

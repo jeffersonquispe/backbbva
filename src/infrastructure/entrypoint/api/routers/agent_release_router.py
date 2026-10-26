@@ -24,6 +24,9 @@ from src.infrastructure.entrypoint.api.factories.agent_release_factory import (
     get_validate_retrospective_release_use_case,
 )
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
+from src.infrastructure.queues.celery.agent_dispatcher import (
+    enqueue_retrospective_validation,
+)
 
 router = APIRouter(prefix="/agent/releases", tags=["agent releases"])
 
@@ -134,7 +137,7 @@ def _release_response(value: AgentRelease) -> dict[str, Any]:
 @router.post(
     "/retrospective-validations",
     response_model=RetrospectiveValidationResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 def validate_retrospective(
     request: RetrospectiveValidationRequest,
@@ -148,7 +151,9 @@ def validate_retrospective(
         user, LocalRole.CHANNEL_MANAGER, LocalRole.MANAGER, LocalRole.RELEASE_MANAGER
     )
     try:
-        result = use_case.execute(
+        # The replay of the real pipeline runs in the agent worker; the
+        # validation stays RUNNING until it finishes (poll the GET below).
+        result = use_case.start(
             RetrospectiveValidationInput(
                 session_id=request.session_id,
                 experiment_id=request.experiment_id,
@@ -162,6 +167,7 @@ def validate_retrospective(
             status_code=404 if code == "EXPERIMENT_NOT_FOUND" else 422,
             detail=code,
         ) from error
+    enqueue_retrospective_validation(result.validation_id)
     return _validation_response(result)
 
 
@@ -174,7 +180,9 @@ def get_retrospective_validation(
     user: Annotated[LocalUser, Depends(get_current_user)],
     repository: Annotated[AgentReleaseRepository, Depends(get_agent_release_repository)],
 ):
-    _require_role(user, LocalRole.MANAGER, LocalRole.RELEASE_MANAGER)
+    _require_role(
+        user, LocalRole.CHANNEL_MANAGER, LocalRole.MANAGER, LocalRole.RELEASE_MANAGER
+    )
     result = repository.get_validation(validation_id)
     if result is None:
         raise HTTPException(status_code=404, detail="VALIDATION_NOT_FOUND")

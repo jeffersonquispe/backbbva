@@ -53,6 +53,17 @@ class DynamoAgentReleaseRepository(AgentReleaseRepository):
         )
         return validation
 
+    def update_validation(
+        self, validation: RetrospectiveValidation, *, expected_status: str
+    ) -> RetrospectiveValidation:
+        self._validations.put_item(
+            Item=to_dynamodb(_validation_item(validation)),
+            ConditionExpression="#status = :expected",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":expected": expected_status},
+        )
+        return validation
+
     def get_validation(self, validation_id: str) -> RetrospectiveValidation | None:
         item = self._validations.get_item(
             Key={"validation_id": validation_id}

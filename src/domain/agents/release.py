@@ -9,6 +9,8 @@ from src.domain.agents.experiment import ComponentVersionReference
 
 
 class RetrospectiveValidationStatus(StrEnum):
+    # The replay runs in the worker; the record is RUNNING until it finishes.
+    RUNNING = "RUNNING"
     PASSED = "PASSED"
     FAILED = "FAILED"
 

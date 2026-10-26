@@ -17,6 +17,7 @@ from src.infrastructure.workflows.celery.task_factories import (
     get_agent_iteration_use_case,
     get_global_pipeline_evaluation_use_case,
     get_recover_stale_agent_runs_use_case,
+    get_worker_retrospective_validation_use_case,
 )
 
 
@@ -75,6 +76,13 @@ def run_agent_candidate(session_id: str, iteration_number: int) -> dict[str, str
 def _candidate_run_ids(session_id: str, iteration_number: int) -> tuple[str, ...]:
     iteration = get_agent_iteration_repository().get(session_id, iteration_number)
     return iteration.run_ids if iteration is not None else ()
+
+
+@app.task(name="agent.validate_retrospective", acks_late=True)
+def validate_retrospective(validation_id: str) -> dict[str, str]:
+    """Replay the pinned stacks through the real pipeline for a release check."""
+    result = get_worker_retrospective_validation_use_case().complete(validation_id)
+    return {"status": result.status.value if result is not None else "NOT_FOUND"}
 
 
 @app.task(name="agent.recover_stale_runs", acks_late=True)
