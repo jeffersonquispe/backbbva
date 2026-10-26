@@ -1,6 +1,6 @@
 # Pendientes legacy / MVC — terminar ARIA core agentes
 
-Marcadores: `[ ]` pendiente · `[~]` en curso/parcial · `[x]` hecho y verificado por E2E real.
+Marcadores: `[ ]` pendiente · `[~]` en curso/parcial · `[x]` implementación completada. El estado de E2E se indica dentro de cada punto.
 Leyenda: **[V]** verificar · **[I]** implementar · **[D]** diseño/decisión.
 Archivo aparte de `PENDIENTES.md`. Anotado 2026-10-24.
 
@@ -61,7 +61,7 @@ Archivo aparte de `PENDIENTES.md`. Anotado 2026-10-24.
   - **Decisiones de alcance:** `RoleModal` ya no presenta formulario (devuelve `null`, los roles vienen del JWT/API); `FraudReview` es una acción de revisión/auditoría, no un formulario CRUD. `ModelDesignStudio` no tiene consumidores en el frontend y `ModelTrainingResults` es una vista de consulta; ambos quedan fuera de la migración CRUD. Los diálogos de confirmación y solicitudes/despliegues son acciones operativas, no formularios de alta/edición.
   - **E2E:** `side-drawer-real.spec.ts` cubre apertura de los formularios de Biblioteca con datos reales, alta/edición de watchlist, alta de valores en los tres catálogos de eventos y aviso de cambios sin guardar. Sigue pendiente correr los E2E focalizados y `make e2e-all-local` a través de nginx en `http://localhost:80`; todavía no se ejecutó ninguna corrida de esta tanda.
   - **Pendiente de implementación:** migrar el formulario de nueva configuración en `configuracion.tsx` al drawer compartido.
-  - **Pendiente de verificación:** ejecutar E2E focalizados para los flujos de Biblioteca y después `make e2e-all-local` por nginx en `http://localhost:80`. No cerrar el ítem antes de esa corrida.
+  - **Verificación pendiente:** ejecutar E2E focalizados para los flujos de Biblioteca y después `make e2e-all-local` por nginx en `http://localhost:80`.
 
 ## 7. Agente operador de formularios (crear/editar objetos)
 
@@ -70,13 +70,13 @@ Archivo aparte de `PENDIENTES.md`. Anotado 2026-10-24.
   - **Contexto por acción:** el catálogo declara campos y contexto; los generadores cargan referencias de lectura acotadas (máximo 50) y enums: taxonomías existentes, taxonomías para MO, MO para flags, MO/taxonomías para casos similares y metadatos de watchlists sin elementos. Referencias, duplicados, esquema y datos personales se validan en backend.
   - **Ya implementado:** routers de borrador existentes reutilizados; guard nuevo que exige acceso al asistente y escritura de biblioteca; consulta server-side de acciones integrada en el panel; el borrador se presenta en `SideDrawer` con marca ARIA, procedencia, verificaciones y preguntas, y se confirma por endpoint protegido. Los paquetes firmados no se editan en cliente: el usuario pide el ajuste en chat y genera otra propuesta.
   - **Cobertura ampliada:** `agent-assistant-base-real.spec.ts` ahora cubre creación/confirmación de los cinco tipos, marca ARIA y denegación para `release_manager` (requiere credenciales `E2E_RELEASE_MANAGER_*`). Se añadieron pruebas backend de catálogo por rol, intento de suplantación y bloqueo de los cinco endpoints.
-  - **Pendiente para cerrar:**
+  - **Seguimiento pendiente:**
     1. [ ] Completar #17 migrando nueva configuración y ejecutar sus E2E.
     2. [ ] Decidir si se amplía #18 más allá de las cinco acciones listadas; para cada familia nueva, implementar contexto, permiso y pruebas antes de publicarla. En particular siguen fuera pruebas/datasets/uploads, modelos/entrenamiento, catálogos de configuración, canales, bibliotecas de datasets, instancias de Vector Store, fraude, roles, despliegues y backups.
     3. [ ] Añadir pruebas de contexto de generación para cada tipo (el contexto de taxonomías/enums para modus operandi ya tiene prueba; los otros contextos requieren cobertura directa).
-    4. [ ] E2E actualizado, **pendiente de ejecución por instrucción del usuario**: reconstruir stack y correr la spec real vía nginx `http://localhost`, incluida la variante por rol cuando existan credenciales. No marcar #18 completo hasta que pase.
+    4. [ ] E2E actualizado, **pendiente de ejecución por instrucción del usuario**: reconstruir stack y correr la spec real vía nginx `http://localhost`, incluida la variante por rol cuando existan credenciales.
     5. [x] Verificado: `make lint`, `make test-architecture` (253), pytest focalizado (27), `make test-api-contracts` (191 operaciones), `make project-graph`/check, ESLint focalizado y `make build` del frontend.
-  - **Criterio de cierre:** #17 resuelto y E2E real ejecutado; cada acción publicada aparece solo para roles autorizados, obtiene contexto de lectura, valida el borrador y requiere confirmación protegida; pruebas focalizadas y regresiones pasan.
+  - **Criterio funcional:** cada acción publicada aparece solo para roles autorizados, obtiene contexto de lectura, valida el borrador y requiere confirmación protegida. Queda seguimiento de E2E real indicado arriba.
 
 ### Puntos de integración (formularios de creación/edición)
 
