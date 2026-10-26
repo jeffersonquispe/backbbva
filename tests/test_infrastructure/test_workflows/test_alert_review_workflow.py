@@ -24,6 +24,7 @@ from src.application.ports.alert_action_dispatcher_port import (
     AlertActionDispatcher,
     AlertActionDispatchRef,
 )
+from src.application.ports.alert_payload_source_port import AlertPayloadSource
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -786,6 +787,22 @@ def in_memory_monitoring(monkeypatch):
     monkeypatch.setattr(factories_module, "get_monitoring", lambda: monitoring)
     monkeypatch.setattr(workflow_module, "get_monitoring", lambda: monitoring)
     return monitoring, exporter
+
+
+class UnusedAlertPayloadSource(AlertPayloadSource):
+    """Only production alerts fetch their stored payload; these tests run
+    test-origin alerts, so the source must exist but is never read."""
+
+    def fetch_alert(self, alert_id):
+        raise AssertionError("test alerts never fetch a stored payload")
+
+
+@pytest.fixture(autouse=True)
+def no_object_storage_for_alert_payloads(monkeypatch):
+    # The real adapter opens MinIO when it is built; keep unit runs offline.
+    monkeypatch.setattr(
+        factories_module, "get_alert_payload_source", UnusedAlertPayloadSource
+    )
 
 
 @pytest.fixture(autouse=True)
