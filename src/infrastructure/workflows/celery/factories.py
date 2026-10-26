@@ -4,6 +4,9 @@ from functools import lru_cache
 from typing import cast
 from uuid import UUID
 
+from src.application.ports.agent_candidate_dispatcher_port import (
+    AgentCandidateDispatcher,
+)
 from src.application.ports.agent_subagent_port import AgentSubagent
 from src.application.ports.alert_payload_source_port import AlertPayloadSource
 from src.application.ports.alert_port import AlertRepository
@@ -115,6 +118,7 @@ from src.infrastructure.agents.factories import (
     get_agent_session_summary_repository,
     get_agent_timeline,
     get_agent_verification_repository,
+    get_optimization_run_repository,
     get_optimizer_agent_specialists,
     get_optimizer_memory,
 )
@@ -888,6 +892,9 @@ def get_orchestrate_agent_iteration_use_case(
         id_generator=get_id_generator(),
         timeline=get_agent_timeline(),
         memory=get_optimizer_memory(),
+        experiments=get_agent_experiment_repository(),
+        optimization_runs=get_optimization_run_repository(),
+        dispatcher=get_agent_candidate_dispatcher(),
     )
 
 
@@ -917,3 +924,12 @@ def get_agent_entity_claim_use_case():
         claims=get_agent_entity_claim_repository(),
         clock=get_clock(),
     )
+
+
+@lru_cache
+def get_agent_candidate_dispatcher() -> AgentCandidateDispatcher:
+    from src.infrastructure.queues.celery.agent_dispatcher import (
+        CeleryAgentCandidateDispatcher,
+    )
+
+    return CeleryAgentCandidateDispatcher()

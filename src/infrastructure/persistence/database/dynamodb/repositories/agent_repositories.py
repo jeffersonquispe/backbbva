@@ -63,14 +63,15 @@ class DynamoAgentIterationRepository:
             _raise_if_conflict(error)
         return iteration
 
-
     def get(self, session_id: str, number: int) -> AgentIteration | None:
         item = self._table.get_item(
             Key={"session_id": session_id, "number": number}
         ).get("Item")
         return _iteration(item) if item else None
 
-    def list_for_session(self, session_id: str, limit: int = 50) -> list[AgentIteration]:
+    def list_for_session(
+        self, session_id: str, limit: int = 50
+    ) -> list[AgentIteration]:
         result = self._table.query(
             KeyConditionExpression=Key("session_id").eq(session_id),
             ScanIndexForward=False,
@@ -84,7 +85,9 @@ class DynamoAgentIterationRepository:
                 Item=_encode(asdict(iteration)),
                 ConditionExpression="#status = :running",
                 ExpressionAttributeNames={"#status": "status"},
-                ExpressionAttributeValues={":running": AgentIterationStatus.RUNNING.value},
+                ExpressionAttributeValues={
+                    ":running": AgentIterationStatus.RUNNING.value
+                },
             )
         except ClientError as error:
             _raise_if_conflict(error)
@@ -109,6 +112,24 @@ class DynamoAgentRunRepository:
     def update(self, run: AgentRun) -> AgentRun:
         self._table.put_item(Item=_encode(asdict(run)))
         return run
+
+    def extend_lease(self, run_id: str, until: datetime) -> bool:
+        try:
+            self._table.update_item(
+                Key={"run_id": run_id},
+                UpdateExpression="SET lease_expires_at = :until",
+                ConditionExpression="#status = :running",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":until": until.isoformat(),
+                    ":running": AgentRunStatus.RUNNING.value,
+                },
+            )
+        except ClientError as error:
+            if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                return False
+            raise
+        return True
 
     def list_active(self, now: datetime, limit: int = 100) -> list[AgentRun]:
         result = self._table.query(
@@ -208,13 +229,17 @@ class DynamoAgentEntityClaimRepository:
         self._table.put_item(Item=_encode(asdict(claim)))
         return claim
 
-    def list_by_entity(self, entity_key: str, limit: int = 50) -> list[AgentEntityClaim]:
+    def list_by_entity(
+        self, entity_key: str, limit: int = 50
+    ) -> list[AgentEntityClaim]:
         result = self._table.query(
             KeyConditionExpression=Key("entity_key").eq(entity_key), Limit=limit
         )
         return [_entity_claim(item) for item in result.get("Items", [])]
 
-    def list_by_session(self, session_id: str, limit: int = 100) -> list[AgentEntityClaim]:
+    def list_by_session(
+        self, session_id: str, limit: int = 100
+    ) -> list[AgentEntityClaim]:
         result = self._table.query(
             IndexName="SessionIdx",
             KeyConditionExpression=Key("session_id").eq(session_id),
@@ -299,7 +324,10 @@ class DynamoAgentPackageRepository:
                 Item=item,
                 ConditionExpression="rev = :expected AND #status <> :sealed",
                 ExpressionAttributeNames={"#status": "status"},
-                ExpressionAttributeValues={":expected": expected_rev, ":sealed": "SEALED"},
+                ExpressionAttributeValues={
+                    ":expected": expected_rev,
+                    ":sealed": "SEALED",
+                },
             )
         except ClientError as error:
             _raise_if_conflict(error)
@@ -351,7 +379,9 @@ class DynamoAgentPromptRepository:
         item = self._active.get_item(Key={"prompt_name": name}).get("Item")
         return _active_prompt(item) if item else None
 
-    def activate(self, pointer: ActiveAgentPrompt, expected_version: int | None) -> None:
+    def activate(
+        self, pointer: ActiveAgentPrompt, expected_version: int | None
+    ) -> None:
         if self.get_version(pointer.name, pointer.version) is None:
             raise ValueError("prompt version does not exist")
         item = _encode(_named_item(asdict(pointer)))
@@ -382,7 +412,9 @@ def _encode(item: dict[str, Any]) -> dict[str, Any]:
 
 def _raise_if_conflict(error: ClientError) -> None:
     if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
-        raise AgentRecordConflictError("agent record changed or already exists") from error
+        raise AgentRecordConflictError(
+            "agent record changed or already exists"
+        ) from error
     raise error
 
 
@@ -548,4 +580,6 @@ def _active_prompt(item: dict[str, Any]) -> ActiveAgentPrompt:
 
 def _named_item(item: dict[str, Any]) -> dict[str, Any]:
     """Map the domain's ``name`` field to DynamoDB's ``prompt_name`` key."""
-    return {"prompt_name" if key == "name" else key: value for key, value in item.items()}
+    return {
+        "prompt_name" if key == "name" else key: value for key, value in item.items()
+    }
