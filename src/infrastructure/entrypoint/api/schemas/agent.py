@@ -34,19 +34,34 @@ class AgentAuditEventResponse(BaseModel):
     reason_code: str | None = Field(default=None, pattern=r"^[A-Z0-9_]{1,64}$")
     duration_ms: int | None = Field(default=None, ge=0)
     cost_micros: int | None = Field(default=None, ge=0)
-    specialist: Literal[
-        "optimizer",
-        "configuration",
-        "library",
-        "vector_store",
-        "model",
-        "dataset",
-        "xgboost",
-    ] | None = None
-    tool: Literal[
-        "read", "write", "evaluate", "search", "score", "persist", "dispatch",
-        "configuration", "library", "vector_store", "xgboost",
-    ] | None = None
+    specialist: (
+        Literal[
+            "optimizer",
+            "configuration",
+            "library",
+            "vector_store",
+            "model",
+            "dataset",
+            "xgboost",
+        ]
+        | None
+    ) = None
+    tool: (
+        Literal[
+            "read",
+            "write",
+            "evaluate",
+            "search",
+            "score",
+            "persist",
+            "dispatch",
+            "configuration",
+            "library",
+            "vector_store",
+            "xgboost",
+        ]
+        | None
+    ) = None
     actor: str | None = None
     actor_id: str | None = None
     entity_id: str | None = None
@@ -108,6 +123,8 @@ class AgentSessionResponse(BaseModel):
         if isinstance(value, dict):
             return {**value, "lease": lease}
         return {**value.__dict__, "lease": lease}
+
+
 class AgentPackageSummaryResponse(BaseModel):
     package_id: str
     session_id: str
@@ -292,3 +309,95 @@ class AgentConfirmationResponse(BaseModel):
     base_version: str | None = None
     verification_states: dict[str, str] = Field(default_factory=dict)
     source_message_id: str | None = None
+
+
+class AgentEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    seq: int
+    event_id: str
+    occurred_at: datetime
+    kind: str
+    outcome: str
+    summary: str
+    reason_code: str | None = None
+    refs: dict[str, str] = Field(default_factory=dict)
+    duration_ms: int | None = None
+    cost_micros: int | None = None
+    actor_id: str | None = None
+
+
+class AgentEventsPageResponse(BaseModel):
+    items: list[AgentEventResponse]
+    last_seq: int
+
+
+class AgentVerdictResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    state: str
+    title: str
+    detail: str
+    action: str | None = None
+    code: str | None = None
+    approval: Literal["budget", "candidates", "context"] | None = None
+    retryable: bool = False
+
+
+class AgentHealthResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    lease: Literal["NONE", "ACTIVE", "EXPIRED"]
+    stalled: bool
+    last_event_at: datetime | None = None
+    seconds_since_last_event: int | None = None
+
+
+class AgentSessionOverviewResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    session_id: str
+    status: str
+    verdict: AgentVerdictResponse
+    health: AgentHealthResponse
+    iterations: dict[str, int] = Field(default_factory=dict)
+    hypotheses: dict[str, int] = Field(default_factory=dict)
+    experiments: dict[str, int] = Field(default_factory=dict)
+    events_total: int = 0
+    block: dict[str, object] = Field(default_factory=dict)
+
+
+class ResolveAgentBlockRequest(BaseModel):
+    kind: Literal["budget", "candidates", "context"]
+    additions: dict[str, int] | None = None
+    allowance: int | None = Field(default=None, ge=1, le=20)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class AgentFindingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    finding_id: str
+    kind: str
+    dimension: str
+    dimension_value: str
+    sample_count: int
+    metrics: dict[str, float]
+    source: str
+    created_at: datetime
+    opaque_refs: dict[str, str] = Field(default_factory=dict)
+
+
+class OptimizerInsightResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    insight_id: str
+    statement: str
+    kind: str
+    scope_key: str
+    status: str
+    sample_count: int
+    evidence_summary: dict[str, float] = Field(default_factory=dict)
+    last_evaluated_at: datetime
+    review_after: datetime
+    origin_session_id: str | None = None

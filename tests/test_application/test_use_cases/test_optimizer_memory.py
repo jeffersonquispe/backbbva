@@ -169,3 +169,7 @@ def test_scope_is_per_area() -> None:
 
     assert memory.recall("library") == []
     assert scope_key_for("model") == "area:model"
+
+
+def test_model_area_and_its_specialist_share_one_scope() -> None:
+    assert scope_key_for("xgboost") == scope_key_for("model") == "area:model"

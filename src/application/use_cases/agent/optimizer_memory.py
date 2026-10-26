@@ -30,8 +30,12 @@ FINDING_RETENTION_DAYS = 730
 _METRICS = ("precision", "recall")
 
 
+# Sessions scope the model area as "model"; its specialist is called "xgboost".
+_AREA_BY_SPECIALIST = {"xgboost": "model"}
+
+
 def scope_key_for(area: str) -> str:
-    return f"area:{area}"
+    return f"area:{_AREA_BY_SPECIALIST.get(area, area)}"
 
 
 class OptimizerMemory:

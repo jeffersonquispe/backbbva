@@ -5,6 +5,9 @@ from src.application.use_cases.agent.chat_with_agent import ChatWithAgentUseCase
 from src.application.use_cases.agent.create_agent_session import (
     CreateAgentSessionUseCase,
 )
+from src.application.use_cases.agent.get_agent_session_overview import (
+    GetAgentSessionOverviewUseCase,
+)
 from src.application.use_cases.agent.manage_agent_entity_claims import (
     AgentEntityClaimUseCase,
 )
@@ -15,6 +18,9 @@ from src.application.use_cases.agent.manage_agent_session import (
     ManageAgentSessionUseCase,
 )
 from src.application.use_cases.agent.renew_agent_budget import RenewAgentBudgetUseCase
+from src.application.use_cases.agent.resolve_agent_block import (
+    ResolveAgentBlockUseCase,
+)
 from src.application.use_cases.agent.retrieve_project_context import (
     RetrieveProjectContextUseCase,
 )
@@ -23,14 +29,19 @@ from src.infrastructure.agents.factories import (
     get_agent_budget_ledger_repository,
     get_agent_chat_responder,
     get_agent_entity_claim_repository,
+    get_agent_event_repository,
     get_agent_experiment_component_resolver,
+    get_agent_experiment_repository,
+    get_agent_hypothesis_repository,
     get_agent_insight_repository,
+    get_agent_iteration_repository,
     get_agent_link_repository,
     get_agent_message_repository,
     get_agent_objective_repository,
     get_agent_prompt_repository,
     get_agent_session_repository,
     get_agent_session_summary_repository,
+    get_agent_timeline,
     get_personal_data_masker,
     get_project_graph_repository,
     get_project_graph_semantic_search,
@@ -112,6 +123,33 @@ def get_renew_agent_budget_use_case() -> RenewAgentBudgetUseCase:
         sessions=get_agent_session_repository(),
         ledger=get_agent_budget_ledger_repository(),
         settings=get_assistant_optimizer_settings_repository(),
+        clock=get_clock(),
+        ids=get_id_generator(),
+    )
+
+
+def get_agent_session_overview_use_case() -> GetAgentSessionOverviewUseCase:
+    return GetAgentSessionOverviewUseCase(
+        sessions=get_agent_session_repository(),
+        iterations=get_agent_iteration_repository(),
+        hypotheses=get_agent_hypothesis_repository(),
+        experiments=get_agent_experiment_repository(),
+        events=get_agent_event_repository(),
+        clock=get_clock(),
+    )
+
+
+def get_resolve_agent_block_use_case() -> ResolveAgentBlockUseCase:
+    return ResolveAgentBlockUseCase(
+        sessions=get_agent_session_repository(),
+        iterations=get_agent_iteration_repository(),
+        ledger=get_agent_budget_ledger_repository(),
+        settings=get_assistant_optimizer_settings_repository(),
+        hypotheses=get_agent_hypothesis_repository(),
+        insights=get_agent_insight_repository(),
+        links=get_agent_link_repository(),
+        masker=get_personal_data_masker(),
+        timeline=get_agent_timeline(),
         clock=get_clock(),
         ids=get_id_generator(),
     )

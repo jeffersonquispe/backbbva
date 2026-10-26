@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -17,6 +17,9 @@ from src.application.use_cases.agent.create_agent_session import (
     AgentSessionPolicyError,
     CreateAgentSessionInput,
 )
+from src.application.use_cases.agent.get_agent_session_overview import (
+    AgentOverviewNotFoundError,
+)
 from src.application.use_cases.agent.manage_agent_insight import (
     AgentInsightNotFoundError,
     AgentInsightStateError,
@@ -25,13 +28,22 @@ from src.application.use_cases.agent.manage_agent_session import (
     AgentSessionNotFoundError,
     AgentSessionStateError,
 )
+from src.application.use_cases.agent.optimizer_memory import scope_key_for
 from src.application.use_cases.agent.renew_agent_budget import (
     AgentBudgetRenewalError,
 )
+from src.application.use_cases.agent.resolve_agent_block import (
+    AgentBlockNotFoundError,
+    AgentBlockPolicyError,
+    ResolveAgentBlockInput,
+)
+from src.domain.agents.finding import OptimizerInsightStatus
 from src.infrastructure.agents.factories import (
     get_agent_audit_repository,
     get_agent_budget_ledger_repository,
+    get_agent_event_repository,
     get_agent_experiment_repository,
+    get_agent_finding_repository,
     get_agent_hypothesis_repository,
     get_agent_iteration_repository,
     get_agent_link_repository,
@@ -40,32 +52,40 @@ from src.infrastructure.agents.factories import (
     get_agent_run_repository,
     get_agent_session_repository,
     get_agent_session_summary_repository,
+    get_optimizer_insight_repository,
 )
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.agent_factory import (
     get_agent_entity_claim_use_case,
+    get_agent_session_overview_use_case,
     get_assistant_optimizer_settings_port,
     get_chat_with_agent_use_case,
     get_create_agent_session_use_case,
     get_manage_agent_insight_use_case,
     get_manage_agent_session_use_case,
     get_renew_agent_budget_use_case,
+    get_resolve_agent_block_use_case,
 )
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas.agent import (
     AgentAuditPageResponse,
     AgentChatTurnResponse,
     AgentEntityClaimResponse,
+    AgentEventsPageResponse,
     AgentExperimentResponse,
+    AgentFindingResponse,
     AgentHypothesisResponse,
     AgentInsightResponse,
     AgentLinkResponse,
     AgentMessageResponse,
     AgentPackageSummaryResponse,
+    AgentSessionOverviewResponse,
     AgentSessionResponse,
     AgentSessionSummaryResponse,
     CreateAgentSessionRequest,
+    OptimizerInsightResponse,
     RenewAgentBudgetRequest,
+    ResolveAgentBlockRequest,
     SendAgentMessageRequest,
 )
 from src.infrastructure.queues.celery.agent_dispatcher import (
@@ -137,6 +157,95 @@ def renew_budget(
         raise HTTPException(
             status_code=409, detail={"code": "BUDGET_RENEWAL_POLICY"}
         ) from error
+
+
+@router.get(
+    "/sessions/{session_id}/overview", response_model=AgentSessionOverviewResponse
+)
+def get_session_overview(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    try:
+        return get_agent_session_overview_use_case().execute(session_id, str(user.id))
+    except AgentOverviewNotFoundError as error:
+        raise HTTPException(
+            status_code=404, detail={"code": "SESSION_NOT_FOUND"}
+        ) from error
+
+
+@router.get("/sessions/{session_id}/events", response_model=AgentEventsPageResponse)
+def list_session_events(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+    after_seq: int = 0,
+    limit: int = 100,
+):
+    _owned_session(session_id, str(user.id))
+    if after_seq < 0 or limit < 1 or limit > 200:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_PAGE"})
+    items = get_agent_event_repository().list_for_session(
+        session_id, after_seq=after_seq, limit=limit
+    )
+    return {"items": items, "last_seq": items[-1].seq if items else after_seq}
+
+
+@router.get(
+    "/sessions/{session_id}/findings", response_model=list[AgentFindingResponse]
+)
+def list_session_findings(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    _owned_session(session_id, str(user.id))
+    return get_agent_finding_repository().list_for_session(session_id)
+
+
+@router.get("/memory", response_model=list[OptimizerInsightResponse])
+def list_optimizer_memory(
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+    area: Literal["configuration", "library", "vector_store", "model"] = "model",
+):
+    """Supported, data-backed learnings from earlier optimizer sessions."""
+    return get_optimizer_insight_repository().list_by_scope(
+        scope_key_for(area), OptimizerInsightStatus.SUPPORTED, 20
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/block/resolve", response_model=AgentSessionResponse
+)
+def resolve_session_block(
+    session_id: str,
+    request: ResolveAgentBlockRequest,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    if user.role != LocalRole.CHANNEL_MANAGER:
+        raise HTTPException(status_code=403, detail={"code": "ROLE_NOT_ALLOWED"})
+    try:
+        session = get_resolve_agent_block_use_case().execute(
+            ResolveAgentBlockInput(
+                session_id=session_id,
+                actor_id=str(user.id),
+                kind=request.kind,
+                additions=request.additions,
+                allowance=request.allowance,
+                note=request.note,
+            )
+        )
+    except AgentBlockNotFoundError as error:
+        raise HTTPException(
+            status_code=404, detail={"code": "SESSION_NOT_FOUND"}
+        ) from error
+    except AgentBlockPolicyError as error:
+        raise HTTPException(status_code=409, detail={"code": error.code}) from error
+    enqueue_agent_session_tick(session.session_id)
+    return session
 
 
 @router.get("/sessions", response_model=list[AgentSessionResponse])
