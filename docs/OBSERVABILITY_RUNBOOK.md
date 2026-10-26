@@ -268,3 +268,21 @@ Medido en proceso (use case real + validación + JSON, sin HTTP/auth) con
 - Para cumplir también en frío: consultas por periodo en paralelo, plegar
   `dimension_buckets` en una sola pasada, `ProjectionExpression`, y leer los
   meses completos de más de 4 días desde la fila de mes en vez de 30 filas de día.
+
+## Optimizador del agente (2026-10-26)
+
+Métricas OTLP de baja cardinalidad (nunca ids de sesión, hipótesis o experimento):
+
+| Instrumento | Atributos | Qué responde |
+|---|---|---|
+| `aria.optimizer.iteration.duration` (histograma, s) | `aria.optimizer.specialist`, `aria.optimizer.outcome` | ¿Cuánto tarda cada especialista y cuánto falla? |
+| `aria.optimizer.blocks` (contador) | `aria.optimizer.reason` (código del catálogo) | ¿Por qué se detienen las sesiones esperando al Channel Manager? |
+| `aria.optimizer.recoveries` (contador) | `aria.optimizer.reason` | ¿Con qué frecuencia muere un worker a mitad de una iteración? |
+
+Trazabilidad por sesión (no por métrica): la línea de tiempo `agent_events`
+(`GET /api/v0/agent/sessions/{id}/events`) correlaciona sesión, iteración,
+hipótesis, experimento, verificación y promoción por referencias opacas; los
+cambios en producción comparten `audit_correlation_id` con el audit log. Los
+spans `agent.session/iteration/specialist/tool` siguen siendo el contrato de
+trazas. Alertas sugeridas: `aria_optimizer_recoveries_total` > 0 sostenido (workers
+inestables) y `aria_optimizer_blocks_total{reason="COST_ANOMALY"}`.

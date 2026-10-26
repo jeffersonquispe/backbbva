@@ -72,6 +72,11 @@
   },
   {
    "relation": "requests",
+   "source": "api:agent.getAgentSessionOverview",
+   "target": "endpoint:GET /api/v0/agent/sessions/{session_id}/overview"
+  },
+  {
+   "relation": "requests",
    "source": "api:agent.getAgentSessionSummary",
    "target": "endpoint:GET /api/v0/agent/sessions/{session_id}/summary"
   },
@@ -87,8 +92,23 @@
   },
   {
    "relation": "requests",
+   "source": "api:agent.listAgentEvents",
+   "target": "endpoint:GET /api/v0/agent/sessions/{session_id}/events"
+  },
+  {
+   "relation": "requests",
    "source": "api:agent.listAgentExperiments",
    "target": "endpoint:GET /api/v0/agent/sessions/{session_id}/experiments"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.listAgentFailureCatalog",
+   "target": "endpoint:GET /api/v0/agent/failure-catalog"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.listAgentFindings",
+   "target": "endpoint:GET /api/v0/agent/sessions/{session_id}/findings"
   },
   {
    "relation": "requests",
@@ -127,8 +147,18 @@
   },
   {
    "relation": "requests",
+   "source": "api:agent.listOptimizerMemory",
+   "target": "endpoint:GET /api/v0/agent/memory"
+  },
+  {
+   "relation": "requests",
    "source": "api:agent.requestAgentRelease",
    "target": "endpoint:POST /api/v0/agent/releases"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.resolveAgentBlock",
+   "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/block/resolve"
   },
   {
    "relation": "requests",
@@ -1012,101 +1042,6 @@
   },
   {
    "relation": "offers",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "action:cancelar-optimizador@component-agent-agentoptimizerpanel"
-  },
-  {
-   "relation": "offers",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "action:cargar-eventos-anteriores@component-agent-agentoptimizerpanel"
-  },
-  {
-   "relation": "offers",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "action:enviar@component-agent-agentoptimizerpanel"
-  },
-  {
-   "relation": "offers",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "action:optimizador@component-agent-agentoptimizerpanel"
-  },
-  {
-   "relation": "offers",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "action:pausar-optimizador@component-agent-agentoptimizerpanel"
-  },
-  {
-   "relation": "offers",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "action:reanudar-optimizador@component-agent-agentoptimizerpanel"
-  },
-  {
-   "relation": "offers",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "action:volver@component-agent-agentoptimizerpanel"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.controlOptimizerSession"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.createOptimizerSession"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.getActiveAgentObjective"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.listAgentAudit"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.listAgentExperiments"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.listAgentHypotheses"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.listAgentIterations"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.listAgentMessages"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.listAgentPackages"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.sendAgentMessage"
-  },
-  {
-   "relation": "calls",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "api:agent.startOptimizerSession"
-  },
-  {
-   "relation": "renders",
-   "source": "component:agent/AgentOptimizerPanel",
-   "target": "component:agent/AgentReleasePanel"
-  },
-  {
-   "relation": "offers",
    "source": "component:agent/AgentPanel",
    "target": "action:abrir-asistente-aria@component-agent-agentpanel"
   },
@@ -1119,11 +1054,6 @@
    "relation": "offers",
    "source": "component:agent/AgentPanel",
    "target": "action:asistente-aria@component-agent-agentpanel"
-  },
-  {
-   "relation": "offers",
-   "source": "component:agent/AgentPanel",
-   "target": "action:asistente@component-agent-agentpanel"
   },
   {
    "relation": "offers",
@@ -1158,11 +1088,6 @@
   {
    "relation": "offers",
    "source": "component:agent/AgentPanel",
-   "target": "action:optimizador@component-agent-agentpanel"
-  },
-  {
-   "relation": "offers",
-   "source": "component:agent/AgentPanel",
    "target": "action:rechazar-insight@component-agent-agentpanel"
   },
   {
@@ -1184,11 +1109,6 @@
    "relation": "offers",
    "source": "component:agent/AgentPanel",
    "target": "action:volver-a-revisar@component-agent-agentpanel"
-  },
-  {
-   "relation": "offers",
-   "source": "component:agent/AgentPanel",
-   "target": "action:volver-al-asistente@component-agent-agentpanel"
   },
   {
    "relation": "calls",
@@ -1298,12 +1218,12 @@
   {
    "relation": "renders",
    "source": "component:agent/AgentPanel",
-   "target": "component:agent/AgentOptimizerPanel"
+   "target": "component:ui/side-drawer"
   },
   {
-   "relation": "renders",
+   "relation": "navigates_to",
    "source": "component:agent/AgentPanel",
-   "target": "component:ui/side-drawer"
+   "target": "view:/configuracion"
   },
   {
    "relation": "offers",
@@ -3111,6 +3031,211 @@
    "target": "component:ui/side-drawer"
   },
   {
+   "relation": "offers",
+   "source": "component:optimizer/BlockApprovalDrawer",
+   "target": "action:cancelar@component-optimizer-blockapprovaldrawer"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/BlockApprovalDrawer",
+   "target": "api:agent.resolveAgentBlock"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/BlockApprovalDrawer",
+   "target": "component:ui/side-drawer"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/LearningsPanel",
+   "target": "api:agent.listOptimizerMemory"
+  },
+  {
+   "relation": "offers",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "action:lanzar-optimizador@component-optimizer-optimizercenter"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "api:agent.controlOptimizerSession"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "api:agent.getAgentSessionOverview"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "api:agent.listAgentEvents"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "api:agent.listAgentExperiments"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "api:agent.listAgentFailureCatalog"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "api:agent.listAgentFindings"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "api:agent.listAgentHypotheses"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "api:agent.listAgentInsights"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "api:agent.listAgentIterations"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "api:agent.listAgentSessions"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:agent/AgentReleasePanel"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:optimizer/BlockApprovalDrawer"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:optimizer/ExperimentsPanel"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:optimizer/HypothesisBoard"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:optimizer/LearningsPanel"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:optimizer/OptimizerCycleDiagram"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:optimizer/OptimizerLaunchDrawer"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:optimizer/SessionConversation"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:optimizer/SessionTimeline"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:optimizer/SessionVerdictCard"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:ui/section-tabs"
+  },
+  {
+   "relation": "offers",
+   "source": "component:optimizer/OptimizerLaunchDrawer",
+   "target": "action:volver@component-optimizer-optimizerlaunchdrawer"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerLaunchDrawer",
+   "target": "api:agent.createOptimizerSession"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerLaunchDrawer",
+   "target": "api:agent.getActiveAgentObjective"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerLaunchDrawer",
+   "target": "api:agent.sendAgentMessage"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerLaunchDrawer",
+   "target": "api:agent.startOptimizerSession"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerLaunchDrawer",
+   "target": "component:ui/side-drawer"
+  },
+  {
+   "relation": "offers",
+   "source": "component:optimizer/SessionConversation",
+   "target": "action:enviar@component-optimizer-sessionconversation"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/SessionConversation",
+   "target": "api:agent.listAgentMessages"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/SessionConversation",
+   "target": "api:agent.sendAgentMessage"
+  },
+  {
+   "relation": "offers",
+   "source": "component:optimizer/SessionVerdictCard",
+   "target": "action:cancelar-optimizador@component-optimizer-sessionverdictcard"
+  },
+  {
+   "relation": "offers",
+   "source": "component:optimizer/SessionVerdictCard",
+   "target": "action:cancelar@component-optimizer-sessionverdictcard"
+  },
+  {
+   "relation": "offers",
+   "source": "component:optimizer/SessionVerdictCard",
+   "target": "action:pausar-optimizador@component-optimizer-sessionverdictcard"
+  },
+  {
+   "relation": "offers",
+   "source": "component:optimizer/SessionVerdictCard",
+   "target": "action:pausar@component-optimizer-sessionverdictcard"
+  },
+  {
+   "relation": "offers",
+   "source": "component:optimizer/SessionVerdictCard",
+   "target": "action:reanudar-optimizador@component-optimizer-sessionverdictcard"
+  },
+  {
+   "relation": "offers",
+   "source": "component:optimizer/SessionVerdictCard",
+   "target": "action:reanudar@component-optimizer-sessionverdictcard"
+  },
+  {
    "relation": "calls",
    "source": "component:testing/AlertFullData",
    "target": "api:alertSchema.getActiveAlertSchema"
@@ -3602,6 +3727,16 @@
   },
   {
    "relation": "manifested_in",
+   "source": "concept:aprendizaje-optimizador",
+   "target": "component:optimizer/OptimizerCenter"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:aprendizaje-optimizador",
+   "target": "view:/configuracion"
+  },
+  {
+   "relation": "manifested_in",
    "source": "concept:canal",
    "target": "view:/configuracion"
   },
@@ -4026,6 +4161,26 @@
    "target": "resource:agent-draft-actions"
   },
   {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/agent/failure-catalog",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/failure-catalog",
+   "target": "resource:agent"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/agent/memory",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/memory",
+   "target": "resource:agent"
+  },
+  {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/objectives",
    "target": "resource:agent-objectives"
@@ -4112,6 +4267,16 @@
   },
   {
    "relation": "requires",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/events",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/events",
+   "target": "resource:agent"
+  },
+  {
+   "relation": "requires",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/experiments",
    "target": "permission:configuration"
   },
@@ -4128,6 +4293,16 @@
   {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/experiments/{experiment_id}",
+   "target": "resource:agent"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/findings",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/findings",
    "target": "resource:agent"
   },
   {
@@ -4194,6 +4369,16 @@
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/modus-operandi-drafts/{package_id}",
    "target": "resource:agent-drafts"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/overview",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/overview",
+   "target": "resource:agent"
   },
   {
    "relation": "requires",
@@ -5179,6 +5364,21 @@
    "relation": "handled_by",
    "source": "endpoint:POST /api/v0/agent/sessions",
    "target": "use_case:CreateAgentSessionUseCase"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/block/resolve",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/block/resolve",
+   "target": "resource:agent"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/block/resolve",
+   "target": "use_case:ResolveAgentBlockUseCase"
   },
   {
    "relation": "requires",
@@ -6187,8 +6387,18 @@
   },
   {
    "relation": "implemented_by",
+   "source": "port:AgentHypothesisRepository",
+   "target": "adapter:DynamoAgentHypothesisRepository"
+  },
+  {
+   "relation": "implemented_by",
    "source": "port:AgentInsightRepository",
    "target": "adapter:DynamoAgentInsightRepository"
+  },
+  {
+   "relation": "implemented_by",
+   "source": "port:AgentIterationRepository",
+   "target": "adapter:DynamoAgentIterationRepository"
   },
   {
    "relation": "implemented_by",
@@ -6950,6 +7160,23 @@
    "target": "view:/configuracion"
   },
   {
+   "position": 1,
+   "relation": "involves",
+   "source": "task:aprobar-optimizador-bloqueado",
+   "target": "component:optimizer/BlockApprovalDrawer"
+  },
+  {
+   "position": 0,
+   "relation": "involves",
+   "source": "task:aprobar-optimizador-bloqueado",
+   "target": "component:optimizer/SessionVerdictCard"
+  },
+  {
+   "relation": "starts_at",
+   "source": "task:aprobar-optimizador-bloqueado",
+   "target": "view:/configuracion"
+  },
+  {
    "position": 0,
    "relation": "involves",
    "source": "task:crear-lista",
@@ -7096,6 +7323,23 @@
   {
    "position": 0,
    "relation": "involves",
+   "source": "task:entender-optimizador",
+   "target": "component:optimizer/OptimizerCenter"
+  },
+  {
+   "position": 1,
+   "relation": "involves",
+   "source": "task:entender-optimizador",
+   "target": "component:optimizer/SessionTimeline"
+  },
+  {
+   "relation": "starts_at",
+   "source": "task:entender-optimizador",
+   "target": "view:/configuracion"
+  },
+  {
+   "position": 0,
+   "relation": "involves",
    "source": "task:entrenar-modelo",
    "target": "action:nuevo-modelo@view-modelos"
   },
@@ -7195,7 +7439,7 @@
    "position": 0,
    "relation": "involves",
    "source": "task:lanzar-optimizador",
-   "target": "component:agent/AgentOptimizerPanel"
+   "target": "component:optimizer/OptimizerCenter"
   },
   {
    "relation": "starts_at",
@@ -9166,6 +9410,56 @@
   },
   {
    "relation": "uses_port",
+   "source": "use_case:ResolveAgentBlockUseCase",
+   "target": "port:AgentBudgetLedgerRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ResolveAgentBlockUseCase",
+   "target": "port:AgentHypothesisRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ResolveAgentBlockUseCase",
+   "target": "port:AgentInsightRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ResolveAgentBlockUseCase",
+   "target": "port:AgentIterationRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ResolveAgentBlockUseCase",
+   "target": "port:AgentLinkRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ResolveAgentBlockUseCase",
+   "target": "port:AgentSessionRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ResolveAgentBlockUseCase",
+   "target": "port:AssistantOptimizerSettingsPort"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ResolveAgentBlockUseCase",
+   "target": "port:Clock"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ResolveAgentBlockUseCase",
+   "target": "port:IdGenerator"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ResolveAgentBlockUseCase",
+   "target": "port:PersonalDataMasker"
+  },
+  {
+   "relation": "uses_port",
    "source": "use_case:ResolveEscalatedAlertUseCase",
    "target": "port:AlertActionDispatcher"
   },
@@ -10307,6 +10601,11 @@
   {
    "relation": "renders",
    "source": "view:/configuracion",
+   "target": "component:optimizer/OptimizerCenter"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/configuracion",
    "target": "component:ui/alert-dialog"
   },
   {
@@ -11338,18 +11637,6 @@
   },
   {
    "attrs": {
-    "owner": "component:agent/AgentPanel"
-   },
-   "description": "Acción «Asistente» en AgentPanel.",
-   "id": "action:asistente@component-agent-agentpanel",
-   "keywords": [
-    "Asistente"
-   ],
-   "kind": "action",
-   "name": "Asistente"
-  },
-  {
-   "attrs": {
     "owner": "view:/historico-fraude"
    },
    "description": "Acción «Auditoría» en /historico-fraude.",
@@ -11494,10 +11781,10 @@
   },
   {
    "attrs": {
-    "owner": "component:agent/AgentOptimizerPanel"
+    "owner": "component:optimizer/SessionVerdictCard"
    },
-   "description": "Acción «Cancelar optimizador» en AgentOptimizerPanel.",
-   "id": "action:cancelar-optimizador@component-agent-agentoptimizerpanel",
+   "description": "Acción «Cancelar optimizador» en SessionVerdictCard.",
+   "id": "action:cancelar-optimizador@component-optimizer-sessionverdictcard",
    "keywords": [
     "Cancelar optimizador"
    ],
@@ -11614,6 +11901,30 @@
   },
   {
    "attrs": {
+    "owner": "component:optimizer/BlockApprovalDrawer"
+   },
+   "description": "Acción «Cancelar» en BlockApprovalDrawer.",
+   "id": "action:cancelar@component-optimizer-blockapprovaldrawer",
+   "keywords": [
+    "Cancelar"
+   ],
+   "kind": "action",
+   "name": "Cancelar"
+  },
+  {
+   "attrs": {
+    "owner": "component:optimizer/SessionVerdictCard"
+   },
+   "description": "Acción «Cancelar» en SessionVerdictCard.",
+   "id": "action:cancelar@component-optimizer-sessionverdictcard",
+   "keywords": [
+    "Cancelar"
+   ],
+   "kind": "action",
+   "name": "Cancelar"
+  },
+  {
+   "attrs": {
     "owner": "view:/alerta/$id"
    },
    "description": "Acción «Cancelar» en /alerta/$id.",
@@ -11659,18 +11970,6 @@
    ],
    "kind": "action",
    "name": "Cargar ejemplo"
-  },
-  {
-   "attrs": {
-    "owner": "component:agent/AgentOptimizerPanel"
-   },
-   "description": "Acción «Cargar eventos anteriores» en AgentOptimizerPanel.",
-   "id": "action:cargar-eventos-anteriores@component-agent-agentoptimizerpanel",
-   "keywords": [
-    "Cargar eventos anteriores"
-   ],
-   "kind": "action",
-   "name": "Cargar eventos anteriores"
   },
   {
    "attrs": {
@@ -12310,10 +12609,10 @@
   },
   {
    "attrs": {
-    "owner": "component:agent/AgentOptimizerPanel"
+    "owner": "component:agent/AgentPanel"
    },
-   "description": "Acción «Enviar» en AgentOptimizerPanel.",
-   "id": "action:enviar@component-agent-agentoptimizerpanel",
+   "description": "Acción «Enviar» en AgentPanel.",
+   "id": "action:enviar@component-agent-agentpanel",
    "keywords": [
     "Enviar"
    ],
@@ -12322,10 +12621,10 @@
   },
   {
    "attrs": {
-    "owner": "component:agent/AgentPanel"
+    "owner": "component:optimizer/SessionConversation"
    },
-   "description": "Acción «Enviar» en AgentPanel.",
-   "id": "action:enviar@component-agent-agentpanel",
+   "description": "Acción «Enviar» en SessionConversation.",
+   "id": "action:enviar@component-optimizer-sessionconversation",
    "keywords": [
     "Enviar"
    ],
@@ -12658,6 +12957,18 @@
   },
   {
    "attrs": {
+    "owner": "component:optimizer/OptimizerCenter"
+   },
+   "description": "Acción «Lanzar optimizador» en OptimizerCenter.",
+   "id": "action:lanzar-optimizador@component-optimizer-optimizercenter",
+   "keywords": [
+    "Lanzar optimizador"
+   ],
+   "kind": "action",
+   "name": "Lanzar optimizador"
+  },
+  {
+   "attrs": {
     "owner": "view:/alerta/$id"
    },
    "description": "Acción «Liberar» en /alerta/$id.",
@@ -12874,30 +13185,6 @@
   },
   {
    "attrs": {
-    "owner": "component:agent/AgentOptimizerPanel"
-   },
-   "description": "Acción «Optimizador ·» en AgentOptimizerPanel.",
-   "id": "action:optimizador@component-agent-agentoptimizerpanel",
-   "keywords": [
-    "Optimizador ·"
-   ],
-   "kind": "action",
-   "name": "Optimizador ·"
-  },
-  {
-   "attrs": {
-    "owner": "component:agent/AgentPanel"
-   },
-   "description": "Acción «Optimizador» en AgentPanel.",
-   "id": "action:optimizador@component-agent-agentpanel",
-   "keywords": [
-    "Optimizador"
-   ],
-   "kind": "action",
-   "name": "Optimizador"
-  },
-  {
-   "attrs": {
     "owner": "component:ui/PaginationFooter"
    },
    "description": "Acción «Página anterior» en PaginationFooter.",
@@ -12934,15 +13221,27 @@
   },
   {
    "attrs": {
-    "owner": "component:agent/AgentOptimizerPanel"
+    "owner": "component:optimizer/SessionVerdictCard"
    },
-   "description": "Acción «Pausar optimizador» en AgentOptimizerPanel.",
-   "id": "action:pausar-optimizador@component-agent-agentoptimizerpanel",
+   "description": "Acción «Pausar optimizador» en SessionVerdictCard.",
+   "id": "action:pausar-optimizador@component-optimizer-sessionverdictcard",
    "keywords": [
     "Pausar optimizador"
    ],
    "kind": "action",
    "name": "Pausar optimizador"
+  },
+  {
+   "attrs": {
+    "owner": "component:optimizer/SessionVerdictCard"
+   },
+   "description": "Acción «Pausar» en SessionVerdictCard.",
+   "id": "action:pausar@component-optimizer-sessionverdictcard",
+   "keywords": [
+    "Pausar"
+   ],
+   "kind": "action",
+   "name": "Pausar"
   },
   {
    "attrs": {
@@ -13102,15 +13401,27 @@
   },
   {
    "attrs": {
-    "owner": "component:agent/AgentOptimizerPanel"
+    "owner": "component:optimizer/SessionVerdictCard"
    },
-   "description": "Acción «Reanudar optimizador» en AgentOptimizerPanel.",
-   "id": "action:reanudar-optimizador@component-agent-agentoptimizerpanel",
+   "description": "Acción «Reanudar optimizador» en SessionVerdictCard.",
+   "id": "action:reanudar-optimizador@component-optimizer-sessionverdictcard",
    "keywords": [
     "Reanudar optimizador"
    ],
    "kind": "action",
    "name": "Reanudar optimizador"
+  },
+  {
+   "attrs": {
+    "owner": "component:optimizer/SessionVerdictCard"
+   },
+   "description": "Acción «Reanudar» en SessionVerdictCard.",
+   "id": "action:reanudar@component-optimizer-sessionverdictcard",
+   "keywords": [
+    "Reanudar"
+   ],
+   "kind": "action",
+   "name": "Reanudar"
   },
   {
    "attrs": {
@@ -13810,18 +14121,6 @@
   },
   {
    "attrs": {
-    "owner": "component:agent/AgentPanel"
-   },
-   "description": "Acción «Volver al asistente» en AgentPanel.",
-   "id": "action:volver-al-asistente@component-agent-agentpanel",
-   "keywords": [
-    "Volver al asistente"
-   ],
-   "kind": "action",
-   "name": "Volver al asistente"
-  },
-  {
-   "attrs": {
     "owner": "component:modelos/ModelDesignStudio"
    },
    "description": "Acción «Volver al diseño» en ModelDesignStudio.",
@@ -13834,10 +14133,10 @@
   },
   {
    "attrs": {
-    "owner": "component:agent/AgentOptimizerPanel"
+    "owner": "component:DashboardLayout"
    },
-   "description": "Acción «Volver» en AgentOptimizerPanel.",
-   "id": "action:volver@component-agent-agentoptimizerpanel",
+   "description": "Acción «Volver» en DashboardLayout.",
+   "id": "action:volver@component-dashboardlayout",
    "keywords": [
     "Volver"
    ],
@@ -13846,10 +14145,10 @@
   },
   {
    "attrs": {
-    "owner": "component:DashboardLayout"
+    "owner": "component:optimizer/OptimizerLaunchDrawer"
    },
-   "description": "Acción «Volver» en DashboardLayout.",
-   "id": "action:volver@component-dashboardlayout",
+   "description": "Acción «Volver» en OptimizerLaunchDrawer.",
+   "id": "action:volver@component-optimizer-optimizerlaunchdrawer",
    "keywords": [
     "Volver"
    ],
@@ -14074,6 +14373,18 @@
   },
   {
    "attrs": {
+    "file": "src/infrastructure/persistence/database/dynamodb/repositories/agent_repositories.py"
+   },
+   "description": "",
+   "id": "adapter:DynamoAgentHypothesisRepository",
+   "keywords": [
+    "Dynamo Agent Hypothesis Repository"
+   ],
+   "kind": "adapter",
+   "name": "DynamoAgentHypothesisRepository"
+  },
+  {
+   "attrs": {
     "file": "src/infrastructure/persistence/database/dynamodb/repositories/agent_chat_repositories.py"
    },
    "description": "",
@@ -14083,6 +14394,18 @@
    ],
    "kind": "adapter",
    "name": "DynamoAgentInsightRepository"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/persistence/database/dynamodb/repositories/agent_repositories.py"
+   },
+   "description": "",
+   "id": "adapter:DynamoAgentIterationRepository",
+   "keywords": [
+    "Dynamo Agent Iteration Repository"
+   ],
+   "kind": "adapter",
+   "name": "DynamoAgentIterationRepository"
   },
   {
    "attrs": {
@@ -15100,6 +15423,20 @@
    "attrs": {
     "file": "lib/api/agent.functions.ts",
     "http_method": "GET",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/overview"
+   },
+   "description": "GET /api/v0/agent/sessions/{id}/overview",
+   "id": "api:agent.getAgentSessionOverview",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getAgentSessionOverview"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
     "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/summary"
    },
    "description": "GET /api/v0/agent/sessions/{id}/summary",
@@ -15142,6 +15479,20 @@
    "attrs": {
     "file": "lib/api/agent.functions.ts",
     "http_method": "GET",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/events?${query}"
+   },
+   "description": "GET /api/v0/agent/sessions/{id}/events?",
+   "id": "api:agent.listAgentEvents",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listAgentEvents"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
     "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/experiments?limit=${limit}"
    },
    "description": "GET /api/v0/agent/sessions/{id}/experiments?limit={id}",
@@ -15151,6 +15502,34 @@
    ],
    "kind": "api_call",
    "name": "listAgentExperiments"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/agent/failure-catalog"
+   },
+   "description": "GET /api/v0/agent/failure-catalog",
+   "id": "api:agent.listAgentFailureCatalog",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listAgentFailureCatalog"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/findings"
+   },
+   "description": "GET /api/v0/agent/sessions/{id}/findings",
+   "id": "api:agent.listAgentFindings",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listAgentFindings"
   },
   {
    "attrs": {
@@ -15253,6 +15632,20 @@
   {
    "attrs": {
     "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/agent/memory?area=${area}"
+   },
+   "description": "GET /api/v0/agent/memory?area={id}",
+   "id": "api:agent.listOptimizerMemory",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listOptimizerMemory"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
     "http_method": "POST",
     "url": "/api/v0/agent/releases"
    },
@@ -15263,6 +15656,20 @@
    ],
    "kind": "api_call",
    "name": "requestAgentRelease"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/block/resolve"
+   },
+   "description": "POST /api/v0/agent/sessions/{id}/block/resolve",
+   "id": "api:agent.resolveAgentBlock",
+   "keywords": [
+    "resolver crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "resolveAgentBlock"
   },
   {
    "attrs": {
@@ -17628,60 +18035,9 @@
   },
   {
    "attrs": {
-    "file": "components/agent/AgentOptimizerPanel.tsx"
-   },
-   "description": "Panel del optimizador: lanzar, pausar, reanudar o cancelar sesiones de optimización, ver objetivo activo, hipótesis, experimentos, iteraciones y auditoría. Solo el channel manager puede lanzarlo.",
-   "id": "component:agent/AgentOptimizerPanel",
-   "keywords": [
-    "Lanzar optimizador",
-    "Alcance de la investigación",
-    "Notas iniciales",
-    "Objetivo activo v",
-    "Revisión previa · objetivo v",
-    "Presupuesto asignado por el servidor. Los límites son de solo lectura.",
-    "Volver",
-    "Historial de sesiones del optimizador",
-    "Optimizador ·",
-    "Aún no hay sesiones del optimizador.",
-    "Reanudar optimizador",
-    "Pausar optimizador",
-    "Cancelar optimizador",
-    "Hay otra sesión activa investigando un área de este alcance:",
-    "Gastado",
-    "Restante",
-    "Historial · creada",
-    "Estado del lease",
-    "Lease:",
-    "Motivo actual:",
-    "Experimentos acumulados: 0",
-    "Estado de verificación de experimentos",
-    "Experimento",
-    "Comparación baseline y experimentos",
-    "Baseline y experimentos",
-    "Aún no hay evaluaciones de experimentos.",
-    "Baseline:",
-    "Candidato:",
-    "Evaluación:",
-    "Auditoría de sesión",
-    "Auditoría",
-    "No hay eventos registrados para esta página.",
-    "Cargar eventos anteriores",
-    "Hipótesis y progreso",
-    "Especialista actual:",
-    "Iteración",
-    "Especialista:",
-    "Conversación del optimizador",
-    "Conversación",
-    "Mensaje para el optimizador"
-   ],
-   "kind": "component",
-   "name": "AgentOptimizerPanel"
-  },
-  {
-   "attrs": {
     "file": "components/agent/AgentPanel.tsx"
    },
-   "description": "Panel del asistente ARIA: chat denso con insights propuestos dentro del feed, borradores de modus operandi con confirmación explícita, resumen de sesión y acceso al optimizador. El botón flotante se puede arrastrar.",
+   "description": "Panel del asistente ARIA: chat denso con insights propuestos dentro del feed, borradores con confirmación explícita y resumen de sesión. Avisa cuando una sesión del optimizador necesita atención y enlaza a Configuración → Optimizador. El botón flotante se puede arrastrar.",
    "id": "component:agent/AgentPanel",
    "keywords": [
     "Abrir asistente ARIA",
@@ -17691,9 +18047,7 @@
     "ARIA · Asistente",
     "Contexto de página:",
     "Cerrar asistente",
-    "Pestañas del asistente",
-    "Asistente",
-    "Optimizador",
+    "Abrir Optimizador",
     "Conversación",
     "Selecciona una conversación",
     "Nueva",
@@ -17713,9 +18067,6 @@
     "Mensaje para ARIA",
     "Enviar",
     "caracteres · Contenido de casos no disponible en este panel.",
-    "Panel del optimizador",
-    "ARIA · Optimizador",
-    "Volver al asistente",
     "Revisa el borrador verificado antes de confirmar su aplicación.",
     "Revisar y confirmar",
     "Confirmar cambio en la Biblioteca",
@@ -17723,7 +18074,12 @@
     "Diff",
     "Volver a revisar",
     "Confirmar y aplicar",
-    "Lugares sugeridos"
+    "Lugares sugeridos",
+    "Confirmar insight",
+    "Editar en chat",
+    "Rechazar insight",
+    "Rechazar",
+    "Borrador de"
    ],
    "kind": "component",
    "name": "AgentPanel"
@@ -19223,6 +19579,222 @@
   },
   {
    "attrs": {
+    "file": "components/optimizer/BlockApprovalDrawer.tsx"
+   },
+   "description": "Drawer donde el Channel Manager aprueba lo que el optimizador necesita para continuar: más presupuesto, más iteraciones o contexto nuevo.",
+   "id": "component:optimizer/BlockApprovalDrawer",
+   "keywords": [
+    "Cancelar",
+    "Indica cuánto sumar a cada recurso. Nunca podrá superar el tope global por sesión.",
+    "Tokens a sumar",
+    "Costo a sumar en USD",
+    "Minutos a sumar",
+    "Iteraciones adicionales",
+    "La cuenta de iteraciones sin mejora vuelve a empezar desde ahora.",
+    "Pista, restricción o hipótesis para el agente",
+    "Contexto para el agente",
+    "Ej.: revisa si las alertas de Digital en la noche generan más falsos positivos."
+   ],
+   "kind": "component",
+   "name": "BlockApprovalDrawer"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/ExperimentsPanel.tsx"
+   },
+   "description": "Panel que lista los experimentos de una sesión del optimizador y su estado. Compara baseline vs candidato mostrando qué componentes cambiaron, métricas (p. ej., precisión/recall) y, si aplica, el motivo de falla con información de un catálogo.",
+   "id": "component:optimizer/ExperimentsPanel",
+   "keywords": [
+    "En ejecución",
+    "Cumplió el objetivo",
+    "Rechazado por una restricción",
+    "Falló",
+    "Experimentos",
+    "Experimento de la iteración",
+    "Falla no clasificada.",
+    "Baseline contra candidato",
+    "Métrica",
+    "Baseline",
+    "Candidato",
+    "Diferencia",
+    "Muestra final evaluada:",
+    "casos elegibles."
+   ],
+   "kind": "component",
+   "name": "ExperimentsPanel"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/HypothesisBoard.tsx"
+   },
+   "description": "Tablero que organiza las hipótesis por resultado (en prueba, validadas, refutadas, inconclusas). Permite ver cada hipótesis y desplegar su trazabilidad basada en eventos asociados y el insight de origen cuando existe.",
+   "id": "component:optimizer/HypothesisBoard",
+   "keywords": [
+    "En prueba o en cola",
+    "Validadas",
+    "Refutadas",
+    "Inconclusas",
+    "Ninguna.",
+    "Nace de tu contexto",
+    "Respaldada por sesiones previas",
+    "Trazabilidad",
+    "Contexto → hipótesis creada",
+    "Aún sin eventos."
+   ],
+   "kind": "component",
+   "name": "HypothesisBoard"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/LearningsPanel.tsx"
+   },
+   "description": "Vista para consultar aprendizajes guardados de sesiones anteriores filtrados por área, con resumen de evidencia y fechas relevantes. También muestra una tabla con hallazgos agregados de la sesión actual (casos y métricas por baseline/candidato).",
+   "id": "component:optimizer/LearningsPanel",
+   "keywords": [
+    "Aprendizajes respaldados por datos",
+    "Aprendizajes de sesiones anteriores",
+    "Cargando aprendizajes…",
+    "No se pudieron cargar los aprendizajes.",
+    "Aún no hay aprendizajes para",
+    "casos · recall",
+    "Hallazgos de esta sesión",
+    "Aún no hay hallazgos agregados. Se registran al terminar cada experimento.",
+    "Lado",
+    "Casos",
+    "Precisión",
+    "Recall"
+   ],
+   "kind": "component",
+   "name": "LearningsPanel"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/OptimizerCenter.tsx"
+   },
+   "description": "Centro del optimizador (Configuración → pestaña «Optimizador» del Channel Manager): veredicto de cada sesión (corriendo, bloqueada, falló, inconclusa), ciclo del agente, línea de tiempo, hipótesis, experimentos baseline contra candidato, aprendizajes, conversación y releases.",
+   "id": "component:optimizer/OptimizerCenter",
+   "keywords": [
+    "Resumen",
+    "Línea de tiempo",
+    "Hipótesis",
+    "Experimentos",
+    "Aprendizajes",
+    "Conversación",
+    "Releases",
+    "Optimizador",
+    "Lanzar optimizador",
+    "Cargando sesiones del optimizador…",
+    "No se pudieron cargar las sesiones del optimizador.",
+    "Aún no hay sesiones del optimizador.",
+    "Historial de sesiones del optimizador",
+    "No se pudo leer el estado de la sesión. Los datos de abajo pueden estar desactualizados.",
+    "Leyendo el estado de la sesión…",
+    "Secciones del optimizador",
+    "Hay otra sesión activa investigando un área de este alcance:",
+    "Presupuesto",
+    "Contadores",
+    "con problema",
+    "Iteraciones recientes",
+    "Iteración"
+   ],
+   "kind": "component",
+   "name": "OptimizerCenter"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/OptimizerCycleDiagram.tsx"
+   },
+   "description": "Diagrama del ciclo del optimizador que muestra las etapas del proceso y resalta la etapa correspondiente al último evento recibido. Incluye contadores agregados de hipótesis, experimentos e iteraciones cuando hay un resumen disponible.",
+   "id": "component:optimizer/OptimizerCycleDiagram",
+   "keywords": [
+    "Contexto",
+    "Hipótesis",
+    "Especialista",
+    "Verificación",
+    "Experimento",
+    "Decisión",
+    "Aprendizaje",
+    "Ciclo del optimizador"
+   ],
+   "kind": "component",
+   "name": "OptimizerCycleDiagram"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/OptimizerLaunchDrawer.tsx"
+   },
+   "description": "Drawer de lanzamiento en dos pasos para iniciar una sesión del optimizador: seleccionar áreas de investigación, agregar notas iniciales y luego revisar objetivo/presupuesto antes de confirmar. Gestiona el flujo de creación y arranque de la sesión mostrando errores y estados de carga.",
+   "id": "component:optimizer/OptimizerLaunchDrawer",
+   "keywords": [
+    "Lanzar optimizador",
+    "Volver",
+    "Alcance de la investigación",
+    "Notas iniciales",
+    "El optimizador propone experimentos y borradores. No activa cambios ni publica modelos.",
+    "Objetivo activo v",
+    "Revisión previa · objetivo v"
+   ],
+   "kind": "component",
+   "name": "OptimizerLaunchDrawer"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/SessionConversation.tsx"
+   },
+   "description": "Sección de conversación asociada a una sesión que lista los mensajes recientes y permite enviar nuevo contexto mediante un formulario. Refresca periódicamente el historial y muestra avisos de error si el envío falla.",
+   "id": "component:optimizer/SessionConversation",
+   "keywords": [
+    "Conversación del optimizador",
+    "Aún no hay mensajes. Puedes añadir contexto en cualquier momento.",
+    "Mensaje para el optimizador",
+    "Añade contexto…",
+    "Enviar"
+   ],
+   "kind": "component",
+   "name": "SessionConversation"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/SessionTimeline.tsx"
+   },
+   "description": "Línea de tiempo de una sesión del optimizador, más reciente primero y agrupada por iteración; distingue fallos, esperas y cambios en producción registrados también en el log de auditoría.",
+   "id": "component:optimizer/SessionTimeline",
+   "keywords": [
+    "Línea de tiempo del optimizador",
+    "Tipo",
+    "Filtrar por tipo de evento",
+    "Todos",
+    "Solo fallos y esperas",
+    "eventos",
+    "Cargando la línea de tiempo…",
+    "Todavía no hay eventos. Aparecerán en cuanto el agente inicie su primera iteración.",
+    "Ningún evento coincide con el filtro.",
+    "Registrado también en el log de auditoría"
+   ],
+   "kind": "component",
+   "name": "SessionTimeline"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/SessionVerdictCard.tsx"
+   },
+   "description": "Tarjeta de estado de una sesión del optimizador: dice si trabaja, falló o espera una aprobación, por qué y qué hacer; pausar, reanudar, cancelar y aprobar más presupuesto, iteraciones o contexto.",
+   "id": "component:optimizer/SessionVerdictCard",
+   "keywords": [
+    "Estado del optimizador",
+    "Reanudar optimizador",
+    "Reanudar",
+    "Pausar optimizador",
+    "Pausar",
+    "Cancelar optimizador",
+    "Cancelar",
+    "Solo el Channel Manager puede aprobar lo que el agente necesita."
+   ],
+   "kind": "component",
+   "name": "SessionVerdictCard"
+  },
+  {
+   "attrs": {
     "file": "components/testing/AlertFullData.tsx"
    },
    "description": "Vista de datos canónicos de una alerta a partir de una salida de preproceso, formateada según el esquema activo. Su responsabilidad es normalizar el objeto de entrada y renderizarlo con el componente de esquema.",
@@ -20192,6 +20764,17 @@
   },
   {
    "attrs": {},
+   "description": "Hallazgo respaldado por datos que el optimizador guarda para futuras sesiones; solo se publica con al menos 30 casos, se reevalúa en cada sesión y no equivale a una aprobación ni cambia producción.",
+   "id": "concept:aprendizaje-optimizador",
+   "keywords": [
+    "memoria del optimizador",
+    "hallazgo respaldado por datos"
+   ],
+   "kind": "concept",
+   "name": "Aprendizaje del optimizador"
+  },
+  {
+   "attrs": {},
    "description": "Medio asociado a una operación o alerta; se usa para segmentar datos, configurar la operación y filtrar métricas.",
    "id": "concept:canal",
    "keywords": [
@@ -20751,6 +21334,34 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/agent/failure-catalog"
+   },
+   "description": "Spanish explanation, retry hint and required approval for every code.",
+   "id": "endpoint:GET /api/v0/agent/failure-catalog",
+   "keywords": [
+    "list failure catalog",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/failure-catalog"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/agent/memory"
+   },
+   "description": "Supported, data-backed learnings from earlier optimizer sessions.",
+   "id": "endpoint:GET /api/v0/agent/memory",
+   "keywords": [
+    "list optimizer memory",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/memory"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/agent/objectives"
    },
    "description": "",
@@ -20919,6 +21530,20 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/agent/sessions/{session_id}/events"
+   },
+   "description": "",
+   "id": "endpoint:GET /api/v0/agent/sessions/{session_id}/events",
+   "keywords": [
+    "list session events",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/sessions/{session_id}/events"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/agent/sessions/{session_id}/experiments"
    },
    "description": "",
@@ -20943,6 +21568,20 @@
    ],
    "kind": "endpoint",
    "name": "GET /api/v0/agent/sessions/{session_id}/experiments/{experiment_id}"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/agent/sessions/{session_id}/findings"
+   },
+   "description": "",
+   "id": "endpoint:GET /api/v0/agent/sessions/{session_id}/findings",
+   "keywords": [
+    "list session findings",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/sessions/{session_id}/findings"
   },
   {
    "attrs": {
@@ -21041,6 +21680,20 @@
    ],
    "kind": "endpoint",
    "name": "GET /api/v0/agent/sessions/{session_id}/modus-operandi-drafts/{package_id}"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/agent/sessions/{session_id}/overview"
+   },
+   "description": "",
+   "id": "endpoint:GET /api/v0/agent/sessions/{session_id}/overview",
+   "keywords": [
+    "get session overview",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/sessions/{session_id}/overview"
   },
   {
    "attrs": {
@@ -22441,6 +23094,20 @@
    ],
    "kind": "endpoint",
    "name": "POST /api/v0/agent/sessions"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
+    "route": "/api/v0/agent/sessions/{session_id}/block/resolve"
+   },
+   "description": "",
+   "id": "endpoint:POST /api/v0/agent/sessions/{session_id}/block/resolve",
+   "keywords": [
+    "resolve session block",
+    "resolver crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/agent/sessions/{session_id}/block/resolve"
   },
   {
    "attrs": {
@@ -23873,12 +24540,32 @@
   {
    "attrs": {},
    "description": "",
+   "id": "port:AgentHypothesisRepository",
+   "keywords": [
+    "Agent Hypothesis Repository"
+   ],
+   "kind": "port",
+   "name": "AgentHypothesisRepository"
+  },
+  {
+   "attrs": {},
+   "description": "",
    "id": "port:AgentInsightRepository",
    "keywords": [
     "Agent Insight Repository"
    ],
    "kind": "port",
    "name": "AgentInsightRepository"
+  },
+  {
+   "attrs": {},
+   "description": "",
+   "id": "port:AgentIterationRepository",
+   "keywords": [
+    "Agent Iteration Repository"
+   ],
+   "kind": "port",
+   "name": "AgentIterationRepository"
   },
   {
    "attrs": {},
@@ -25123,6 +25810,18 @@
   },
   {
    "attrs": {},
+   "description": "Si el optimizador quedó esperando (presupuesto agotado, límite de iteraciones o falta de contexto), abre Configuración → Optimizador, mira el veredicto de la sesión y pulsa el botón de aprobación: más presupuesto, más iteraciones o dar contexto. El agente continúa solo cuando lo apruebas.",
+   "id": "task:aprobar-optimizador-bloqueado",
+   "keywords": [
+    "optimizador bloqueado",
+    "aprobar presupuesto del optimizador",
+    "por qué se detuvo el optimizador"
+   ],
+   "kind": "task",
+   "name": "Aprobar lo que el optimizador necesita"
+  },
+  {
+   "attrs": {},
    "description": "En Biblioteca, pestaña «Listas negras/blancas», pulsa «Nueva lista», completa nombre, tipo y descripción y guarda.",
    "id": "task:crear-lista",
    "keywords": [
@@ -25203,6 +25902,18 @@
   },
   {
    "attrs": {},
+   "description": "En Configuración → Optimizador, el veredicto de la sesión dice si funciona, falló o espera algo; la línea de tiempo cuenta cada paso; las hipótesis y los experimentos muestran qué probó y con qué resultado.",
+   "id": "task:entender-optimizador",
+   "keywords": [
+    "qué está haciendo el optimizador",
+    "el optimizador falló",
+    "línea de tiempo del optimizador"
+   ],
+   "kind": "task",
+   "name": "Entender qué hace el optimizador"
+  },
+  {
+   "attrs": {},
    "description": "En Modelos pulsa «Nuevo modelo» y sigue el asistente por pasos (nombre, dataset, mapeo de campos) hasta entrenar. El progreso se ve en el catálogo.",
    "id": "task:entrenar-modelo",
    "keywords": [
@@ -25256,7 +25967,7 @@
   },
   {
    "attrs": {},
-   "description": "Abre el asistente ARIA (botón flotante), ve a la pestaña «Optimizador» y pulsa «Lanzar optimizador», eligiendo alcance y notas iniciales. Solo el rol channel manager puede lanzarlo.",
+   "description": "En Configuración (rol channel manager) abre la pestaña «Optimizador» y pulsa «Lanzar optimizador»: elige alcance y notas iniciales, revisa el objetivo y el presupuesto, y confirma. Solo el rol channel manager puede lanzarlo.",
    "id": "task:lanzar-optimizador",
    "keywords": [
     "optimizador",
@@ -26730,6 +27441,17 @@
   },
   {
    "attrs": {},
+   "description": "",
+   "id": "use_case:ResolveAgentBlockUseCase",
+   "keywords": [
+    "Resolve Agent Block",
+    "resolver"
+   ],
+   "kind": "use_case",
+   "name": "ResolveAgentBlockUseCase"
+  },
+  {
+   "attrs": {},
    "description": "The analyst holding an escalated alert closes it: block/bidi are dispatched as channel actions (the notes travel as the ARIC comment), pass needs none. The analyst reservation is released with the resolution recorded on ",
    "id": "use_case:ResolveEscalatedAlertUseCase",
    "keywords": [
@@ -27281,6 +28003,7 @@
     "Esquema",
     "Agente",
     "Evaluación",
+    "Optimizador",
     "Cambios sin guardar en",
     "está guardada y solo lectura. Los cambios se guardan en una versión nueva.",
     "No se puede guardar:",
@@ -27310,7 +28033,6 @@
     "Tiempo ahorrado:",
     "Latencia:",
     "Grafo de versiones",
-    "Cargando versiones…",
     "ajustes",
     "versiones de configuración",
     "desplegar configuración"

@@ -2565,3 +2565,53 @@ borró ningún dato. El frontend nginx volvió a estar disponible después. Se
 redujo el pool de pruebas a una réplica cuando Celery informó que no había jobs
 activos. Investigar por qué el puerto 80 desapareció y asegurar cierre y
 restauración ante caída de frontend antes de repetir.
+
+## Ronda de preparación del optimizador — 2026-10-26 (#25 del MVC)
+
+Decisiones del usuario: tabla nueva `agent_events`; todo cambio del agente sobre
+producción queda en `agent_events` **y** en el log de auditoría global
+(`AuditPort`); los fallos no se autogestionan (el Channel Manager aprueba más
+presupuesto, iteraciones o contexto); el Centro del optimizador vive en una
+pestaña junto a las configuraciones del Channel Manager, no en el chat.
+
+**Estructuras nuevas** (todas con TTL o índices, sin filas por caso):
+- `agent_events` — línea de tiempo append-only por sesión (`seq` asignado de
+  forma atómica, tipo, resultado, código de razón del catálogo, referencias
+  opacas permitidas por `ALLOWED_REF_KEYS`). Un solo escritor:
+  `AgentTimeline`. Un evento `production_change` exige además la escritura en
+  el audit log (la auditoría se escribe primero y su fallo aborta el cambio);
+  los dos registros comparten `audit_correlation_id`. Releases (aprobar,
+  avanzar, revertir) y borradores aplicados lo usan.
+- `agent_findings` — agregados por experimento (candidato y baseline, con el
+  tamaño de muestra). `optimizer_insights` — aprendizajes entre sesiones, solo
+  con ≥ 30 casos; cada experimento los reevalúa (`SUPPORTED`/`REFUTED`/`STALE`).
+  Un aprendizaje nunca aprueba un cambio.
+- `AgentSession.block` y `candidate_allowance`/`stagnation_reset_after`: la
+  sesión pasa a `WAITING_USER` (no a `PAUSED`/`STOPPED`) cuando se agota el
+  presupuesto o el límite de propuestas, falta contexto, hay estancamiento, una
+  falla crítica o un costo anómalo (> 3× la mediana). `ResolveAgentBlockUseCase`
+  aplica la aprobación (solo Channel Manager, con tope global de presupuesto).
+
+**Runtime:** `OrchestrateAgentIterationUseCase.execute` se partió en
+`_admit → _start_iteration → _run_specialist → _finish_iteration`, cada fase con
+su evento. El barrido de recuperación (`RecoverStaleAgentRunsUseCase`) ahora
+cierra también iteraciones y experimentos `RUNNING` de un orquestador muerto
+(causa del fallo de H9 del 2026-10-23). Catálogo de fallos en español:
+`src/domain/agents/failure_catalog.py` (expuesto en `/agent/failure-catalog`).
+
+**API nueva:** `GET /agent/sessions/{id}/overview` (veredicto + salud),
+`/events`, `/findings`, `POST /agent/sessions/{id}/block/resolve`,
+`GET /agent/memory`, `GET /agent/failure-catalog`.
+
+**Pruebas sin E2E largos:** unitarias/propiedades del runtime, batería común de
+contrato para cada especialista
+(`tests/test_infrastructure/test_agents/test_specialist_contract.py`) y E2E de
+navegador con sesiones sembradas por `scripts/e2e_optimizer_seed.py`
+(`optimizer-center-real.spec.ts`, ~1 min). Las sesiones sembradas `ACTIVE`
+cuentan para el límite de sesiones concurrentes: el spec las limpia al terminar.
+
+**Pendiente de esta ronda:** el replay real del pipeline en la validación
+retrospectiva de H12 (hoy usa el scorer del MCP desde el API) y la promoción del
+conjunto versionado completo (hoy solo modelo); ambos requieren ejecutar la
+validación en el worker y enrutar configuración/Biblioteca/Vector Store por
+alerta en el flujo de revisión.
