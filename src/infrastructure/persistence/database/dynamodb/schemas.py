@@ -828,18 +828,6 @@ AGENT_ITERATIONS_TABLE = {
         {"AttributeName": "number", "AttributeType": "N"},
     ],
 }
-AGENT_EXPERIMENTS_TABLE = {
-    "TableName": "agent_experiments",
-    "BillingMode": "PAY_PER_REQUEST",
-    "KeySchema": [
-        {"AttributeName": "session_id", "KeyType": "HASH"},
-        {"AttributeName": "experiment_id", "KeyType": "RANGE"},
-    ],
-    "AttributeDefinitions": [
-        {"AttributeName": "session_id", "AttributeType": "S"},
-        {"AttributeName": "experiment_id", "AttributeType": "S"},
-    ],
-}
 AGENT_RETROSPECTIVE_VALIDATIONS_TABLE = {
     "TableName": "agent_retrospective_validations",
     "BillingMode": "PAY_PER_REQUEST",
@@ -1166,18 +1154,6 @@ DATASET_SAMPLER_STATE_TABLE = {
 }
 
 # H9 persisted hypotheses and their safe, aggregate evidence references.
-AGENT_HYPOTHESES_TABLE = {
-    "TableName": "agent_hypotheses",
-    "BillingMode": "PAY_PER_REQUEST",
-    "KeySchema": [
-        {"AttributeName": "session_id", "KeyType": "HASH"},
-        {"AttributeName": "hypothesis_id", "KeyType": "RANGE"},
-    ],
-    "AttributeDefinitions": [
-        {"AttributeName": "session_id", "AttributeType": "S"},
-        {"AttributeName": "hypothesis_id", "AttributeType": "S"},
-    ],
-}
 
 AGENT_ENTITY_CLAIMS_TABLE = {
     "TableName": "agent_entity_claims",
@@ -1212,18 +1188,6 @@ AGENT_EVENTS_TABLE = {
         {"AttributeName": "seq", "AttributeType": "N"},
     ],
 }
-AGENT_FINDINGS_TABLE = {
-    "TableName": "agent_findings",
-    "BillingMode": "PAY_PER_REQUEST",
-    "KeySchema": [
-        {"AttributeName": "session_id", "KeyType": "HASH"},
-        {"AttributeName": "finding_id", "KeyType": "RANGE"},
-    ],
-    "AttributeDefinitions": [
-        {"AttributeName": "session_id", "AttributeType": "S"},
-        {"AttributeName": "finding_id", "AttributeType": "S"},
-    ],
-}
 OPTIMIZER_INSIGHTS_TABLE = {
     "TableName": "optimizer_insights",
     "BillingMode": "PAY_PER_REQUEST",
@@ -1251,5 +1215,20 @@ OPTIMIZER_INSIGHTS_TABLE = {
             ],
             "Projection": {"ProjectionType": "ALL"},
         },
+    ],
+}
+
+# One partition per optimizer run: `RUN`, `CAND#<hypothesis>`, `EXP#<experiment>`
+# and `FIND#<finding>` items. Hypotheses, experiments and findings live here.
+OPTIMIZATION_RUNS_TABLE = {
+    "TableName": "optimization_runs",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "run_id", "KeyType": "HASH"},
+        {"AttributeName": "node", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "run_id", "AttributeType": "S"},
+        {"AttributeName": "node", "AttributeType": "S"},
     ],
 }

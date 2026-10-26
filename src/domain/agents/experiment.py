@@ -82,3 +82,5 @@ class AgentExperiment:
     completed_at: datetime | None = None
     global_evaluation: dict[str, Any] = field(default_factory=dict)
     error_code: str | None = None
+    # Candidate (hypothesis) of the optimization run this experiment tests.
+    candidate_id: str | None = None

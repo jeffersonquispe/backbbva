@@ -35,6 +35,7 @@ from src.application.ports.agent_tool_call_port import AgentToolCallRepository
 from src.application.ports.agent_verification_port import (
     AgentVerificationRepository,
 )
+from src.application.ports.optimization_run_port import OptimizationRunRepository
 from src.application.ports.optimizer_insight_port import OptimizerInsightRepository
 from src.application.ports.personal_data_masker_port import PersonalDataMasker
 from src.application.ports.project_graph_port import ProjectGraphRepository
@@ -87,7 +88,6 @@ from src.infrastructure.persistence.database.dynamodb.repositories.agent_chat_re
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_event_repositories import (
     DynamoAgentEventRepository,
-    DynamoAgentFindingRepository,
     DynamoOptimizerInsightRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_objective_repository import (
@@ -100,8 +100,6 @@ from src.infrastructure.persistence.database.dynamodb.repositories.agent_reposit
     DynamoAgentBudgetLedgerRepository,
     DynamoAgentConfirmationRepository,
     DynamoAgentEntityClaimRepository,
-    DynamoAgentExperimentRepository,
-    DynamoAgentHypothesisRepository,
     DynamoAgentIterationRepository,
     DynamoAgentPackageRepository,
     DynamoAgentPromptRepository,
@@ -120,6 +118,12 @@ from src.infrastructure.persistence.database.dynamodb.repositories.model_reposit
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.modus_operandi_library_repository import (
     DynamoModusOperandiLibraryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.optimization_run_repositories import (
+    DynamoOptimizationRunRepository,
+    DynamoRunExperimentRepository,
+    DynamoRunFindingRepository,
+    DynamoRunHypothesisRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import (
     DynamoVectorStoreInstanceRepository,
@@ -160,7 +164,7 @@ def get_agent_iteration_repository() -> AgentIterationRepository:
 
 @lru_cache
 def get_agent_experiment_repository() -> AgentExperimentRepository:
-    return DynamoAgentExperimentRepository()
+    return DynamoRunExperimentRepository()
 
 
 @lru_cache
@@ -185,7 +189,7 @@ def get_agent_entity_claim_repository() -> AgentEntityClaimRepository:
 
 @lru_cache
 def get_agent_hypothesis_repository() -> AgentHypothesisRepository:
-    return DynamoAgentHypothesisRepository()
+    return DynamoRunHypothesisRepository()
 
 
 @lru_cache
@@ -318,7 +322,7 @@ def get_agent_event_repository() -> AgentEventRepository:
 
 @lru_cache
 def get_agent_finding_repository() -> AgentFindingRepository:
-    return DynamoAgentFindingRepository()
+    return DynamoRunFindingRepository()
 
 
 @lru_cache
@@ -342,3 +346,8 @@ def get_optimizer_memory() -> OptimizerMemory:
         clock=get_clock(),
         ids=get_id_generator(),
     )
+
+
+@lru_cache
+def get_optimization_run_repository() -> OptimizationRunRepository:
+    return DynamoOptimizationRunRepository()

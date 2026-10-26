@@ -8,7 +8,6 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
 from src.application.ports.agent_event_port import AgentEventRepository
-from src.application.ports.agent_finding_port import AgentFindingRepository
 from src.application.ports.optimizer_insight_port import OptimizerInsightRepository
 from src.domain.agents.event import (
     AgentEvent,
@@ -150,37 +149,6 @@ def finding_from_item(item: dict[str, Any]) -> AgentFinding:
         opaque_refs=dict(data.get("opaque_refs", {})),
         expires_at=data.get("expires_at"),
     )
-
-
-class DynamoAgentFindingRepository(AgentFindingRepository):
-    def __init__(self) -> None:
-        self._table = get_dynamodb_resource().Table("agent_findings")
-
-    def create_once(self, finding: AgentFinding) -> AgentFinding:
-        try:
-            self._table.put_item(
-                Item=finding_to_item(finding),
-                ConditionExpression="attribute_not_exists(finding_id)",
-            )
-        except ClientError as error:
-            if error.response["Error"]["Code"] != "ConditionalCheckFailedException":
-                raise
-            existing = self.get(finding.session_id, finding.finding_id)
-            if existing is not None:
-                return existing
-        return finding
-
-    def get(self, session_id: str, finding_id: str) -> AgentFinding | None:
-        item = self._table.get_item(
-            Key={"session_id": session_id, "finding_id": finding_id}
-        ).get("Item")
-        return finding_from_item(item) if item else None
-
-    def list_for_session(self, session_id: str, limit: int = 100) -> list[AgentFinding]:
-        response = self._table.query(
-            KeyConditionExpression=Key("session_id").eq(session_id), Limit=limit
-        )
-        return [finding_from_item(item) for item in response.get("Items", [])]
 
 
 class OptimizerInsightConflictError(Exception):

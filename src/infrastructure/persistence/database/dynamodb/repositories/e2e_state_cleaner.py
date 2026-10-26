@@ -8,7 +8,6 @@ from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
 from src.infrastructure.persistence.database.dynamodb.schemas import (
-    AGENT_EXPERIMENTS_TABLE,
     AGENT_OBJECTIVE_ACTIVE_TABLE,
     AGENT_OBJECTIVES_TABLE,
     AGENT_RELEASE_ACTIVE_TABLE,
@@ -19,6 +18,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     ASSISTANT_OPTIMIZER_SETTINGS_TABLE,
     DATASET_SAMPLER_STATE_TABLE,
     DATASET_SNAPSHOTS_TABLE,
+    OPTIMIZATION_RUNS_TABLE,
     USERS_TABLE,
 )
 
@@ -133,10 +133,11 @@ AGENT_OBJECTIVE_TABLE_NAMES = frozenset(
 )
 
 # H9 optimizer state is cleaned as a distinct milestone-owned group.
-AGENT_H9_TABLE_NAMES = frozenset({"agent_entity_claims", "agent_hypotheses"})
+AGENT_H9_TABLE_NAMES = frozenset({"agent_entity_claims"})
 
-# H11 experiment history is removed with the local optimizer state.
-AGENT_EXPERIMENT_TABLE_NAMES = frozenset({AGENT_EXPERIMENTS_TABLE["TableName"]})
+# Optimizer runs (candidates, experiments, findings) are removed with the
+# local optimizer state.
+AGENT_EXPERIMENT_TABLE_NAMES = frozenset({OPTIMIZATION_RUNS_TABLE["TableName"]})
 AGENT_H12_TABLE_NAMES = frozenset(
     {
         AGENT_RELEASES_TABLE["TableName"],

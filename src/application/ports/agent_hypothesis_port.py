@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class AgentHypothesisStatus(StrEnum):
@@ -27,11 +27,21 @@ class AgentHypothesis:
     evidence_id: str | None = None
     evidence_outcome: str | None = None
     rev: int = 0
+    # Candidates that must be concluded before this one runs (combinations).
+    depends_on: tuple[str, ...] = ()
+    # Insights that belong to this candidate specifically.
+    insight_ids: tuple[str, ...] = ()
+    # Final verdict, evidence, decision and recommendation, written once.
+    conclusion: dict[str, Any] = field(default_factory=dict)
 
 
 class AgentHypothesisRepository(Protocol):
     def create(self, hypothesis: AgentHypothesis) -> AgentHypothesis: ...
 
-    def list_for_session(self, session_id: str, limit: int = 100) -> list[AgentHypothesis]: ...
+    def list_for_session(
+        self, session_id: str, limit: int = 100
+    ) -> list[AgentHypothesis]: ...
 
-    def update(self, hypothesis: AgentHypothesis, expected_rev: int) -> AgentHypothesis: ...
+    def update(
+        self, hypothesis: AgentHypothesis, expected_rev: int
+    ) -> AgentHypothesis: ...

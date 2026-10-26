@@ -53,9 +53,6 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     AGENT_CONFIRMATIONS_TABLE,
     AGENT_ENTITY_CLAIMS_TABLE,
     AGENT_EVENTS_TABLE,
-    AGENT_EXPERIMENTS_TABLE,
-    AGENT_FINDINGS_TABLE,
-    AGENT_HYPOTHESES_TABLE,
     AGENT_INSIGHTS_TABLE,
     AGENT_ITERATIONS_TABLE,
     AGENT_LINKS_TABLE,
@@ -119,6 +116,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     OPERATIONAL_SETTINGS_HISTORY_TABLE,
     OPERATIONAL_SETTINGS_TABLE,
     OPERATIONS_CAPACITY_TABLE,
+    OPTIMIZATION_RUNS_TABLE,
     OPTIMIZER_INSIGHTS_TABLE,
     RESOLUTION_METHOD_CATALOG_TABLE,
     RESOURCE_LOCKS_TABLE,
@@ -468,7 +466,6 @@ def ensure_all_tables() -> None:
     # Agent orchestration tables (kept together for the H3 backbone).
     create_table(AGENT_SESSIONS_TABLE)
     create_table(AGENT_ITERATIONS_TABLE)
-    create_table(AGENT_EXPERIMENTS_TABLE)
     create_table(AGENT_RETROSPECTIVE_VALIDATIONS_TABLE)
     create_table(AGENT_RELEASE_OBSERVATIONS_TABLE)
     create_table(AGENT_RELEASES_TABLE)
@@ -500,14 +497,13 @@ def ensure_all_tables() -> None:
 
     # H9 optimizer hypotheses and entity coordination.
     create_table(AGENT_ENTITY_CLAIMS_TABLE)
-    create_table(AGENT_HYPOTHESES_TABLE)
 
     # Optimizer timeline, aggregated findings and cross-session memory.
     create_table(AGENT_EVENTS_TABLE)
-    create_table(AGENT_FINDINGS_TABLE)
+    # Root, candidates, experiments and findings of every optimizer run.
+    create_table(OPTIMIZATION_RUNS_TABLE)
     create_table(OPTIMIZER_INSIGHTS_TABLE)
-    for optimizer_schema in (AGENT_EVENTS_TABLE, AGENT_FINDINGS_TABLE):
-        enable_ttl(optimizer_schema, "expires_at")
+    enable_ttl(AGENT_EVENTS_TABLE, "expires_at")
 
 
 def seed_defaults() -> None:

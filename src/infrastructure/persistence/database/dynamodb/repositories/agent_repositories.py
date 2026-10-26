@@ -12,7 +12,6 @@ from botocore.exceptions import ClientError
 from src.application.ports.agent_budget_ledger_port import AgentBudgetEntry
 from src.application.ports.agent_confirmation_port import AgentConfirmation
 from src.application.ports.agent_entity_claim_port import AgentEntityClaim
-from src.application.ports.agent_experiment_port import AgentExperimentRepository
 from src.application.ports.agent_hypothesis_port import (
     AgentHypothesis,
     AgentHypothesisStatus,
@@ -37,9 +36,6 @@ from src.domain.agents.experiment import (
 )
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
-)
-from src.infrastructure.persistence.database.dynamodb.schemas import (
-    AGENT_EXPERIMENTS_TABLE,
 )
 from src.infrastructure.persistence.database.dynamodb.serialization import (
     from_dynamodb,
@@ -93,78 +89,6 @@ class DynamoAgentIterationRepository:
         except ClientError as error:
             _raise_if_conflict(error)
         return iteration
-
-
-class DynamoAgentExperimentRepository(AgentExperimentRepository):
-    """Append-only component pins with status-guarded result completion."""
-
-    def __init__(self) -> None:
-        self._table = get_dynamodb_resource().Table(
-            AGENT_EXPERIMENTS_TABLE["TableName"]
-        )
-
-    def create(self, experiment: AgentExperiment) -> AgentExperiment:
-        try:
-            self._table.put_item(
-                Item=_encode(_experiment_item(experiment)),
-                ConditionExpression=(
-                    "attribute_not_exists(session_id) AND "
-                    "attribute_not_exists(experiment_id)"
-                ),
-            )
-        except ClientError as error:
-            _raise_if_conflict(error)
-        return experiment
-
-    def get(self, session_id: str, experiment_id: str) -> AgentExperiment | None:
-        item = self._table.get_item(
-            Key={"session_id": session_id, "experiment_id": experiment_id}
-        ).get("Item")
-        return _experiment(item) if item else None
-
-    def list_for_session(
-        self, session_id: str, limit: int = 50
-    ) -> list[AgentExperiment]:
-        result = self._table.query(
-            KeyConditionExpression=Key("session_id").eq(session_id),
-            ScanIndexForward=False,
-            Limit=limit,
-        )
-        return [_experiment(item) for item in result.get("Items", [])]
-
-    def update(
-        self, experiment: AgentExperiment, *, expected_status: str
-    ) -> AgentExperiment:
-        try:
-            self._table.put_item(
-                Item=_encode(_experiment_item(experiment)),
-                ConditionExpression=(
-                    "#status = :expected AND component_pins_sha256 = :pins_hash AND "
-                    "kind = :kind AND iteration_number = :iteration_number AND "
-                    "objective_id = :objective_id AND "
-                    "objective_version = :objective_version AND created_at = :created_at"
-                    " AND snapshot_id = :snapshot_id AND snapshot_sha256 = :snapshot_sha256"
-                ),
-                ExpressionAttributeNames={"#status": "status"},
-                ExpressionAttributeValues=to_dynamodb(
-                    {
-                        ":expected": expected_status,
-                        ":pins_hash": _component_pins_hash(
-                            experiment.components, experiment.baseline_components
-                        ),
-                        ":kind": experiment.kind.value,
-                        ":iteration_number": experiment.iteration_number,
-                        ":objective_id": experiment.objective_id,
-                        ":objective_version": experiment.objective_version,
-                        ":created_at": experiment.created_at.isoformat(),
-                        ":snapshot_id": experiment.snapshot_id,
-                        ":snapshot_sha256": experiment.snapshot_sha256,
-                    }
-                ),
-            )
-        except ClientError as error:
-            _raise_if_conflict(error)
-        return experiment
 
 
 class DynamoAgentRunRepository:
@@ -305,41 +229,6 @@ class DynamoAgentEntityClaimRepository:
                 Key={"entity_key": claim.entity_key, "session_id": session_id}
             )
         return len(claims)
-
-
-class DynamoAgentHypothesisRepository:
-    def __init__(self) -> None:
-        self._table = get_dynamodb_resource().Table("agent_hypotheses")
-
-    def create(self, hypothesis: AgentHypothesis) -> AgentHypothesis:
-        self._table.put_item(
-            Item=_encode(asdict(hypothesis)),
-            ConditionExpression="attribute_not_exists(session_id) AND attribute_not_exists(hypothesis_id)",
-        )
-        return hypothesis
-
-    def list_for_session(self, session_id: str, limit: int = 100) -> list[AgentHypothesis]:
-        result = self._table.query(
-            KeyConditionExpression=Key("session_id").eq(session_id), Limit=limit
-        )
-        return [_hypothesis(item) for item in result.get("Items", [])]
-
-    def update(self, hypothesis: AgentHypothesis, expected_rev: int) -> AgentHypothesis:
-        item = _encode(asdict(hypothesis))
-        item["rev"] = expected_rev + 1
-        try:
-            self._table.put_item(
-                Item=item,
-                ConditionExpression="rev = :expected AND #status = :active",
-                ExpressionAttributeNames={"#status": "status"},
-                ExpressionAttributeValues={
-                    ":expected": expected_rev,
-                    ":active": AgentHypothesisStatus.ACTIVE.value,
-                },
-            )
-        except ClientError as error:
-            _raise_if_conflict(error)
-        return _hypothesis(item)
 
 
 class DynamoAgentVerificationRepository:

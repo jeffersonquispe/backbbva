@@ -99,9 +99,6 @@ STATES = (
 SESSION_TABLES = (
     ("agent_events", "seq"),
     ("agent_iterations", "number"),
-    ("agent_hypotheses", "hypothesis_id"),
-    ("agent_experiments", "experiment_id"),
-    ("agent_findings", "finding_id"),
     ("agent_insights", "insight_id"),
     ("agent_budget_ledger", "entry_id"),
 )
@@ -500,6 +497,11 @@ def cleanup(prefix: str) -> int:
                 table.delete_item(
                     Key={"session_id": session_id, sort_key: row[sort_key]}
                 )
+        runs = resource.Table("optimization_runs")
+        for row in runs.query(KeyConditionExpression=Key("run_id").eq(session_id)).get(
+            "Items", []
+        ):
+            runs.delete_item(Key={"run_id": session_id, "node": row["node"]})
         sessions.delete_item(Key={"session_id": session_id})
         removed += 1
     return removed
