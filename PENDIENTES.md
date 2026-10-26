@@ -218,7 +218,8 @@ confirmar Celery sin jobs activos, se redujo el pool de tres a una réplica.
 - [ ] **E2E de roles faltantes** — crear usuarios QA `release_manager` y `data_analyst` y cubrir `fraud_analyst` (el asistente no existe en `/cola`).
 - [ ] **Descripciones generadas por LLM** en el build para componentes no curados (hoy solo vistas, ~20 componentes, tareas y conceptos).
 - [ ] **Reutilizar el grafo en el orquestador (#8)** como mapa de palancas (config, biblioteca, modelo, vector store) cuando exista código.
-- [ ] **Tablas pendientes de `DataTable`** — managers de catálogos de configuración, `ModelTrainingResults`, `FraudReview`, monitor/dashboard, `AmountTierEditor`, `AlertSchemaEditor`, `DatasetRowsTab`.
+- [x] **Migración de tablas solicitadas a `DataTable`** — ✅ 2026-10-25: managers de variables, categorías de marcación y métodos de resolución; `ModelTrainingResults` (matriz de confusión), auditoría de `FraudReview`, distribución de Dashboard, indicadores técnicos del Monitor, `AmountTierEditor` y `DatasetRowsTab` migrados. Mantienen sus acciones y datos; ahora comparten búsqueda, orden, paginación y selector de columnas. E2E reales por nginx: observabilidad/dashboard y monitor (1), tablas compartidas (14), auditoría/CSV de fraude (2) y datasets (1) pasaron.
+- [ ] **Migrar `AlertSchemaEditor` a `DataTable`** — conserva una cuadrícula editable de 16 campos; requiere adaptar el flujo para integrar búsqueda, paginación y visibilidad de columnas sin interrumpir la edición.
 - [ ] **Deuda previa** — `operations.amount-tiers.test.tsx` (vitest) ya fallaba antes de estos cambios.
 
 ## 11. Metodologías de prueba — pendientes
