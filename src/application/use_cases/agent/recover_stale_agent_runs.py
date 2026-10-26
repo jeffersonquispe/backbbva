@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from src.application.ports.agent_experiment_port import AgentExperimentRepository
 from src.application.ports.agent_iteration_port import (
     AgentIterationRepository,
     AgentIterationStatus,
@@ -12,6 +13,9 @@ from src.application.ports.agent_session_port import (
     AgentSessionStatus,
 )
 from src.application.ports.clock_port import Clock
+from src.domain.agents.experiment import AgentExperimentStatus
+
+LEASE_EXPIRED = "WORKER_LEASE_EXPIRED"
 
 
 class RecoverStaleAgentRunsUseCase:
@@ -24,10 +28,12 @@ class RecoverStaleAgentRunsUseCase:
         iterations: AgentIterationRepository,
         runs: AgentRunRepository,
         clock: Clock,
+        experiments: AgentExperimentRepository | None = None,
     ) -> None:
         self._sessions = sessions
         self._iterations = iterations
         self._runs = runs
+        self._experiments = experiments
         self._clock = clock
 
     def execute(self, limit: int = 100) -> list[str]:
@@ -41,7 +47,7 @@ class RecoverStaleAgentRunsUseCase:
                     run,
                     status=AgentRunStatus.FAILED,
                     lease_expires_at=None,
-                    error_code="WORKER_LEASE_EXPIRED",
+                    error_code=LEASE_EXPIRED,
                 )
             )
             iteration = self._iterations.get(run.session_id, run.iteration_number)
@@ -51,7 +57,7 @@ class RecoverStaleAgentRunsUseCase:
                         iteration,
                         status=AgentIterationStatus.FAILED,
                         finished_at=now,
-                        decision={"action": "recovered", "error_code": "WORKER_LEASE_EXPIRED"},
+                        decision={"action": "recovered", "error_code": LEASE_EXPIRED},
                     )
                 )
             session = self._sessions.get(run.session_id)
@@ -72,4 +78,49 @@ class RecoverStaleAgentRunsUseCase:
                 )
                 if session.status == AgentSessionStatus.ACTIVE:
                     recovered.append(session.session_id)
+        for session in self._sessions.list_by_status(
+            AgentSessionStatus.ACTIVE, limit=limit
+        ):
+            if session.session_id in recovered:
+                continue
+            if session.lease_expires_at is None or session.lease_expires_at > now:
+                continue
+            self._close_orphaned_work(session.session_id, now)
+            self._sessions.update(
+                replace(
+                    session, lease_owner=None, lease_expires_at=None, updated_at=now
+                ),
+                expected_rev=session.rev,
+            )
+            recovered.append(session.session_id)
         return recovered
+
+    def _close_orphaned_work(self, session_id: str, now) -> None:
+        """Close iteration/experiment records left RUNNING by a dead orchestrator.
+
+        The run may already be finished (so it is not listed as stale) while the
+        orchestrator died before closing the iteration or the experiment.
+        """
+        for iteration in self._iterations.list_for_session(session_id, limit=100):
+            if iteration.status == AgentIterationStatus.RUNNING:
+                self._iterations.update(
+                    replace(
+                        iteration,
+                        status=AgentIterationStatus.FAILED,
+                        finished_at=now,
+                        decision={"action": "recovered", "error_code": LEASE_EXPIRED},
+                    )
+                )
+        if self._experiments is None:
+            return
+        for experiment in self._experiments.list_for_session(session_id, limit=100):
+            if experiment.status == AgentExperimentStatus.RUNNING:
+                self._experiments.update(
+                    replace(
+                        experiment,
+                        status=AgentExperimentStatus.FAILED,
+                        completed_at=now,
+                        error_code=LEASE_EXPIRED,
+                    ),
+                    expected_status=AgentExperimentStatus.RUNNING.value,
+                )

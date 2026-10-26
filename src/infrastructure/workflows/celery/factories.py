@@ -103,6 +103,7 @@ from src.infrastructure.agents.agent_experiment_component_resolver import (
 )
 from src.infrastructure.agents.factories import (
     get_agent_budget_ledger_repository,
+    get_agent_experiment_repository,
     get_agent_hypothesis_repository,
     get_agent_insight_repository,
     get_agent_iteration_repository,
@@ -891,6 +892,7 @@ def get_recover_stale_agent_runs_use_case() -> RecoverStaleAgentRunsUseCase:
         sessions=get_agent_session_repository(),
         iterations=get_agent_iteration_repository(),
         runs=get_agent_run_repository(),
+        experiments=get_agent_experiment_repository(),
         clock=get_clock(),
     )
 
