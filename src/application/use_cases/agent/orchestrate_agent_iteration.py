@@ -148,6 +148,7 @@ class _Tick:
     finished: datetime
     output: Any = None
     finding_ids: tuple[str, ...] = ()
+    cost_micros: int | None = None
 
 
 def _decision_summary(decision: dict[str, object]) -> str:
@@ -595,6 +596,7 @@ class OrchestrateAgentIterationUseCase:
             if isinstance(cost_value, (int, float)) and cost_value >= 0
             else None
         )
+        tick.cost_micros = cost_micros
         for category, extra in (
             ("tool", {"tool": selected_subagent.name}),
             ("specialist", {"specialist": selected_subagent.name}),
@@ -748,6 +750,13 @@ class OrchestrateAgentIterationUseCase:
         )
         if hypothesis is not None:
             decision["hypothesis"] = hypothesis.statement
+        if tick.cost_micros is not None:
+            decision["cost_micros"] = tick.cost_micros
+            if (
+                _is_cost_anomaly(prior, tick.cost_micros)
+                and decision.get("action") != "stop"
+            ):
+                decision.update({"action": "stop", "reason": "cost_anomaly"})
         decision["specialist"] = selected_subagent.name
         decision["verification_status"] = output.verification_status
         decision["specialist_verified"] = verified
@@ -786,6 +795,7 @@ class OrchestrateAgentIterationUseCase:
         block_code = {
             "critical_failure": "CRITICAL_FAILURE",
             "stagnation": "STAGNATION",
+            "cost_anomaly": "COST_ANOMALY",
         }.get(str(stop_reason))
         if current_session.mode == "assistant":
             terminal_status = AgentSessionStatus.PAUSED
@@ -868,6 +878,8 @@ class OrchestrateAgentIterationUseCase:
             return "blocked_by_critical_failure"
         if block_code == "STAGNATION":
             return "blocked_by_stagnation"
+        if block_code == "COST_ANOMALY":
+            return "blocked_by_cost_anomaly"
         return "iteration_completed"
 
     def _persist_package(self, tick: _Tick) -> str | None:
@@ -1456,6 +1468,24 @@ def _iteration_decision(
     if stale >= settings.optimizer_iterations_without_improvement:
         decision.update({"action": "stop", "reason": "stagnation"})
     return decision
+
+
+_COST_ANOMALY_FACTOR = 3
+_COST_ANOMALY_MIN_HISTORY = 3
+
+
+def _is_cost_anomaly(prior: list[AgentIteration], cost_micros: int) -> bool:
+    """An iteration costing more than 3x the median of earlier ones is unusual."""
+    history = sorted(
+        float(item.decision["cost_micros"])
+        for item in prior
+        if isinstance(item.decision.get("cost_micros"), (int, float))
+        and item.decision["cost_micros"] > 0
+    )
+    if len(history) < _COST_ANOMALY_MIN_HISTORY or cost_micros <= 0:
+        return False
+    median = history[len(history) // 2]
+    return cost_micros > _COST_ANOMALY_FACTOR * median
 
 
 def _safe_specialist_error_code(error_code: str | None) -> str | None:

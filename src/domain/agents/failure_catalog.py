@@ -65,6 +65,13 @@ _ENTRIES = (
         approval="candidates",
     ),
     _failure(
+        "COST_ANOMALY",
+        "Costo anómalo en una iteración",
+        "La última iteración costó mucho más que lo habitual en esta sesión.",
+        "Revisa el gasto; si es esperado, aprueba más iteraciones para continuar.",
+        approval="candidates",
+    ),
+    _failure(
         "CRITICAL_FAILURE",
         "Falla crítica de un especialista",
         "Un especialista falló y la política detiene la sesión.",

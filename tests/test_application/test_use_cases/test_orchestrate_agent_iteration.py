@@ -1381,3 +1381,68 @@ def test_thin_evidence_is_not_remembered() -> None:
 
     assert len(findings.items) == 2
     assert insights.items == {}
+
+
+class CostSequenceSubagent:
+    name = "stub"
+
+    def __init__(self, costs: list[int]) -> None:
+        self.costs = costs
+        self.calls = 0
+
+    def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
+        cost = self.costs[self.calls]
+        self.calls += 1
+        return AgentSubagentOutput(
+            subagent=self.name,
+            verification_status="PASSED",
+            safe_metrics={"cost_usd_micros": cost},
+        )
+
+
+def _resume(repositories) -> None:
+    repositories["sessions"].session = replace(
+        repositories["sessions"].session,
+        status=AgentSessionStatus.ACTIVE,
+        rev=repositories["sessions"].session.rev + 1,
+    )
+
+
+def test_an_iteration_costing_far_more_than_usual_waits_for_the_channel_manager() -> (
+    None
+):
+    events = InMemoryEvents()
+    subagent = CostSequenceSubagent([100, 110, 90, 1_000])
+    use_case, repositories = _use_case(
+        _session("optimization"),
+        _optimizer_settings(optimizer_iterations_without_improvement=99),
+        subagent=subagent,
+        timeline=_timeline(events),
+    )
+
+    for _ in range(3):
+        assert use_case.execute("s1") == "iteration_completed"
+        _resume(repositories)
+    assert use_case.execute("s1") == "blocked_by_cost_anomaly"
+
+    saved = repositories["sessions"].session
+    assert saved.status == AgentSessionStatus.WAITING_USER
+    assert saved.block["code"] == "COST_ANOMALY"
+    assert repositories["iterations"].items[4].decision["cost_micros"] == 1_000
+    assert events.items[-1].reason_code == "COST_ANOMALY"
+
+
+def test_steady_costs_never_trigger_the_anomaly_rule() -> None:
+    subagent = CostSequenceSubagent([100, 120, 90, 140, 130])
+    use_case, repositories = _use_case(
+        _session("optimization"),
+        _optimizer_settings(optimizer_iterations_without_improvement=99),
+        subagent=subagent,
+    )
+
+    results = []
+    for _ in range(5):
+        results.append(use_case.execute("s1"))
+        _resume(repositories)
+
+    assert results == ["iteration_completed"] * 5
