@@ -271,8 +271,9 @@ async function main() {
         token: channelToken,
       }), 200, "cancelar sesión tras verificar propuesta");
     }
-    if (current.status !== "CANCELLED") {
-      throw new Error(`la sesión no se canceló tras validar el paquete candidato: ${current.status}`);
+    // With winners and nothing left to try the run finishes on its own.
+    if (!["CANCELLED", "COMPLETED"].includes(current.status)) {
+      throw new Error(`la sesión no terminó tras validar el paquete candidato: ${current.status}`);
     }
     const audit = expect(await api(page, "GET", `/agent/sessions/${sessionId}/audit?limit=100`, {
       token: channelToken,
@@ -309,48 +310,43 @@ async function main() {
     ) {
       throw new Error("la segunda página de auditoría no avanzó a otro evento");
     }
-    await page.evaluate((token) => localStorage.setItem("aria.auth.accessToken", token), channelToken);
+    await page.evaluate((token) => {
+      localStorage.setItem("aria.auth.accessToken", token);
+      localStorage.setItem("aria.optimizer.tab", "run");
+    }, channelToken);
     await page.goto(`${BASE_URL}/configuracion`, { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "Abrir asistente ARIA" }).click();
     await page.getByRole("button", { name: "Optimizador", exact: true }).click();
-    const comparisonPanel = page.getByRole("region", {
-      name: "Comparación baseline y experimentos",
-    });
-    await comparisonPanel.waitFor({ state: "visible", timeout: 15_000 });
-    await comparisonPanel
-      .getByText(`Experimento ${experiment.iteration_number} · ${experiment.status}`, {
-        exact: true,
-      })
-      .waitFor({ state: "visible", timeout: 30_000 });
-    const comparisonText = await comparisonPanel.innerText();
-    const visibleValues = [
-      `Experimento ${experiment.iteration_number} · ${experiment.status}`,
-      experiment.snapshot_id,
-      experiment.snapshot_sha256,
-      "Baseline:",
-      "Candidato:",
-      "paired_bootstrap",
-    ];
-    for (const value of visibleValues) {
-      if (!comparisonText.includes(value)) {
-        throw new Error(`la UI no muestra la evidencia evaluada ${value}: ${comparisonText}`);
+    await page.getByRole("tab", { name: new RegExp(`Optimizador ${sessionId} `) }).click();
+    await page.getByRole("button", { name: "Corrida", exact: true }).click();
+    // The run tree shows the real experiment, its candidate and the strategy.
+    const experimentsList = page.getByTestId("experiments-list").first();
+    await experimentsList.waitFor({ state: "visible", timeout: 30_000 });
+    const experimentLabel = {
+      SUCCEEDED: "Cumplió el objetivo",
+      REJECTED_GLOBAL_CONSTRAINT: "Rechazado por una restricción",
+    }[experiment.status];
+    const runText = await page.getByTestId("run-tree").innerText();
+    for (const value of [
+      `Experimento de la iteración ${experiment.iteration_number}`,
+      experimentLabel,
+      "Estrategia",
+      "Ganadores",
+    ]) {
+      if (!runText.includes(value)) {
+        throw new Error(`la UI no muestra la evidencia evaluada ${value}: ${runText}`);
       }
     }
-    const leasePanel = page.getByLabel("Estado del lease");
-    await leasePanel.waitFor({ state: "visible", timeout: 15_000 });
-    if (!current.lease || !(await leasePanel.innerText()).includes(current.lease.status)) {
-      throw new Error(`la UI no muestra el lease real: ${JSON.stringify(current.lease)}`);
+    const health = await page.getByTestId("optimizer-health").innerText();
+    if (!health.includes("Reserva de ejecución")) {
+      throw new Error(`la UI no muestra la salud de la sesión: ${health}`);
     }
-    const auditPanel = page.getByRole("region", { name: "Auditoría de sesión" });
-    await auditPanel.waitFor({ state: "visible", timeout: 15_000 });
-    await auditPanel
-      .getByText(/· experiment ·/)
-      .first()
-      .waitFor({ state: "visible", timeout: 30_000 });
-    const auditText = await auditPanel.innerText();
-    for (const category of ["session", "iteration", "tool", "lease", "experiment"]) {
-      if (!auditText.includes(`· ${category} ·`)) {
-        throw new Error(`la UI no muestra el evento real ${category}: ${auditText}`);
+    await page.getByRole("button", { name: "Línea de tiempo", exact: true }).click();
+    const timeline = page.getByTestId("timeline-list");
+    await timeline.waitFor({ state: "visible", timeout: 15_000 });
+    const timelineText = await timeline.innerText();
+    for (const value of ["Iteración", "Especialista", "Verificación", "Experimento"]) {
+      if (!timelineText.includes(value)) {
+        throw new Error(`la línea de tiempo no muestra ${value}: ${timelineText}`);
       }
     }
     claims = expect(await api(page, "GET", "/agent/claims/scope%23model", { token: managerToken }), 200, "leer reclamos tras pausar");
@@ -373,7 +369,8 @@ async function main() {
       published_segment_supports: segmentSupports,
       audit_categories: [...auditCategories].sort(),
       ui_experiment_rendered: true,
-      ui_audit_categories: ["session", "iteration", "tool", "lease", "experiment"],
+      ui_timeline_kinds: ["iteration", "specialist", "verification", "experiment"],
+      session_status: current.status,
       candidate_active: candidateModel.active,
     };
     console.log(JSON.stringify(evidence));
