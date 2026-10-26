@@ -42,6 +42,7 @@ from src.application.ports.project_graph_semantic_port import (
     ProjectGraphSemanticSearch,
 )
 from src.application.use_cases.agent.agent_timeline import AgentTimeline
+from src.application.use_cases.agent.optimizer_memory import OptimizerMemory
 from src.infrastructure.agents.agent_experiment_component_resolver import (
     StoredAgentExperimentComponentResolver,
 )
@@ -331,4 +332,13 @@ def get_agent_timeline() -> AgentTimeline:
         clock=get_clock(),
         ids=get_id_generator(),
         audit=get_audit_repository(),
+    )
+
+
+def get_optimizer_memory() -> OptimizerMemory:
+    return OptimizerMemory(
+        findings=get_agent_finding_repository(),
+        insights=get_optimizer_insight_repository(),
+        clock=get_clock(),
+        ids=get_id_generator(),
     )

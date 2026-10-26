@@ -68,6 +68,7 @@ from src.application.use_cases.agent.agent_timeline import AgentTimeline
 from src.application.use_cases.agent.evaluate_agent_experiment import (
     EvaluateAgentExperiment,
 )
+from src.application.use_cases.agent.optimizer_memory import OptimizerMemory
 from src.domain.agents.event import AgentEventKind, AgentEventOutcome
 from src.domain.agents.experiment import AgentExperimentKind
 from src.domain.project_graph.index import tokenize
@@ -146,6 +147,7 @@ class _Tick:
     project_map: dict[str, dict[str, str]]
     finished: datetime
     output: Any = None
+    finding_ids: tuple[str, ...] = ()
 
 
 def _decision_summary(decision: dict[str, object]) -> str:
@@ -186,6 +188,7 @@ class OrchestrateAgentIterationUseCase:
         experiment_evaluator: EvaluateAgentExperiment | None = None,
         project_graph: ProjectGraphRepository | None = None,
         timeline: AgentTimeline | None = None,
+        memory: OptimizerMemory | None = None,
     ) -> None:
         self._sessions = sessions
         self._iterations = iterations
@@ -209,6 +212,7 @@ class OrchestrateAgentIterationUseCase:
         self._experiment_evaluator = experiment_evaluator
         self._project_graph = project_graph
         self._timeline = timeline
+        self._memory = memory
 
     def execute(self, session_id: str) -> str:
         """One orchestrator tick: admit, start, run the specialist, finish.
@@ -726,8 +730,10 @@ class OrchestrateAgentIterationUseCase:
             occurred_at=finished,
         )
         experiment = self._run_experiment(tick, verified)
+        outcome = None
         if hypothesis is not None and self._hypotheses is not None:
-            self._resolve_hypothesis(tick, verified, verification_id)
+            outcome = self._resolve_hypothesis(tick, verified, verification_id)
+        self._learn(tick, experiment, outcome)
         decision = _iteration_decision(
             mode=leased.mode,
             prior=[
@@ -1009,15 +1015,72 @@ class OrchestrateAgentIterationUseCase:
                 experiment.error_code,
                 refs=refs,
             )
+        self._remember_experiment(tick, experiment, refs)
         return experiment
+
+    def _remember_experiment(self, tick: _Tick, experiment, refs) -> None:
+        """Persist aggregate findings and re-check what earlier sessions learned."""
+        if self._memory is None or not experiment.global_evaluation:
+            return
+        findings = self._memory.record_experiment_findings(
+            session_id=tick.session_id,
+            experiment_id=experiment.experiment_id,
+            evaluation=experiment.global_evaluation,
+            snapshot_id=experiment.snapshot_id,
+        )
+        tick.finding_ids = tuple(item.finding_id for item in findings)
+        if findings:
+            self._event(
+                tick.session_id,
+                AgentEventKind.EXPERIMENT,
+                AgentEventOutcome.INFO,
+                "Hallazgos agregados registrados",
+                refs={**refs, "finding_id": findings[0].finding_id},
+            )
+        self._memory.reevaluate(
+            tick.subagent.name,
+            improved=experiment.status.value == "SUCCEEDED",
+            sample_count=int(experiment.global_evaluation.get("eligible_count") or 0),
+        )
+
+    def _learn(self, tick: _Tick, experiment, outcome) -> None:
+        """A validated, well-supported result becomes memory for future sessions."""
+        if (
+            self._memory is None
+            or experiment is None
+            or outcome != AgentHypothesisStatus.VALIDATED
+            or experiment.status.value != "SUCCEEDED"
+        ):
+            return
+        insight = self._memory.learn(
+            area=tick.subagent.name,
+            statement=(
+                tick.hypothesis.statement
+                if tick.hypothesis is not None
+                else f"El área {tick.subagent.name} mejora el objetivo global."
+            ),
+            evaluation=experiment.global_evaluation,
+            session_id=tick.session_id,
+            run_id=tick.run_id,
+            finding_ids=tick.finding_ids,
+            snapshot_ids=(experiment.snapshot_id,) if experiment.snapshot_id else (),
+        )
+        if insight is not None:
+            self._event(
+                tick.session_id,
+                AgentEventKind.EXPERIMENT,
+                AgentEventOutcome.INFO,
+                "Aprendizaje guardado para futuras sesiones",
+                refs={"experiment_id": experiment.experiment_id},
+            )
 
     def _resolve_hypothesis(
         self, tick: _Tick, verified: bool, verification_id: str
-    ) -> None:
+    ) -> AgentHypothesisStatus | None:
         hypothesis, output, finished = tick.hypothesis, tick.output, tick.finished
         session_id = tick.session_id
         if hypothesis is None or self._hypotheses is None:
-            return
+            return None
         precision = output.safe_metrics.get("precision")
         recall = output.safe_metrics.get("recall")
         if (
@@ -1061,7 +1124,7 @@ class OrchestrateAgentIterationUseCase:
             occurred_at=finished,
         )
         if not (hypothesis.source_insight_id and self._insights is not None):
-            return
+            return outcome
         source_insight = self._insights.get(session_id, hypothesis.source_insight_id)
         if source_insight is not None and outcome in {
             AgentHypothesisStatus.VALIDATED,
@@ -1097,6 +1160,7 @@ class OrchestrateAgentIterationUseCase:
                     created_at=finished,
                 )
             )
+        return outcome
 
     def _event(
         self,
@@ -1269,15 +1333,33 @@ class OrchestrateAgentIterationUseCase:
             else:
                 areas = sorted(session.scope.get("areas", []))
                 area = areas[0] if areas else "pipeline"
+                remembered = (
+                    self._memory.recall(area) if self._memory is not None else []
+                )
+                statement = (
+                    f"Evaluar si el área {area} puede mejorar el recall "
+                    "sin incumplir el piso de precisión."
+                )
+                scope = {"area": area}
+                if remembered:
+                    statement += (
+                        " Respaldado por datos de sesiones previas: "
+                        f"{remembered[0].statement}"
+                    )
+                    scope["memory"] = ",".join(item.insight_id for item in remembered)
+                    self._event(
+                        session.session_id,
+                        AgentEventKind.HYPOTHESIS,
+                        AgentEventOutcome.INFO,
+                        f"Memoria cargada: {len(remembered)} aprendizajes respaldados",
+                        occurred_at=now,
+                    )
                 self._hypotheses.create(
                     AgentHypothesis(
                         session_id=session.session_id,
                         hypothesis_id=str(self._ids.new_id()),
-                        statement=(
-                            f"Evaluar si el área {area} puede mejorar el recall "
-                            "sin incumplir el piso de precisión."
-                        ),
-                        scope={"area": area},
+                        statement=statement,
+                        scope=scope,
                         priority=0,
                         status=AgentHypothesisStatus.ACTIVE,
                         created_at=now,

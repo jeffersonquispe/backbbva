@@ -116,6 +116,7 @@ from src.infrastructure.agents.factories import (
     get_agent_timeline,
     get_agent_verification_repository,
     get_optimizer_agent_specialists,
+    get_optimizer_memory,
 )
 from src.infrastructure.agents.stub_subagent import StubAgentSubagent
 from src.infrastructure.alerts.storage.stored_alert_payload_adapter import (
@@ -886,6 +887,7 @@ def get_orchestrate_agent_iteration_use_case(
         clock=get_clock(),
         id_generator=get_id_generator(),
         timeline=get_agent_timeline(),
+        memory=get_optimizer_memory(),
     )
 
 

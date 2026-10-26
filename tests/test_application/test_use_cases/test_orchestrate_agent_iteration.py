@@ -1232,3 +1232,152 @@ def test_specialist_failure_event_uses_catalogue_copy_without_raw_text() -> None
     assert failed[0].reason_code == "MODEL_REPORT_INCOMPLETE"
     assert failed[0].summary == "Reporte del modelo incompleto"
     assert events.items[-1].reason_code == "CRITICAL_FAILURE"
+
+
+# --- optimizer memory across sessions ---------------------------------------
+from src.application.use_cases.agent.optimizer_memory import (  # noqa: E402
+    OptimizerMemory,
+)
+from src.domain.agents.experiment import (  # noqa: E402
+    AgentExperiment,
+    AgentExperimentKind,
+    AgentExperimentStatus,
+    ComponentVersionReference,
+)
+
+
+class InMemoryFindings:
+    def __init__(self) -> None:
+        self.items = {}
+
+    def create_once(self, finding):
+        return self.items.setdefault((finding.session_id, finding.finding_id), finding)
+
+
+class InMemoryOptimizerInsights:
+    def __init__(self) -> None:
+        self.items = {}
+
+    def create(self, insight):
+        self.items[insight.insight_id] = insight
+        return insight
+
+    def update(self, insight, expected_rev):
+        self.items[insight.insight_id] = replace(insight, rev=expected_rev + 1)
+        return self.items[insight.insight_id]
+
+    def list_by_scope(self, scope_key, status, limit=50):
+        return [
+            item
+            for item in self.items.values()
+            if item.scope_key == scope_key and item.status == status
+        ][:limit]
+
+
+_PINS = {
+    name: ComponentVersionReference(name, f"{name}-1", "1", "a" * 64)
+    for name in ("model", "configuration", "library", "vector_store")
+}
+
+
+class ImprovingSubagent:
+    name = "configuration"
+
+    def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
+        candidate = dict(_PINS)
+        candidate["configuration"] = ComponentVersionReference(
+            "configuration", "configuration-2", "2", "b" * 64
+        )
+        return AgentSubagentOutput(
+            subagent=self.name,
+            verification_status="PASSED",
+            safe_metrics={"precision": 0.95, "recall": 0.7},
+            contribution={"changed": "configuration"},
+            experiment_candidate_components=tuple(candidate.values()),
+        )
+
+
+class SucceedingEvaluator:
+    def __init__(self, eligible_count: int) -> None:
+        self.eligible_count = eligible_count
+
+    def execute(self, **kwargs):
+        return AgentExperiment(
+            session_id=kwargs["session_id"],
+            experiment_id=kwargs["experiment_id"],
+            iteration_number=kwargs["iteration_number"],
+            kind=AgentExperimentKind.ISOLATED,
+            status=AgentExperimentStatus.SUCCEEDED,
+            components=kwargs["components"],
+            baseline_components=kwargs["baseline_components"],
+            objective_id=kwargs["objective_id"],
+            objective_version=kwargs["objective_version"],
+            created_at=NOW,
+            snapshot_id="snap-1",
+            global_evaluation={
+                "eligible_count": self.eligible_count,
+                "candidate": {"precision": 0.95, "recall": 0.7},
+                "baseline": {"precision": 0.93, "recall": 0.6},
+            },
+        )
+
+
+def _memory_use_case(eligible_count, insights, findings, session_id="s1"):
+    events = InMemoryEvents()
+    session = replace(
+        _session("optimization"),
+        session_id=session_id,
+        scope={"areas": ["configuration"]},
+        baseline_components=tuple(_PINS.values()),
+    )
+    use_case, repositories = _use_case(
+        session,
+        _optimizer_settings(),
+        subagent=ImprovingSubagent(),
+        hypotheses=InMemoryHypotheses(),
+        timeline=_timeline(events),
+    )
+    use_case._experiment_evaluator = SucceedingEvaluator(eligible_count)
+    use_case._memory = OptimizerMemory(
+        findings=findings,
+        insights=insights,
+        clock=FixedClock(),
+        ids=SequenceIdGenerator(),
+    )
+    return use_case, repositories, events
+
+
+def test_validated_experiment_records_findings_and_teaches_the_next_session() -> None:
+    insights, findings = InMemoryOptimizerInsights(), InMemoryFindings()
+    use_case, _, events = _memory_use_case(120, insights, findings)
+
+    use_case.execute("s1")
+
+    assert sorted(item.dimension_value for item in findings.items.values()) == [
+        "baseline",
+        "candidate",
+    ]
+    assert len(insights.items) == 1
+    taught = next(iter(insights.items.values()))
+    assert taught.scope_key == "area:configuration"
+    assert taught.sample_count == 120
+    assert any(
+        item.summary == "Aprendizaje guardado para futuras sesiones"
+        for item in events.items
+    )
+
+    next_use_case, next_repositories, next_events = _memory_use_case(
+        120, insights, findings, session_id="s2"
+    )
+    next_use_case.execute("s2")
+    assert any(item.summary.startswith("Memoria cargada") for item in next_events.items)
+
+
+def test_thin_evidence_is_not_remembered() -> None:
+    insights, findings = InMemoryOptimizerInsights(), InMemoryFindings()
+    use_case, _, _ = _memory_use_case(12, insights, findings)
+
+    use_case.execute("s1")
+
+    assert len(findings.items) == 2
+    assert insights.items == {}
