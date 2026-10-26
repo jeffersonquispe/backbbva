@@ -207,14 +207,14 @@ confirmar Celery sin jobs activos, se redujo el pool de tres a una réplica.
 
 ## 10. Asistente ARIA: chat denso y grafo del proyecto (GraphRAG) — implementado 2026-10-23 (sin commit)
 
-- [x] **Chat denso** — insights dentro del feed (sin bloque fijo), composer de 2 líneas con Enter, negritas, botón flotante arrastrable. E2E: `agent-chat-dense-real.spec.ts`.
+- [x] **Chat denso** — insights plegados por defecto dentro del feed (conservar sus acciones al expandir), sin el bloque visible «Contexto usado», composer de 2 líneas con Enter, negritas y botón flotante arrastrable. E2E real `agent-chat-dense-real.spec.ts`: 3/3 pasaron por nginx el 2026-10-25.
 - [x] **Grafo del proyecto** — `make project-graph` (`scripts/build_project_graph.py`, `ts_scan.mjs`, `project_graph_curated.json`) genera `src/infrastructure/agents/project_graph/project_graph.json`: vistas, componentes, acciones, API, endpoints, casos de uso, puertos/adaptadores, roles/permisos, tareas y conceptos. Detalle y reglas en `CLAUDE.md`.
-- [x] **Recuperación y chat** — BM25 + stemmer + intención + historial, embeddings opcionales (RRF, indexado en segundo plano), filtro por rol en servidor, herramientas de solo lectura (`search_project`, `describe_node`), chips de navegación y «Contexto usado». Calidad: 27 preguntas de oro en `tests/test_infrastructure/test_agents/`.
+- [x] **Recuperación y chat** — BM25 + stemmer + intención + historial, embeddings opcionales (RRF, indexado en segundo plano), filtro por rol en servidor, herramientas de solo lectura (`search_project`, `describe_node`) y chips de navegación. La API conserva `context_used`, pero no se presenta en el panel. Calidad: preguntas de oro en `tests/test_infrastructure/test_agents/`.
 - [x] **E2E por vista** — `agent-assistant-views-real.spec.ts` (21 casos en `/biblioteca`, `/modelos`, `/testing`, `/configuracion`, seguimiento, fuera de vistas y rol manager).
-- [ ] **[D] Aprobar el cambio de guardrail** — se reemplazó «no tienes herramientas» por «solo dos herramientas de solo lectura sobre el mapa de ARIA» en `llm_chat_responder.py`.
-- [ ] **Persistir en imagen** — el API local recibió los archivos por `docker cp`; reconstruir con `make local-api-build` y recrear con el flujo habitual.
+- [x] **[D] Instruir al asistente de chat para usar el grafo** — ✅ Hecho 2026-10-25: el prompt activo orienta al asistente de las pantallas de chat a usar `project_context` y las herramientas de solo lectura para explicar conceptos, entidades, vistas y permisos, respetando el rol. Pruebas enfocadas 17/17 y `make e2e-agent-chat-local` por nginx pasaron.
+- [x] **Persistir el grafo en la imagen** — ✅ Hecho 2026-10-25: API y worker copian explícitamente `project_graph.json` en sus imágenes (local y OKD); `make e2e-agent-chat-local` reconstruyó la API y pasó.
 - [ ] **Staleness del grafo en CI** — Jenkins no tiene `../frontend_mockup`; hoy solo hay hook de pre-commit y `make project-graph-check`. Decidir si el frontend se publica como artefacto para el `Lint`.
-- [ ] **Medir el aporte de embeddings** frente a solo BM25 (las 27 preguntas de oro pasan con ambos); añadir preguntas con sinónimos.
+- [~] **Medir el aporte de embeddings** frente a solo BM25 — sinónimos añadidos al golden y benchmark `make project-graph-eval` implementado. BM25 contextual: recall@10 1,000, MRR@10 0,926 (34 preguntas). Falta ejecutar embeddings: `EMBEDDING_MODEL` no está configurado en este entorno.
 - [ ] **E2E de roles faltantes** — crear usuarios QA `release_manager` y `data_analyst` y cubrir `fraud_analyst` (el asistente no existe en `/cola`).
 - [ ] **Descripciones generadas por LLM** en el build para componentes no curados (hoy solo vistas, ~20 componentes, tareas y conceptos).
 - [ ] **Reutilizar el grafo en el orquestador (#8)** como mapa de palancas (config, biblioteca, modelo, vector store) cuando exista código.

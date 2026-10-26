@@ -200,3 +200,7 @@ Inventario preliminar a partir de `../frontend_mockup/src/components` y los rout
   - Mostrar la trazabilidad de evidencia y decisiones desde el monitor y los diagramas vivos (#20), incluyendo cuándo el agente continúa autónomamente y cuándo queda bloqueado esperando aclaración humana.
   - Mantener OTLP como contrato de telemetría, auditoría de negocio mediante `AuditPort` y métricas de negocio agregadas según el contrato existente; no duplicar rollups como telemetría.
   - Cubrir el ciclo de vida y las restricciones de cardinalidad/privacidad con E2E real a través de nginx.
+
+## 11. Panel del asistente: reducir ruido visual
+
+- [x] **Insights y contexto del grafo** — ✅ Hecho 2026-10-25: las propuestas de insight quedan plegadas por defecto y sus acciones siguen disponibles al expandirlas; el panel ya no muestra la lista «Contexto usado», pero conserva los chips de navegación. E2E real `agent-chat-dense-real.spec.ts`: 3/3 pasaron por nginx.
