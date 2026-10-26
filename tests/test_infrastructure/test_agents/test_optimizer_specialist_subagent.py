@@ -43,13 +43,16 @@ class InMemoryPromptRepository:
 
 
 class RecordingGenerator:
-    def __init__(self, result: str) -> None:
-        self.result = result
+    def __init__(self, result: str | list[str]) -> None:
+        # A list replies one item per call, repeating the last one.
+        self.results = result if isinstance(result, list) else [result]
         self.request: AgentStructuredGenerationInput | None = None
+        self.requests: list[AgentStructuredGenerationInput] = []
 
     def generate(self, request: AgentStructuredGenerationInput) -> str:
         self.request = request
-        return self.result
+        self.requests.append(request)
+        return self.results[min(len(self.requests), len(self.results)) - 1]
 
 
 class InMemoryMasker(PersonalDataMasker):
@@ -79,7 +82,9 @@ def _request(**prompt_versions) -> AgentSubagentInput:
     )
 
 
-def test_specialist_uses_pinned_prompt_masks_output_and_waits_for_verification() -> None:
+def test_specialist_uses_pinned_prompt_masks_output_and_waits_for_verification() -> (
+    None
+):
     prompt = _prompt()
     generator = RecordingGenerator(
         '{"experiment":{"dataset_ref":"dataset-v3",'
@@ -95,7 +100,9 @@ def test_specialist_uses_pinned_prompt_masks_output_and_waits_for_verification()
     )
 
     result = specialist.execute(
-        _request(**{prompt.name: {"name": prompt.name, "version": "3", "hash": "sha256-v3"}})
+        _request(
+            **{prompt.name: {"name": prompt.name, "version": "3", "hash": "sha256-v3"}}
+        )
     )
 
     assert generator.request is not None
@@ -197,11 +204,43 @@ def test_xgboost_specialist_rejects_parameters_outside_approved_bounds() -> None
     )
 
     result = specialist.execute(
-        _request(**{prompt.name: {"name": prompt.name, "version": "3", "hash": "sha256-v3"}})
+        _request(
+            **{prompt.name: {"name": prompt.name, "version": "3", "hash": "sha256-v3"}}
+        )
     )
 
     assert result.error_code == "GENERATION_INVALID"
     assert result.verification_status == "NOT_VERIFIED"
+
+
+def test_specialist_asks_once_more_after_an_invalid_proposal() -> None:
+    prompt = _prompt()
+    generator = RecordingGenerator(
+        [
+            '{"experiment":{"parameters":{"learning_rate":0.9}},"rationale":"x"}',
+            '{"experiment":{"dataset_ref":"dataset-v3",'
+            '"parameters":{"learning_rate":0.1}},"rationale":"candidate"}',
+        ]
+    )
+    specialist = OptimizerSpecialistSubagent(
+        name="xgboost",
+        prompt_name=prompt.name,
+        prompts=InMemoryPromptRepository(prompt),
+        generator=generator,
+        masker=InMemoryMasker(),
+    )
+
+    result = specialist.execute(
+        _request(
+            **{prompt.name: {"name": prompt.name, "version": "3", "hash": "sha256-v3"}}
+        )
+    )
+
+    assert result.error_code is None
+    assert result.verification_status == "PENDING_VERIFICATION"
+    assert len(generator.requests) == 2
+    assert "no cumplió el contrato" in generator.requests[1].masked_user_message
+    assert "no cumplió" not in generator.requests[0].masked_user_message
 
 
 @pytest.mark.parametrize(

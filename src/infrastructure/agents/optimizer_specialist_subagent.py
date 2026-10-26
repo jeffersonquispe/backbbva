@@ -91,30 +91,38 @@ class OptimizerSpecialistSubagent:
                 )
             except (RuntimeError, ValueError, TypeError):
                 return AgentSubagentOutput(self.name, error_code="CONTEXT_UNAVAILABLE")
-        try:
-            raw = self._generator.generate(
-                AgentStructuredGenerationInput(
-                    system_prompt=prompt.content,
-                    persisted_context=json.dumps(
-                        context,
-                        ensure_ascii=False,
-                        default=_json_safe_default,
-                    ),
-                    masked_user_message=safe_hypothesis,
-                )
+        persisted_context = json.dumps(
+            context, ensure_ascii=False, default=_json_safe_default
+        )
+        payload: Any = None
+        # One malformed or out-of-bounds proposal is a model slip, not a
+        # failure worth stopping the session for: ask once more with the
+        # contract restated before reporting GENERATION_INVALID.
+        for attempt in range(_GENERATION_ATTEMPTS):
+            message = (
+                safe_hypothesis
+                if attempt == 0
+                else f"{safe_hypothesis}\n\n{_CONTRACT_REMINDER}"
             )
-        except (RuntimeError, ValueError, TypeError):
-            return AgentSubagentOutput(self.name, error_code="GENERATION_FAILED")
-        try:
-            payload: Any = json.loads(_strip_json_fence(raw))
-        except (ValueError, TypeError):
-            return AgentSubagentOutput(self.name, error_code="GENERATION_INVALID")
-        if (
-            not isinstance(payload, dict)
-            or not isinstance(payload.get("experiment"), dict)
-            or not isinstance(payload.get("rationale"), str)
-            or not _is_valid_experiment(self.name, payload["experiment"])
-        ):
+            try:
+                raw = self._generator.generate(
+                    AgentStructuredGenerationInput(
+                        system_prompt=prompt.content,
+                        persisted_context=persisted_context,
+                        masked_user_message=message,
+                    )
+                )
+            except (RuntimeError, ValueError, TypeError):
+                return AgentSubagentOutput(self.name, error_code="GENERATION_FAILED")
+            payload = _valid_proposal(self.name, raw)
+            if payload is not None:
+                break
+            logger.warning(
+                "Optimizer specialist %s proposal invalid (attempt %d)",
+                self.name,
+                attempt + 1,
+            )
+        if payload is None:
             return AgentSubagentOutput(self.name, error_code="GENERATION_INVALID")
         safe_payload = _mask_strings(payload, self._masker)
         if not isinstance(safe_payload, dict):
@@ -248,6 +256,29 @@ def _strip_json_fence(raw: str) -> str:
         if value.startswith("json"):
             value = value[4:].strip()
     return value
+
+
+_GENERATION_ATTEMPTS = 2
+_CONTRACT_REMINDER = (
+    "Tu respuesta anterior no cumplió el contrato. Responde solo un objeto "
+    'JSON con "rationale" (texto) y "experiment" (objeto) válido para tu '
+    "palanca, usando solo los campos y rangos permitidos."
+)
+
+
+def _valid_proposal(name: str, raw: Any) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(_strip_json_fence(raw))
+    except (ValueError, TypeError):
+        return None
+    if (
+        not isinstance(payload, dict)
+        or not isinstance(payload.get("experiment"), dict)
+        or not isinstance(payload.get("rationale"), str)
+        or not _is_valid_experiment(name, payload["experiment"])
+    ):
+        return None
+    return payload
 
 
 def _is_valid_experiment(name: str, experiment: dict[str, Any]) -> bool:
