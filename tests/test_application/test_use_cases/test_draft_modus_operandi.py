@@ -464,6 +464,7 @@ def test_explicit_confirmation_is_audited_before_applying_candidate():
 
     assert response["entity_id"] == "created-entry"
     assert confirmations.rows[0].role == "channel_manager"
+    assert confirmations.rows[0].status == "CONFIRMED"
     assert confirmations.rows[0].content_hash
     assert [row.action for row in audit.rows] == [
         "agent.modus_operandi.confirmed",

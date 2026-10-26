@@ -152,6 +152,10 @@ test:  ## Run tests and generate coverage report.
 test-architecture:  ## Fast AST check of the CLAUDE.md layer/DI/env/observability rules (ratcheted baseline, no services needed).
 	GENAI_ENVIRONMENT=test python -m pytest tests/test_architecture -q
 
+.PHONY: test-api-contracts
+test-api-contracts:  ## Compare all frontend API route/method calls with the backend's generated OpenAPI surface.
+	GENAI_ENVIRONMENT=test $(PYTHON) scripts/check_frontend_api_contracts.py
+
 
 .PHONY: test-integration-reservations
 test-integration-reservations:  ## Run resource-reservation tests (voicebot slots / analyst locks) against the running local DynamoDB. Vars: DYNAMO_PORT(8002)
@@ -658,6 +662,89 @@ e2e-observability:  ## (E2E_SKIP_BUILD=1 reuses built images) Rebuild API/worker
 		LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
 		LOCAL_DOCKER_ENV=$(LOCAL_DOCKER_ENV) \
 		$(PYTHON) scripts/e2e_observability_local.py
+
+.PHONY: e2e-agent-assistant-parallel
+e2e-agent-assistant-parallel:  ## Run assistant views/chat E2E with isolated per-worker users and parallel Playwright workers. Vars: E2E_PARALLEL_WORKERS(default 5, max 5), E2E_PARALLEL_CELERY_WORKERS(default 5), E2E_SKIP_BUILD
+	@E2E_PLAYWRIGHT_WORKERS=$(or $(E2E_PARALLEL_WORKERS),5) \
+		E2E_ISOLATE_WORKER_USERS=1 \
+		E2E_FULL_SUITE=1 \
+		E2E_TEST_FILES='e2e/agent-assistant-views-real.spec.ts e2e/agent-chat-dense-real.spec.ts' \
+		$(MAKE) e2e-observability \
+			LOCAL_DOCKER_TEST_WORKERS=$(or $(E2E_PARALLEL_CELERY_WORKERS),5) \
+			E2E_SKIP_BUILD=$(E2E_SKIP_BUILD)
+
+.PHONY: e2e-library-observability-parallel
+e2e-library-observability-parallel:  ## Run data tables, vector store, side drawer, operational settings, assistant settings and observability E2E in parallel. Vars: E2E_PARALLEL_WORKERS(default 11, max 11), E2E_PARALLEL_CELERY_WORKERS(default 5), E2E_PARALLEL_CELERY_CONCURRENCY(default 3), E2E_LOCAL_API_WORKERS(default 4), E2E_SKIP_BUILD
+	@E2E_PLAYWRIGHT_WORKERS=$(or $(E2E_PARALLEL_WORKERS),11) \
+		E2E_ISOLATE_WORKER_USERS=1 \
+		E2E_FULL_SUITE=1 \
+		E2E_TEST_FILES='e2e/data-tables-real.spec.ts e2e/vector-store-real.spec.ts e2e/side-drawer-real.spec.ts e2e/operational-settings-real.spec.ts e2e/assistant-optimizer-settings-real.spec.ts e2e/observability-real.spec.ts' \
+		CELERY_TEST_WORKER_CONCURRENCY=$(or $(E2E_PARALLEL_CELERY_CONCURRENCY),3) \
+		API_SERVER_WORKERS=$(or $(E2E_LOCAL_API_WORKERS),4) \
+		$(MAKE) e2e-observability \
+			LOCAL_DOCKER_TEST_WORKERS=$(or $(E2E_PARALLEL_CELERY_WORKERS),5) \
+			E2E_SKIP_BUILD=$(E2E_SKIP_BUILD)
+
+.PHONY: e2e-read-ui-parallel
+e2e-read-ui-parallel:  ## Run auth, reports and DataTable read/navigation E2E in parallel. Vars: E2E_PARALLEL_WORKERS(default 5, max 5), E2E_LOCAL_API_WORKERS(default 4), E2E_SKIP_BUILD
+	@set -euo pipefail; \
+	lock=/tmp/aria-e2e.lock; \
+	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
+	trap 'rmdir "$$lock"' EXIT; \
+	E2E_PLAYWRIGHT_WORKERS=$(or $(E2E_PARALLEL_WORKERS),5) \
+		E2E_FULL_SUITE=1 \
+		E2E_TEST_FILES='e2e/auth-real.spec.ts e2e/reports-real.spec.ts e2e/data-tables-real.spec.ts' \
+		API_SERVER_WORKERS=$(or $(E2E_LOCAL_API_WORKERS),4) \
+		$(MAKE) e2e-observability \
+			LOCAL_DOCKER_TEST_WORKERS=1 \
+			E2E_SKIP_BUILD=$(E2E_SKIP_BUILD)
+
+.PHONY: e2e-datasets-entities-parallel
+e2e-datasets-entities-parallel:  ## Run dataset upload and advanced entity/vector-store E2E together. Vars: E2E_PARALLEL_WORKERS(default 2, max 2), E2E_LOCAL_API_WORKERS(default 4), E2E_SKIP_BUILD
+	@set -euo pipefail; \
+	lock=/tmp/aria-e2e.lock; \
+	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
+	trap 'rmdir "$$lock"' EXIT; \
+	E2E_PLAYWRIGHT_WORKERS=$(or $(E2E_PARALLEL_WORKERS),2) \
+		E2E_FULL_SUITE=1 \
+		E2E_TEST_FILES='e2e/datasets-real.spec.ts e2e/entities-advanced-real.spec.ts' \
+		API_SERVER_WORKERS=$(or $(E2E_LOCAL_API_WORKERS),4) \
+		CELERY_TEST_WORKER_CONCURRENCY=3 \
+		$(MAKE) e2e-observability \
+			LOCAL_DOCKER_TEST_WORKERS=5 \
+			E2E_SKIP_BUILD=$(E2E_SKIP_BUILD)
+
+.PHONY: e2e-configuration-parallel
+e2e-configuration-parallel:  ## Run validated configuration concurrency and deployment E2E cluster. Vars: E2E_PARALLEL_WORKERS(default 2, max 2), E2E_LOCAL_API_WORKERS(default 4), E2E_SKIP_BUILD
+	@set -euo pipefail; \
+	workers='$(or $(E2E_PARALLEL_WORKERS),2)'; \
+	if [[ ! "$$workers" =~ ^[12]$$ ]]; then echo "E2E_PARALLEL_WORKERS must be 1 or 2 for this cluster." >&2; exit 2; fi; \
+	lock=/tmp/aria-e2e.lock; \
+	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
+	trap 'rmdir "$$lock"' EXIT; \
+	E2E_PLAYWRIGHT_WORKERS=$$workers \
+		E2E_FULL_SUITE=1 \
+		E2E_TEST_FILES='e2e/configuration-concurrency-real.spec.ts e2e/configuration-deploy-real.spec.ts e2e/configuration-graph-real.spec.ts' \
+		API_SERVER_WORKERS=$(or $(E2E_LOCAL_API_WORKERS),4) \
+		$(MAKE) e2e-observability \
+			LOCAL_DOCKER_TEST_WORKERS=5 \
+			E2E_SKIP_BUILD=$(E2E_SKIP_BUILD)
+
+.PHONY: e2e-selected-real
+e2e-selected-real:  ## Run selected real E2E spec files serially with full local credentials/data seed. Vars: E2E_TEST_FILES(required), E2E_LOCAL_API_WORKERS(default 4), E2E_SKIP_BUILD
+	@test -n "$(E2E_TEST_FILES)" || (echo "Set E2E_TEST_FILES to one or more e2e/*.spec.ts files." >&2; exit 1)
+	@set -euo pipefail; \
+	lock=/tmp/aria-e2e.lock; \
+	while ! mkdir "$$lock" 2>/dev/null; do sleep 2; done; \
+	trap 'rmdir "$$lock"' EXIT; \
+	E2E_PLAYWRIGHT_WORKERS=1 \
+		E2E_FULL_SUITE=1 \
+		E2E_TEST_FILES='$(E2E_TEST_FILES)' \
+		API_SERVER_WORKERS=$(or $(E2E_LOCAL_API_WORKERS),4) \
+		CELERY_TEST_WORKER_CONCURRENCY=3 \
+		$(MAKE) e2e-observability \
+			LOCAL_DOCKER_TEST_WORKERS=5 \
+			E2E_SKIP_BUILD=$(E2E_SKIP_BUILD)
 
 .PHONY: e2e-agent-local
 e2e-agent-local:  ## Run real assistant/optimizer API and Celery lifecycle E2E through nginx localhost:80.

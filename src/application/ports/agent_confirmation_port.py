@@ -15,7 +15,8 @@ class AgentConfirmation:
     content_hash: str
     confirmed_by: str
     confirmed_at: datetime
-    status: str = "VALID"
+    # Rows are created only after the user explicitly applies a verified draft.
+    status: str = "CONFIRMED"
     role: str = "unknown"
     base_version: str | None = None
     verification_states: dict[str, str] = field(default_factory=dict)

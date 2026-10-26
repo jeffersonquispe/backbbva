@@ -96,6 +96,10 @@ class ConfigurationSummaryResponse(BaseModel):
     parent_ref: dict[str, str | int] | None = None
 
 
+class ConfigurationGraphNodeResponse(ConfigurationSummaryResponse):
+    promotion_comment: str | None = None
+
+
 class ConfigurationDetailResponse(ConfigurationSummaryResponse):
     general: GeneralSettingsSchema
     infra: InfraSettingsSchema

@@ -7,8 +7,28 @@
   },
   {
    "relation": "requests",
+   "source": "api:agent.confirmFlagDraft",
+   "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/flag-drafts/{package_id}/confirm"
+  },
+  {
+   "relation": "requests",
    "source": "api:agent.confirmModusOperandiDraft",
    "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/modus-operandi-drafts/{package_id}/confirm"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.confirmSimilarCaseDraft",
+   "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/similar-case-drafts/{package_id}/confirm"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.confirmTaxonomyDraft",
+   "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/taxonomy-drafts/{package_id}/confirm"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.confirmWatchlistDraft",
+   "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/watchlist-drafts/{package_id}/confirm"
   },
   {
    "relation": "requests",
@@ -27,8 +47,18 @@
   },
   {
    "relation": "requests",
+   "source": "api:agent.generateFlagDraft",
+   "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/flag-drafts"
+  },
+  {
+   "relation": "requests",
    "source": "api:agent.generateModusOperandiDraft",
    "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/modus-operandi-drafts"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.generateSimilarCaseDraft",
+   "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/similar-case-drafts"
   },
   {
    "relation": "requests",
@@ -49,6 +79,11 @@
    "relation": "requests",
    "source": "api:agent.listAgentAudit",
    "target": "endpoint:GET /api/v0/agent/sessions/{session_id}/audit"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.listAgentDraftActions",
+   "target": "endpoint:GET /api/v0/agent/draft-actions"
   },
   {
    "relation": "requests",
@@ -342,6 +377,11 @@
   },
   {
    "relation": "requests",
+   "source": "api:configurations.getConfigurationGraph",
+   "target": "endpoint:GET /api/v0/configurations/graph"
+  },
+  {
+   "relation": "requests",
    "source": "api:configurations.getConfigurationVersion",
    "target": "endpoint:GET /api/v0/configurations/{configuration_id}/versions/{version}"
   },
@@ -424,6 +464,11 @@
    "relation": "requests",
    "source": "api:datasets.saveAlertFieldMapping",
    "target": "endpoint:PUT /api/v0/datasets/{name}/alert-field-mapping"
+  },
+  {
+   "relation": "requests",
+   "source": "api:datasets.uploadDataset",
+   "target": "endpoint:POST /api/v0/datasets/uploads"
   },
   {
    "relation": "requests",
@@ -932,6 +977,16 @@
   },
   {
    "relation": "offers",
+   "source": "component:PageHeader",
+   "target": "action:limpiar-filtros@component-pageheader"
+  },
+  {
+   "relation": "offers",
+   "source": "component:RefreshControl",
+   "target": "action:actualizar@component-refreshcontrol"
+  },
+  {
+   "relation": "offers",
    "source": "component:RulesFilter",
    "target": "action:reglas@component-rulesfilter"
   },
@@ -1048,6 +1103,11 @@
   {
    "relation": "offers",
    "source": "component:agent/AgentPanel",
+   "target": "action:abrir-propuesta-de@component-agent-agentpanel"
+  },
+  {
+   "relation": "offers",
+   "source": "component:agent/AgentPanel",
    "target": "action:asistente-aria@component-agent-agentpanel"
   },
   {
@@ -1069,11 +1129,6 @@
    "relation": "offers",
    "source": "component:agent/AgentPanel",
    "target": "action:confirmar-y-aplicar@component-agent-agentpanel"
-  },
-  {
-   "relation": "offers",
-   "source": "component:agent/AgentPanel",
-   "target": "action:crear-borrador-de-modus-operandi-desde-este-mensaje@component-agent-agentpanel"
   },
   {
    "relation": "offers",
@@ -1113,7 +1168,7 @@
   {
    "relation": "offers",
    "source": "component:agent/AgentPanel",
-   "target": "action:revisar-diff-y-confirmar@component-agent-agentpanel"
+   "target": "action:revisar-y-confirmar@component-agent-agentpanel"
   },
   {
    "relation": "offers",
@@ -1133,7 +1188,27 @@
   {
    "relation": "calls",
    "source": "component:agent/AgentPanel",
+   "target": "api:agent.confirmFlagDraft"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
    "target": "api:agent.confirmModusOperandiDraft"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
+   "target": "api:agent.confirmSimilarCaseDraft"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
+   "target": "api:agent.confirmTaxonomyDraft"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
+   "target": "api:agent.confirmWatchlistDraft"
   },
   {
    "relation": "calls",
@@ -1143,12 +1218,27 @@
   {
    "relation": "calls",
    "source": "component:agent/AgentPanel",
+   "target": "api:agent.generateFlagDraft"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
    "target": "api:agent.generateModusOperandiDraft"
   },
   {
    "relation": "calls",
    "source": "component:agent/AgentPanel",
+   "target": "api:agent.generateSimilarCaseDraft"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
    "target": "api:agent.getAgentSessionSummary"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
+   "target": "api:agent.listAgentDraftActions"
   },
   {
    "relation": "calls",
@@ -1173,12 +1263,37 @@
   {
    "relation": "calls",
    "source": "component:agent/AgentPanel",
+   "target": "api:knowledgeLibrary.listFlagLibraryEntries"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
    "target": "api:knowledgeLibrary.listModusOperandiLibraryEntries"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
+   "target": "api:knowledgeLibrary.listSimilarCaseLibraryEntries"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
+   "target": "api:knowledgeLibrary.listTaxonomyLibraryEntries"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
+   "target": "api:watchlist.listWatchlists"
   },
   {
    "relation": "renders",
    "source": "component:agent/AgentPanel",
    "target": "component:agent/AgentOptimizerPanel"
+  },
+  {
+   "relation": "renders",
+   "source": "component:agent/AgentPanel",
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "offers",
@@ -1278,7 +1393,7 @@
   {
    "relation": "renders",
    "source": "component:biblioteca/AlertFieldMappingEditor",
-   "target": "component:ui/dialog"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "offers",
@@ -1378,16 +1493,6 @@
   {
    "relation": "offers",
    "source": "component:biblioteca/ModusOperandiPlaybookModal",
-   "target": "action:cancelar@component-biblioteca-modusoperandiplaybookmodal"
-  },
-  {
-   "relation": "offers",
-   "source": "component:biblioteca/ModusOperandiPlaybookModal",
-   "target": "action:cerrar@component-biblioteca-modusoperandiplaybookmodal"
-  },
-  {
-   "relation": "offers",
-   "source": "component:biblioteca/ModusOperandiPlaybookModal",
    "target": "action:guardar-playbook@component-biblioteca-modusoperandiplaybookmodal"
   },
   {
@@ -1409,6 +1514,11 @@
    "relation": "renders",
    "source": "component:biblioteca/ModusOperandiPlaybookModal",
    "target": "component:configuracion/shared/ResolutionMethodPicker"
+  },
+  {
+   "relation": "renders",
+   "source": "component:biblioteca/ModusOperandiPlaybookModal",
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "offers",
@@ -1456,14 +1566,14 @@
    "target": "component:ui/DataTable"
   },
   {
-   "relation": "offers",
-   "source": "component:biblioteca/WatchlistManager",
-   "target": "action:borrar@component-biblioteca-watchlistmanager"
+   "relation": "renders",
+   "source": "component:biblioteca/WatchlistElementsModal",
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "offers",
    "source": "component:biblioteca/WatchlistManager",
-   "target": "action:cancelar@component-biblioteca-watchlistmanager"
+   "target": "action:borrar@component-biblioteca-watchlistmanager"
   },
   {
    "relation": "offers",
@@ -1519,6 +1629,11 @@
    "relation": "renders",
    "source": "component:biblioteca/WatchlistManager",
    "target": "component:ui/confirm-delete-dialog"
+  },
+  {
+   "relation": "renders",
+   "source": "component:biblioteca/WatchlistManager",
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "offers",
@@ -1698,12 +1813,12 @@
   {
    "relation": "renders",
    "source": "component:configuracion/MarcacionCatalogManager",
-   "target": "component:ui/dialog"
+   "target": "component:ui/input"
   },
   {
    "relation": "renders",
    "source": "component:configuracion/MarcacionCatalogManager",
-   "target": "component:ui/input"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "renders",
@@ -1823,12 +1938,12 @@
   {
    "relation": "renders",
    "source": "component:configuracion/ResolutionMethodCatalogManager",
-   "target": "component:ui/dialog"
+   "target": "component:ui/input"
   },
   {
    "relation": "renders",
    "source": "component:configuracion/ResolutionMethodCatalogManager",
-   "target": "component:ui/input"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "renders",
@@ -2123,12 +2238,12 @@
   {
    "relation": "renders",
    "source": "component:configuracion/VariableCatalogManager",
-   "target": "component:ui/dialog"
+   "target": "component:ui/input"
   },
   {
    "relation": "renders",
    "source": "component:configuracion/VariableCatalogManager",
-   "target": "component:ui/input"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "renders",
@@ -2288,7 +2403,7 @@
   {
    "relation": "renders",
    "source": "component:datasets/CreateEmptyDatasetModal",
-   "target": "component:ui/dialog"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "renders",
@@ -2313,7 +2428,7 @@
   {
    "relation": "renders",
    "source": "component:datasets/DatasetDetailDrawer",
-   "target": "component:ui/dialog"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "renders",
@@ -2453,7 +2568,7 @@
   {
    "relation": "renders",
    "source": "component:datasets/ExtractDatasetModal",
-   "target": "component:ui/dialog"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "offers",
@@ -2488,12 +2603,12 @@
   {
    "relation": "renders",
    "source": "component:datasets/PickDatasetRecordsModal",
-   "target": "component:ui/dialog"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "renders",
    "source": "component:datasets/RowJsonModal",
-   "target": "component:ui/dialog"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "offers",
@@ -2506,6 +2621,11 @@
    "target": "api:datasets.getDatasets"
   },
   {
+   "relation": "calls",
+   "source": "component:datasets/UploadDatasetModal",
+   "target": "api:datasets.uploadDataset"
+  },
+  {
    "relation": "renders",
    "source": "component:datasets/UploadDatasetModal",
    "target": "component:configuracion/shared/FormControls"
@@ -2513,12 +2633,12 @@
   {
    "relation": "renders",
    "source": "component:datasets/UploadDatasetModal",
-   "target": "component:ui/dialog"
+   "target": "component:ui/progress"
   },
   {
    "relation": "renders",
    "source": "component:datasets/UploadDatasetModal",
-   "target": "component:ui/progress"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "offers",
@@ -2788,7 +2908,7 @@
   {
    "relation": "renders",
    "source": "component:modelos/ModelFormModal",
-   "target": "component:ui/dialog"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "navigates_to",
@@ -2908,12 +3028,12 @@
   {
    "relation": "renders",
    "source": "component:modelos/ModelTrainingWizard",
-   "target": "component:ui/dialog"
+   "target": "component:ui/section-tabs"
   },
   {
    "relation": "renders",
    "source": "component:modelos/ModelTrainingWizard",
-   "target": "component:ui/section-tabs"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "calls",
@@ -3038,7 +3158,7 @@
   {
    "relation": "renders",
    "source": "component:testing/DatasetDetailModal",
-   "target": "component:ui/dialog"
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "navigates_to",
@@ -3084,6 +3204,11 @@
    "relation": "calls",
    "source": "component:testing/DatasetTestForm",
    "target": "api:datasets.getDatasets"
+  },
+  {
+   "relation": "calls",
+   "source": "component:testing/DatasetTestForm",
+   "target": "api:datasets.uploadDataset"
   },
   {
    "relation": "calls",
@@ -3231,11 +3356,6 @@
    "target": "component:testing/Hint"
   },
   {
-   "relation": "offers",
-   "source": "component:testing/NewTestRunModal",
-   "target": "action:cerrar-nueva-prueba@component-testing-newtestrunmodal"
-  },
-  {
    "relation": "renders",
    "source": "component:testing/NewTestRunModal",
    "target": "component:testing/DatasetTestForm"
@@ -3249,6 +3369,11 @@
    "relation": "renders",
    "source": "component:testing/NewTestRunModal",
    "target": "component:testing/GeneradorScenarioForm"
+  },
+  {
+   "relation": "renders",
+   "source": "component:testing/NewTestRunModal",
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "renders",
@@ -3339,6 +3464,11 @@
    "relation": "renders",
    "source": "component:ui/pagination",
    "target": "component:ui/button"
+  },
+  {
+   "relation": "renders",
+   "source": "component:ui/side-drawer",
+   "target": "component:ui/alert-dialog"
   },
   {
    "relation": "offers",
@@ -3489,6 +3619,16 @@
    "relation": "manifested_in",
    "source": "concept:watchlist",
    "target": "resource:watchlists"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:DELETE /api/v0/datasets/uploads/{upload_id}",
+   "target": "resource:datasets"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:DELETE /api/v0/datasets/uploads/{upload_id}",
+   "target": "use_case:DatasetUploadChunksUseCase"
   },
   {
    "relation": "belongs_to",
@@ -3712,6 +3852,11 @@
   },
   {
    "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/draft-actions",
+   "target": "resource:agent-draft-actions"
+  },
+  {
+   "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/objectives",
    "target": "resource:agent-objectives"
   },
@@ -3791,11 +3936,6 @@
    "target": "resource:agent"
   },
   {
-   "relation": "requires",
-   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/confirmations",
-   "target": "permission:library_write"
-  },
-  {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/confirmations",
    "target": "resource:agent-drafts"
@@ -3819,11 +3959,6 @@
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/experiments/{experiment_id}",
    "target": "resource:agent"
-  },
-  {
-   "relation": "requires",
-   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/flag-drafts/{package_id}",
-   "target": "permission:library_write"
   },
   {
    "relation": "belongs_to",
@@ -3886,11 +4021,6 @@
    "target": "resource:agent"
   },
   {
-   "relation": "requires",
-   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/modus-operandi-drafts/{package_id}",
-   "target": "permission:library_write"
-  },
-  {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/modus-operandi-drafts/{package_id}",
    "target": "resource:agent-drafts"
@@ -3904,11 +4034,6 @@
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/packages",
    "target": "resource:agent"
-  },
-  {
-   "relation": "requires",
-   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/similar-case-drafts/{package_id}",
-   "target": "permission:library_write"
   },
   {
    "relation": "belongs_to",
@@ -3926,19 +4051,9 @@
    "target": "resource:agent"
   },
   {
-   "relation": "requires",
-   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/taxonomy-drafts/{package_id}",
-   "target": "permission:library_write"
-  },
-  {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/taxonomy-drafts/{package_id}",
    "target": "resource:agent-taxonomy-drafts"
-  },
-  {
-   "relation": "requires",
-   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/watchlist-drafts/{package_id}",
-   "target": "permission:library_write"
   },
   {
    "relation": "belongs_to",
@@ -4204,6 +4319,16 @@
    "relation": "handled_by",
    "source": "endpoint:GET /api/v0/configurations/active",
    "target": "use_case:GetActiveConfigurationUseCase"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/configurations/graph",
+   "target": "resource:configurations"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:GET /api/v0/configurations/graph",
+   "target": "use_case:GetConfigurationGraphUseCase"
   },
   {
    "relation": "belongs_to",
@@ -4901,11 +5026,6 @@
    "target": "resource:agent"
   },
   {
-   "relation": "requires",
-   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/flag-drafts",
-   "target": "permission:library_write"
-  },
-  {
    "relation": "belongs_to",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/flag-drafts",
    "target": "resource:agent-flag-drafts"
@@ -4914,11 +5034,6 @@
    "relation": "handled_by",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/flag-drafts",
    "target": "use_case:GenerateFlagDraftUseCase"
-  },
-  {
-   "relation": "requires",
-   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/flag-drafts/{package_id}/confirm",
-   "target": "permission:library_write"
   },
   {
    "relation": "belongs_to",
@@ -4966,11 +5081,6 @@
    "target": "use_case:ChatWithAgentUseCase"
   },
   {
-   "relation": "requires",
-   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/modus-operandi-drafts",
-   "target": "permission:library_write"
-  },
-  {
    "relation": "belongs_to",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/modus-operandi-drafts",
    "target": "resource:agent-drafts"
@@ -4979,11 +5089,6 @@
    "relation": "handled_by",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/modus-operandi-drafts",
    "target": "use_case:GenerateModusOperandiDraftUseCase"
-  },
-  {
-   "relation": "requires",
-   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/modus-operandi-drafts/{package_id}/confirm",
-   "target": "permission:library_write"
   },
   {
    "relation": "belongs_to",
@@ -5016,11 +5121,6 @@
    "target": "resource:agent"
   },
   {
-   "relation": "requires",
-   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/similar-case-drafts",
-   "target": "permission:library_write"
-  },
-  {
    "relation": "belongs_to",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/similar-case-drafts",
    "target": "resource:agent-similar-case-drafts"
@@ -5029,11 +5129,6 @@
    "relation": "handled_by",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/similar-case-drafts",
    "target": "use_case:GenerateSimilarCaseDraftUseCase"
-  },
-  {
-   "relation": "requires",
-   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/similar-case-drafts/{package_id}/confirm",
-   "target": "permission:library_write"
   },
   {
    "relation": "belongs_to",
@@ -5056,11 +5151,6 @@
    "target": "resource:agent"
   },
   {
-   "relation": "requires",
-   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/taxonomy-drafts",
-   "target": "permission:library_write"
-  },
-  {
    "relation": "belongs_to",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/taxonomy-drafts",
    "target": "resource:agent-taxonomy-drafts"
@@ -5069,11 +5159,6 @@
    "relation": "handled_by",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/taxonomy-drafts",
    "target": "use_case:GenerateTaxonomyDraftUseCase"
-  },
-  {
-   "relation": "requires",
-   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/taxonomy-drafts/{package_id}/confirm",
-   "target": "permission:library_write"
   },
   {
    "relation": "belongs_to",
@@ -5086,11 +5171,6 @@
    "target": "use_case:ConfirmTaxonomyDraftUseCase"
   },
   {
-   "relation": "requires",
-   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/watchlist-drafts",
-   "target": "permission:library_write"
-  },
-  {
    "relation": "belongs_to",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/watchlist-drafts",
    "target": "resource:agent-watchlist-drafts"
@@ -5099,11 +5179,6 @@
    "relation": "handled_by",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/watchlist-drafts",
    "target": "use_case:GenerateWatchlistDraftUseCase"
-  },
-  {
-   "relation": "requires",
-   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/watchlist-drafts/{package_id}/confirm",
-   "target": "permission:library_write"
   },
   {
    "relation": "belongs_to",
@@ -5287,26 +5362,6 @@
   },
   {
    "relation": "belongs_to",
-   "source": "endpoint:POST /api/v0/async-operations",
-   "target": "resource:async-operations"
-  },
-  {
-   "relation": "handled_by",
-   "source": "endpoint:POST /api/v0/async-operations",
-   "target": "use_case:CreateAsyncOperationUseCase"
-  },
-  {
-   "relation": "belongs_to",
-   "source": "endpoint:POST /api/v0/async-operations/reconcile",
-   "target": "resource:async-operations"
-  },
-  {
-   "relation": "handled_by",
-   "source": "endpoint:POST /api/v0/async-operations/reconcile",
-   "target": "use_case:ReconcileAsyncOperationsUseCase"
-  },
-  {
-   "relation": "belongs_to",
    "source": "endpoint:POST /api/v0/auth/login",
    "target": "resource:auth"
   },
@@ -5424,6 +5479,26 @@
    "relation": "handled_by",
    "source": "endpoint:POST /api/v0/datasets/extract",
    "target": "use_case:ExtractDatasetUseCase"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/datasets/uploads",
+   "target": "resource:datasets"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:POST /api/v0/datasets/uploads",
+   "target": "use_case:DatasetUploadChunksUseCase"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/datasets/uploads/{upload_id}/complete",
+   "target": "resource:datasets"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:POST /api/v0/datasets/uploads/{upload_id}/complete",
+   "target": "use_case:DatasetUploadChunksUseCase"
   },
   {
    "relation": "belongs_to",
@@ -5831,6 +5906,16 @@
    "target": "use_case:ChangeLocalUserPasswordUseCase"
   },
   {
+   "relation": "belongs_to",
+   "source": "endpoint:PUT /api/v0/datasets/uploads/{upload_id}/parts/{part_number}",
+   "target": "resource:datasets"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:PUT /api/v0/datasets/uploads/{upload_id}/parts/{part_number}",
+   "target": "use_case:DatasetUploadChunksUseCase"
+  },
+  {
    "relation": "requires",
    "source": "endpoint:PUT /api/v0/datasets/{name}/alert-field-mapping",
    "target": "permission:alert_schema"
@@ -6007,16 +6092,6 @@
   },
   {
    "relation": "implemented_by",
-   "source": "port:AsyncExecutionInspector",
-   "target": "adapter:CeleryAsyncExecutionInspector"
-  },
-  {
-   "relation": "implemented_by",
-   "source": "port:AsyncExecutionInspector",
-   "target": "adapter:DeferredAsyncExecutionInspector"
-  },
-  {
-   "relation": "implemented_by",
    "source": "port:AsyncExecutor",
    "target": "adapter:CeleryAsyncExecutor"
   },
@@ -6059,6 +6134,11 @@
    "relation": "implemented_by",
    "source": "port:Clock",
    "target": "adapter:SystemClock"
+  },
+  {
+   "relation": "implemented_by",
+   "source": "port:ConfigurationDeployRequestRepository",
+   "target": "adapter:DynamoConfigurationDeployRequestRepository"
   },
   {
    "relation": "implemented_by",
@@ -6484,6 +6564,11 @@
    "relation": "grants",
    "source": "role:manager",
    "target": "permission:in_progress"
+  },
+  {
+   "relation": "grants",
+   "source": "role:manager",
+   "target": "permission:library"
   },
   {
    "relation": "grants",
@@ -7537,6 +7622,11 @@
   {
    "relation": "uses_port",
    "source": "use_case:CreateConfigurationUseCase",
+   "target": "port:AlertSchemaRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:CreateConfigurationUseCase",
    "target": "port:Clock"
   },
   {
@@ -7823,6 +7913,26 @@
    "relation": "uses_port",
    "source": "use_case:CurateAlertToDatasetUseCase",
    "target": "port:WorkflowExecutionRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:DatasetUploadChunksUseCase",
+   "target": "port:Clock"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:DatasetUploadChunksUseCase",
+   "target": "port:DatasetRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:DatasetUploadChunksUseCase",
+   "target": "port:IdGenerator"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:DatasetUploadChunksUseCase",
+   "target": "port:ObjectStoragePort"
   },
   {
    "relation": "uses_port",
@@ -8356,6 +8466,16 @@
   },
   {
    "relation": "uses_port",
+   "source": "use_case:GetConfigurationGraphUseCase",
+   "target": "port:ConfigurationDeployRequestRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GetConfigurationGraphUseCase",
+   "target": "port:ConfigurationRepository"
+  },
+  {
+   "relation": "uses_port",
    "source": "use_case:GetConfigurationUseCase",
    "target": "port:ConfigurationRepository"
   },
@@ -8662,6 +8782,11 @@
   {
    "relation": "uses_port",
    "source": "use_case:PreviewConfigurationUseCase",
+   "target": "port:AlertSchemaRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:PreviewConfigurationUseCase",
    "target": "port:ConfigurationRepository"
   },
   {
@@ -8743,31 +8868,6 @@
    "relation": "uses_port",
    "source": "use_case:ProposeAlertSchemaUseCase",
    "target": "port:Clock"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:ReconcileAsyncOperationsUseCase",
-   "target": "port:AlertRepository"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:ReconcileAsyncOperationsUseCase",
-   "target": "port:AsyncExecutionInspector"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:ReconcileAsyncOperationsUseCase",
-   "target": "port:AsyncOperationRepository"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:ReconcileAsyncOperationsUseCase",
-   "target": "port:Clock"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:ReconcileAsyncOperationsUseCase",
-   "target": "port:WorkflowExecutionRepository"
   },
   {
    "relation": "uses_port",
@@ -9412,6 +9512,11 @@
   {
    "relation": "renders",
    "source": "view:/alerta/$id",
+   "target": "component:alert/AlertFlowDiagrams"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/alerta/$id",
    "target": "component:alert/AlertSchemaView"
   },
   {
@@ -9457,17 +9562,7 @@
   {
    "relation": "offers",
    "source": "view:/biblioteca",
-   "target": "action:agregar@view-biblioteca"
-  },
-  {
-   "relation": "offers",
-   "source": "view:/biblioteca",
    "target": "action:borrar@view-biblioteca"
-  },
-  {
-   "relation": "offers",
-   "source": "view:/biblioteca",
-   "target": "action:cancelar@view-biblioteca"
   },
   {
    "relation": "offers",
@@ -9503,6 +9598,11 @@
    "relation": "offers",
    "source": "view:/biblioteca",
    "target": "action:nuevo-modus-operandi@view-biblioteca"
+  },
+  {
+   "relation": "offers",
+   "source": "view:/biblioteca",
+   "target": "action:nuevo-valor@view-biblioteca"
   },
   {
    "relation": "offers",
@@ -9675,6 +9775,11 @@
    "target": "component:ui/confirm-vector-store-documents-dialog"
   },
   {
+   "relation": "renders",
+   "source": "view:/biblioteca",
+   "target": "component:ui/side-drawer"
+  },
+  {
    "relation": "offers",
    "source": "view:/cola",
    "target": "action:seguir@view-cola"
@@ -9732,6 +9837,11 @@
   {
    "relation": "renders",
    "source": "view:/cola",
+   "target": "component:PageHeader"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/cola",
    "target": "component:RefreshControl"
   },
   {
@@ -9752,11 +9862,6 @@
   {
    "relation": "offers",
    "source": "view:/configuracion",
-   "target": "action:actualizar-y-combinar@view-configuracion"
-  },
-  {
-   "relation": "offers",
-   "source": "view:/configuracion",
    "target": "action:aprobar-y-desplegar@view-configuracion"
   },
   {
@@ -9768,6 +9873,11 @@
    "relation": "offers",
    "source": "view:/configuracion",
    "target": "action:cancelar@view-configuracion"
+  },
+  {
+   "relation": "offers",
+   "source": "view:/configuracion",
+   "target": "action:comparar-y-combinar@view-configuracion"
   },
   {
    "relation": "offers",
@@ -9877,6 +9987,11 @@
   {
    "relation": "calls",
    "source": "view:/configuracion",
+   "target": "api:configurations.getConfigurationGraph"
+  },
+  {
+   "relation": "calls",
+   "source": "view:/configuracion",
    "target": "api:configurations.getConfigurationVersion"
   },
   {
@@ -9918,6 +10033,11 @@
    "relation": "renders",
    "source": "view:/configuracion",
    "target": "component:configuracion/AgentSettingsPanel"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/configuracion",
+   "target": "component:configuracion/ConfigurationVersionGraph"
   },
   {
    "relation": "renders",
@@ -10012,6 +10132,11 @@
   {
    "relation": "renders",
    "source": "view:/dashboard",
+   "target": "component:PageHeader"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/dashboard",
    "target": "component:metrics/MetricsShared"
   },
   {
@@ -10058,6 +10183,11 @@
    "relation": "renders",
    "source": "view:/historico-fraude",
    "target": "component:MetricsFilterBar"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/historico-fraude",
+   "target": "component:PageHeader"
   },
   {
    "relation": "renders",
@@ -10197,12 +10327,22 @@
   {
    "relation": "renders",
    "source": "view:/monitor",
+   "target": "component:PageHeader"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/monitor",
    "target": "component:metrics/MetricsShared"
   },
   {
    "relation": "renders",
    "source": "view:/monitor",
    "target": "component:ui/button"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/monitor",
+   "target": "component:ui/tabs"
   },
   {
    "relation": "offers",
@@ -10430,6 +10570,18 @@
   },
   {
    "attrs": {
+    "owner": "component:agent/AgentPanel"
+   },
+   "description": "Acción «Abrir propuesta de» en AgentPanel.",
+   "id": "action:abrir-propuesta-de@component-agent-agentpanel",
+   "keywords": [
+    "Abrir propuesta de"
+   ],
+   "kind": "action",
+   "name": "Abrir propuesta de"
+  },
+  {
+   "attrs": {
     "owner": "view:/modelos"
    },
    "description": "Acción «Activar en producción» en /modelos.",
@@ -10490,15 +10642,15 @@
   },
   {
    "attrs": {
-    "owner": "view:/configuracion"
+    "owner": "component:RefreshControl"
    },
-   "description": "Acción «Actualizar y combinar» en /configuracion.",
-   "id": "action:actualizar-y-combinar@view-configuracion",
+   "description": "Acción «Actualizar» en RefreshControl.",
+   "id": "action:actualizar@component-refreshcontrol",
    "keywords": [
-    "Actualizar y combinar"
+    "Actualizar"
    ],
    "kind": "action",
-   "name": "Actualizar y combinar"
+   "name": "Actualizar"
   },
   {
    "attrs": {
@@ -10746,18 +10898,6 @@
    },
    "description": "Acción «Agregar» en /alerta/$id.",
    "id": "action:agregar@view-alerta-id",
-   "keywords": [
-    "Agregar"
-   ],
-   "kind": "action",
-   "name": "Agregar"
-  },
-  {
-   "attrs": {
-    "owner": "view:/biblioteca"
-   },
-   "description": "Acción «Agregar» en /biblioteca.",
-   "id": "action:agregar@view-biblioteca",
    "keywords": [
     "Agregar"
    ],
@@ -11138,30 +11278,6 @@
   },
   {
    "attrs": {
-    "owner": "component:biblioteca/ModusOperandiPlaybookModal"
-   },
-   "description": "Acción «Cancelar» en ModusOperandiPlaybookModal.",
-   "id": "action:cancelar@component-biblioteca-modusoperandiplaybookmodal",
-   "keywords": [
-    "Cancelar"
-   ],
-   "kind": "action",
-   "name": "Cancelar"
-  },
-  {
-   "attrs": {
-    "owner": "component:biblioteca/WatchlistManager"
-   },
-   "description": "Acción «Cancelar» en WatchlistManager.",
-   "id": "action:cancelar@component-biblioteca-watchlistmanager",
-   "keywords": [
-    "Cancelar"
-   ],
-   "kind": "action",
-   "name": "Cancelar"
-  },
-  {
-   "attrs": {
     "owner": "component:datasets/CreateEmptyDatasetModal"
    },
    "description": "Acción «Cancelar» en CreateEmptyDatasetModal.",
@@ -11258,18 +11374,6 @@
   },
   {
    "attrs": {
-    "owner": "view:/biblioteca"
-   },
-   "description": "Acción «Cancelar» en /biblioteca.",
-   "id": "action:cancelar@view-biblioteca",
-   "keywords": [
-    "Cancelar"
-   ],
-   "kind": "action",
-   "name": "Cancelar"
-  },
-  {
-   "attrs": {
     "owner": "view:/configuracion"
    },
    "description": "Acción «Cancelar» en /configuracion.",
@@ -11354,18 +11458,6 @@
   },
   {
    "attrs": {
-    "owner": "component:testing/NewTestRunModal"
-   },
-   "description": "Acción «Cerrar nueva prueba» en NewTestRunModal.",
-   "id": "action:cerrar-nueva-prueba@component-testing-newtestrunmodal",
-   "keywords": [
-    "Cerrar nueva prueba"
-   ],
-   "kind": "action",
-   "name": "Cerrar nueva prueba"
-  },
-  {
-   "attrs": {
     "owner": "component:AppSidebar"
    },
    "description": "Acción «Cerrar sesión» en AppSidebar.",
@@ -11375,18 +11467,6 @@
    ],
    "kind": "action",
    "name": "Cerrar sesión"
-  },
-  {
-   "attrs": {
-    "owner": "component:biblioteca/ModusOperandiPlaybookModal"
-   },
-   "description": "Acción «Cerrar» en ModusOperandiPlaybookModal.",
-   "id": "action:cerrar@component-biblioteca-modusoperandiplaybookmodal",
-   "keywords": [
-    "Cerrar"
-   ],
-   "kind": "action",
-   "name": "Cerrar"
   },
   {
    "attrs": {
@@ -11423,6 +11503,18 @@
    ],
    "kind": "action",
    "name": "Columnas"
+  },
+  {
+   "attrs": {
+    "owner": "view:/configuracion"
+   },
+   "description": "Acción «Comparar y combinar» en /configuracion.",
+   "id": "action:comparar-y-combinar@view-configuracion",
+   "keywords": [
+    "Comparar y combinar"
+   ],
+   "kind": "action",
+   "name": "Comparar y combinar"
   },
   {
    "attrs": {
@@ -11519,18 +11611,6 @@
    ],
    "kind": "action",
    "name": "Copiar JSON"
-  },
-  {
-   "attrs": {
-    "owner": "component:agent/AgentPanel"
-   },
-   "description": "Acción «Crear borrador de modus operandi desde este mensaje» en AgentPanel.",
-   "id": "action:crear-borrador-de-modus-operandi-desde-este-mensaje@component-agent-agentpanel",
-   "keywords": [
-    "Crear borrador de modus operandi desde este mensaje"
-   ],
-   "kind": "action",
-   "name": "Crear borrador de modus operandi desde este mensaje"
   },
   {
    "attrs": {
@@ -12338,6 +12418,18 @@
   },
   {
    "attrs": {
+    "owner": "component:PageHeader"
+   },
+   "description": "Acción «Limpiar filtros» en PageHeader.",
+   "id": "action:limpiar-filtros@component-pageheader",
+   "keywords": [
+    "Limpiar filtros"
+   ],
+   "kind": "action",
+   "name": "Limpiar filtros"
+  },
+  {
+   "attrs": {
     "owner": "view:/testing"
    },
    "description": "Acción «Limpiar» en /testing.",
@@ -12515,6 +12607,18 @@
    ],
    "kind": "action",
    "name": "Nuevo perfil"
+  },
+  {
+   "attrs": {
+    "owner": "view:/biblioteca"
+   },
+   "description": "Acción «Nuevo valor» en /biblioteca.",
+   "id": "action:nuevo-valor@view-biblioteca",
+   "keywords": [
+    "Nuevo valor"
+   ],
+   "kind": "action",
+   "name": "Nuevo valor"
   },
   {
    "attrs": {
@@ -12962,18 +13066,6 @@
   },
   {
    "attrs": {
-    "owner": "component:agent/AgentPanel"
-   },
-   "description": "Acción «Revisar diff y confirmar» en AgentPanel.",
-   "id": "action:revisar-diff-y-confirmar@component-agent-agentpanel",
-   "keywords": [
-    "Revisar diff y confirmar"
-   ],
-   "kind": "action",
-   "name": "Revisar diff y confirmar"
-  },
-  {
-   "attrs": {
     "owner": "view:/historico-fraude"
    },
    "description": "Acción «Revisar fraude» en /historico-fraude.",
@@ -12995,6 +13087,18 @@
    ],
    "kind": "action",
    "name": "Revisar mapping “"
+  },
+  {
+   "attrs": {
+    "owner": "component:agent/AgentPanel"
+   },
+   "description": "Acción «Revisar y confirmar» en AgentPanel.",
+   "id": "action:revisar-y-confirmar@component-agent-agentpanel",
+   "keywords": [
+    "Revisar y confirmar"
+   ],
+   "kind": "action",
+   "name": "Revisar y confirmar"
   },
   {
    "attrs": {
@@ -13514,18 +13618,6 @@
   },
   {
    "attrs": {
-    "file": "src/infrastructure/queues/celery/inspector.py"
-   },
-   "description": "",
-   "id": "adapter:CeleryAsyncExecutionInspector",
-   "keywords": [
-    "Celery Async Execution Inspector"
-   ],
-   "kind": "adapter",
-   "name": "CeleryAsyncExecutionInspector"
-  },
-  {
-   "attrs": {
     "file": "src/infrastructure/queues/celery/dispatcher.py"
    },
    "description": "",
@@ -13619,18 +13711,6 @@
    ],
    "kind": "adapter",
    "name": "ContentRedactingMonitoring"
-  },
-  {
-   "attrs": {
-    "file": "src/infrastructure/queues/celery/deferred_executor.py"
-   },
-   "description": "",
-   "id": "adapter:DeferredAsyncExecutionInspector",
-   "keywords": [
-    "Deferred Async Execution Inspector"
-   ],
-   "kind": "adapter",
-   "name": "DeferredAsyncExecutionInspector"
   },
   {
    "attrs": {
@@ -13943,6 +14023,18 @@
    ],
    "kind": "adapter",
    "name": "DynamoChannelLibraryRepository"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/persistence/database/dynamodb/repositories/configuration_deploy_request_repository.py"
+   },
+   "description": "",
+   "id": "adapter:DynamoConfigurationDeployRequestRepository",
+   "keywords": [
+    "Dynamo Configuration Deploy Request Repository"
+   ],
+   "kind": "adapter",
+   "name": "DynamoConfigurationDeployRequestRepository"
   },
   {
    "attrs": {
@@ -14550,6 +14642,20 @@
    "attrs": {
     "file": "lib/api/agent.functions.ts",
     "http_method": "POST",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/flag-drafts/${encodeURIComponent(packageId)}/confirm"
+   },
+   "description": "POST /api/v0/agent/sessions/{id}/flag-drafts/{id}/confirm",
+   "id": "api:agent.confirmFlagDraft",
+   "keywords": [
+    "confirmar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "confirmFlagDraft"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "POST",
     "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/modus-operandi-drafts/${encodeURIComponent(packageId)}/confirm"
    },
    "description": "POST /api/v0/agent/sessions/{id}/modus-operandi-drafts/{id}/confirm",
@@ -14559,6 +14665,48 @@
    ],
    "kind": "api_call",
    "name": "confirmModusOperandiDraft"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/similar-case-drafts/${encodeURIComponent(packageId)}/confirm"
+   },
+   "description": "POST /api/v0/agent/sessions/{id}/similar-case-drafts/{id}/confirm",
+   "id": "api:agent.confirmSimilarCaseDraft",
+   "keywords": [
+    "confirmar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "confirmSimilarCaseDraft"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/taxonomy-drafts/${encodeURIComponent(packageId)}/confirm"
+   },
+   "description": "POST /api/v0/agent/sessions/{id}/taxonomy-drafts/{id}/confirm",
+   "id": "api:agent.confirmTaxonomyDraft",
+   "keywords": [
+    "confirmar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "confirmTaxonomyDraft"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/watchlist-drafts/${encodeURIComponent(packageId)}/confirm"
+   },
+   "description": "POST /api/v0/agent/sessions/{id}/watchlist-drafts/{id}/confirm",
+   "id": "api:agent.confirmWatchlistDraft",
+   "keywords": [
+    "confirmar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "confirmWatchlistDraft"
   },
   {
    "attrs": {
@@ -14606,6 +14754,20 @@
    "attrs": {
     "file": "lib/api/agent.functions.ts",
     "http_method": "POST",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/flag-drafts"
+   },
+   "description": "POST /api/v0/agent/sessions/{id}/flag-drafts",
+   "id": "api:agent.generateFlagDraft",
+   "keywords": [
+    "generar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "generateFlagDraft"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "POST",
     "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/modus-operandi-drafts"
    },
    "description": "POST /api/v0/agent/sessions/{id}/modus-operandi-drafts",
@@ -14615,6 +14777,20 @@
    ],
    "kind": "api_call",
    "name": "generateModusOperandiDraft"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/similar-case-drafts"
+   },
+   "description": "POST /api/v0/agent/sessions/{id}/similar-case-drafts",
+   "id": "api:agent.generateSimilarCaseDraft",
+   "keywords": [
+    "generar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "generateSimilarCaseDraft"
   },
   {
    "attrs": {
@@ -14671,6 +14847,20 @@
    ],
    "kind": "api_call",
    "name": "listAgentAudit"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/agent/draft-actions"
+   },
+   "description": "GET /api/v0/agent/draft-actions",
+   "id": "api:agent.listAgentDraftActions",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listAgentDraftActions"
   },
   {
    "attrs": {
@@ -15502,6 +15692,20 @@
    "attrs": {
     "file": "lib/api/configurations.functions.ts",
     "http_method": "GET",
+    "url": "/api/v0/configurations/graph"
+   },
+   "description": "GET /api/v0/configurations/graph",
+   "id": "api:configurations.getConfigurationGraph",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getConfigurationGraph"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/configurations.functions.ts",
+    "http_method": "GET",
     "url": "/api/v0/configurations/${encodeURIComponent(data.configurationId)}/versions/${data.version}"
    },
    "description": "GET /api/v0/configurations/{id}/versions/{id}",
@@ -15735,6 +15939,20 @@
    ],
    "kind": "api_call",
    "name": "saveAlertFieldMapping"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/datasets.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/datasets/uploads"
+   },
+   "description": "POST /api/v0/datasets/uploads",
+   "id": "api:datasets.uploadDataset",
+   "keywords": [
+    "subir cargar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "uploadDataset"
   },
   {
    "attrs": {
@@ -16830,6 +17048,18 @@
    "attrs": {
     "subtype": "doc"
    },
+   "description": "Documento backend: Event API",
+   "id": "asset:docs/backend/EVENT_API.md",
+   "keywords": [
+    "Event API"
+   ],
+   "kind": "asset",
+   "name": "EVENT_API.md"
+  },
+  {
+   "attrs": {
+    "subtype": "doc"
+   },
    "description": "Documento backend: Model serving and training workers",
    "id": "asset:docs/backend/MODEL_SERVING.md",
    "keywords": [
@@ -17047,13 +17277,25 @@
   },
   {
    "attrs": {
+    "file": "components/PageHeader.tsx"
+   },
+   "description": "",
+   "id": "component:PageHeader",
+   "keywords": [
+    "Filtros",
+    "Limpiar filtros"
+   ],
+   "kind": "component",
+   "name": "PageHeader"
+  },
+  {
+   "attrs": {
     "file": "components/RefreshControl.tsx"
    },
    "description": "",
    "id": "component:RefreshControl",
    "keywords": [
-    "Actualizar",
-    "Actualizado"
+    "Actualizar"
    ],
    "kind": "component",
    "name": "RefreshControl"
@@ -17156,13 +17398,13 @@
     "No se pudieron cargar los mensajes. Recarga el panel para reintentarlo.",
     "Envío no confirmado.",
     "Reintentar",
-    "Crear borrador de modus operandi desde este mensaje",
+    "Abrir propuesta de",
     "Enviando…",
     "Operación del borrador",
     "Crear",
     "Editar",
     "Entrada de Biblioteca",
-    "Selecciona modus operandi",
+    "Selecciona",
     "Regenerar",
     "Mensaje para ARIA",
     "Enviar",
@@ -17170,14 +17412,14 @@
     "Panel del optimizador",
     "ARIA · Optimizador",
     "Volver al asistente",
+    "Revisa el borrador verificado antes de confirmar su aplicación.",
+    "Revisar y confirmar",
     "Confirmar cambio en la Biblioteca",
     "Contenido que se aplicará",
     "Diff",
     "Volver a revisar",
     "Confirmar y aplicar",
-    "Lugares sugeridos",
-    "Confirmar insight",
-    "Editar en chat"
+    "Lugares sugeridos"
    ],
    "kind": "component",
    "name": "AgentPanel"
@@ -17217,6 +17459,35 @@
   },
   {
    "attrs": {
+    "file": "components/alert/AlertFlowDiagrams.tsx"
+   },
+   "description": "",
+   "id": "component:alert/AlertFlowDiagrams",
+   "keywords": [
+    "Preparar",
+    "Analizar",
+    "Revisar",
+    "Resolver",
+    "Bloqueo",
+    "Dejar pasar",
+    "Bidi",
+    "Voicebot",
+    "Analista",
+    "Ver diagramas del flujo y la resolución",
+    "Resumen visual",
+    "Revisión de la alerta",
+    "Etapas agrupadas de la revisión de alerta",
+    "Ruta de resolución",
+    "Registrada:",
+    "Opciones de resolución",
+    "Agente",
+    "Registro y métricas"
+   ],
+   "kind": "component",
+   "name": "AlertFlowDiagrams"
+  },
+  {
+   "attrs": {
     "file": "components/alert/AlertSchemaView.tsx"
    },
    "description": "",
@@ -17250,13 +17521,13 @@
    "id": "component:biblioteca/AlertFieldMappingEditor",
    "keywords": [
     "Exportar a formato externo:",
+    "Cancelar",
     "Cargando…",
     "No se pudo cargar la información del dataset.",
     "Sin campos mapeados todavía. Agrega uno con el botón de abajo.",
     "Columna del dataset",
     "Agregar campo",
-    "Error al guardar el mapeo:",
-    "Cancelar"
+    "Error al guardar el mapeo:"
    ],
    "kind": "component",
    "name": "AlertFieldMappingEditor"
@@ -17298,15 +17569,13 @@
    "id": "component:biblioteca/ModusOperandiPlaybookModal",
    "keywords": [
     "Playbook",
-    "Cerrar",
+    "Guardar playbook",
     "Estrategia",
     "Método de resolución",
     "Si no hay voicebot",
     "Si no hay analista",
     "Camino si faltan recursos",
-    "No se pudo guardar:",
-    "Cancelar",
-    "Guardar playbook"
+    "No se pudo guardar:"
    ],
    "kind": "component",
    "name": "ModusOperandiPlaybookModal"
@@ -17348,7 +17617,6 @@
    "description": "Modal con los elementos de una lista: agregar un valor, importar un archivo .csv/.txt (carga masiva) y quitar elementos.",
    "id": "component:biblioteca/WatchlistElementsModal",
    "keywords": [
-    "elementos",
     "Agregar un valor",
     "Agregar",
     "Importar .csv/.txt",
@@ -17379,9 +17647,9 @@
     "Editar",
     "Borrar",
     "Nueva lista",
+    "Configura el catálogo de pertenencia que consultan los agentes.",
     "Cuentas mula conocidas",
-    "Elementos iniciales",
-    "Cancelar"
+    "Elementos iniciales"
    ],
    "kind": "component",
    "name": "WatchlistManager"
@@ -17472,6 +17740,19 @@
    ],
    "kind": "component",
    "name": "AnalystCapacityEditor"
+  },
+  {
+   "attrs": {
+    "file": "components/configuracion/ConfigurationVersionGraph.tsx"
+   },
+   "description": "",
+   "id": "component:configuracion/ConfigurationVersionGraph",
+   "keywords": [
+    "Comentario de promoción:",
+    "Selecciona una versión para ver su detalle."
+   ],
+   "kind": "component",
+   "name": "ConfigurationVersionGraph"
   },
   {
    "attrs": {
@@ -18059,11 +18340,11 @@
    "id": "component:datasets/CreateEmptyDatasetModal",
    "keywords": [
     "Crear dataset vacío",
+    "Cancelar",
     "Nombre",
     "Ej: casos_revision_manual",
     "Columnas",
-    "Ej: id_transaccion",
-    "Cancelar"
+    "Ej: id_transaccion"
    ],
    "kind": "component",
    "name": "CreateEmptyDatasetModal"
@@ -18191,6 +18472,7 @@
    "id": "component:datasets/ExtractDatasetModal",
    "keywords": [
     "Extraer / derivar dataset",
+    "Cancelar",
     "Datasets fuente",
     "No hay datasets todavía.",
     "Filtros",
@@ -18199,8 +18481,7 @@
     "Agregar filtro",
     "Porcentaje a muestrear",
     "Nombre del dataset destino",
-    "Ej: muestra_validacion_q1",
-    "Cancelar"
+    "Ej: muestra_validacion_q1"
    ],
    "kind": "component",
    "name": "ExtractDatasetModal"
@@ -18214,16 +18495,16 @@
    "keywords": [
     "Elegir registros de otro dataset",
     "Busca y selecciona filas de un dataset existente para agregarlas a \"",
+    "fila",
+    "seleccionada",
+    "Cancelar",
+    "Agregar seleccionadas a \"",
     "Selecciona un dataset fuente…",
     "Buscar en esta página…",
     "Elige un dataset fuente para empezar a buscar registros.",
     "Cargando filas…",
     "No se pudieron cargar las filas del dataset.",
-    "Sin coincidencias en esta página.",
-    "fila",
-    "seleccionada",
-    "Cancelar",
-    "Agregar seleccionadas a \""
+    "Sin coincidencias en esta página."
    ],
    "kind": "component",
    "name": "PickDatasetRecordsModal"
@@ -18247,10 +18528,10 @@
    "description": "Modal para subir un archivo CSV como dataset nuevo; avisa si ya existe uno con el mismo nombre.",
    "id": "component:datasets/UploadDatasetModal",
    "keywords": [
+    "Cancelar",
     "Archivo CSV",
     "Ya existe un dataset llamado",
-    "Subiendo archivo…",
-    "Cancelar"
+    "Subiendo archivo…"
    ],
    "kind": "component",
    "name": "UploadDatasetModal"
@@ -18297,7 +18578,8 @@
     "Cancelar",
     "Aplicar",
     "Sólo medidas acumulativas sobre el periodo",
-    "Periodos:"
+    "Periodos:",
+    "avisos sobre este rango"
    ],
    "kind": "component",
    "name": "MetricsShared"
@@ -18465,6 +18747,7 @@
    "id": "component:modelos/ModelFormModal",
    "keywords": [
     "Nuevo modelo",
+    "Cancelar",
     "Tag",
     "Ej: xus-v1",
     "Descripción",
@@ -18479,8 +18762,7 @@
     "Top-N tokens más frecuentes:",
     "Selecciona un campo…",
     "Agregar",
-    "Error al crear el modelo:",
-    "Cancelar"
+    "Error al crear el modelo:"
    ],
    "kind": "component",
    "name": "ModelFormModal"
@@ -18908,7 +19190,6 @@
    "keywords": [
     "Nueva prueba",
     "Elige cómo lanzar el pipeline de 7 pasos.",
-    "Cerrar nueva prueba",
     "Dataset",
     "Formulario",
     "Generador"
@@ -18995,6 +19276,7 @@
    "description": "",
    "id": "component:ui/PaginationFooter",
    "keywords": [
+    "Filas por página",
     "Ir al inicio",
     "Página anterior",
     "Página siguiente",
@@ -19410,6 +19692,22 @@
   },
   {
    "attrs": {
+    "file": "components/ui/side-drawer.tsx"
+   },
+   "description": "",
+   "id": "component:ui/side-drawer",
+   "keywords": [
+    "Propuesto por ARIA: revísalo antes de guardar",
+    "Cerrar panel",
+    "Hay cambios sin guardar en este panel. Si lo cierras se perderán.",
+    "Seguir editando",
+    "Descartar"
+   ],
+   "kind": "component",
+   "name": "side-drawer"
+  },
+  {
+   "attrs": {
     "file": "components/ui/sidebar.tsx"
    },
    "description": "",
@@ -19635,6 +19933,20 @@
    ],
    "kind": "concept",
    "name": "Watchlist (lista negra o blanca)"
+  },
+  {
+   "attrs": {
+    "http_method": "DELETE",
+    "route": "/api/v0/datasets/uploads/{upload_id}"
+   },
+   "description": "",
+   "id": "endpoint:DELETE /api/v0/datasets/uploads/{upload_id}",
+   "keywords": [
+    "abort dataset upload",
+    "subir cargar borrar eliminar quitar"
+   ],
+   "kind": "endpoint",
+   "name": "DELETE /api/v0/datasets/uploads/{upload_id}"
   },
   {
    "attrs": {
@@ -19901,6 +20213,20 @@
    ],
    "kind": "endpoint",
    "name": "GET /api/v0/agent/claims/{entity_key:path}"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/agent/draft-actions"
+   },
+   "description": "List proposal actions allowed for the authenticated user's role.",
+   "id": "endpoint:GET /api/v0/agent/draft-actions",
+   "keywords": [
+    "get agent draft actions",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/draft-actions"
   },
   {
    "attrs": {
@@ -20643,6 +20969,20 @@
    ],
    "kind": "endpoint",
    "name": "GET /api/v0/configurations/active"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/configurations/graph"
+   },
+   "description": "Read every configuration version with its parent and promotion comment.",
+   "id": "endpoint:GET /api/v0/configurations/graph",
+   "keywords": [
+    "get configuration graph",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/configurations/graph"
   },
   {
    "attrs": {
@@ -22033,34 +22373,6 @@
   {
    "attrs": {
     "http_method": "POST",
-    "route": "/api/v0/async-operations"
-   },
-   "description": "",
-   "id": "endpoint:POST /api/v0/async-operations",
-   "keywords": [
-    "create async operation",
-    "crear crea crear crea agregar enviar"
-   ],
-   "kind": "endpoint",
-   "name": "POST /api/v0/async-operations"
-  },
-  {
-   "attrs": {
-    "http_method": "POST",
-    "route": "/api/v0/async-operations/reconcile"
-   },
-   "description": "",
-   "id": "endpoint:POST /api/v0/async-operations/reconcile",
-   "keywords": [
-    "reconcile async operations",
-    "crear crea agregar enviar"
-   ],
-   "kind": "endpoint",
-   "name": "POST /api/v0/async-operations/reconcile"
-  },
-  {
-   "attrs": {
-    "http_method": "POST",
     "route": "/api/v0/auth/login"
    },
    "description": "",
@@ -22225,6 +22537,34 @@
    ],
    "kind": "endpoint",
    "name": "POST /api/v0/datasets/extract"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
+    "route": "/api/v0/datasets/uploads"
+   },
+   "description": "",
+   "id": "endpoint:POST /api/v0/datasets/uploads",
+   "keywords": [
+    "start dataset upload",
+    "iniciar arrancar subir cargar crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/datasets/uploads"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
+    "route": "/api/v0/datasets/uploads/{upload_id}/complete"
+   },
+   "description": "",
+   "id": "endpoint:POST /api/v0/datasets/uploads/{upload_id}/complete",
+   "keywords": [
+    "complete dataset upload",
+    "subir cargar crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/datasets/uploads/{upload_id}/complete"
   },
   {
    "attrs": {
@@ -22747,6 +23087,20 @@
   {
    "attrs": {
     "http_method": "PUT",
+    "route": "/api/v0/datasets/uploads/{upload_id}/parts/{part_number}"
+   },
+   "description": "",
+   "id": "endpoint:PUT /api/v0/datasets/uploads/{upload_id}/parts/{part_number}",
+   "keywords": [
+    "upload dataset part",
+    "subir cargar actualizar reemplazar"
+   ],
+   "kind": "endpoint",
+   "name": "PUT /api/v0/datasets/uploads/{upload_id}/parts/{part_number}"
+  },
+  {
+   "attrs": {
+    "http_method": "PUT",
     "route": "/api/v0/datasets/{name}/alert-field-mapping"
    },
    "description": "",
@@ -23167,16 +23521,6 @@
   {
    "attrs": {},
    "description": "",
-   "id": "port:AsyncExecutionInspector",
-   "keywords": [
-    "Async Execution Inspector"
-   ],
-   "kind": "port",
-   "name": "AsyncExecutionInspector"
-  },
-  {
-   "attrs": {},
-   "description": "",
    "id": "port:AsyncExecutor",
    "keywords": [
     "Async Executor"
@@ -23243,6 +23587,16 @@
    ],
    "kind": "port",
    "name": "Clock"
+  },
+  {
+   "attrs": {},
+   "description": "",
+   "id": "port:ConfigurationDeployRequestRepository",
+   "keywords": [
+    "Configuration Deploy Request Repository"
+   ],
+   "kind": "port",
+   "name": "ConfigurationDeployRequestRepository"
   },
   {
    "attrs": {},
@@ -23707,6 +24061,18 @@
    ],
    "kind": "resource",
    "name": "agent releases"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/entrypoint/api/routers/agent_draft_actions_router.py"
+   },
+   "description": "Recurso de API «agent-draft-actions».",
+   "id": "resource:agent-draft-actions",
+   "keywords": [
+    "agent draft actions"
+   ],
+   "kind": "resource",
+   "name": "agent-draft-actions"
   },
   {
    "attrs": {
@@ -24789,6 +25155,17 @@
   },
   {
    "attrs": {},
+   "description": "Stage bounded REST chunks in backend object storage, then upload CSV.",
+   "id": "use_case:DatasetUploadChunksUseCase",
+   "keywords": [
+    "Dataset Upload Chunks",
+    "subir cargar"
+   ],
+   "kind": "use_case",
+   "name": "DatasetUploadChunksUseCase"
+  },
+  {
+   "attrs": {},
    "description": "",
    "id": "use_case:DeleteAlertFieldMappingUseCase",
    "keywords": [
@@ -25136,6 +25513,17 @@
    ],
    "kind": "use_case",
    "name": "GetAsyncOperationUseCase"
+  },
+  {
+   "attrs": {},
+   "description": "Every immutable version, oldest first, for the read-only version graph.",
+   "id": "use_case:GetConfigurationGraphUseCase",
+   "keywords": [
+    "Get Configuration Graph",
+    "obtener consultar ver"
+   ],
+   "kind": "use_case",
+   "name": "GetConfigurationGraphUseCase"
   },
   {
    "attrs": {},
@@ -25662,16 +26050,6 @@
    ],
    "kind": "use_case",
    "name": "ProposeAlertSchemaUseCase"
-  },
-  {
-   "attrs": {},
-   "description": "",
-   "id": "use_case:ReconcileAsyncOperationsUseCase",
-   "keywords": [
-    "Reconcile Async Operations"
-   ],
-   "kind": "use_case",
-   "name": "ReconcileAsyncOperationsUseCase"
   },
   {
    "attrs": {},
@@ -26213,8 +26591,8 @@
     "Eliminar canal",
     "Borrar",
     "Nuevo canal",
+    "Nombre y descripción del canal usado por las taxonomías de conocimiento.",
     "Tarjetas",
-    "Cancelar",
     "Instancias de Vector store",
     "Versiones",
     "Nombre de versión",
@@ -26325,10 +26703,10 @@
     "Falsos positivos:",
     "Tiempo ahorrado:",
     "Latencia:",
-    "Solicitudes de despliegue",
-    "Aprueba una solicitud para promover exactamente la versión solicitada a producción.",
-    "Cargando solicitudes…",
-    "No se pudieron cargar las solicitudes.",
+    "Grafo de versiones",
+    "Cargando versiones…",
+    "No se pudo cargar el grafo de versiones.",
+    "Todavía no hay versiones guardadas.",
     "ajustes",
     "versiones de configuración",
     "desplegar configuración"
@@ -26498,28 +26876,30 @@
    "keywords": [
     "Monitor del Agente",
     "ARIA - Agente prevención de Fraude",
+    "Indicadores generales",
+    "Indicadores de área",
+    "Analistas y otros canales",
+    "Explicabilidad",
+    "Indicadores técnicos",
     "ARIA",
     "Analistas",
     "Voicebot",
     "Bidi",
-    "Agente degradado en el rango.",
+    "Latencia LLM media",
+    "Tokens por llamada",
+    "Agente degradado.",
     "Pasos fallidos",
     "Exportar reporte",
     "Calculando indicadores para el rango seleccionado…",
-    "Indicadores operativos",
-    "General",
+    "Secciones del monitor",
     "Fraude no detectado",
     "Falsos positivos",
     "Errores de ejecución",
     "Errores LLM",
     "Disponibilidad",
-    "Latencia LLM media",
-    "Tokens por llamada",
-    "Explicabilidad",
     "Alucinaciones",
     "Uso correcto de datos",
     "Decisiones evaluadas donde el agente citó y aplicó correctamente los datos disponibles.",
-    "Indicadores técnicos",
     "Pasos del workflow",
     "Llamadas LLM por modelo",
     "Investigación delegada por fuente",
