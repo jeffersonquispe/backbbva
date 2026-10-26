@@ -270,13 +270,24 @@ pipeline {
                 script {
                     trackStage('Project graph') {
                         container('python-311') {
-                            sh '''
-                                if [ -d ../frontend_mockup/src ]; then
-                                    make project-graph-check FRONTEND_DIR=../frontend_mockup
-                                else
-                                    echo 'Frontend checkout unavailable; backend graph check is deferred to the graph build job.'
-                                fi
-                            '''
+                            def frontendGitUrl = env.GIT_URL.replaceAll(
+                                /aria-agente-prevencion-fraude-backend(\.git)?$/,
+                                'aria-agente-prevencion-fraude-frontend$1'
+                            )
+                            if (frontendGitUrl == env.GIT_URL) {
+                                error("Cannot derive frontend repository URL from GIT_URL: ${env.GIT_URL}")
+                            }
+                            def credentialsId = scm.userRemoteConfigs[0].credentialsId
+                            dir('frontend_mockup') {
+                                checkout([
+                                    $class: 'GitSCM',
+                                    branches: [[name: "*/${env.BRANCH_NAME}"]],
+                                    doGenerateSubmoduleConfigurations: false,
+                                    extensions: [[$class: 'CloneOption', shallow: true, noTags: true]],
+                                    userRemoteConfigs: [[url: frontendGitUrl, credentialsId: credentialsId]]
+                                ])
+                            }
+                            sh 'make project-graph-check FRONTEND_DIR=frontend_mockup'
                         }
                     }
                 }

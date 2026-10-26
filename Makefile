@@ -400,7 +400,7 @@ project-graph:  ## Rebuild the project knowledge graph (views, components, actio
 	python3 scripts/build_project_graph.py --frontend $(or $(FRONTEND_DIR),../frontend_mockup)
 
 .PHONY: project-graph-check
-project-graph-check:  ## Fail if src/infrastructure/agents/project_graph/project_graph.json is stale.
+project-graph-check:  ## Fail if the frontend is missing or the committed project graph is stale.
 	python3 scripts/build_project_graph.py --check --frontend $(or $(FRONTEND_DIR),../frontend_mockup)
 
 .PHONY: project-graph-eval

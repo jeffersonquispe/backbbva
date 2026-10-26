@@ -725,9 +725,6 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="fail if the committed file is stale")
     args = parser.parse_args()
     if not (args.frontend / "src").is_dir():
-        if args.check:
-            print(f"frontend not found at {args.frontend}: staleness check skipped")
-            return 0
         print(f"frontend not found at {args.frontend}", file=sys.stderr)
         return 2
     graph, errors = build(args.frontend)
