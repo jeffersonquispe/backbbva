@@ -3562,6 +3562,31 @@
   },
   {
    "relation": "manifested_in",
+   "source": "concept:diagramas-del-flujo",
+   "target": "component:alert/AlertFlowDiagrams"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:diagramas-del-flujo",
+   "target": "component:aria/CapabilityInfo"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:diagramas-del-flujo",
+   "target": "view:/alerta/$id"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:diagramas-del-flujo",
+   "target": "view:/cola"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:diagramas-del-flujo",
+   "target": "view:/dashboard"
+  },
+  {
+   "relation": "manifested_in",
    "source": "concept:insight",
    "target": "component:agent/AgentPanel"
   },
@@ -9898,6 +9923,11 @@
    "relation": "renders",
    "source": "view:/cola",
    "target": "component:alert/AlertSchemaView"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/cola",
+   "target": "component:aria/CapabilityInfo"
   },
   {
    "relation": "renders",
@@ -17521,7 +17551,7 @@
    "attrs": {
     "file": "components/alert/AlertFlowDiagrams.tsx"
    },
-   "description": "",
+   "description": "Diagrama colapsable del detalle de alerta: etapas agrupadas del pipeline con las ya ejecutadas resaltadas y la ruta de resolución elegida.",
    "id": "component:alert/AlertFlowDiagrams",
    "keywords": [
     "Preparar",
@@ -17567,9 +17597,15 @@
    "attrs": {
     "file": "components/aria/CapabilityInfo.tsx"
    },
-   "description": "",
+   "description": "Botón de información (ícono i) que abre diagramas explicativos junto al título: ciclo del evento al aprendizaje en el Dashboard (con conteos vivos por etapa), embudo de la Cola, flujo de revisión y rutas de resolución en Configuración.",
    "id": "component:aria/CapabilityInfo",
    "keywords": [
+    "ahora",
+    "Evento",
+    "ARIA analiza",
+    "Cola de analista",
+    "Persona decide",
+    "Embudo de la cola",
     "Agente ARIA",
     "Lee el playbook y la disponibilidad"
    ],
@@ -19937,6 +19973,19 @@
    ],
    "kind": "concept",
    "name": "Dataset"
+  },
+  {
+   "attrs": {},
+   "description": "Diagramas explicativos dentro de la plataforma: en el detalle de alerta (etapas y resolución), en la Cola (embudo evento, ARIA analiza, cola de analista, persona decide), en el Dashboard (ciclo del evento al aprendizaje con conteos vivos) y en Configuración. Se abren desde el ícono de información junto al título.",
+   "id": "concept:diagramas-del-flujo",
+   "keywords": [
+    "diagrama",
+    "embudo",
+    "ciclo de una alerta",
+    "flujo visual"
+   ],
+   "kind": "concept",
+   "name": "Diagramas del flujo"
   },
   {
    "attrs": {},
@@ -26767,6 +26816,8 @@
     "Analista",
     "Sin tomar",
     "Alertas en progreso",
+    "embudo de la cola",
+    "Del evento a la decisión humana",
     "Alertas en proceso",
     "Casos que ARIA todavía está analizando — aún no se han derivado a analista ni voicebot.",
     "alerta",

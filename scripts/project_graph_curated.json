@@ -171,6 +171,12 @@
     },
     "ui/DataTable": {
       "description": "Tabla reutilizable: cabeceras ordenables, búsqueda, filtros, paleta de columnas, acciones a la izquierda, paginación con primera/última página y scroll interno."
+    },
+    "aria/CapabilityInfo": {
+      "description": "Botón de información (ícono i) que abre diagramas explicativos junto al título: ciclo del evento al aprendizaje en el Dashboard (con conteos vivos por etapa), embudo de la Cola, flujo de revisión y rutas de resolución en Configuración."
+    },
+    "alert/AlertFlowDiagrams": {
+      "description": "Diagrama colapsable del detalle de alerta: etapas agrupadas del pipeline con las ya ejecutadas resaltadas y la ruta de resolución elegida."
     }
   },
   "tasks": [
@@ -593,6 +599,24 @@
         "role:channel_manager",
         "role:manager",
         "role:fraud_analyst"
+      ]
+    },
+    {
+      "id": "diagramas-del-flujo",
+      "name": "Diagramas del flujo",
+      "description": "Diagramas explicativos dentro de la plataforma: en el detalle de alerta (etapas y resolución), en la Cola (embudo evento, ARIA analiza, cola de analista, persona decide), en el Dashboard (ciclo del evento al aprendizaje con conteos vivos) y en Configuración. Se abren desde el ícono de información junto al título.",
+      "aliases": [
+        "diagrama",
+        "embudo",
+        "ciclo de una alerta",
+        "flujo visual"
+      ],
+      "nodes": [
+        "view:/cola",
+        "view:/dashboard",
+        "view:/alerta/$id",
+        "component:aria/CapabilityInfo",
+        "component:alert/AlertFlowDiagrams"
       ]
     }
   ]

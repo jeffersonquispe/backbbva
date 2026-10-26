@@ -97,7 +97,13 @@
       "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --msg-filter \"python3 /private/tmp/claude-501/-Users-Usuario-Documents-bbva-aux-nosync-ARIA-backend/f9599472-62a4-40c7-9a59-0d572b896618/scratchpad/msg_filter.py\" -- main feat/add_vs_base_implementation)",
       "Bash(npx tsc *)",
       "Bash(echo \"tsc exit $?\")",
-      "Bash(make build *)"
+      "Bash(make build *)",
+      "Bash(GENAI_ENVIRONMENT=test python -c \"import src.infrastructure.workflows.celery.alert_review_workflow, src.infrastructure.entrypoint.api.fastapi_app\" 2>&1|tail -3; GENAI_ENVIRONMENT=test python -m pytest -q -p no:cacheprovider 2>&1 | grep -E \"^\\(FAILED|ERROR\\)|passed|failed\" | head -60)",
+      "Bash(GENAI_ENVIRONMENT=test python -m pytest -q -p no:cacheprovider)",
+      "Read(//Users/davidrojas/Documents/bbva_aux.nosync/ARIA/frontend_mockup/**)",
+      "Bash(npx prettier *)",
+      "Bash(npx eslint *)",
+      "Bash(docker exec *)"
     ]
   }
 }

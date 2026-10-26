@@ -139,7 +139,9 @@ Inventario preliminar a partir de `../frontend_mockup/src/components` y los rout
 
 ## 9. Diagramas de workflow dentro de la plataforma
 
-- [ ] **#20 [D][I] Llevar a la plataforma los diagramas de `docs/presentacion/aria_capacidades.html`** (roles por persona, etapas del pipeline, flujo). Ese HTML ya tiene ~68 SVG; reutilizarlos como componentes React compartidos (`WorkflowDiagram` y variantes), no redibujar. Cada diagrama debe ser **vivo cuando haya datos** (resaltar la etapa en curso, conteos por etapa) y **estático explicativo** en los demás casos. Colapsables, para no volver a alargar las páginas (ver #11).
+- [x] **#20 [D][I] Llevar a la plataforma los diagramas de `docs/presentacion/aria_capacidades.html`** (roles por persona, etapas del pipeline, flujo). Ese HTML ya tiene ~68 SVG; reutilizarlos como componentes React compartidos (`WorkflowDiagram` y variantes), no redibujar. Cada diagrama debe ser **vivo cuando haya datos** (resaltar la etapa en curso, conteos por etapa) y **estático explicativo** en los demás casos. Colapsables, para no volver a alargar las páginas (ver #11).
+
+  - **Avance (2026-10-25):** hechos Detalle de alerta, Cola (`QueueFunnelDiagram`, conteos vivos de `listAnalystQueue`/`listInProcessAlerts`), Dashboard (`LifecycleDiagram` con conteos de `getLiveAlertFunnel`) y Configuración (flujo de revisión, XGBoost, resolución). Registrados en el grafo del proyecto (concepto `diagramas-del-flujo`). E2E real `make test-e2e-capability-help` pasó por nginx. **Ítem cerrado por decisión del usuario (2026-10-25)** con el alcance entregado; el E2E ajustado (conteos contra la API) aún no se ha corrido. Quedan fuera, como seguimiento opcional: Monitor, Configuración→despliegue, Biblioteca, Modelos, Histórico, Testing, Asistente/Optimizador/Orquestador, Roles, Onboarding y Backups.
 
   Propuesta de puntos de inserción (confirmar con el diseño):
 
