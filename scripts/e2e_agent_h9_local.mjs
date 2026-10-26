@@ -330,18 +330,20 @@ async function main() {
       REJECTED_GLOBAL_CONSTRAINT: "Rechazado por una restricción",
     }[experiment.status];
     const runText = await page.getByTestId("run-tree").innerText();
+    // innerText applies CSS text-transform, so section labels come uppercase.
+    const runTextLower = runText.toLocaleLowerCase("es");
     for (const value of [
       `Experimento de la iteración ${experiment.iteration_number}`,
       experimentLabel,
       "Estrategia",
       "Ganadores",
     ]) {
-      if (!runText.includes(value)) {
+      if (!runTextLower.includes(value.toLocaleLowerCase("es"))) {
         throw new Error(`la UI no muestra la evidencia evaluada ${value}: ${runText}`);
       }
     }
     const health = await page.getByTestId("optimizer-health").innerText();
-    if (!health.includes("Reserva de ejecución")) {
+    if (!health.toLocaleLowerCase("es").includes("reserva de ejecución")) {
       throw new Error(`la UI no muestra la salud de la sesión: ${health}`);
     }
     await page.getByRole("button", { name: "Línea de tiempo", exact: true }).click();
@@ -349,7 +351,7 @@ async function main() {
     await timeline.waitFor({ state: "visible", timeout: 15_000 });
     const timelineText = await timeline.innerText();
     for (const value of ["Iteración", "Especialista", "Verificación", "Experimento"]) {
-      if (!timelineText.includes(value)) {
+      if (!timelineText.toLocaleLowerCase("es").includes(value.toLocaleLowerCase("es"))) {
         throw new Error(`la línea de tiempo no muestra ${value}: ${timelineText}`);
       }
     }
