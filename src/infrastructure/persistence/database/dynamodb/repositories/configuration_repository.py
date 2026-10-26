@@ -230,7 +230,11 @@ class DynamoConfigurationRepository(ConfigurationRepository):
 
     def list_latest(self) -> list[ConfigurationRecord]:
         by_lineage: dict[str, ConfigurationRecord] = {}
-        for config in self._scan_all():
+        # This API returns summary rows, so scan owner items only and page
+        # through the full table. Hydrating every historical version here
+        # made the selector slow and a single-page scan hid newer configs
+        # once the table grew past DynamoDB's 1 MiB scan response limit.
+        for config in self.list_all_versions():
             current = by_lineage.get(config.configuration_id)
             if current is None or config.version > current.version:
                 by_lineage[config.configuration_id] = config
@@ -243,7 +247,17 @@ class DynamoConfigurationRepository(ConfigurationRepository):
         return [self._hydrate(item) for item in response.get("Items", [])]
 
     def list_all_versions(self) -> list[ConfigurationRecord]:
-        return self._scan_all()
+        # Owner-item fields only: _hydrate costs several table reads per
+        # version, which made a 237-version scan take ~3.7 s.
+        items: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {}
+        while True:
+            response = self._table.scan(**kwargs)
+            items.extend(response.get("Items", []))
+            if "LastEvaluatedKey" not in response:
+                break
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        return [_from_item(item) for item in items]
 
     def activate(
         self,
@@ -354,10 +368,6 @@ class DynamoConfigurationRepository(ConfigurationRepository):
             UpdateExpression=expression,
             ExpressionAttributeValues=values,
         )
-
-    def _scan_all(self) -> list[ConfigurationRecord]:
-        response = self._table.scan()
-        return [self._hydrate(item) for item in response.get("Items", [])]
 
     def _hydrate(self, item: dict[str, Any]) -> ConfigurationRecord:
         """`_from_item` alone rebuilds only what's still stored on the owner

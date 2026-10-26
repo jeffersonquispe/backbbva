@@ -28,6 +28,8 @@ class ConfigurationRepository(Protocol):
 
     def list_versions(self, configuration_id: str) -> list[ConfigurationRecord]: ...
 
+    # Summary rows: identity, name, flags, timestamps and parent_ref only.
+    # general/infra/test/segments are defaults; use get() for the full record.
     def list_all_versions(self) -> list[ConfigurationRecord]: ...
 
     def activate(

@@ -20,6 +20,9 @@ from src.application.use_cases.configurations.get_active_configuration import (
 from src.application.use_cases.configurations.get_configuration import (
     GetConfigurationUseCase,
 )
+from src.application.use_cases.configurations.get_configuration_graph import (
+    GetConfigurationGraphUseCase,
+)
 from src.application.use_cases.configurations.list_configuration_versions import (
     ListConfigurationVersionsUseCase,
 )
@@ -33,10 +36,12 @@ from src.application.use_cases.configurations.test_configuration import (
 from src.infrastructure.entrypoint.api.configuration_mapper import (
     input_from_request,
     to_detail_response,
+    to_graph_node_response,
     to_summary_response,
 )
 from src.infrastructure.entrypoint.api.factories.configuration_factory import (
     get_activate_configuration_use_case,
+    get_configuration_graph_use_case,
     get_create_configuration_use_case,
     get_get_active_configuration_use_case,
     get_get_configuration_use_case,
@@ -47,6 +52,7 @@ from src.infrastructure.entrypoint.api.factories.configuration_factory import (
 from src.infrastructure.entrypoint.api.schemas import (
     ConfigurationChangeResponse,
     ConfigurationDetailResponse,
+    ConfigurationGraphNodeResponse,
     ConfigurationSummaryResponse,
     CreateConfigurationRequest,
     TestConfigurationResponse,
@@ -121,14 +127,14 @@ def get_active_configuration(
     return to_detail_response(record)
 
 
-@router.get("/graph", response_model=list[ConfigurationSummaryResponse])
-def list_configuration_graph(
+@router.get("/graph", response_model=list[ConfigurationGraphNodeResponse])
+def get_configuration_graph(
     use_case: Annotated[
-        ListConfigurationsUseCase, Depends(get_list_configurations_use_case)
+        GetConfigurationGraphUseCase, Depends(get_configuration_graph_use_case)
     ],
 ):
-    """Read every configuration version with its parent reference."""
-    return [to_summary_response(record) for record in use_case.execute_graph()]
+    """Read every configuration version with its parent and promotion comment."""
+    return [to_graph_node_response(node) for node in use_case.execute()]
 
 
 @router.get("/{configuration_id}", response_model=list[ConfigurationSummaryResponse])

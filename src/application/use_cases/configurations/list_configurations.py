@@ -19,10 +19,3 @@ class ListConfigurationsUseCase:
             self._configurations.list_latest(),
             key=lambda config: config.name,
         )
-
-    def execute_graph(self) -> list[ConfigurationRecord]:
-        """Return every immutable version for the read-only version graph."""
-        return sorted(
-            self._configurations.list_all_versions(),
-            key=lambda config: (config.created_at, config.configuration_id, config.version),
-        )

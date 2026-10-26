@@ -69,6 +69,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.configuration
     _voicebot_category_prompt_from_item,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
+    DynamoConfigurationRepository,
     _config_key,
     _criterion_key,
     _group_key,
@@ -133,6 +134,42 @@ def test_owner_item_round_trips_through_to_item_and_from_item() -> None:
     # ._hydrate replaces this placeholder with rows queried from
     # configuration_segments right after _from_item.
     assert restored.segments == default_segments()
+
+
+def test_list_latest_pages_owner_items_and_returns_latest_version_per_lineage() -> None:
+    first = _to_item(
+        _base_record(configuration_id="cfg-a", version=1, name="A v1")
+    )
+    second = _to_item(
+        _base_record(configuration_id="cfg-b", version=1, name="B v1")
+    )
+    latest = _to_item(
+        _base_record(configuration_id="cfg-a", version=3, name="A v3")
+    )
+
+    class PaginatedTable:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, object]] = []
+            self.pages = [
+                {"Items": [first, second], "LastEvaluatedKey": {"page": 2}},
+                {"Items": [latest]},
+            ]
+
+        def scan(self, **kwargs: object) -> dict[str, object]:
+            self.calls.append(kwargs)
+            return self.pages[len(self.calls) - 1]
+
+    repository = object.__new__(DynamoConfigurationRepository)
+    table = PaginatedTable()
+    repository._table = table
+
+    configurations = repository.list_latest()
+
+    assert [(item.configuration_id, item.version, item.name) for item in configurations] == [
+        ("cfg-a", 3, "A v3"),
+        ("cfg-b", 1, "B v1"),
+    ]
+    assert table.calls == [{}, {"ExclusiveStartKey": {"page": 2}}]
 
 
 def test_segment_round_trips_through_its_own_table_item() -> None:

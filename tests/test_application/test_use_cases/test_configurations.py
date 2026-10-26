@@ -9,6 +9,9 @@ import pytest
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
 from src.application.errors import ConfigurationWriteConflict
 from src.application.ports.clock_port import Clock
+from src.application.ports.configuration_deploy_request_port import (
+    ConfigurationDeployRequest,
+)
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.test_run_port import (
     TestRunConfig as RunConfig,
@@ -35,6 +38,9 @@ from src.application.use_cases.configurations.get_active_configuration import (
 )
 from src.application.use_cases.configurations.get_configuration import (
     GetConfigurationUseCase,
+)
+from src.application.use_cases.configurations.get_configuration_graph import (
+    GetConfigurationGraphUseCase,
 )
 from src.application.use_cases.configurations.list_configuration_versions import (
     ListConfigurationVersionsUseCase,
@@ -90,6 +96,9 @@ class InMemoryConfigurationRepository:
 
     def get(self, configuration_id: str, version: int) -> ConfigurationRecord | None:
         return self.items.get((configuration_id, version))
+
+    def list_all_versions(self) -> list[ConfigurationRecord]:
+        return list(self.items.values())
 
     def get_latest_version(self, configuration_id: str) -> ConfigurationRecord | None:
         versions = self.list_versions(configuration_id)
@@ -169,6 +178,14 @@ def _with_active(
         created_by=config.created_by,
         segments=config.segments,
     )
+
+
+class InMemoryConfigurationDeployRequestRepository:
+    def __init__(self, requests: list[ConfigurationDeployRequest]) -> None:
+        self.requests = requests
+
+    def list(self) -> list[ConfigurationDeployRequest]:
+        return list(self.requests)
 
 
 class InMemoryTestRunRepository:
@@ -685,3 +702,63 @@ def test_legacy_test_run_protects_only_its_configuration_version() -> None:
         )
     )
     assert edited.version == 3
+
+
+def _deploy_request(
+    record: ConfigurationRecord, message: str, *, status: str, minute: int
+) -> ConfigurationDeployRequest:
+    moment = datetime(2026, 1, 1, 0, minute, tzinfo=UTC)
+    return ConfigurationDeployRequest(
+        id=f"req-{minute}",
+        target_configuration_id=record.configuration_id,
+        target_version=record.version,
+        current_configuration_id=None,
+        current_version=None,
+        title="t",
+        message=message,
+        changes=[],
+        requested_by="a",
+        requested_at=moment,
+        status=status,
+        approved_at=moment if status == "approved" else None,
+    )
+
+
+def test_configuration_graph_returns_parents_and_the_promotion_comment() -> None:
+    repo = InMemoryConfigurationRepository()
+    create = _create_use_case(repo)
+    root = create.execute(CreateConfigurationInput(name="Producción"))
+    child = create.execute(
+        CreateConfigurationInput(
+            name="Producción", configuration_id=root.configuration_id
+        )
+    )
+    branch = create.execute(
+        CreateConfigurationInput(
+            name="Canary",
+            parent_ref=ConfigurationRef(root.configuration_id, root.version),
+        )
+    )
+    repo.items[(root.configuration_id, root.version)] = replace(
+        root, ever_activated=True
+    )
+    requests = InMemoryConfigurationDeployRequestRepository(
+        [
+            _deploy_request(root, "primer comentario", status="approved", minute=1),
+            _deploy_request(root, "comentario vigente", status="approved", minute=2),
+            _deploy_request(root, "sin aprobar", status="pending", minute=3),
+            # Never promoted, so its approved comment must not surface.
+            _deploy_request(child, "no promovida", status="approved", minute=4),
+        ]
+    )
+
+    nodes = GetConfigurationGraphUseCase(repo, requests).execute()
+
+    by_key = {(n.record.configuration_id, n.record.version): n for n in nodes}
+    assert len(nodes) == 3
+    assert by_key[(root.configuration_id, 1)].promotion_comment == "comentario vigente"
+    assert by_key[(child.configuration_id, 2)].promotion_comment is None
+    assert by_key[(branch.configuration_id, 1)].record.parent_ref == ConfigurationRef(
+        root.configuration_id, root.version
+    )
+    assert by_key[(branch.configuration_id, 1)].promotion_comment is None

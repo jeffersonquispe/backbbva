@@ -15,6 +15,9 @@ from src.application.use_cases.configurations.get_active_configuration import (
 from src.application.use_cases.configurations.get_configuration import (
     GetConfigurationUseCase,
 )
+from src.application.use_cases.configurations.get_configuration_graph import (
+    GetConfigurationGraphUseCase,
+)
 from src.application.use_cases.configurations.list_configuration_versions import (
     ListConfigurationVersionsUseCase,
 )
@@ -58,6 +61,17 @@ def get_get_configuration_use_case() -> GetConfigurationUseCase:
 
 def get_list_configurations_use_case() -> ListConfigurationsUseCase:
     return ListConfigurationsUseCase(get_configuration_repository())
+
+
+def get_configuration_graph_use_case() -> GetConfigurationGraphUseCase:
+    from src.infrastructure.entrypoint.api.factories.configuration_deploy_request_factory import (
+        get_configuration_deploy_request_repository,
+    )
+
+    return GetConfigurationGraphUseCase(
+        get_configuration_repository(),
+        get_configuration_deploy_request_repository(),
+    )
 
 
 def get_list_configuration_versions_use_case() -> ListConfigurationVersionsUseCase:

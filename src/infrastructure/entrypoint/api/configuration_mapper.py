@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
+from src.application.use_cases.configurations.get_configuration_graph import (
+    ConfigurationGraphNode,
+)
 from src.domain.configurations.entities import (
     AdversarialConfig,
     AgentSettings,
@@ -48,6 +51,7 @@ from src.infrastructure.entrypoint.api.schemas import (
     AnalystConfigSchema,
     ClassificationConfigSchema,
     ConfigurationDetailResponse,
+    ConfigurationGraphNodeResponse,
     ConfigurationSummaryResponse,
     CreateConfigurationRequest,
     DelegatedResearchSettingsSchema,
@@ -126,6 +130,15 @@ def to_summary_response(record: ConfigurationRecord) -> ConfigurationSummaryResp
             if record.parent_ref is not None
             else None
         ),
+    )
+
+
+def to_graph_node_response(
+    node: ConfigurationGraphNode,
+) -> ConfigurationGraphNodeResponse:
+    return ConfigurationGraphNodeResponse(
+        **to_summary_response(node.record).model_dump(),
+        promotion_comment=node.promotion_comment,
     )
 
 
