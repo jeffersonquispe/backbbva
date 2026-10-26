@@ -122,10 +122,12 @@ like `libgomp1`, CMD, ports) must be mirrored in the other.
 ### Required Playwright E2E for every change
 
 - Every new feature or behavior change must update its relevant Playwright E2E
-  coverage and run that scenario against the rebuilt local stack through nginx
+  coverage and run that scenario against the current local stack through nginx
   at `http://localhost` (port 80). The app is served at `/`; browser API
   requests must use the same-origin `/api/...` proxy path. E2E scenarios load
   real data through the API and must not mock or fulfill API requests.
+  Check `make local-env-status` first; reuse a running stack only when its
+  recorded workspace fingerprint matches, otherwise rebuild it.
 - Unit tests and standalone API smoke checks do not replace the real E2E. A
   change is not complete until the relevant E2E passes.
 - If credentials, Docker, external services, or missing fixture data block the
@@ -136,6 +138,28 @@ like `libgomp1`, CMD, ports) must be mirrored in the other.
   and expired metrics-rollup cleanup against the local DynamoDB-compatible
   service. Extend this scenario when those contracts change.
 - Full real API browser suite: `make e2e-all-local`.
+
+### Local environment reuse and E2E history
+
+- Before starting or rebuilding the local stack, run `make local-env-status` and
+  `make e2e-history`. The status command shows Compose services and compares the
+  current backend/frontend workspace with the most recent recorded launch. If
+  required services are already running and the fingerprint matches, reuse
+  that stack; do not call `make local-docker-run` just to check it, because
+  that target restarts services. If the services are stopped or the fingerprint
+  changed, start the stack with `make local-docker-run`.
+- `make local-docker-run` records a launch snapshot in
+  `/tmp/aria-e2e-history.jsonl`. Playwright runs launched by the local E2E
+  runners also record their result, duration, suite/specs, command, and full
+  output under `/tmp/aria-e2e-runs/`. `make e2e-history` lists recent events.
+- A workspace snapshot includes backend and frontend branch, HEAD commit and
+  commit time, porcelain `git status`, changed paths, and for each changed
+  regular file its SHA-256, size, and modification time. Passing E2E results
+  are reusable for 24 hours only when suite, code fingerprints, and recorded
+  run settings match. `E2E_FORCE_RUN=1` forces a rerun. Treat a changed
+  fingerprint as evidence that the recorded run does not cover the current
+  files; use the listed paths/commit data to decide what needs rebuilding and
+  retesting.
 
 ### Intensive local agent E2E worker scaling
 

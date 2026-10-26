@@ -479,6 +479,7 @@ local-worker-stats:  ## Show a point-in-time CPU/RAM reading for local worker se
 
 .PHONY: local-docker-run
 local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, default ../frontend_mockup). Set LOCAL_DOCKER_TEST_WORKERS to scale isolated test workers. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG, LOCAL_DOCKER_TEST_WORKERS
+	@$(MAKE) local-env-status
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
@@ -496,6 +497,15 @@ local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, defau
 	else \
 		echo "FRONTEND_DIR=$(FRONTEND_DIR) not found, skipping frontend."; \
 	fi
+	@$(PYTHON) scripts/e2e_run_history.py --record-environment-launch
+
+.PHONY: local-env-status
+local-env-status:  ## Show current local Compose services and compare code with the last recorded environment launch.
+	@$(PYTHON) scripts/e2e_run_history.py --environment-status
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
+		-p $(LOCAL_DOCKER_PROJECT) \
+		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		ps
 
 .PHONY: local-docker-stop
 local-docker-stop: local-docker-down  ## Alias for local-docker-down; preserves volumes.
@@ -898,7 +908,11 @@ test-e2e-agent-optimizer:  ## Run the real FP4/FP5 optimizer Playwright flow thr
 	$(MAKE) -C "$$shared_frontend" build; \
 	$(MAKE) local-api-build; \
 	$(MAKE) local-docker-run FRONTEND_DIR="$$shared_frontend"; \
-	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) $(MAKE) -C "$$shared_frontend" test-e2e-agent-optimizer
+	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) ARIA_E2E_REAL=1 \
+		$(PYTHON) scripts/e2e_run_history.py \
+		--label playwright:e2e/agent-optimizer-real.spec.ts \
+		--specs e2e/agent-optimizer-real.spec.ts -- \
+		"$$shared_frontend/node_modules/.bin/playwright" test e2e/agent-optimizer-real.spec.ts
 
 .PHONY: e2e-all-local
 e2e-all-local:  ## (E2E_SKIP_BUILD=1 reuses built images) Rebuild the local stack and run the full real-API Playwright E2E suite through nginx localhost:80.
@@ -916,6 +930,10 @@ e2e-all-local:  ## (E2E_SKIP_BUILD=1 reuses built images) Rebuild the local stac
 		LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
 		LOCAL_DOCKER_ENV=$(LOCAL_DOCKER_ENV) \
 		$(PYTHON) scripts/e2e_observability_local.py
+
+.PHONY: e2e-history
+e2e-history:  ## Show recent Playwright E2E runs, outcomes, durations, specs and log paths.
+	@$(PYTHON) scripts/e2e_run_history.py --history --limit $(or $(E2E_HISTORY_LIMIT),30)
 
 .PHONY: e2e-real
 e2e-real:  ## Run real E2E from zero (default) or resume at a numbered E2E_FROM checkpoint (1-6).
@@ -937,7 +955,11 @@ e2e-real:  ## Run real E2E from zero (default) or resume at a numbered E2E_FROM 
 		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \
 		E2E_RELEASE_MANAGER_EMAIL=$(E2E_RELEASE_MANAGER_EMAIL) E2E_RELEASE_MANAGER_PASSWORD=$(E2E_RELEASE_MANAGER_PASSWORD) \
 		E2E_FRAUD_ANALYST_EMAIL=$(E2E_FRAUD_ANALYST_EMAIL) E2E_FRAUD_ANALYST_PASSWORD=$(E2E_FRAUD_ANALYST_PASSWORD) \
-		npm --prefix ../frontend_mockup run test:e2e:real -- $(if $(E2E_GREP),--grep "$(E2E_GREP)")
+		$(PYTHON) scripts/e2e_run_history.py \
+		--label playwright:e2e/alert-schema-real-api.spec.ts \
+		--specs 'e2e/alert-schema-real-api.spec.ts $(E2E_GREP)' -- \
+		../frontend_mockup/node_modules/.bin/playwright test \
+		e2e/alert-schema-real-api.spec.ts $(if $(E2E_GREP),--grep "$(E2E_GREP)")
 	@$(MAKE) e2e-presence E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 		E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD)
 

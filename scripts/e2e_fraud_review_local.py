@@ -12,6 +12,8 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import ProxyHandler, Request, build_opener
 
+from e2e_run_history import run as run_with_history
+
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT.parent / "frontend_mockup"
 COMPOSE_FILE = os.getenv(
@@ -98,13 +100,13 @@ def main() -> int:
         )
         wait_for_api()
         print("E08: ejecutando el flujo Playwright contra nginx/API local…")
-        result = subprocess.run(
+        result = run_with_history(
+            "playwright:e2e/fraud-review-real.spec.ts",
+            "e2e/fraud-review-real.spec.ts",
             ["./node_modules/.bin/playwright", "test", "e2e/fraud-review-real.spec.ts"],
-            cwd=FRONTEND,
-            env=frontend_env,
-            check=False,
+            frontend_env,
         )
-        return result.returncode
+        return result
     finally:
         print("E08: restaurando la configuración original del aprovisionamiento…")
         compose(

@@ -217,14 +217,28 @@ def main() -> int:
                     "E2E_DEPLOY_VERSION": deploy_version,
                 }
             )
-        playwright_command = ["./node_modules/.bin/playwright", "test"]
         selected_test_files = os.getenv("E2E_TEST_FILES", "").split()
+        playwright_command = ["./node_modules/.bin/playwright", "test"]
         if selected_test_files:
             playwright_command.extend(selected_test_files)
         elif os.getenv("E2E_FULL_SUITE") != "1":
             playwright_command.append("e2e/observability-real.spec.ts")
+        suite_specs = " ".join(selected_test_files) or (
+            "all specs" if os.getenv("E2E_FULL_SUITE") == "1" else "e2e/observability-real.spec.ts"
+        )
+        suite_label = "playwright:" + suite_specs
+        history_command = [
+            sys.executable,
+            str(ROOT / "scripts" / "e2e_run_history.py"),
+            "--label",
+            suite_label,
+            "--specs",
+            suite_specs,
+            "--",
+            *playwright_command,
+        ]
         result = subprocess.run(
-            playwright_command,
+            history_command,
             cwd=FRONTEND,
             env=env
             | playwright_env

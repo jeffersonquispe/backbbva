@@ -13,10 +13,12 @@ read it before adding files. Rules every agent must follow:
   co-author trailer, never push.
 
 - Every feature or behavior change must update the relevant Playwright E2E
-  coverage and run it against the rebuilt local stack through nginx at
+  coverage and run it against the current local stack through nginx at
   `http://localhost` (port 80). The app is served at `/`, and browser API
   traffic must use the same-origin `/api/...` proxy. E2E tests must load real
   data through the API; do not mock or fulfill API requests in browser E2E.
+  Check `make local-env-status` first; reuse a running stack only when its
+  recorded workspace fingerprint matches, otherwise rebuild it.
   A change is not complete until the relevant E2E passes. If environment
   dependencies block the run, report the blocker and leave the work explicitly
   incomplete.
@@ -29,6 +31,18 @@ read it before adding files. Rules every agent must follow:
   repo also provides `make down` to stop its Compose project. Serialize E2E
   runs with `/tmp/aria-e2e.lock`; do not wait for the default frontend container
   to disappear before starting a run.
+
+- Before launching or rebuilding the local environment, run `make
+  local-env-status` and inspect recent tests with `make e2e-history`. If the
+  required services are already running and the recorded workspace fingerprint
+  matches, reuse that environment instead of restarting it. If they are
+  stopped or the fingerprint differs, launch through `make local-docker-run`;
+  it records the launch automatically. E2E history lives in
+  `/tmp/aria-e2e-history.jsonl`; full Playwright output is in
+  `/tmp/aria-e2e-runs/`. Snapshots record both repositories' branch, commit and
+  commit time, `git status`, changed paths, file SHA-256 and modification time.
+  Compare the fingerprint/snapshot before claiming files have not changed since
+  a run. Use `E2E_FORCE_RUN=1` to force a Playwright rerun.
 
 - Before intensive agent-pipeline E2E runs, inspect available host/container
   CPU and memory, current worker usage, and the worker service's configured
