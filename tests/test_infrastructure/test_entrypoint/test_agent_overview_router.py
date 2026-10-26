@@ -265,3 +265,107 @@ def test_failure_catalog_exposes_copy_and_required_approval(monkeypatch) -> None
     assert by_code["BUDGET_EXHAUSTED"]["approval"] == "budget"
     assert by_code["WORKER_LEASE_EXPIRED"]["retryable"] is True
     assert all(item["title"] and item["action"] for item in by_code.values())
+
+
+def test_optimization_run_returns_the_whole_tree_in_one_structure(monkeypatch) -> None:
+    from src.application.ports.agent_hypothesis_port import (
+        AgentHypothesis,
+        AgentHypothesisStatus,
+    )
+    from src.domain.agents.experiment import (
+        AgentExperiment,
+        AgentExperimentKind,
+        AgentExperimentStatus,
+        ComponentVersionReference,
+    )
+    from src.domain.agents.optimization_run import (
+        OptimizationRun,
+        OptimizationRunStatus,
+        OptimizationRunTree,
+        RunCandidateView,
+        RunExperimentView,
+        RunWinner,
+    )
+
+    pin = ComponentVersionReference("model", "m-1", "1", "a" * 64)
+    hypothesis = AgentHypothesis(
+        session_id="session-1",
+        hypothesis_id="h1",
+        statement="Mejorar el modelo",
+        scope={"area": "model"},
+        priority=0,
+        status=AgentHypothesisStatus.VALIDATED,
+        created_at=NOW,
+        updated_at=NOW,
+        conclusion={"verdict": "VALIDATED", "decision": "keep"},
+    )
+    experiment = AgentExperiment(
+        session_id="session-1",
+        experiment_id="e1",
+        iteration_number=1,
+        kind=AgentExperimentKind.ISOLATED,
+        status=AgentExperimentStatus.SUCCEEDED,
+        components=(pin,),
+        baseline_components=(pin,),
+        objective_id="o1",
+        objective_version=1,
+        created_at=NOW,
+        candidate_id="h1",
+    )
+
+    class Tree:
+        def load_tree(self, run_id):
+            return OptimizationRunTree(
+                root=OptimizationRun(
+                    run_id=run_id,
+                    status=OptimizationRunStatus.RUNNING,
+                    created_at=NOW,
+                    updated_at=NOW,
+                    winners=(RunWinner("h1", "e1", "model", 0.7, 0.95, 0.1),),
+                    strategy={"action": "promote"},
+                    optimizer_settings={"max_parallel_experiments": 3},
+                    events_stream=run_id,
+                ),
+                candidates=(
+                    RunCandidateView(
+                        hypothesis=hypothesis,
+                        experiments=(
+                            RunExperimentView(experiment, "session-1#exp#e1"),
+                        ),
+                    ),
+                ),
+            )
+
+    monkeypatch.setattr(agent_router, "get_optimization_run_repository", lambda: Tree())
+
+    response = _client(monkeypatch).get("/agent/optimization-runs/session-1")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["strategy"] == {"action": "promote"}
+    assert body["winners"][0]["candidate_id"] == "h1"
+    assert body["events_stream"] == "session-1"
+    candidate = body["candidates"][0]
+    assert candidate["hypothesis"]["conclusion"]["decision"] == "keep"
+    assert candidate["experiments"][0]["events_stream"] == "session-1#exp#e1"
+    assert candidate["experiments"][0]["candidate_id"] == "h1"
+
+
+def test_experiment_events_read_the_experiment_stream(monkeypatch) -> None:
+    events = Events()
+    monkeypatch.setattr(agent_router, "get_agent_event_repository", lambda: events)
+    seen: list[str] = []
+    original = events.list_for_session
+
+    def recording(session_id, *, after_seq=0, limit=100):
+        seen.append(session_id)
+        return original(session_id, after_seq=after_seq, limit=limit)
+
+    events.list_for_session = recording  # type: ignore[method-assign]
+
+    response = _client(monkeypatch).get(
+        "/agent/sessions/session-1/experiments/e1/events"
+    )
+
+    assert response.status_code == 200
+    assert seen == ["session-1#exp#e1"]

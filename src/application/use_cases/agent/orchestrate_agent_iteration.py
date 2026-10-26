@@ -58,6 +58,10 @@ from src.application.ports.agent_subagent_port import (
     AgentSubagentInput,
     AgentSubagentOutput,
 )
+from src.application.ports.agent_tool_call_port import (
+    AgentToolCall,
+    AgentToolCallRepository,
+)
 from src.application.ports.agent_verification_port import (
     AgentVerification,
     AgentVerificationRepository,
@@ -209,6 +213,7 @@ class OrchestrateAgentIterationUseCase:
         experiments: AgentExperimentRepository | None = None,
         optimization_runs: OptimizationRunRepository | None = None,
         dispatcher: AgentCandidateDispatcher | None = None,
+        tool_calls: AgentToolCallRepository | None = None,
     ) -> None:
         self._sessions = sessions
         self._iterations = iterations
@@ -236,6 +241,7 @@ class OrchestrateAgentIterationUseCase:
         self._experiments = experiments
         self._optimization_runs = optimization_runs
         self._dispatcher = dispatcher
+        self._tool_calls = tool_calls
 
     def execute(self, session_id: str) -> str:
         """One orchestrator tick: admit, plan, then run or dispatch candidates.
@@ -826,6 +832,30 @@ class OrchestrateAgentIterationUseCase:
             "run_id": tick.run_id,
             "specialist": selected_subagent.name,
         }
+        if self._tool_calls is not None:
+            # Every call the agent makes is measured: duration, cost and result.
+            self._tool_calls.create(
+                AgentToolCall(
+                    call_id=str(self._ids.new_id()),
+                    run_id=tick.run_id,
+                    tool_name=selected_subagent.name,
+                    status=result_status,
+                    prompt_ref=dict(tick.run.prompt_ref),
+                    safe_input_summary={
+                        "iteration": number,
+                        "hypothesis_id": (
+                            hypothesis.hypothesis_id if hypothesis is not None else None
+                        ),
+                    },
+                    safe_result_summary={
+                        "verification_status": output.verification_status,
+                        "duration_ms": elapsed_ms,
+                        "cost_micros": cost_micros,
+                        "error_code": _safe_specialist_error_code(output.error_code),
+                    },
+                    created_at=tick.finished,
+                )
+            )
         if output.error_code:
             if self._timeline is not None:
                 self._timeline.record_failure(

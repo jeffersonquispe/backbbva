@@ -117,6 +117,7 @@ from src.infrastructure.agents.factories import (
     get_agent_session_repository,
     get_agent_session_summary_repository,
     get_agent_timeline,
+    get_agent_tool_call_repository,
     get_agent_verification_repository,
     get_optimization_run_repository,
     get_optimizer_agent_specialists,
@@ -895,6 +896,7 @@ def get_orchestrate_agent_iteration_use_case(
         experiments=get_agent_experiment_repository(),
         optimization_runs=get_optimization_run_repository(),
         dispatcher=get_agent_candidate_dispatcher(),
+        tool_calls=get_agent_tool_call_repository(),
     )
 
 

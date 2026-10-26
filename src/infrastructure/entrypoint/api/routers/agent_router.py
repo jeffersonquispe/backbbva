@@ -39,6 +39,7 @@ from src.application.use_cases.agent.resolve_agent_block import (
 )
 from src.domain.agents.failure_catalog import CATALOG
 from src.domain.agents.finding import OptimizerInsightStatus
+from src.domain.agents.optimization_run import experiment_stream_key
 from src.infrastructure.agents.factories import (
     get_agent_audit_repository,
     get_agent_budget_ledger_repository,
@@ -53,6 +54,8 @@ from src.infrastructure.agents.factories import (
     get_agent_run_repository,
     get_agent_session_repository,
     get_agent_session_summary_repository,
+    get_agent_tool_call_repository,
+    get_optimization_run_repository,
     get_optimizer_insight_repository,
 )
 from src.infrastructure.entrypoint.api.authorization import require_permission
@@ -85,6 +88,7 @@ from src.infrastructure.entrypoint.api.schemas.agent import (
     AgentSessionResponse,
     AgentSessionSummaryResponse,
     CreateAgentSessionRequest,
+    OptimizationRunResponse,
     OptimizerInsightResponse,
     RenewAgentBudgetRequest,
     ResolveAgentBlockRequest,
@@ -204,6 +208,105 @@ def list_session_findings(
 ):
     _owned_session(session_id, str(user.id))
     return get_agent_finding_repository().list_for_session(session_id)
+
+
+@router.get("/optimization-runs/{session_id}", response_model=OptimizationRunResponse)
+def get_optimization_run(
+    session_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    """Root, candidates with their conclusion, experiments and findings at once."""
+    _owned_session(session_id, str(user.id))
+    tree = get_optimization_run_repository().load_tree(session_id)
+    if tree is None:
+        raise HTTPException(status_code=404, detail={"code": "RUN_NOT_FOUND"})
+    root = tree.root
+    return {
+        **{
+            field: getattr(root, field)
+            for field in (
+                "run_id",
+                "created_at",
+                "updated_at",
+                "objective_id",
+                "objective_version",
+                "baseline_components",
+                "budget_limits",
+                "optimizer_settings",
+                "scope_areas",
+                "insight_ids",
+                "memory_insight_ids",
+                "winners",
+                "winning_components",
+                "strategy",
+                "events_stream",
+            )
+        },
+        "status": root.status.value,
+        "candidates": [
+            {
+                "hypothesis": {
+                    **vars(candidate.hypothesis),
+                    "status": candidate.hypothesis.status.value,
+                },
+                "experiments": [
+                    {**vars(view.experiment), "events_stream": view.events_stream}
+                    for view in candidate.experiments
+                ],
+            }
+            for candidate in tree.candidates
+        ],
+        "findings": list(tree.findings),
+    }
+
+
+@router.get(
+    "/sessions/{session_id}/experiments/{experiment_id}/events",
+    response_model=AgentEventsPageResponse,
+)
+def list_experiment_events(
+    session_id: str,
+    experiment_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+    after_seq: int = 0,
+    limit: int = 100,
+):
+    """The experiment's own timeline, separate from the session's."""
+    _owned_session(session_id, str(user.id))
+    if after_seq < 0 or limit < 1 or limit > 200:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_PAGE"})
+    items = get_agent_event_repository().list_for_session(
+        experiment_stream_key(session_id, experiment_id),
+        after_seq=after_seq,
+        limit=limit,
+    )
+    return {"items": items, "last_seq": items[-1].seq if items else after_seq}
+
+
+@router.get("/sessions/{session_id}/runs/{run_id}/tool-calls")
+def list_run_tool_calls(
+    session_id: str,
+    run_id: str,
+    user: Annotated[LocalUser, Depends(get_current_user)],
+    _: LocalUser = _CONFIGURATION_ACCESS,
+) -> list[dict[str, object]]:
+    """Measured calls of one specialist run (duration, cost, safe result only)."""
+    _owned_session(session_id, str(user.id))
+    run = get_agent_run_repository().get(run_id)
+    if run is None or run.session_id != session_id:
+        raise HTTPException(status_code=404, detail={"code": "RUN_NOT_FOUND"})
+    return [
+        {
+            "call_id": call.call_id,
+            "tool_name": call.tool_name,
+            "status": call.status,
+            "safe_result_summary": call.safe_result_summary or {},
+            "created_at": call.created_at.isoformat(),
+        }
+        for call in get_agent_tool_call_repository().list_for_run(run_id)
+    ]
 
 
 @router.get("/failure-catalog", response_model=list[AgentFailureResponse])

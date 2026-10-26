@@ -225,6 +225,9 @@ class AgentHypothesisResponse(BaseModel):
     evidence_outcome: str | None
     created_at: datetime
     updated_at: datetime
+    depends_on: list[str] = Field(default_factory=list)
+    insight_ids: list[str] = Field(default_factory=list)
+    conclusion: dict[str, object] = Field(default_factory=dict)
 
 
 class ComponentVersionReferenceResponse(BaseModel):
@@ -259,6 +262,7 @@ class AgentExperimentResponse(BaseModel):
     completed_at: datetime | None
     global_evaluation: dict[str, object]
     error_code: str | None
+    candidate_id: str | None = None
 
 
 class GenerateModusOperandiDraftRequest(BaseModel):
@@ -410,3 +414,50 @@ class AgentFailureResponse(BaseModel):
     action: str
     retryable: bool
     approval: Literal["budget", "candidates", "context"] | None = None
+
+
+class RunWinnerResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    candidate_id: str
+    experiment_id: str
+    component: str
+    recall: float
+    precision: float
+    recall_delta: float
+
+
+class RunExperimentResponse(AgentExperimentResponse):
+    events_stream: str
+
+
+class RunCandidateResponse(BaseModel):
+    hypothesis: AgentHypothesisResponse
+    experiments: list[RunExperimentResponse] = Field(default_factory=list)
+
+
+class OptimizationRunResponse(BaseModel):
+    """The whole optimizer run in one structure (#29)."""
+
+    run_id: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    objective_id: str | None = None
+    objective_version: int | None = None
+    baseline_components: list[ComponentVersionReferenceResponse] = Field(
+        default_factory=list
+    )
+    budget_limits: dict[str, int] = Field(default_factory=dict)
+    optimizer_settings: dict[str, object] = Field(default_factory=dict)
+    scope_areas: list[str] = Field(default_factory=list)
+    insight_ids: list[str] = Field(default_factory=list)
+    memory_insight_ids: list[str] = Field(default_factory=list)
+    winners: list[RunWinnerResponse] = Field(default_factory=list)
+    winning_components: list[ComponentVersionReferenceResponse] = Field(
+        default_factory=list
+    )
+    strategy: dict[str, object] = Field(default_factory=dict)
+    events_stream: str = ""
+    candidates: list[RunCandidateResponse] = Field(default_factory=list)
+    findings: list[AgentFindingResponse] = Field(default_factory=list)
