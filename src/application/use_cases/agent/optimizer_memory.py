@@ -24,6 +24,7 @@ from src.domain.agents.finding import (
     OptimizerInsightKind,
     OptimizerInsightStatus,
 )
+from src.domain.agents.optimization_run import experiment_metrics
 
 REVIEW_AFTER_DAYS = 30
 FINDING_RETENTION_DAYS = 730
@@ -61,12 +62,15 @@ class OptimizerMemory:
         snapshot_id: str | None = None,
     ) -> list[AgentFinding]:
         """One aggregate finding per side (candidate/baseline) of an experiment."""
-        support = int(evaluation.get("eligible_count") or 0)
+        measured = experiment_metrics(dict(evaluation))
+        support = measured.eligible_count
         now = self._clock.now()
         recorded: list[AgentFinding] = []
-        for side in ("candidate", "baseline"):
-            metrics = evaluation.get(side)
-            if not isinstance(metrics, Mapping):
+        for side, metrics in (
+            ("candidate", measured.candidate),
+            ("baseline", measured.baseline),
+        ):
+            if not metrics:
                 continue
             refs = {"experiment_id": experiment_id}
             if snapshot_id:
@@ -109,12 +113,12 @@ class OptimizerMemory:
         snapshot_ids: tuple[str, ...] = (),
     ) -> OptimizerInsight | None:
         """Publish a supported insight; refuse thin evidence."""
-        support = int(evaluation.get("eligible_count") or 0)
+        measured = experiment_metrics(dict(evaluation))
+        support = measured.eligible_count
         if support < MIN_SUPPORT:
             return None
         now = self._clock.now()
-        candidate = evaluation.get("candidate") or {}
-        baseline = evaluation.get("baseline") or {}
+        candidate, baseline = measured.candidate, measured.baseline
         summary = {
             f"{side}_{metric}": float(source[metric])
             for side, source in (("candidate", candidate), ("baseline", baseline))

@@ -173,3 +173,29 @@ def test_scope_is_per_area() -> None:
 
 def test_model_area_and_its_specialist_share_one_scope() -> None:
     assert scope_key_for("xgboost") == scope_key_for("model") == "area:model"
+
+
+def test_published_evaluations_are_remembered_with_their_sample_size() -> None:
+    memory, findings, insights = _memory()
+    published = {
+        "sample": {"eligible_count": 90, "partition": "final"},
+        "metrics": {
+            "candidate": {"precision": 0.95, "recall": 0.74},
+            "baseline": {"precision": 0.93, "recall": 0.6},
+        },
+    }
+
+    recorded = memory.record_experiment_findings(
+        session_id="s1", experiment_id="e9", evaluation=published
+    )
+    learned = memory.learn(
+        area="model",
+        statement="x",
+        evaluation=published,
+        session_id="s1",
+        run_id="r1",
+        finding_ids=(),
+    )
+
+    assert {item.sample_count for item in recorded} == {90}
+    assert learned is not None and learned.evidence_summary["candidate_recall"] == 0.74

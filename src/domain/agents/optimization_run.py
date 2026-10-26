@@ -104,15 +104,53 @@ class OptimizationRunTree:
     findings: tuple[Any, ...] = ()  # AgentFinding
 
 
+@dataclass(frozen=True)
+class ExperimentMetrics:
+    candidate: dict[str, Any]
+    baseline: dict[str, Any]
+    eligible_count: int
+
+
+def experiment_metrics(evaluation: dict[str, Any] | None) -> ExperimentMetrics:
+    """Read candidate/baseline metrics from an experiment evaluation.
+
+    The evaluator publishes them under `metrics` (with the sample size in
+    `sample.eligible_count`); older records kept them at the top level.
+    """
+    evaluation = evaluation or {}
+    nested = evaluation.get("metrics")
+    source: dict[str, Any] = (
+        nested if isinstance(nested, dict) and nested.get("candidate") else evaluation
+    )
+    raw_candidate = source.get("candidate")
+    raw_baseline = source.get("baseline")
+    candidate: dict[str, Any] = raw_candidate if isinstance(raw_candidate, dict) else {}
+    baseline: dict[str, Any] = raw_baseline if isinstance(raw_baseline, dict) else {}
+    raw_sample = evaluation.get("sample")
+    sample: dict[str, Any] = raw_sample if isinstance(raw_sample, dict) else {}
+    eligible = next(
+        (
+            value
+            for value in (
+                sample.get("eligible_count"),
+                candidate.get("eligible_count"),
+                evaluation.get("eligible_count"),
+            )
+            if isinstance(value, (int, float))
+        ),
+        0,
+    )
+    return ExperimentMetrics(dict(candidate), dict(baseline), int(eligible))
+
+
 def rank_winners(
     candidates: list[tuple[str, AgentExperiment]],
 ) -> tuple[RunWinner, ...]:
     """Succeeded experiments whose candidate improved recall, best first."""
     winners: list[RunWinner] = []
     for candidate_id, experiment in candidates:
-        evaluation = experiment.global_evaluation or {}
-        candidate = evaluation.get("candidate") or {}
-        baseline = evaluation.get("baseline") or {}
+        metrics = experiment_metrics(experiment.global_evaluation)
+        candidate, baseline = metrics.candidate, metrics.baseline
         recall = candidate.get("recall")
         precision = candidate.get("precision")
         base_recall = baseline.get("recall")

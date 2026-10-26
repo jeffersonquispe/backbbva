@@ -88,6 +88,7 @@ from src.domain.agents.optimization_run import (
     OptimizationRunStatus,
     RunWinner,
     component_for_area,
+    experiment_metrics,
     experiment_stream_key,
     rank_winners,
 )
@@ -1316,7 +1317,9 @@ class OrchestrateAgentIterationUseCase:
         self._memory.reevaluate(
             tick.subagent.name,
             improved=experiment.status.value == "SUCCEEDED",
-            sample_count=int(experiment.global_evaluation.get("eligible_count") or 0),
+            sample_count=experiment_metrics(
+                experiment.global_evaluation
+            ).eligible_count,
         )
 
     def _learn(self, tick: _Tick, experiment, outcome) -> None:
@@ -1363,9 +1366,10 @@ class OrchestrateAgentIterationUseCase:
             return None
         # An experiment measured against the mature sample is the strongest
         # evidence; the specialist's own metrics are the fallback.
-        evaluation = (experiment.global_evaluation or {}) if experiment else {}
-        measured = evaluation.get("candidate") or {}
-        baseline = evaluation.get("baseline") or {}
+        measured_metrics = experiment_metrics(
+            experiment.global_evaluation if experiment else None
+        )
+        measured, baseline = measured_metrics.candidate, measured_metrics.baseline
         precision = measured.get("precision", output.safe_metrics.get("precision"))
         recall = measured.get("recall", output.safe_metrics.get("recall"))
         if experiment is not None and experiment.status.value in {
@@ -1406,7 +1410,7 @@ class OrchestrateAgentIterationUseCase:
                     "recall": recall,
                     "baseline_recall": base_recall,
                     "recall_delta": recall_delta,
-                    "sample_count": evaluation.get("eligible_count"),
+                    "sample_count": measured_metrics.eligible_count or None,
                 }.items()
                 if isinstance(value, (int, float))
             },

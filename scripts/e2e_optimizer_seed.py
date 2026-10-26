@@ -329,10 +329,14 @@ def _conclusion(status, recall=0.71, baseline=0.6) -> dict:
 
 
 def _evaluation(recall: float) -> dict:
+    """Same shape the experiment evaluator publishes."""
     return {
-        "eligible_count": 120,
-        "candidate": {"precision": 0.94, "recall": recall},
-        "baseline": {"precision": 0.93, "recall": 0.6},
+        "status": "PASSED",
+        "sample": {"partition": "final", "eligible_count": 120},
+        "metrics": {
+            "candidate": {"precision": 0.94, "recall": recall, "eligible_count": 120},
+            "baseline": {"precision": 0.93, "recall": 0.6},
+        },
     }
 
 

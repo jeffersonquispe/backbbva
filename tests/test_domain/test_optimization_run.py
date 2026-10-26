@@ -55,3 +55,47 @@ def test_areas_map_to_the_component_they_change() -> None:
     assert component_for_area("xgboost") == component_for_area("model") == "model"
     assert component_for_area("library") == "library"
     assert component_for_area("combination") is None
+
+
+def test_metrics_are_read_from_the_published_evaluation_shape():
+    from src.domain.agents.optimization_run import experiment_metrics
+
+    published = {
+        "sample": {"eligible_count": 88, "partition": "final"},
+        "metrics": {
+            "candidate": {"precision": 0.95, "recall": 0.72, "eligible_count": 88},
+            "baseline": {"precision": 0.93, "recall": 0.6},
+        },
+    }
+    legacy = {
+        "eligible_count": 40,
+        "candidate": {"recall": 0.7},
+        "baseline": {"recall": 0.6},
+    }
+
+    assert experiment_metrics(published).candidate["recall"] == 0.72
+    assert experiment_metrics(published).baseline["recall"] == 0.6
+    assert experiment_metrics(published).eligible_count == 88
+    assert experiment_metrics(legacy).eligible_count == 40
+    assert experiment_metrics(None).candidate == {}
+
+
+def test_winners_are_ranked_from_the_published_shape_too():
+    experiment = _experiment("e1", "model", AgentExperimentStatus.SUCCEEDED, 0.7)
+    published = experiment.__class__(
+        **{
+            **experiment.__dict__,
+            "global_evaluation": {
+                "sample": {"eligible_count": 120},
+                "metrics": {
+                    "candidate": {"recall": 0.74, "precision": 0.95},
+                    "baseline": {"recall": 0.6, "precision": 0.93},
+                },
+            },
+        }
+    )
+
+    winners = rank_winners([("h1", published)])
+
+    assert [item.candidate_id for item in winners] == ["h1"]
+    assert round(winners[0].recall_delta, 2) == 0.14
