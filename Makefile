@@ -403,6 +403,10 @@ project-graph:  ## Rebuild the project knowledge graph (views, components, actio
 project-graph-check:  ## Fail if src/infrastructure/agents/project_graph/project_graph.json is stale.
 	python3 scripts/build_project_graph.py --check --frontend $(or $(FRONTEND_DIR),../frontend_mockup)
 
+.PHONY: project-graph-eval
+project-graph-eval:  ## Compare BM25, embeddings and hybrid graph retrieval on golden questions. Var: EMBEDDING_MODEL
+	$(PYTHON) scripts/evaluate_project_graph_retrieval.py $(PROJECT_GRAPH_EVAL_ARGS)
+
 .PHONY: frontend
 frontend:  ## Build and run the sibling frontend project from ../frontend.
 	@if [ ! -d "$(FRONTEND_DIR)" ]; then \

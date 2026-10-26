@@ -188,7 +188,10 @@
         "crear watchlist",
         "nueva lista",
         "lista negra",
-        "lista blanca"
+        "lista blanca",
+        "dar de alta una lista",
+        "lista de bloqueo",
+        "lista de confianza"
       ],
       "view": "/biblioteca",
       "steps": [
@@ -205,7 +208,10 @@
         "importar watchlist",
         "cargar elementos",
         "subir lista",
-        "agregar elementos a la lista"
+        "agregar elementos a la lista",
+        "cargar registros",
+        "importar valores",
+        "subir un archivo de elementos"
       ],
       "view": "/biblioteca",
       "steps": [
@@ -222,7 +228,10 @@
       "aliases": [
         "cargar dataset",
         "subir csv",
-        "nuevo dataset"
+        "nuevo dataset",
+        "cargar un archivo de datos",
+        "importar una tabla",
+        "archivo separado por comas"
       ],
       "view": "/biblioteca",
       "steps": [
@@ -254,7 +263,9 @@
       "aliases": [
         "crear modelo",
         "nuevo modelo",
-        "entrenamiento"
+        "entrenamiento",
+        "ajustar el modelo",
+        "enseñar al modelo"
       ],
       "view": "/modelos",
       "steps": [
@@ -287,7 +298,10 @@
         "nueva prueba",
         "lanzar prueba",
         "probar el agente",
-        "repetir prueba"
+        "repetir prueba",
+        "hacer una evaluación",
+        "validar el agente",
+        "correr un test"
       ],
       "view": "/testing",
       "steps": [
@@ -319,7 +333,9 @@
       "aliases": [
         "tomar alerta",
         "asignarme un caso",
-        "seguir caso"
+        "seguir caso",
+        "ponerme a cargo de una alerta",
+        "asignar caso a mí"
       ],
       "view": "/cola",
       "steps": [
@@ -336,7 +352,9 @@
         "revisar fraude",
         "cambiar marca",
         "corregir etiqueta",
-        "fraude no detectado"
+        "fraude no detectado",
+        "rectificar el resultado",
+        "marcar como fraude real"
       ],
       "view": "/historico-fraude",
       "steps": [
@@ -618,6 +636,48 @@
         "component:aria/CapabilityInfo",
         "component:alert/AlertFlowDiagrams"
       ]
+    },
+    {
+      "id": "catalogo-eventos",
+      "name": "Catálogo de eventos",
+      "description": "Configuración de los eventos que ARIA recibe y procesa. Permite consultar tipos de evento y sus puntos de integración.",
+      "aliases": ["event catalog", "eventos", "tipo de evento", "event type"],
+      "nodes": ["view:/biblioteca"]
+    },
+    {
+      "id": "punto-integracion",
+      "name": "Punto de integración",
+      "description": "Origen o destino técnico por el que un evento o una configuración se conecta con ARIA.",
+      "aliases": ["integration point", "integración", "integraciones"],
+      "nodes": ["view:/biblioteca"]
+    },
+    {
+      "id": "regla-disparada",
+      "name": "Regla disparada",
+      "description": "Regla que se activó al evaluar un evento y que puede explicar por qué se generó o enrutó una alerta.",
+      "aliases": ["triggered rule", "trigger at rule", "trigger rule", "regla activada"],
+      "nodes": ["view:/alerta/$id"]
+    },
+    {
+      "id": "canal",
+      "name": "Canal",
+      "description": "Medio asociado a una operación o alerta; se usa para segmentar datos, configurar la operación y filtrar métricas.",
+      "aliases": ["channels", "subcanal", "medio de pago"],
+      "nodes": ["view:/dashboard", "view:/configuracion"]
+    },
+    {
+      "id": "pruebas-agente",
+      "name": "Pruebas del agente",
+      "description": "Ejecuciones controladas para evaluar el pipeline de ARIA. Se pueden iniciar con un dataset, completar mediante formulario o generar desde un escenario de simulación.",
+      "aliases": ["tipos de prueba", "testing", "prueba con dataset", "prueba manual", "simulación"],
+      "nodes": ["view:/testing", "component:testing/NewTestRunModal"]
+    },
+    {
+      "id": "historico-gestion-fraude",
+      "name": "Histórico de gestión de fraude",
+      "description": "Registro de alertas gestionadas con marca y resultado, filtros por rango temporal, búsqueda, paginación y auditoría de correcciones.",
+      "aliases": ["histórico", "historial", "rango temporal", "fecha desde", "fecha hasta"],
+      "nodes": ["view:/historico-fraude"]
     }
   ]
 }

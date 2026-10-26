@@ -260,6 +260,28 @@ pipeline {
                 }
             }
         }
+        stage('Project graph') {
+            when {
+                expression {
+                    return env.JOB_RUN == 'Build & Push Docker Image'
+                }
+            }
+            steps {
+                script {
+                    trackStage('Project graph') {
+                        container('python-311') {
+                            sh '''
+                                if [ -d ../frontend_mockup/src ]; then
+                                    make project-graph-check FRONTEND_DIR=../frontend_mockup
+                                else
+                                    echo 'Frontend checkout unavailable; backend graph check is deferred to the graph build job.'
+                                fi
+                            '''
+                        }
+                    }
+                }
+            }
+        }
         stage('Architecture') {
             when {
                 expression {

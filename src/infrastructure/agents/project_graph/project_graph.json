@@ -462,6 +462,16 @@
   },
   {
    "relation": "requests",
+   "source": "api:datasets.prepareDatasetSplit",
+   "target": "endpoint:POST /api/v0/datasets/{name}/splits"
+  },
+  {
+   "relation": "requests",
+   "source": "api:datasets.previewDatasetSplit",
+   "target": "endpoint:POST /api/v0/datasets/{name}/splits/preview"
+  },
+  {
+   "relation": "requests",
    "source": "api:datasets.saveAlertFieldMapping",
    "target": "endpoint:PUT /api/v0/datasets/{name}/alert-field-mapping"
   },
@@ -1423,6 +1433,11 @@
   {
    "relation": "offers",
    "source": "component:biblioteca/DatasetLibraryManager",
+   "target": "action:particionar@component-biblioteca-datasetlibrarymanager"
+  },
+  {
+   "relation": "offers",
+   "source": "component:biblioteca/DatasetLibraryManager",
    "target": "action:plantilla@component-biblioteca-datasetlibrarymanager"
   },
   {
@@ -1474,6 +1489,11 @@
    "relation": "renders",
    "source": "component:biblioteca/DatasetLibraryManager",
    "target": "component:datasets/DatasetDetailDrawer"
+  },
+  {
+   "relation": "renders",
+   "source": "component:biblioteca/DatasetLibraryManager",
+   "target": "component:datasets/DatasetSplitDrawer"
   },
   {
    "relation": "renders",
@@ -1711,6 +1731,11 @@
    "target": "action:agregar-rango@component-configuracion-amounttiereditor"
   },
   {
+   "relation": "renders",
+   "source": "component:configuracion/AmountTierEditor",
+   "target": "component:ui/DataTable"
+  },
+  {
    "relation": "offers",
    "source": "component:configuracion/AnalystCapacityEditor",
    "target": "action:descargar-plantilla@component-configuracion-analystcapacityeditor"
@@ -1808,6 +1833,11 @@
   {
    "relation": "renders",
    "source": "component:configuracion/MarcacionCatalogManager",
+   "target": "component:ui/DataTable"
+  },
+  {
+   "relation": "renders",
+   "source": "component:configuracion/MarcacionCatalogManager",
    "target": "component:ui/button"
   },
   {
@@ -1824,11 +1854,6 @@
    "relation": "renders",
    "source": "component:configuracion/MarcacionCatalogManager",
    "target": "component:ui/side-drawer"
-  },
-  {
-   "relation": "renders",
-   "source": "component:configuracion/MarcacionCatalogManager",
-   "target": "component:ui/table"
   },
   {
    "relation": "offers",
@@ -1933,6 +1958,11 @@
   {
    "relation": "renders",
    "source": "component:configuracion/ResolutionMethodCatalogManager",
+   "target": "component:ui/DataTable"
+  },
+  {
+   "relation": "renders",
+   "source": "component:configuracion/ResolutionMethodCatalogManager",
    "target": "component:ui/button"
   },
   {
@@ -1949,11 +1979,6 @@
    "relation": "renders",
    "source": "component:configuracion/ResolutionMethodCatalogManager",
    "target": "component:ui/side-drawer"
-  },
-  {
-   "relation": "renders",
-   "source": "component:configuracion/ResolutionMethodCatalogManager",
-   "target": "component:ui/table"
   },
   {
    "relation": "renders",
@@ -2243,6 +2268,11 @@
   {
    "relation": "renders",
    "source": "component:configuracion/VariableCatalogManager",
+   "target": "component:ui/DataTable"
+  },
+  {
+   "relation": "renders",
+   "source": "component:configuracion/VariableCatalogManager",
    "target": "component:ui/button"
   },
   {
@@ -2259,11 +2289,6 @@
    "relation": "renders",
    "source": "component:configuracion/VariableCatalogManager",
    "target": "component:ui/side-drawer"
-  },
-  {
-   "relation": "renders",
-   "source": "component:configuracion/VariableCatalogManager",
-   "target": "component:ui/table"
   },
   {
    "relation": "offers",
@@ -2491,6 +2516,11 @@
    "target": "action:plantilla-csv@component-datasets-datasetrowstab"
   },
   {
+   "relation": "offers",
+   "source": "component:datasets/DatasetRowsTab",
+   "target": "action:ver-fila-como-json@component-datasets-datasetrowstab"
+  },
+  {
    "relation": "calls",
    "source": "component:datasets/DatasetRowsTab",
    "target": "api:datasets.appendDatasetRows"
@@ -2508,16 +2538,6 @@
   {
    "relation": "renders",
    "source": "component:datasets/DatasetRowsTab",
-   "target": "component:ColumnVisibilityMenu"
-  },
-  {
-   "relation": "renders",
-   "source": "component:datasets/DatasetRowsTab",
-   "target": "component:datasets/DatasetColumnVisibilityMenu"
-  },
-  {
-   "relation": "renders",
-   "source": "component:datasets/DatasetRowsTab",
    "target": "component:datasets/PickDatasetRecordsModal"
   },
   {
@@ -2528,7 +2548,37 @@
   {
    "relation": "renders",
    "source": "component:datasets/DatasetRowsTab",
+   "target": "component:ui/DataTable"
+  },
+  {
+   "relation": "renders",
+   "source": "component:datasets/DatasetRowsTab",
    "target": "component:ui/PaginationFooter"
+  },
+  {
+   "relation": "offers",
+   "source": "component:datasets/DatasetSplitDrawer",
+   "target": "action:cancelar@component-datasets-datasetsplitdrawer"
+  },
+  {
+   "relation": "calls",
+   "source": "component:datasets/DatasetSplitDrawer",
+   "target": "api:datasets.prepareDatasetSplit"
+  },
+  {
+   "relation": "calls",
+   "source": "component:datasets/DatasetSplitDrawer",
+   "target": "api:datasets.previewDatasetSplit"
+  },
+  {
+   "relation": "renders",
+   "source": "component:datasets/DatasetSplitDrawer",
+   "target": "component:configuracion/shared/FormControls"
+  },
+  {
+   "relation": "renders",
+   "source": "component:datasets/DatasetSplitDrawer",
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "offers",
@@ -2669,6 +2719,11 @@
    "relation": "calls",
    "source": "component:fraude/FraudReview",
    "target": "api:alerts.reviewFraudLabel"
+  },
+  {
+   "relation": "renders",
+   "source": "component:fraude/FraudReview",
+   "target": "component:ui/DataTable"
   },
   {
    "relation": "renders",
@@ -2944,6 +2999,11 @@
    "relation": "renders",
    "source": "component:modelos/ModelTrainingResults",
    "target": "component:modelos/ModelContractTester"
+  },
+  {
+   "relation": "renders",
+   "source": "component:modelos/ModelTrainingResults",
+   "target": "component:ui/DataTable"
   },
   {
    "relation": "renders",
@@ -3542,6 +3602,21 @@
   },
   {
    "relation": "manifested_in",
+   "source": "concept:canal",
+   "target": "view:/configuracion"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:canal",
+   "target": "view:/dashboard"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:catalogo-eventos",
+   "target": "view:/biblioteca"
+  },
+  {
+   "relation": "manifested_in",
    "source": "concept:configuracion-agente",
    "target": "resource:configurations"
   },
@@ -3587,6 +3662,11 @@
   },
   {
    "relation": "manifested_in",
+   "source": "concept:historico-gestion-fraude",
+   "target": "view:/historico-fraude"
+  },
+  {
+   "relation": "manifested_in",
    "source": "concept:insight",
    "target": "component:agent/AgentPanel"
   },
@@ -3619,6 +3699,26 @@
    "relation": "manifested_in",
    "source": "concept:modus-operandi",
    "target": "view:/biblioteca"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:pruebas-agente",
+   "target": "component:testing/NewTestRunModal"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:pruebas-agente",
+   "target": "view:/testing"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:punto-integracion",
+   "target": "view:/biblioteca"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:regla-disparada",
+   "target": "view:/alerta/$id"
   },
   {
    "relation": "manifested_in",
@@ -5578,6 +5678,16 @@
   {
    "relation": "handled_by",
    "source": "endpoint:POST /api/v0/datasets/{name}/splits",
+   "target": "use_case:PrepareDatasetSplitUseCase"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/datasets/{name}/splits/preview",
+   "target": "resource:datasets"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:POST /api/v0/datasets/{name}/splits/preview",
    "target": "use_case:PrepareDatasetSplitUseCase"
   },
   {
@@ -10232,6 +10342,11 @@
   {
    "relation": "renders",
    "source": "view:/dashboard",
+   "target": "component:ui/DataTable"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/dashboard",
    "target": "component:ui/button"
   },
   {
@@ -10423,6 +10538,11 @@
    "relation": "renders",
    "source": "view:/monitor",
    "target": "component:metrics/MetricsShared"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/monitor",
+   "target": "component:ui/DataTable"
   },
   {
    "relation": "renders",
@@ -11384,6 +11504,18 @@
    },
    "description": "Acción «Cancelar» en DatasetRowsTab.",
    "id": "action:cancelar@component-datasets-datasetrowstab",
+   "keywords": [
+    "Cancelar"
+   ],
+   "kind": "action",
+   "name": "Cancelar"
+  },
+  {
+   "attrs": {
+    "owner": "component:datasets/DatasetSplitDrawer"
+   },
+   "description": "Acción «Cancelar» en DatasetSplitDrawer.",
+   "id": "action:cancelar@component-datasets-datasetsplitdrawer",
    "keywords": [
     "Cancelar"
    ],
@@ -12760,6 +12892,18 @@
   },
   {
    "attrs": {
+    "owner": "component:biblioteca/DatasetLibraryManager"
+   },
+   "description": "Acción «Particionar» en DatasetLibraryManager.",
+   "id": "action:particionar@component-biblioteca-datasetlibrarymanager",
+   "keywords": [
+    "Particionar"
+   ],
+   "kind": "action",
+   "name": "Particionar"
+  },
+  {
+   "attrs": {
     "owner": "component:agent/AgentOptimizerPanel"
    },
    "description": "Acción «Pausar optimizador» en AgentOptimizerPanel.",
@@ -13453,6 +13597,18 @@
    ],
    "kind": "action",
    "name": "Ver detalle"
+  },
+  {
+   "attrs": {
+    "owner": "component:datasets/DatasetRowsTab"
+   },
+   "description": "Acción «Ver fila como JSON» en DatasetRowsTab.",
+   "id": "action:ver-fila-como-json@component-datasets-datasetrowstab",
+   "keywords": [
+    "Ver fila como JSON"
+   ],
+   "kind": "action",
+   "name": "Ver fila como JSON"
   },
   {
    "attrs": {
@@ -16019,6 +16175,34 @@
   {
    "attrs": {
     "file": "lib/api/datasets.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/datasets/${encodeURIComponent(data.source_name)}/splits"
+   },
+   "description": "POST /api/v0/datasets/{id}/splits",
+   "id": "api:datasets.prepareDatasetSplit",
+   "keywords": [
+    "crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "prepareDatasetSplit"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/datasets.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/datasets/${encodeURIComponent(data.source_name)}/splits/preview"
+   },
+   "description": "POST /api/v0/datasets/{id}/splits/preview",
+   "id": "api:datasets.previewDatasetSplit",
+   "keywords": [
+    "previsualizar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "previewDatasetSplit"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/datasets.functions.ts",
     "http_method": "PUT",
     "url": "/api/v0/datasets/${encodeURIComponent(data.name)}/alert-field-mapping"
    },
@@ -17658,6 +17842,8 @@
     "Filas",
     "Visualizar",
     "Ver",
+    "Configurar particiones reproducibles",
+    "Particionar",
     "Plantilla",
     "Lanzar análisis estadístico",
     "Analizar",
@@ -17821,12 +18007,14 @@
    "description": "",
    "id": "component:configuracion/AmountTierEditor",
    "keywords": [
-    "Sólo aplica a alertas nuevas.",
-    "Sin rangos configurados: todas las alertas nuevas quedan como",
-    "unknown",
     "Código",
     "Etiqueta",
     "Rango",
+    "Sólo aplica a alertas nuevas.",
+    "Sin rangos configurados: todas las alertas nuevas quedan como",
+    "unknown",
+    "rango",
+    "Sin rangos configurados.",
     "Agregar rango",
     "Deben ser contiguos, sin solapes, empezar en 0 y el último sin tope."
    ],
@@ -17917,10 +18105,11 @@
     "Gestionar categorías de marcación",
     "Nueva razón de marcación…",
     "Agregar",
+    "Sin categorías de marcación.",
+    "categoría",
     "Valor",
     "Riesgo",
-    "Estado",
-    "Sin categorías de marcación."
+    "Estado"
    ],
    "kind": "component",
    "name": "MarcacionCatalogManager"
@@ -17986,10 +18175,11 @@
     "Gestionar métodos de resolución",
     "Nuevo método de resolución…",
     "Agregar",
+    "Sin métodos de resolución.",
+    "método",
     "Método",
     "Vía",
-    "Estado",
-    "Sin métodos de resolución."
+    "Estado"
    ],
    "kind": "component",
    "name": "ResolutionMethodCatalogManager"
@@ -18299,10 +18489,11 @@
     "Gestionar variables de origen",
     "Nuevo campo de origen…",
     "Agregar",
+    "Sin variables en el catálogo.",
+    "variable",
     "Variable",
     "Descripción",
-    "Estado",
-    "Sin variables en el catálogo."
+    "Estado"
    ],
    "kind": "component",
    "name": "VariableCatalogManager"
@@ -18527,15 +18718,36 @@
     "Plantilla CSV",
     "Elegir de otro dataset",
     "Cancelar",
-    "Cargando filas…",
-    "No se pudieron cargar las filas del dataset.",
+    "fila",
     "Sin filas todavía.",
-    "Todas las columnas están ocultas.",
-    "Ver fila como JSON",
-    "fila"
+    "Buscar en las filas del dataset…",
+    "Ver fila como JSON"
    ],
    "kind": "component",
    "name": "DatasetRowsTab"
+  },
+  {
+   "attrs": {
+    "file": "components/datasets/DatasetSplitDrawer.tsx"
+   },
+   "description": "",
+   "id": "component:datasets/DatasetSplitDrawer",
+   "keywords": [
+    "Preparar particiones",
+    "Cancelar",
+    "Nombre del dataset particionado",
+    "Distribución objetivo",
+    "Semilla",
+    "Estratificar por campos",
+    "Vista previa de particiones",
+    "Conteos antes de confirmar",
+    "Calculando distribución…",
+    "filas · SHA-256",
+    "Las proporciones deben sumar 100% y cada partición debe ser mayor que 0%.",
+    "Snapshot reproducible:"
+   ],
+   "kind": "component",
+   "name": "DatasetSplitDrawer"
   },
   {
    "attrs": {
@@ -18552,6 +18764,11 @@
     "Origen de la extracción",
     "Fuente:",
     "Filtros:",
+    "Configuración reproducible de particiones",
+    "Semilla:",
+    "Estratos:",
+    "Snapshot:",
+    "SHA-256 fuente:",
     "multi-valor",
     "Falsos positivos y maduración del fraude",
     "Campo de la primera marca",
@@ -18670,15 +18887,13 @@
     "Nota:",
     "No se pudo guardar la revisión:",
     "Continuar",
-    "Auditoría de revisiones",
-    "revisión",
-    "Cargando…",
-    "No se pudo cargar la auditoría:",
-    "Esta alerta aún no tiene revisiones.",
     "Fecha",
     "Cambio",
     "Revisó",
-    "Origen"
+    "Origen",
+    "Auditoría de revisiones",
+    "revisión",
+    "Esta alerta aún no tiene revisiones."
    ],
    "kind": "component",
    "name": "FraudReview"
@@ -18905,15 +19120,10 @@
     "Recall:",
     "Alertas:",
     "Matriz de confusión · umbral explorado",
+    "clase",
     "Clase real",
     "Alerta",
     "Sin alerta",
-    "Fraude",
-    "detectados",
-    "no detectados",
-    "Legítimo",
-    "falsos positivos",
-    "correctos",
     "Log loss de entrenamiento y validación",
     "ROC · prueba",
     "Precisión y recall · prueba",
@@ -19952,6 +20162,31 @@
   },
   {
    "attrs": {},
+   "description": "Medio asociado a una operación o alerta; se usa para segmentar datos, configurar la operación y filtrar métricas.",
+   "id": "concept:canal",
+   "keywords": [
+    "channels",
+    "subcanal",
+    "medio de pago"
+   ],
+   "kind": "concept",
+   "name": "Canal"
+  },
+  {
+   "attrs": {},
+   "description": "Configuración de los eventos que ARIA recibe y procesa. Permite consultar tipos de evento y sus puntos de integración.",
+   "id": "concept:catalogo-eventos",
+   "keywords": [
+    "event catalog",
+    "eventos",
+    "tipo de evento",
+    "event type"
+   ],
+   "kind": "concept",
+   "name": "Catálogo de eventos"
+  },
+  {
+   "attrs": {},
    "description": "Parámetros versionados del agente por segmento (prompts, reglas, rúbricas). Cada cambio crea una versión nueva que se prueba y se despliega con aprobación.",
    "id": "concept:configuracion-agente",
    "keywords": [
@@ -19989,6 +20224,20 @@
   },
   {
    "attrs": {},
+   "description": "Registro de alertas gestionadas con marca y resultado, filtros por rango temporal, búsqueda, paginación y auditoría de correcciones.",
+   "id": "concept:historico-gestion-fraude",
+   "keywords": [
+    "histórico",
+    "historial",
+    "rango temporal",
+    "fecha desde",
+    "fecha hasta"
+   ],
+   "kind": "concept",
+   "name": "Histórico de gestión de fraude"
+  },
+  {
+   "attrs": {},
    "description": "Propuesta que el asistente extrae de la conversación (observación, hipótesis, restricción, preferencia, directiva, pregunta o decisión). Es una sugerencia sin efecto hasta que el usuario la confirma o la rechaza en el feed del chat.",
    "id": "concept:insight",
    "keywords": [
@@ -20023,6 +20272,45 @@
    ],
    "kind": "concept",
    "name": "Modus operandi"
+  },
+  {
+   "attrs": {},
+   "description": "Ejecuciones controladas para evaluar el pipeline de ARIA. Se pueden iniciar con un dataset, completar mediante formulario o generar desde un escenario de simulación.",
+   "id": "concept:pruebas-agente",
+   "keywords": [
+    "tipos de prueba",
+    "testing",
+    "prueba con dataset",
+    "prueba manual",
+    "simulación"
+   ],
+   "kind": "concept",
+   "name": "Pruebas del agente"
+  },
+  {
+   "attrs": {},
+   "description": "Origen o destino técnico por el que un evento o una configuración se conecta con ARIA.",
+   "id": "concept:punto-integracion",
+   "keywords": [
+    "integration point",
+    "integración",
+    "integraciones"
+   ],
+   "kind": "concept",
+   "name": "Punto de integración"
+  },
+  {
+   "attrs": {},
+   "description": "Regla que se activó al evaluar un evento y que puede explicar por qué se generó o enrutó una alerta.",
+   "id": "concept:regla-disparada",
+   "keywords": [
+    "triggered rule",
+    "trigger at rule",
+    "trigger rule",
+    "regla activada"
+   ],
+   "kind": "concept",
+   "name": "Regla disparada"
   },
   {
    "attrs": {},
@@ -22753,6 +23041,20 @@
   {
    "attrs": {
     "http_method": "POST",
+    "route": "/api/v0/datasets/{name}/splits/preview"
+   },
+   "description": "",
+   "id": "endpoint:POST /api/v0/datasets/{name}/splits/preview",
+   "keywords": [
+    "preview dataset split",
+    "previsualizar crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/datasets/{name}/splits/preview"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
     "route": "/api/v0/e2e/clean"
    },
    "description": "Delete application data for the real E2E suite.",
@@ -24723,7 +25025,10 @@
     "crear watchlist",
     "nueva lista",
     "lista negra",
-    "lista blanca"
+    "lista blanca",
+    "dar de alta una lista",
+    "lista de bloqueo",
+    "lista de confianza"
    ],
    "kind": "task",
    "name": "Crear una lista negra o blanca"
@@ -24784,7 +25089,10 @@
     "nueva prueba",
     "lanzar prueba",
     "probar el agente",
-    "repetir prueba"
+    "repetir prueba",
+    "hacer una evaluación",
+    "validar el agente",
+    "correr un test"
    ],
    "kind": "task",
    "name": "Ejecutar una prueba del agente"
@@ -24796,7 +25104,9 @@
    "keywords": [
     "crear modelo",
     "nuevo modelo",
-    "entrenamiento"
+    "entrenamiento",
+    "ajustar el modelo",
+    "enseñar al modelo"
    ],
    "kind": "task",
    "name": "Entrenar un modelo"
@@ -24821,7 +25131,10 @@
     "importar watchlist",
     "cargar elementos",
     "subir lista",
-    "agregar elementos a la lista"
+    "agregar elementos a la lista",
+    "cargar registros",
+    "importar valores",
+    "subir un archivo de elementos"
    ],
    "kind": "task",
    "name": "Importar elementos a una lista"
@@ -24869,7 +25182,9 @@
     "revisar fraude",
     "cambiar marca",
     "corregir etiqueta",
-    "fraude no detectado"
+    "fraude no detectado",
+    "rectificar el resultado",
+    "marcar como fraude real"
    ],
    "kind": "task",
    "name": "Corregir la marca de fraude de una alerta"
@@ -24881,7 +25196,10 @@
    "keywords": [
     "cargar dataset",
     "subir csv",
-    "nuevo dataset"
+    "nuevo dataset",
+    "cargar un archivo de datos",
+    "importar una tabla",
+    "archivo separado por comas"
    ],
    "kind": "task",
    "name": "Subir un dataset en CSV"
@@ -24893,7 +25211,9 @@
    "keywords": [
     "tomar alerta",
     "asignarme un caso",
-    "seguir caso"
+    "seguir caso",
+    "ponerme a cargo de una alerta",
+    "asignar caso a mí"
    ],
    "kind": "task",
    "name": "Tomar un caso de la cola"
@@ -26915,12 +27235,13 @@
     "Total alertas vivas",
     "Medido:",
     "Desbordamiento de analistas:",
-    "Sin datos en el rango.",
     "Valor",
     "Alertas",
     "Monto",
     "Falsos positivos",
     "Fraude no detectado",
+    "dimensión",
+    "Sin datos en el rango.",
     "ciclo de una alerta",
     "Del evento al aprendizaje",
     "Exportar reporte",
@@ -26941,7 +27262,6 @@
     "Alertas revisadas",
     "Revisadas con cambio",
     "Revisadas confirmadas",
-    "Monto en falsos positivos",
     "panel",
     "alertas vivas",
     "capacidad de analistas",
@@ -27089,7 +27409,7 @@
     "Sin datos",
     "Marcadas fraude / no fraude",
     "Tiempo medio de resolución",
-    "en el rango.",
+    "indicador",
     "Aceptadas",
     "Ignoradas",
     "Total recomendaciones emitidas",

@@ -25,5 +25,12 @@
   {"query": "quiero mover el botón del asistente", "page": "/biblioteca", "role": "channel_manager", "expect": ["component:agent/AgentPanel"]},
   {"query": "cómo exporto el reporte del monitor", "page": "/monitor", "role": "manager", "expect": ["task:revisar-desempeno-agente", "view:/monitor"]},
   {"query": "cómo borro un modelo", "page": "/modelos", "role": "channel_manager", "expect": ["view:/modelos"]},
-  {"query": "dónde veo el historial de pruebas", "page": "/dashboard", "role": "channel_manager", "expect": ["view:/testing"]}
+  {"query": "dónde veo el historial de pruebas", "page": "/dashboard", "role": "channel_manager", "expect": ["view:/testing"]},
+  {"query": "quiero dar de alta una lista de bloqueo", "page": "/biblioteca", "role": "channel_manager", "expect": ["task:crear-lista"]},
+  {"query": "sube un archivo separado por comas con los datos", "page": "/biblioteca", "role": "data_analyst", "expect": ["task:subir-dataset"]},
+  {"query": "necesito enseñar al modelo con nuevos datos", "page": "/modelos", "role": "data_analyst", "expect": ["task:entrenar-modelo"]},
+  {"query": "quiero correr un test para validar el agente", "page": "/testing", "role": "release_manager", "expect": ["task:ejecutar-prueba"]},
+  {"query": "ponme a cargo de una alerta", "page": "/cola", "role": "fraud_analyst", "expect": ["task:tomar-caso"]},
+  {"query": "quiero rectificar el resultado de fraude", "page": "/historico-fraude", "role": "manager", "expect": ["task:revisar-fraude"]},
+  {"query": "cargar registros masivamente a una lista", "page": "/biblioteca", "role": "channel_manager", "expect": ["task:importar-elementos-lista"]}
 ]

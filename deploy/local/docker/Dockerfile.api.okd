@@ -47,6 +47,8 @@ WORKDIR ${APP_DIR}
 
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 COPY --chown=www-data:www-data src ./src
+# Keep the generated project graph explicitly present in the API image.
+COPY --chown=www-data:www-data src/infrastructure/agents/project_graph/project_graph.json ./src/infrastructure/agents/project_graph/project_graph.json
 USER www-data
 
 EXPOSE 8000
