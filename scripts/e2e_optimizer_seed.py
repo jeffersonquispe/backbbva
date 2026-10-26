@@ -448,7 +448,7 @@ def seed(owner_id: str, state: str, prefix: str) -> str:
             refs=refs,
         )
     spent = {
-        "blocked_budget": (LIMITS["tokens"], LIMITS["usd_micros"], 1_000),
+        "blocked_budget": (50_000, 25_000_000, 1_000),
     }.get(state, (12_000, 2_400_000, 900))
     seeder.spend(*spent)
 
@@ -458,6 +458,7 @@ def seed(owner_id: str, state: str, prefix: str) -> str:
     elif state == "stalled":
         lease_owner, lease_expires = "seed-worker", now - timedelta(minutes=5)
     limits = (
+        # Below the global ceilings, so the Channel Manager can still grant more.
         {"tokens": spent[0], "usd_micros": spent[1], "seconds": 43_200}
         if state == "blocked_budget"
         else LIMITS
