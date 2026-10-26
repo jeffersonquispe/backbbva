@@ -401,3 +401,12 @@ class OptimizerInsightResponse(BaseModel):
     last_evaluated_at: datetime
     review_after: datetime
     origin_session_id: str | None = None
+
+
+class AgentFailureResponse(BaseModel):
+    code: str
+    title: str
+    detail: str
+    action: str
+    retryable: bool
+    approval: Literal["budget", "candidates", "context"] | None = None

@@ -255,3 +255,13 @@ def test_memory_lists_supported_learnings_by_area(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()[0]["sample_count"] == 120
     assert response.json()[0]["evidence_summary"] == {"candidate_recall": 0.7}
+
+
+def test_failure_catalog_exposes_copy_and_required_approval(monkeypatch) -> None:
+    response = _client(monkeypatch).get("/agent/failure-catalog")
+
+    assert response.status_code == 200
+    by_code = {item["code"]: item for item in response.json()}
+    assert by_code["BUDGET_EXHAUSTED"]["approval"] == "budget"
+    assert by_code["WORKER_LEASE_EXPIRED"]["retryable"] is True
+    assert all(item["title"] and item["action"] for item in by_code.values())

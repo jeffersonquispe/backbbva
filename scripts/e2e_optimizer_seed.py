@@ -25,11 +25,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-os.environ.setdefault(
-    "DYNAMO_ENDPOINT", f"http://localhost:{os.getenv('LOCAL_DYNAMODB_PORT', '8002')}"
+# The seeder runs on the host next to the E2E runner, whose environment points at
+# the containers; always talk to the published DynamoDB port with the repo defaults.
+os.environ["DYNAMO_ENDPOINT"] = os.getenv(
+    "E2E_DYNAMO_ENDPOINT", f"http://localhost:{os.getenv('LOCAL_DYNAMODB_PORT', '8002')}"
 )
 # `test` loads the repo defaults; DYNAMO_ENDPOINT above points it at the local stack.
-os.environ.setdefault("GENAI_ENVIRONMENT", "test")
+os.environ["GENAI_ENVIRONMENT"] = "test"
 
 import boto3  # noqa: E402
 from boto3.dynamodb.conditions import Attr, Key  # noqa: E402

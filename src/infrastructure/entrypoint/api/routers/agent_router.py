@@ -37,6 +37,7 @@ from src.application.use_cases.agent.resolve_agent_block import (
     AgentBlockPolicyError,
     ResolveAgentBlockInput,
 )
+from src.domain.agents.failure_catalog import CATALOG
 from src.domain.agents.finding import OptimizerInsightStatus
 from src.infrastructure.agents.factories import (
     get_agent_audit_repository,
@@ -73,6 +74,7 @@ from src.infrastructure.entrypoint.api.schemas.agent import (
     AgentEntityClaimResponse,
     AgentEventsPageResponse,
     AgentExperimentResponse,
+    AgentFailureResponse,
     AgentFindingResponse,
     AgentHypothesisResponse,
     AgentInsightResponse,
@@ -202,6 +204,14 @@ def list_session_findings(
 ):
     _owned_session(session_id, str(user.id))
     return get_agent_finding_repository().list_for_session(session_id)
+
+
+@router.get("/failure-catalog", response_model=list[AgentFailureResponse])
+def list_failure_catalog(
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    """Spanish explanation, retry hint and required approval for every code."""
+    return list(CATALOG.values())
 
 
 @router.get("/memory", response_model=list[OptimizerInsightResponse])
