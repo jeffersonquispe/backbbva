@@ -146,6 +146,38 @@ def test_prepare_dataset_split_persists_reproducibility_metadata():
     assert len(datasets.rows["experiment-data"]) == 100
 
 
+def test_preview_dataset_split_returns_counts_and_does_not_create_copy():
+    source = [
+        {"id": str(index), "channel": "web" if index % 2 else "mobile"}
+        for index in range(25)
+    ]
+    datasets = InMemoryDatasetRepository({"source": source})
+    use_case = PrepareDatasetSplitUseCase(datasets, InMemoryDatasetSummaryRepository())
+
+    result = use_case.preview(
+        source_name="source",
+        proportions={
+            "training": 0.6,
+            "validation": 0.2,
+            "calibration": 0.1,
+            "test": 0.1,
+        },
+        seed=42,
+        stratify_fields=["channel"],
+    )
+
+    assert result["source_row_count"] == 25
+    assert result["partition_counts"] == {
+        "training": 15,
+        "validation": 6,
+        "calibration": 2,
+        "test": 2,
+    }
+    assert result["available_fields"] == ["id", "channel"]
+    assert result["source_content_sha256"]
+    assert list(datasets.rows) == ["source"]
+
+
 def test_partitioned_dataset_rejects_appends():
     datasets = InMemoryDatasetRepository({"split": [{"id": "1"}]})
     summaries = InMemoryDatasetSummaryRepository()

@@ -32,6 +32,34 @@ class PrepareDatasetSplitUseCase:
         self._summaries = summaries
         self._clock = resolve_clock(clock)
 
+    def preview(
+        self,
+        *,
+        source_name: str,
+        proportions: dict[str, float],
+        seed: int,
+        stratify_fields: list[str] | None = None,
+    ) -> dict[str, Any]:
+        rows, fields, stratify, partitions = self._partition(
+            source_name=source_name,
+            proportions=proportions,
+            seed=seed,
+            stratify_fields=stratify_fields,
+        )
+        content_hash = hashlib.sha256(
+            json.dumps(rows, sort_keys=True, separators=(",", ":"), default=str).encode()
+        ).hexdigest()
+        return {
+            "source_dataset_name": source_name,
+            "source_content_sha256": content_hash,
+            "source_row_count": len(rows),
+            "partition_counts": {name: len(partitions[name]) for name in PARTITION_NAMES},
+            "proportions": proportions,
+            "seed": seed,
+            "stratify_fields": list(stratify),
+            "available_fields": fields,
+        }
+
     def execute(
         self,
         *,
@@ -43,30 +71,12 @@ class PrepareDatasetSplitUseCase:
     ) -> dict[str, Any]:
         if source_name == target_name:
             raise ValidationError("El dataset de particiones debe tener otro nombre")
-        rows = self._datasets.get_rows(source_name)
-        if not rows:
-            raise ValidationError("El dataset no tiene filas para particionar")
-        fields = self._datasets.get_fields(source_name)
-        stratify = tuple(dict.fromkeys(stratify_fields or []))
-        unknown = set(stratify) - set(fields)
-        if unknown:
-            raise ValidationError(
-                "Los campos de estratificación no existen: " + ", ".join(sorted(unknown))
-            )
-        try:
-            partitions = partition_rows(
-                rows,
-                proportions=proportions,
-                seed=seed,
-                stratify_fields=stratify,
-            )
-        except ValueError as exc:
-            raise ValidationError(str(exc)) from exc
-        if any(not partitions[name] for name in PARTITION_NAMES):
-            raise ValidationError(
-                "La cantidad de filas no permite poblar todas las particiones; "
-                "reduce los estratos o ajusta las proporciones"
-            )
+        rows, fields, stratify, partitions = self._partition(
+            source_name=source_name,
+            proportions=proportions,
+            seed=seed,
+            stratify_fields=stratify_fields,
+        )
 
         content_hash = hashlib.sha256(
             json.dumps(rows, sort_keys=True, separators=(",", ":"), default=str).encode()
@@ -136,3 +146,37 @@ class PrepareDatasetSplitUseCase:
             "seed": seed,
             "stratify_fields": list(stratify),
         }
+
+    def _partition(
+        self,
+        *,
+        source_name: str,
+        proportions: dict[str, float],
+        seed: int,
+        stratify_fields: list[str] | None,
+    ) -> tuple[list[dict[str, Any]], list[str], tuple[str, ...], dict[str, list[dict[str, Any]]]]:
+        rows = self._datasets.get_rows(source_name)
+        if not rows:
+            raise ValidationError("El dataset no tiene filas para particionar")
+        fields = self._datasets.get_fields(source_name)
+        stratify = tuple(dict.fromkeys(stratify_fields or []))
+        unknown = set(stratify) - set(fields)
+        if unknown:
+            raise ValidationError(
+                "Los campos de estratificación no existen: " + ", ".join(sorted(unknown))
+            )
+        try:
+            partitions = partition_rows(
+                rows,
+                proportions=proportions,
+                seed=seed,
+                stratify_fields=stratify,
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+        if any(not partitions[name] for name in PARTITION_NAMES):
+            raise ValidationError(
+                "La cantidad de filas no permite poblar todas las particiones; "
+                "reduce los estratos o ajusta las proporciones"
+            )
+        return rows, fields, stratify, partitions

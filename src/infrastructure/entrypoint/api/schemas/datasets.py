@@ -119,6 +119,30 @@ class PrepareDatasetSplitRequest(BaseModel):
     stratify_fields: list[str] = Field(default_factory=list, max_length=20)
 
 
+class PreviewDatasetSplitRequest(BaseModel):
+    proportions: dict[Literal["training", "validation", "calibration", "test"], float] = Field(
+        default_factory=lambda: {
+            "training": 0.6,
+            "validation": 0.2,
+            "calibration": 0.1,
+            "test": 0.1,
+        }
+    )
+    seed: int = 42
+    stratify_fields: list[str] = Field(default_factory=list, max_length=20)
+
+
+class PreviewDatasetSplitResponse(BaseModel):
+    source_dataset_name: str
+    source_content_sha256: str
+    source_row_count: int
+    partition_counts: dict[str, int]
+    proportions: dict[str, float]
+    seed: int
+    stratify_fields: list[str]
+    available_fields: list[str]
+
+
 class PrepareDatasetSplitResponse(BaseModel):
     dataset_name: str
     snapshot_id: str

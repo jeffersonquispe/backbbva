@@ -97,6 +97,8 @@ from src.infrastructure.entrypoint.api.schemas import (
     FraudMarkingAnalysisQueuedResponse,
     PrepareDatasetSplitRequest,
     PrepareDatasetSplitResponse,
+    PreviewDatasetSplitRequest,
+    PreviewDatasetSplitResponse,
     SaveAlertFieldMappingRequest,
     StartDatasetUploadRequest,
     UploadDatasetResponse,
@@ -401,6 +403,30 @@ def extract_dataset(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post(
+    "/datasets/{name}/splits/preview",
+    response_model=PreviewDatasetSplitResponse,
+)
+def preview_dataset_split(
+    name: str,
+    request: PreviewDatasetSplitRequest,
+    use_case: Annotated[
+        PrepareDatasetSplitUseCase, Depends(get_prepare_dataset_split_use_case)
+    ],
+):
+    try:
+        return use_case.preview(
+            source_name=name,
+            proportions=request.proportions,
+            seed=request.seed,
+            stratify_fields=request.stratify_fields,
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post(
