@@ -183,10 +183,17 @@ class GetAgentSessionOverviewUseCase:
                     "Ninguna hipótesis llegó a validarse con la evidencia disponible.",
                     "Revisa las hipótesis refutadas o inconclusas.",
                 )
+            validated_count = sum(
+                1
+                for item in hypotheses
+                if item.status == AgentHypothesisStatus.VALIDATED
+            )
             return AgentVerdict(
                 "completed" if status == AgentSessionStatus.COMPLETED else "stopped",
-                "Terminada",
-                "La sesión terminó con al menos una hipótesis validada.",
+                f"Terminó con {validated_count} hipótesis validada"
+                + ("s" if validated_count != 1 else ""),
+                "El agente cerró la sesión con evidencia a favor de al menos una mejora.",
+                "Revisa los experimentos y decide si promover el cambio.",
             )
         # ACTIVE
         last = iterations[-1] if iterations else None
