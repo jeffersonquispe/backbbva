@@ -5,6 +5,8 @@ from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
+import pytest
+
 from src.application.dtos.test_run_dtos import StartTestRunOutput
 from src.application.ports.agent_experiment_component_port import (
     ResolvedAgentComponent,
@@ -90,10 +92,12 @@ class InMemorySchemaRepository:
 
 
 class RecordingStartTestRun:
-    def __init__(self, workflows, steps, decisions):
+    def __init__(self, workflows, steps, decisions, errors=None):
         self.workflows = workflows
         self.steps = steps
         self.decisions = decisions
+        # Row index -> error of a workflow that FAILED instead of deciding.
+        self.errors = errors or {}
         self.input = None
         self.test_run_id = uuid4()
 
@@ -107,10 +111,14 @@ class RecordingStartTestRun:
                 alert_id=uuid4(),
                 async_operation_id=uuid4(),
                 workflow_name="alert_review",
-                status=WorkflowStatus.SUCCEEDED,
+                status=(
+                    WorkflowStatus.FAILED
+                    if index in self.errors
+                    else WorkflowStatus.SUCCEEDED
+                ),
                 input={"optimizer_row_index": index},
                 output=None,
-                error=None,
+                error=self.errors.get(index),
                 current_step="post_process",
                 feedback_iterations=0,
                 max_feedback_iterations=1,
@@ -246,9 +254,7 @@ def test_workflow_pipeline_scorer_replays_rows_and_cleans_completed_run():
         {
             "amount_value": 100,
             "customerid": "900000000000",
-            OPTIMIZER_REPLAY_HISTORY_COLUMN: [
-                {"location": {"country": "CO"}}
-            ],
+            OPTIMIZER_REPLAY_HISTORY_COLUMN: [{"location": {"country": "CO"}}],
         },
         {"amount_value": 200, "customerid": "900000000001"},
     ]
@@ -278,3 +284,53 @@ def test_workflow_pipeline_scorer_preserves_completed_run_when_requested():
     )
 
     assert cleanup.deleted == []
+
+
+def _scorer_with_errors(errors):
+    workflows = InMemoryWorkflowRepository()
+    steps = InMemoryStepRepository()
+    starter = RecordingStartTestRun(
+        workflows, steps, ["fraud", "fraud", "not_fraud"], errors=errors
+    )
+    cleanup = RecordingDeleteTestRuns()
+    scorer = WorkflowAgentPipelineScorer(
+        start_test_run=starter,
+        schemas=InMemorySchemaRepository(),
+        workflows=workflows,
+        steps=steps,
+        delete_test_runs=cleanup,
+        timeout_seconds=1,
+        poll_interval_seconds=0.001,
+    )
+    return scorer, cleanup
+
+
+def test_workflow_pipeline_scorer_counts_escalated_alert_as_undecided():
+    scorer, cleanup = _scorer_with_errors(
+        {
+            1: "Adversarial review (detector) still flagged issues after 1 "
+            "feedback loop(s) back to detector: recount the history"
+        }
+    )
+
+    result = scorer.predict_positive(
+        _components(),
+        [{"amount": 100}, {"amount": 200}, {"amount": 300}],
+        snapshot=_snapshot(),
+    )
+
+    assert result.predictions == [True, False, False]
+    assert result.undecided_count == 1
+    assert len(cleanup.deleted) == 1
+
+
+def test_workflow_pipeline_scorer_fails_candidate_on_other_workflow_errors():
+    scorer, cleanup = _scorer_with_errors({1: "MCP scoring unavailable"})
+
+    with pytest.raises(ValueError, match="PIPELINE_REPLAY_WORKFLOW_FAILED"):
+        scorer.predict_positive(
+            _components(),
+            [{"amount": 100}, {"amount": 200}, {"amount": 300}],
+            snapshot=_snapshot(),
+        )
+    assert len(cleanup.deleted) == 1

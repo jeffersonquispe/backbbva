@@ -21,6 +21,7 @@ from src.application.use_cases.test_runs.delete_test_runs import (
 )
 from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
 from src.domain.alerts.entities import AlertOrigin
+from src.domain.alerts.exceptions import AdversarialFeedbackLimitExceededError
 from src.domain.configurations.entities import ConfigurationRef
 from src.domain.datasets.mature_sample_entities import (
     OPTIMIZER_REPLAY_HISTORY_COLUMN,
@@ -30,9 +31,7 @@ from src.domain.test_runs.entities import TestRunConfig
 from src.domain.workflows.entities import WorkflowStatus
 
 _REQUIRED_COMPONENTS = frozenset({"model", "configuration", "library", "vector_store"})
-_TERMINAL_STATUSES = frozenset(
-    {WorkflowStatus.SUCCEEDED, WorkflowStatus.FAILED}
-)
+_TERMINAL_STATUSES = frozenset({WorkflowStatus.SUCCEEDED, WorkflowStatus.FAILED})
 _FRAUD_DECISIONS = frozenset({"fraud", "risk", "fraudulent"})
 _NO_FRAUD_DECISIONS = frozenset({"not_fraud", "no_fraud", "no-risk", "pass"})
 
@@ -101,9 +100,7 @@ class WorkflowAgentPipelineScorer:
         vector_store = by_type["vector_store"]
         vector_content = vector_store.content
         instance = (
-            vector_content.get("instance")
-            if isinstance(vector_content, dict)
-            else None
+            vector_content.get("instance") if isinstance(vector_content, dict) else None
         )
         if (
             not isinstance(instance, dict)
@@ -157,6 +154,13 @@ class WorkflowAgentPipelineScorer:
             undecided = 0
             for workflow in indexed:
                 if workflow.status != WorkflowStatus.SUCCEEDED:
+                    # Production escalates these alerts to an analyst, so the
+                    # stack reached no decision: count it as undecided rather
+                    # than failing the whole candidate on one alert.
+                    if AdversarialFeedbackLimitExceededError.matches(workflow.error):
+                        predictions.append(False)
+                        undecided += 1
+                        continue
                     raise ValueError("PIPELINE_REPLAY_WORKFLOW_FAILED")
                 decision = self._workflow_decision(workflow.id)
                 if decision in _FRAUD_DECISIONS:

@@ -804,7 +804,8 @@ class RunAlertReviewWorkflowUseCase:
             and context.get("feedback_iterations", 0) >= effective_max
         ):
             raise AdversarialFeedbackLimitExceededError(
-                f"Adversarial review still flagged issues after "
+                f"Adversarial review "
+                f"{AdversarialFeedbackLimitExceededError.MESSAGE_MARKER} "
                 f"{context['feedback_iterations']} feedback loop(s) back to "
                 f"classification: {adversarial.feedback}"
             )
@@ -848,7 +849,8 @@ class RunAlertReviewWorkflowUseCase:
             and context.get("detector_feedback_iterations", 0) >= effective_max
         ):
             raise AdversarialFeedbackLimitExceededError(
-                f"Adversarial review (detector) still flagged issues after "
+                f"Adversarial review (detector) "
+                f"{AdversarialFeedbackLimitExceededError.MESSAGE_MARKER} "
                 f"{context['detector_feedback_iterations']} feedback loop(s) "
                 f"back to detector: {detector_adversarial.feedback}"
             )

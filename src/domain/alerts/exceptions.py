@@ -142,3 +142,11 @@ class AdversarialFeedbackLimitExceededError(DomainException):
     primary step (classification, or detector) past the workflow's/
     segment's allowed feedback loop-backs, so the alert must escalate to a
     human analyst instead of looping forever."""
+
+    # A failed workflow persists only str(exc); every raise includes this
+    # phrase so readers of that error can recognise the escalation outcome.
+    MESSAGE_MARKER = "still flagged issues after"
+
+    @classmethod
+    def matches(cls, error: str | None) -> bool:
+        return error is not None and cls.MESSAGE_MARKER in error
