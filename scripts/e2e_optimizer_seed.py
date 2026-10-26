@@ -738,14 +738,26 @@ def seed(owner_id: str, state: str, prefix: str) -> str:
     return session_id
 
 
+def _seeded_session_ids(sessions, prefix: str) -> list[str]:
+    # The filter applies per 1 MB page, so every page must be read.
+    ids: list[str] = []
+    kwargs = {
+        "FilterExpression": Attr("session_id").begins_with(f"{prefix}-"),
+        "ProjectionExpression": "session_id",
+    }
+    while True:
+        page = sessions.scan(**kwargs)
+        ids.extend(item["session_id"] for item in page.get("Items", []))
+        if "LastEvaluatedKey" not in page:
+            return ids
+        kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+
+
 def cleanup(prefix: str) -> int:
     resource = _resource()
     sessions = resource.Table("agent_sessions")
     removed = 0
-    for item in sessions.scan(
-        FilterExpression=Attr("session_id").begins_with(f"{prefix}-")
-    ).get("Items", []):
-        session_id = item["session_id"]
+    for session_id in _seeded_session_ids(sessions, prefix):
         for table_name, sort_key in SESSION_TABLES:
             table = resource.Table(table_name)
             rows = table.query(
