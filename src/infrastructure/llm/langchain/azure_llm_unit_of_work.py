@@ -31,6 +31,7 @@ class LangchainAzureLLMUnitOfWorkFactory(LLMUnitOfWorkFactory):
             "api_key": genai_config.OPENAI_KEY,
             "api_version": genai_config.OPENAI_VERSION,
             "azure_deployment": model,
+            "timeout": genai_config.OPENAI_REQUEST_TIMEOUT_SECONDS,
             "temperature": None if is_gpt5_deployment else temperature,
             "max_tokens": None if is_gpt5_deployment else max_tokens,
         }

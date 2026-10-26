@@ -83,6 +83,11 @@ class Config(BaseSettings):
 
     OPENAI_VERSION: str = "2024-08-01-preview"
 
+    # Per-request cap for Azure OpenAI calls. The SDK default (600 s, retried
+    # twice) let one hung call hold a worker for ~15 min while its queue aged
+    # past CELERY_STUCK_TASK_TIMEOUT_SECONDS.
+    OPENAI_REQUEST_TIMEOUT_SECONDS: float = Field(default=120, gt=0)
+
     PROFILING_LLM_MODEL: str = ""
 
     DETECTOR_LLM_MODEL: str = ""

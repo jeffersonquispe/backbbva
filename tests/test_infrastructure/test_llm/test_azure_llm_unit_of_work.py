@@ -50,3 +50,19 @@ def test_factory_uses_gpt5_completion_token_parameter(monkeypatch):
     assert uow._client.max_tokens is None
     assert uow._client.temperature is None
     assert uow._client.model_kwargs == {"max_completion_tokens": 1_200}
+
+
+def test_factory_caps_each_request_with_the_configured_timeout(monkeypatch):
+    monkeypatch.setattr(
+        genai_config, "OPENAI_ENDPOINT", "https://example.openai.azure.com"
+    )
+    monkeypatch.setattr(genai_config, "OPENAI_KEY", "dummy")
+    monkeypatch.setattr(genai_config, "OPENAI_REQUEST_TIMEOUT_SECONDS", 45)
+
+    uow = LangchainAzureLLMUnitOfWorkFactory().create(
+        model="agentepqrs-llm-live-agent-gpt52",
+        monitoring=RecordingMonitoring(),
+        operation_name="detector",
+    )
+
+    assert uow._client.request_timeout == 45
