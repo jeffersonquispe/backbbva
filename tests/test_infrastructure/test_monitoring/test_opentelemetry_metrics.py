@@ -191,3 +191,35 @@ def test_port_metric_methods_default_to_no_op_for_existing_fakes():
     monitoring.record_operational_state(
         OperationalStateSnapshot(True, True, 0, 0.0, 1, 1)
     )
+
+
+def test_optimizer_instruments_use_low_cardinality_attributes_only():
+    monitoring, reader = _build_monitoring()
+
+    monitoring.record_optimizer_iteration("xgboost", "SUCCEEDED", 12.5)
+    monitoring.record_optimizer_iteration("xgboost", "FAILED", 3.0)
+    monitoring.record_optimizer_block("BUDGET_EXHAUSTED")
+    monitoring.record_optimizer_block("BUDGET_EXHAUSTED")
+    monitoring.record_optimizer_recovery("WORKER_LEASE_EXPIRED")
+
+    points = _points(reader)
+    durations = {
+        p.attributes["aria.optimizer.outcome"]: p.sum
+        for p in points["aria.optimizer.iteration.duration"]
+    }
+    assert durations == {"SUCCEEDED": 12.5, "FAILED": 3.0}
+    (blocks,) = points["aria.optimizer.blocks"]
+    assert blocks.value == 2
+    assert dict(blocks.attributes) == {"aria.optimizer.reason": "BUDGET_EXHAUSTED"}
+    (recoveries,) = points["aria.optimizer.recoveries"]
+    assert dict(recoveries.attributes) == {
+        "aria.optimizer.reason": "WORKER_LEASE_EXPIRED"
+    }
+    forbidden = {"session_id", "experiment_id", "hypothesis_id", "customer_id"}
+    for name in (
+        "aria.optimizer.iteration.duration",
+        "aria.optimizer.blocks",
+        "aria.optimizer.recoveries",
+    ):
+        for point in points[name]:
+            assert not forbidden & {key.split(".")[-1] for key in point.attributes}

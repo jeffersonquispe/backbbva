@@ -191,6 +191,27 @@ class OpenTelemetryMonitoring(MonitoringPort):
             },
         )
 
+    def record_optimizer_iteration(
+        self, specialist: str, outcome: str, duration_seconds: float
+    ) -> None:
+        self._instruments.optimizer_iteration_duration.record(
+            duration_seconds,
+            attributes={
+                "aria.optimizer.specialist": specialist,
+                "aria.optimizer.outcome": outcome,
+            },
+        )
+
+    def record_optimizer_block(self, reason: str) -> None:
+        self._instruments.optimizer_blocks.add(
+            1, attributes={"aria.optimizer.reason": reason}
+        )
+
+    def record_optimizer_recovery(self, reason: str) -> None:
+        self._instruments.optimizer_recoveries.add(
+            1, attributes={"aria.optimizer.reason": reason}
+        )
+
     def record_rollup_drift(self, data_type: str, level: str, drift: float) -> None:
         self._instruments.rollup_drift.set(
             drift,

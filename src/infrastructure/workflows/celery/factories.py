@@ -899,6 +899,7 @@ def get_recover_stale_agent_runs_use_case() -> RecoverStaleAgentRunsUseCase:
         experiments=get_agent_experiment_repository(),
         clock=get_clock(),
         timeline=get_agent_timeline(),
+        monitoring=get_monitoring(),
     )
 
 

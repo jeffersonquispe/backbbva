@@ -133,5 +133,19 @@ class MonitoringPort(ABC):
         `data_type` (alert, workflow_step, ...) and `level` (day/month/year).
         Last value wins until the next reconciliation."""
 
+    def record_optimizer_iteration(
+        self, specialist: str, outcome: str, duration_seconds: float
+    ) -> None:
+        """One finished optimizer iteration. `specialist` is a fixed name
+        (configuration, library, vector_store, xgboost) and `outcome` is
+        SUCCEEDED/FAILED - never a session, hypothesis or experiment id."""
+
+    def record_optimizer_block(self, reason: str) -> None:
+        """A session stopped to wait for the Channel Manager; `reason` is a
+        failure-catalogue code (BUDGET_EXHAUSTED, CONTEXT_MISSING, ...)."""
+
+    def record_optimizer_recovery(self, reason: str) -> None:
+        """A dead orchestrator's open work was closed (`reason` is a code)."""
+
     def record_operational_state(self, snapshot: OperationalStateSnapshot) -> None:
         """Current queue/capacity/agent state; call periodically."""

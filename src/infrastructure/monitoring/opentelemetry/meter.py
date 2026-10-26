@@ -32,6 +32,9 @@ GEN_AI_OPERATION_DURATION = "gen_ai.client.operation.duration"
 ARIA_WORKFLOW_DURATION = "aria.workflow.duration"
 ARIA_RESEARCH_CALLS = "aria.research.calls"
 ARIA_ROLLUP_DRIFT = "aria.metrics.rollup_drift"
+ARIA_OPTIMIZER_ITERATION_DURATION = "aria.optimizer.iteration.duration"
+ARIA_OPTIMIZER_BLOCKS = "aria.optimizer.blocks"
+ARIA_OPTIMIZER_RECOVERIES = "aria.optimizer.recoveries"
 ARIA_AGENT_ENABLED = "aria.agent.enabled"
 ARIA_OPERATING_HOURS = "aria.operating_hours"
 ARIA_ANALYST_QUEUE_DEPTH = "aria.analyst_queue.depth"
@@ -155,6 +158,21 @@ class AriaInstruments:
             ARIA_RESEARCH_CALLS,
             unit="{call}",
             description="Research lookups (vector store, history) by outcome.",
+        )
+        self.optimizer_iteration_duration = meter.create_histogram(
+            ARIA_OPTIMIZER_ITERATION_DURATION,
+            unit="s",
+            description="Duration of optimizer iterations by specialist and outcome.",
+        )
+        self.optimizer_blocks = meter.create_counter(
+            ARIA_OPTIMIZER_BLOCKS,
+            unit="{session}",
+            description="Optimizer sessions waiting for the Channel Manager, by reason.",
+        )
+        self.optimizer_recoveries = meter.create_counter(
+            ARIA_OPTIMIZER_RECOVERIES,
+            unit="{session}",
+            description="Optimizer sessions recovered after a dead orchestrator.",
         )
         self.rollup_drift = meter.create_gauge(
             ARIA_ROLLUP_DRIFT,

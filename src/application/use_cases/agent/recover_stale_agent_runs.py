@@ -13,6 +13,7 @@ from src.application.ports.agent_session_port import (
     AgentSessionStatus,
 )
 from src.application.ports.clock_port import Clock
+from src.application.ports.monitoring_port import MonitoringPort
 from src.application.use_cases.agent.agent_timeline import AgentTimeline
 from src.domain.agents.event import AgentEventKind
 from src.domain.agents.experiment import AgentExperimentStatus
@@ -32,12 +33,14 @@ class RecoverStaleAgentRunsUseCase:
         clock: Clock,
         experiments: AgentExperimentRepository | None = None,
         timeline: AgentTimeline | None = None,
+        monitoring: MonitoringPort | None = None,
     ) -> None:
         self._sessions = sessions
         self._iterations = iterations
         self._runs = runs
         self._experiments = experiments
         self._timeline = timeline
+        self._monitoring = monitoring
         self._clock = clock
 
     def execute(self, limit: int = 100) -> list[str]:
@@ -102,6 +105,8 @@ class RecoverStaleAgentRunsUseCase:
         return recovered
 
     def _record(self, session_id: str, now) -> None:
+        if self._monitoring is not None:
+            self._monitoring.record_optimizer_recovery(LEASE_EXPIRED)
         if self._timeline is not None:
             self._timeline.record_failure(
                 session_id,

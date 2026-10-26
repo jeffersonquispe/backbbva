@@ -494,6 +494,8 @@ class OrchestrateAgentIterationUseCase:
         )
         if self._timeline is not None:
             self._timeline.record_blocked(leased.session_id, code, occurred_at=now)
+        if self._monitoring is not None:
+            self._monitoring.record_optimizer_block(code)
         return result
 
     # -------------------------------------------------------------- specialist
@@ -837,6 +839,14 @@ class OrchestrateAgentIterationUseCase:
             self._timeline.record_blocked(
                 session_id, block_code, refs=iteration_refs, occurred_at=finished
             )
+        if self._monitoring is not None:
+            self._monitoring.record_optimizer_iteration(
+                selected_subagent.name,
+                "FAILED" if output.error_code else "SUCCEEDED",
+                max(0.0, (finished - now).total_seconds()),
+            )
+            if block_code is not None:
+                self._monitoring.record_optimizer_block(block_code)
         if self._summaries is not None:
             self._save_session_memory(
                 session_id,
