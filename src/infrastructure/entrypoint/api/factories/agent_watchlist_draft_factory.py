@@ -8,6 +8,7 @@ from src.infrastructure.agents.factories import (
     get_agent_package_repository,
     get_agent_prompt_repository,
     get_agent_session_repository,
+    get_agent_timeline,
     get_agent_verification_repository,
     get_personal_data_masker,
 )
@@ -68,6 +69,7 @@ def get_confirm_watchlist_draft_use_case() -> ConfirmWatchlistDraftUseCase:
         create_entry=get_create_watchlist_use_case(),
         update_entry=get_update_watchlist_use_case(),
         audit=get_audit_repository(),
+        timeline=get_agent_timeline(),
         clock=get_clock(),
         ids=get_id_generator(),
     )

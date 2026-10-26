@@ -12,6 +12,7 @@ from src.infrastructure.agents.factories import (
     get_agent_audit_repository,
     get_agent_experiment_component_resolver,
     get_agent_experiment_repository,
+    get_agent_timeline,
 )
 from src.infrastructure.agents.factories import (
     get_agent_release_repository as get_dynamo_agent_release_repository,
@@ -57,6 +58,7 @@ def get_manage_agent_release_use_case() -> ManageAgentReleaseUseCase:
         audit=get_agent_audit_repository(),
         now=get_clock().now,
         new_id=lambda: str(get_id_generator().new_id()),
+        timeline=get_agent_timeline(),
     )
 
 

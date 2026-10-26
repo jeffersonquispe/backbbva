@@ -42,6 +42,7 @@ from src.application.ports.modus_operandi_library_port import (
     ModusOperandiLibraryRepository,
 )
 from src.application.ports.personal_data_masker_port import PersonalDataMasker
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
 from src.domain.configurations.entities import FlagType
 
 PROMPT_NAME = "agent.flag.generate"
@@ -286,10 +287,11 @@ class ConfirmFlagDraftUseCase:
         create_entry: Any,
         update_entry: Any,
         synchronize_new_asset: Callable[[FlagType, str], None],
-        audit: AuditPort,
+        audit: AuditPort, timeline: AgentTimeline | None = None,
         clock: Clock,
         ids: IdGenerator,
     ) -> None:
+        self._timeline = timeline
         self._sessions, self._packages, self._verifications = (
             sessions,
             packages,
@@ -439,6 +441,14 @@ class ConfirmFlagDraftUseCase:
                 outcome="success",
             )
         )
+        if self._timeline is not None:
+            self._timeline.record_applied_change(
+                request.session_id,
+                entity_type="library_flag",
+                entity_id=applied.id,
+                actor_id=request.owner_id,
+                package_id=package.package_id,
+            )
         return {
             "confirmation_id": confirmation_id,
             "package_id": package.package_id,

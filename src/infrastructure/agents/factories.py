@@ -11,10 +11,12 @@ from src.application.ports.agent_confirmation_port import (
     AgentConfirmationRepository,
 )
 from src.application.ports.agent_entity_claim_port import AgentEntityClaimRepository
+from src.application.ports.agent_event_port import AgentEventRepository
 from src.application.ports.agent_experiment_component_port import (
     AgentExperimentComponentResolver,
 )
 from src.application.ports.agent_experiment_port import AgentExperimentRepository
+from src.application.ports.agent_finding_port import AgentFindingRepository
 from src.application.ports.agent_hypothesis_port import AgentHypothesisRepository
 from src.application.ports.agent_insight_port import AgentInsightRepository
 from src.application.ports.agent_iteration_port import AgentIterationRepository
@@ -33,11 +35,13 @@ from src.application.ports.agent_tool_call_port import AgentToolCallRepository
 from src.application.ports.agent_verification_port import (
     AgentVerificationRepository,
 )
+from src.application.ports.optimizer_insight_port import OptimizerInsightRepository
 from src.application.ports.personal_data_masker_port import PersonalDataMasker
 from src.application.ports.project_graph_port import ProjectGraphRepository
 from src.application.ports.project_graph_semantic_port import (
     ProjectGraphSemanticSearch,
 )
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
 from src.infrastructure.agents.agent_experiment_component_resolver import (
     StoredAgentExperimentComponentResolver,
 )
@@ -61,11 +65,16 @@ from src.infrastructure.agents.rule_based_personal_data_masker import (
     RuleBasedPersonalDataMasker,
 )
 from src.infrastructure.core.config import genai_config
+from src.infrastructure.core.runtime.system_clock import get_clock
+from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.embedding.langchain import (
     get_embedding_unit_of_work_factory,
 )
 from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
+from src.infrastructure.persistence.database.dynamodb.audit_factory import (
+    get_audit_repository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_audit_repository import (
     DynamoAgentAuditRepository,
 )
@@ -74,6 +83,11 @@ from src.infrastructure.persistence.database.dynamodb.repositories.agent_chat_re
     DynamoAgentLinkRepository,
     DynamoAgentMessageRepository,
     DynamoAgentSessionSummaryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.agent_event_repositories import (
+    DynamoAgentEventRepository,
+    DynamoAgentFindingRepository,
+    DynamoOptimizerInsightRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.agent_objective_repository import (
     DynamoAgentObjectiveRepository,
@@ -294,3 +308,27 @@ def get_optimizer_agent_specialists() -> dict[str, OptimizerSpecialistSubagent]:
             ("xgboost", "xgboost"),
         )
     }
+
+
+@lru_cache
+def get_agent_event_repository() -> AgentEventRepository:
+    return DynamoAgentEventRepository()
+
+
+@lru_cache
+def get_agent_finding_repository() -> AgentFindingRepository:
+    return DynamoAgentFindingRepository()
+
+
+@lru_cache
+def get_optimizer_insight_repository() -> OptimizerInsightRepository:
+    return DynamoOptimizerInsightRepository()
+
+
+def get_agent_timeline() -> AgentTimeline:
+    return AgentTimeline(
+        events=get_agent_event_repository(),
+        clock=get_clock(),
+        ids=get_id_generator(),
+        audit=get_audit_repository(),
+    )

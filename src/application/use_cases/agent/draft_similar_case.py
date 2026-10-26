@@ -42,6 +42,7 @@ from src.application.ports.similar_case_library_port import (
     SimilarCaseLibraryRevisionConflict,
 )
 from src.application.ports.taxonomy_library_port import TaxonomyLibraryRepository
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
 
 PROMPT_NAME = "agent.similar_case.generate"
 OPEN_STATUSES = {AgentSessionStatus.DRAFT, AgentSessionStatus.ACTIVE, AgentSessionStatus.PAUSED, AgentSessionStatus.WAITING_USER, AgentSessionStatus.WAITING_APPROVAL}
@@ -189,7 +190,8 @@ class ConfirmSimilarCaseDraftInput:
 
 
 class ConfirmSimilarCaseDraftUseCase:
-    def __init__(self, *, sessions: AgentSessionRepository, packages: AgentPackageRepository, verifications: AgentVerificationRepository, confirmations: AgentConfirmationRepository, entries: SimilarCaseLibraryRepository, modus_operandi: ModusOperandiLibraryRepository, taxonomies: TaxonomyLibraryRepository, create_entry: Any, update_entry: Any, audit: AuditPort, clock: Clock, ids: IdGenerator) -> None:
+    def __init__(self, *, sessions: AgentSessionRepository, packages: AgentPackageRepository, verifications: AgentVerificationRepository, confirmations: AgentConfirmationRepository, entries: SimilarCaseLibraryRepository, modus_operandi: ModusOperandiLibraryRepository, taxonomies: TaxonomyLibraryRepository, create_entry: Any, update_entry: Any, audit: AuditPort, timeline: AgentTimeline | None = None, clock: Clock, ids: IdGenerator) -> None:
+        self._timeline = timeline
         self._sessions, self._packages, self._verifications = sessions, packages, verifications
         self._confirmations, self._entries = confirmations, entries
         self._modus, self._taxonomies = modus_operandi, taxonomies
@@ -246,6 +248,14 @@ class ConfirmSimilarCaseDraftUseCase:
         self._audit.write(AuditEntry(actor_type="user", actor_id=request.owner_id, worker_name=None,
             action="agent.similar_case.applied", entity_type="library_similar_case", entity_id=applied.id,
             correlation_id=package.package_id, parent_id=request.item_id, occurred_at=now, outcome="success"))
+        if self._timeline is not None:
+            self._timeline.record_applied_change(
+                request.session_id,
+                entity_type="library_similar_case",
+                entity_id=applied.id,
+                actor_id=request.owner_id,
+                package_id=package.package_id,
+            )
         return {"confirmation_id": confirmation_id, "package_id": package.package_id, "item_id": request.item_id, "entity_id": applied.id}
 
 

@@ -211,3 +211,36 @@ def test_recovery_twice_is_idempotent() -> None:
 
     assert second == []
     assert experiments.items[("s1", "e1")].status == AgentExperimentStatus.FAILED
+
+
+def test_recovery_leaves_a_visible_timeline_event() -> None:
+    from src.application.use_cases.agent.agent_timeline import AgentTimeline
+    from src.domain.agents.event import AgentEvent
+
+    class Events:
+        def __init__(self) -> None:
+            self.items: list[AgentEvent] = []
+
+        def append(self, event):
+            self.items.append(event)
+            return event
+
+    class Ids:
+        def new_id(self):
+            return "00000000-0000-0000-0000-000000000001"
+
+    events = Events()
+    recovery = RecoverStaleAgentRunsUseCase(
+        sessions=InMemorySessions(_session()),
+        iterations=InMemoryIterations(_iteration(AgentIterationStatus.RUNNING)),
+        runs=InMemoryRuns(),
+        experiments=InMemoryExperiments(_experiment(AgentExperimentStatus.RUNNING)),
+        clock=FixedClock(),
+        timeline=AgentTimeline(events=events, clock=FixedClock(), ids=Ids()),
+    )
+
+    recovery.execute()
+
+    assert [(item.kind.value, item.reason_code) for item in events.items] == [
+        ("recovery", "WORKER_LEASE_EXPIRED")
+    ]

@@ -9,6 +9,7 @@ from src.infrastructure.agents.factories import (
     get_agent_package_repository,
     get_agent_prompt_repository,
     get_agent_session_repository,
+    get_agent_timeline,
     get_agent_verification_repository,
     get_personal_data_masker,
 )
@@ -85,6 +86,7 @@ def get_confirm_flag_draft_use_case() -> ConfirmFlagDraftUseCase:
         update_entry=get_update_flag_library_entry_use_case(),
         synchronize_new_asset=_sync_new_asset,
         audit=get_audit_repository(),
+        timeline=get_agent_timeline(),
         clock=get_clock(),
         ids=get_id_generator(),
     )

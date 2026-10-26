@@ -77,6 +77,8 @@ class AgentSessionResponse(BaseModel):
     prompt_versions: dict[str, dict[str, str]]
     rev: int
     budget_renewals: int = 0
+    candidate_allowance: int = 0
+    block: dict[str, object] = Field(default_factory=dict)
     lease: AgentLeaseResponse = Field(default_factory=AgentLeaseResponse)
 
     @model_validator(mode="before")

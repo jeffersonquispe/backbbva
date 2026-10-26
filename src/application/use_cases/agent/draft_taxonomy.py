@@ -38,6 +38,7 @@ from src.application.ports.taxonomy_library_port import (
     TaxonomyLibraryRepository,
     TaxonomyLibraryRevisionConflict,
 )
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
 
 PROMPT_NAME = "agent.taxonomy.generate"
 OPEN_STATUSES = {AgentSessionStatus.DRAFT, AgentSessionStatus.ACTIVE, AgentSessionStatus.PAUSED, AgentSessionStatus.WAITING_USER, AgentSessionStatus.WAITING_APPROVAL}
@@ -152,7 +153,8 @@ class ConfirmTaxonomyDraftInput:
 
 
 class ConfirmTaxonomyDraftUseCase:
-    def __init__(self, *, sessions: AgentSessionRepository, packages: AgentPackageRepository, verifications: AgentVerificationRepository, confirmations: AgentConfirmationRepository, entries: TaxonomyLibraryRepository, create_entry: Any, update_entry: Any, audit: AuditPort, clock: Clock, ids: IdGenerator) -> None:
+    def __init__(self, *, sessions: AgentSessionRepository, packages: AgentPackageRepository, verifications: AgentVerificationRepository, confirmations: AgentConfirmationRepository, entries: TaxonomyLibraryRepository, create_entry: Any, update_entry: Any, audit: AuditPort, timeline: AgentTimeline | None = None, clock: Clock, ids: IdGenerator) -> None:
+        self._timeline = timeline
         self._sessions, self._packages, self._verifications = sessions, packages, verifications
         self._confirmations, self._entries = confirmations, entries
         self._create, self._update, self._audit, self._clock, self._ids = create_entry, update_entry, audit, clock, ids
@@ -199,6 +201,14 @@ class ConfirmTaxonomyDraftUseCase:
         self._audit.write(AuditEntry(actor_type="user", actor_id=request.owner_id, worker_name=None,
             action="agent.taxonomy.applied", entity_type="library_taxonomy", entity_id=result.id,
             correlation_id=request.package_id, parent_id=request.item_id, occurred_at=now, outcome="success"))
+        if self._timeline is not None:
+            self._timeline.record_applied_change(
+                request.session_id,
+                entity_type="library_taxonomy",
+                entity_id=result.id,
+                actor_id=request.owner_id,
+                package_id=request.package_id,
+            )
         return {"confirmation_id": confirmation_id, "package_id": request.package_id, "item_id": request.item_id, "entity_id": result.id}
 
 

@@ -1198,3 +1198,58 @@ AGENT_ENTITY_CLAIMS_TABLE = {
         },
     ],
 }
+
+
+AGENT_EVENTS_TABLE = {
+    "TableName": "agent_events",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "seq", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "seq", "AttributeType": "N"},
+    ],
+}
+AGENT_FINDINGS_TABLE = {
+    "TableName": "agent_findings",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "session_id", "KeyType": "HASH"},
+        {"AttributeName": "finding_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "session_id", "AttributeType": "S"},
+        {"AttributeName": "finding_id", "AttributeType": "S"},
+    ],
+}
+OPTIMIZER_INSIGHTS_TABLE = {
+    "TableName": "optimizer_insights",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "insight_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [
+        {"AttributeName": "insight_id", "AttributeType": "S"},
+        {"AttributeName": "scope_key", "AttributeType": "S"},
+        {"AttributeName": "status", "AttributeType": "S"},
+        {"AttributeName": "review_after", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "ScopeStatusIdx",
+            "KeySchema": [
+                {"AttributeName": "scope_key", "KeyType": "HASH"},
+                {"AttributeName": "status", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+        {
+            "IndexName": "StatusReviewIdx",
+            "KeySchema": [
+                {"AttributeName": "status", "KeyType": "HASH"},
+                {"AttributeName": "review_after", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+    ],
+}

@@ -13,6 +13,8 @@ from src.application.ports.agent_session_port import (
     AgentSessionStatus,
 )
 from src.application.ports.clock_port import Clock
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
+from src.domain.agents.event import AgentEventKind
 from src.domain.agents.experiment import AgentExperimentStatus
 
 LEASE_EXPIRED = "WORKER_LEASE_EXPIRED"
@@ -29,11 +31,13 @@ class RecoverStaleAgentRunsUseCase:
         runs: AgentRunRepository,
         clock: Clock,
         experiments: AgentExperimentRepository | None = None,
+        timeline: AgentTimeline | None = None,
     ) -> None:
         self._sessions = sessions
         self._iterations = iterations
         self._runs = runs
         self._experiments = experiments
+        self._timeline = timeline
         self._clock = clock
 
     def execute(self, limit: int = 100) -> list[str]:
@@ -78,6 +82,7 @@ class RecoverStaleAgentRunsUseCase:
                 )
                 if session.status == AgentSessionStatus.ACTIVE:
                     recovered.append(session.session_id)
+                    self._record(session.session_id, now)
         for session in self._sessions.list_by_status(
             AgentSessionStatus.ACTIVE, limit=limit
         ):
@@ -93,7 +98,17 @@ class RecoverStaleAgentRunsUseCase:
                 expected_rev=session.rev,
             )
             recovered.append(session.session_id)
+            self._record(session.session_id, now)
         return recovered
+
+    def _record(self, session_id: str, now) -> None:
+        if self._timeline is not None:
+            self._timeline.record_failure(
+                session_id,
+                AgentEventKind.RECOVERY,
+                LEASE_EXPIRED,
+                occurred_at=now,
+            )
 
     def _close_orphaned_work(self, session_id: str, now) -> None:
         """Close iteration/experiment records left RUNNING by a dead orchestrator.

@@ -39,6 +39,7 @@ from src.application.ports.watchlist_port import (
     WatchlistRevisionConflict,
     WatchlistType,
 )
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
 
 PROMPT_NAME = "agent.watchlist.generate"
 OPEN_STATUSES = {
@@ -263,10 +264,11 @@ class ConfirmWatchlistDraftUseCase:
         entries: WatchlistRepository,
         create_entry: Any,
         update_entry: Any,
-        audit: AuditPort,
+        audit: AuditPort, timeline: AgentTimeline | None = None,
         clock: Clock,
         ids: IdGenerator,
     ) -> None:
+        self._timeline = timeline
         self._sessions, self._packages, self._verifications = (
             sessions,
             packages,
@@ -403,6 +405,14 @@ class ConfirmWatchlistDraftUseCase:
                 outcome="success",
             )
         )
+        if self._timeline is not None:
+            self._timeline.record_applied_change(
+                request.session_id,
+                entity_type="library_watchlist",
+                entity_id=applied.id,
+                actor_id=request.owner_id,
+                package_id=package.package_id,
+            )
         return {
             "confirmation_id": confirmation_id,
             "package_id": package.package_id,

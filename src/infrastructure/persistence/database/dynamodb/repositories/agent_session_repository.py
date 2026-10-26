@@ -166,4 +166,7 @@ def _from_item(item: dict[str, Any]) -> AgentSession:
             ComponentVersionReference(**reference)
             for reference in item.get("baseline_components", [])
         ),
+        block=dict(item.get("block", {})),
+        candidate_allowance=int(item.get("candidate_allowance", 0)),
+        stagnation_reset_after=int(item.get("stagnation_reset_after", 0)),
     )

@@ -39,6 +39,12 @@ class AgentSession:
     message_seq: int = 0
     budget_renewals: int = 0
     baseline_components: tuple[ComponentVersionReference, ...] = ()
+    # Why the session waits for the Channel Manager: {code, iteration, since}.
+    block: dict[str, Any] = field(default_factory=dict)
+    # Extra proposals the Channel Manager granted beyond the global cap.
+    candidate_allowance: int = 0
+    # Iterations up to this number are ignored when counting stagnation.
+    stagnation_reset_after: int = 0
 
 
 class AgentSessionRepository(Protocol):

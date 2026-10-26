@@ -7,6 +7,8 @@ from src.application.ports.agent_experiment_component_port import (
     AgentExperimentComponentResolver,
 )
 from src.application.ports.agent_release_port import AgentReleaseRepository
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
+from src.domain.agents.event import AgentEventKind, AgentEventOutcome
 from src.domain.agents.release import (
     AgentRelease,
     AgentReleaseStatus,
@@ -21,6 +23,13 @@ class AgentReleasePolicyError(ValueError):
 _MINIMUM_STAGE_OBSERVATIONS = 30
 _MAXIMUM_DECISION_DISAGREEMENT_PCT = 5
 _ROLLOUT_POLICY_VERSION = "h12_model_only_v1"
+# Release steps that change what production runs. They are written to the
+# global audit log as well as to the session timeline.
+_PRODUCTION_STATUSES = {
+    "RELEASE_APPROVED": "Release aprobado",
+    "ROLLOUT_ADVANCED": "Despliegue gradual avanzado",
+    "ROLLED_BACK": "Release revertido",
+}
 
 
 class ManageAgentReleaseUseCase:
@@ -32,10 +41,12 @@ class ManageAgentReleaseUseCase:
         audit: AgentAuditRepository,
         now,
         new_id,
+        timeline: AgentTimeline | None = None,
     ) -> None:
         self._releases = releases
         self._components = components
         self._audit = audit
+        self._timeline = timeline
         self._now = now
         self._new_id = new_id
 
@@ -106,7 +117,13 @@ class ManageAgentReleaseUseCase:
         return result
 
     def submit_for_approval(
-        self, release_id: str, *, expected_version: int, actor: str, actor_id: str, reason: str
+        self,
+        release_id: str,
+        *,
+        expected_version: int,
+        actor: str,
+        actor_id: str,
+        reason: str,
     ) -> AgentRelease:
         release = self._get(release_id)
         if release.status is not AgentReleaseStatus.SHADOW:
@@ -122,7 +139,10 @@ class ManageAgentReleaseUseCase:
             updated, expected_version=expected_version
         )
         self._audit_event(
-            result, "SHADOW_COMPLETED", reason=reason, actor=actor,
+            result,
+            "SHADOW_COMPLETED",
+            reason=reason,
+            actor=actor,
             actor_id=actor_id,
         )
         return result
@@ -155,8 +175,16 @@ class ManageAgentReleaseUseCase:
         result = self._releases.update_release(
             updated, expected_version=expected_version
         )
-        self._audit_event(result, "RELEASE_APPROVED", reason=reason, actor=actor, actor_id=actor_id)
-        self._audit_event(result, "ROLLOUT_ADVANCED", reason="CANARY_5", actor=actor, actor_id=actor_id)
+        self._audit_event(
+            result, "RELEASE_APPROVED", reason=reason, actor=actor, actor_id=actor_id
+        )
+        self._audit_event(
+            result,
+            "ROLLOUT_ADVANCED",
+            reason="CANARY_5",
+            actor=actor,
+            actor_id=actor_id,
+        )
         return result
 
     def advance(
@@ -189,7 +217,9 @@ class ManageAgentReleaseUseCase:
         result = self._releases.update_release(
             updated, expected_version=expected_version
         )
-        self._audit_event(result, "ROLLOUT_ADVANCED", reason=reason, actor=actor, actor_id=actor_id)
+        self._audit_event(
+            result, "ROLLOUT_ADVANCED", reason=reason, actor=actor, actor_id=actor_id
+        )
         return result
 
     def rollback(
@@ -218,7 +248,9 @@ class ManageAgentReleaseUseCase:
         result = self._releases.update_release(
             updated, expected_version=expected_version
         )
-        self._audit_event(result, "ROLLED_BACK", reason=reason, actor=actor, actor_id=actor_id)
+        self._audit_event(
+            result, "ROLLED_BACK", reason=reason, actor=actor, actor_id=actor_id
+        )
         return result
 
     def _get(self, release_id: str) -> AgentRelease:
@@ -267,6 +299,37 @@ class ManageAgentReleaseUseCase:
                 reason=reason,
             )
         )
+        self._timeline_event(release, status, actor_id)
+
+    def _timeline_event(
+        self, release: AgentRelease, status: str, actor_id: str | None
+    ) -> None:
+        if self._timeline is None:
+            return
+        refs = {"release_id": release.release_id, "snapshot_id": release.snapshot_id}
+        if status in _PRODUCTION_STATUSES:
+            self._timeline.record_production_change(
+                release.session_id,
+                action=f"agent.release.{status.lower()}",
+                entity_type="agent_release",
+                entity_id=release.release_id,
+                actor_id=actor_id or "system",
+                outcome="success",
+                summary=_PRODUCTION_STATUSES[status],
+                refs=refs,
+                correlation_id=release.release_id,
+            )
+            return
+        self._timeline.record(
+            release.session_id,
+            AgentEventKind.USER_ACTION,
+            AgentEventOutcome.INFO,
+            "Release solicitado"
+            if status == "RELEASE_REQUESTED"
+            else "Modo sombra iniciado",
+            refs=refs,
+            actor_id=actor_id,
+        )
 
 
 def _validate_observation_guardrail(observations: dict) -> None:
@@ -282,6 +345,4 @@ def _validate_observation_guardrail(observations: dict) -> None:
 
 
 def _same_pins(left, right) -> bool:
-    return {pin.component: pin for pin in left} == {
-        pin.component: pin for pin in right
-    }
+    return {pin.component: pin for pin in left} == {pin.component: pin for pin in right}

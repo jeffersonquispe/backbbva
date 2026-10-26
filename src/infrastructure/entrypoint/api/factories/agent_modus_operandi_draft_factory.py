@@ -8,6 +8,7 @@ from src.infrastructure.agents.factories import (
     get_agent_package_repository,
     get_agent_prompt_repository,
     get_agent_session_repository,
+    get_agent_timeline,
     get_agent_verification_repository,
     get_modus_operandi_generator_subagent,
     get_personal_data_masker,
@@ -62,6 +63,7 @@ def get_confirm_modus_operandi_draft_use_case() -> ConfirmModusOperandiDraftUseC
             update=get_update_modus_operandi_library_entry_use_case(),
         ),
         audit=get_audit_repository(),
+        timeline=get_agent_timeline(),
         clock=get_clock(),
         id_generator=get_id_generator(),
     )

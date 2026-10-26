@@ -113,6 +113,7 @@ from src.infrastructure.agents.factories import (
     get_agent_run_repository,
     get_agent_session_repository,
     get_agent_session_summary_repository,
+    get_agent_timeline,
     get_agent_verification_repository,
     get_optimizer_agent_specialists,
 )
@@ -884,6 +885,7 @@ def get_orchestrate_agent_iteration_use_case(
         monitoring=get_monitoring(),
         clock=get_clock(),
         id_generator=get_id_generator(),
+        timeline=get_agent_timeline(),
     )
 
 
@@ -894,6 +896,7 @@ def get_recover_stale_agent_runs_use_case() -> RecoverStaleAgentRunsUseCase:
         runs=get_agent_run_repository(),
         experiments=get_agent_experiment_repository(),
         clock=get_clock(),
+        timeline=get_agent_timeline(),
     )
 
 

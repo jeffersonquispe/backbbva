@@ -221,3 +221,88 @@ def test_release_rejects_non_model_component_changes():
             actor="requester",
             actor_id="channel-manager",
         )
+
+
+def test_release_approval_and_rollback_are_recorded_in_audit_log_and_timeline():
+    from uuid import UUID
+
+    from src.application.ports.audit_port import AuditEntry
+    from src.application.use_cases.agent.agent_timeline import AgentTimeline
+
+    class _Events:
+        def __init__(self):
+            self.items = []
+
+        def append(self, event):
+            self.items.append(event)
+            return event
+
+    class _GlobalAudit:
+        def __init__(self):
+            self.entries: list[AuditEntry] = []
+
+        def write(self, entry):
+            self.entries.append(entry)
+
+    class _Clock:
+        def now(self):
+            return datetime(2026, 10, 26, tzinfo=UTC)
+
+    class _Ids:
+        def new_id(self):
+            return UUID(int=7)
+
+    events, global_audit = _Events(), _GlobalAudit()
+    releases, components, audit = _Releases(), _Components(), _Audit()
+    use_case = ManageAgentReleaseUseCase(
+        releases=releases,
+        components=components,
+        audit=audit,
+        now=lambda: datetime(2026, 10, 21, tzinfo=UTC),
+        new_id=lambda: "release-1",
+        timeline=AgentTimeline(
+            events=events, clock=_Clock(), ids=_Ids(), audit=global_audit
+        ),
+    )
+    release = use_case.request(
+        validation_id="validation-1",
+        title="Candidate rollout",
+        reason="Retrospective validation completed",
+        actor="requester",
+        actor_id="channel-manager",
+    )
+    releases.release = replace(release, observations={"count": 30, "disagreements": 0})
+    submitted = use_case.submit_for_approval(
+        "release-1", expected_version=1, actor="requester", actor_id="channel-manager", reason="Review complete"
+    )
+    use_case.approve(
+        "release-1",
+        expected_version=submitted.version,
+        actor="approver",
+        actor_id="manager",
+        reason="Approved after review",
+    )
+    use_case.rollback(
+        "release-1",
+        expected_version=releases.release.version,
+        actor="manager",
+        actor_id="manager",
+        reason="Guardrail did not pass",
+    )
+
+    assert [entry.action for entry in global_audit.entries] == [
+        "agent.release.release_approved",
+        "agent.release.rollout_advanced",
+        "agent.release.rolled_back",
+    ]
+    production = [
+        item for item in events.items if item.kind.value == "production_change"
+    ]
+    assert len(production) == 3
+    assert all(
+        item.refs["audit_correlation_id"] == "release-1" for item in production
+    )
+    assert {item.kind.value for item in events.items} >= {
+        "user_action",
+        "production_change",
+    }

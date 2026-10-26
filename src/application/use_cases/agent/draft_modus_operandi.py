@@ -43,6 +43,7 @@ from src.application.ports.modus_operandi_library_port import (
 )
 from src.application.ports.personal_data_masker_port import PersonalDataMasker
 from src.application.ports.taxonomy_library_port import TaxonomyLibraryRepository
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
 from src.application.use_cases.modus_operandi_library.playbook_validation import (
     InvalidModusOperandiPlaybookError,
     validate_playbook,
@@ -366,7 +367,7 @@ class ConfirmModusOperandiDraftUseCase:
         confirmations: AgentConfirmationRepository,
         entries: ModusOperandiLibraryRepository,
         applier: ModusOperandiDraftApplier,
-        audit: AuditPort,
+        audit: AuditPort, timeline: AgentTimeline | None = None,
         clock: Clock,
         id_generator: IdGenerator,
     ) -> None:
@@ -377,6 +378,7 @@ class ConfirmModusOperandiDraftUseCase:
         self._entries = entries
         self._applier = applier
         self._audit = audit
+        self._timeline = timeline
         self._clock = clock
         self._ids = id_generator
 
@@ -493,6 +495,14 @@ class ConfirmModusOperandiDraftUseCase:
                 outcome="success",
             )
         )
+        if self._timeline is not None:
+            self._timeline.record_applied_change(
+                request.session_id,
+                entity_type="library_modus_operandi",
+                entity_id=entity_id,
+                actor_id=request.owner_id,
+                package_id=package.package_id,
+            )
         return {
             "confirmation_id": confirmation_id,
             "package_id": package.package_id,

@@ -42,6 +42,7 @@ from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.ports.project_graph_port import ProjectGraphRepository
+from src.application.use_cases.agent.agent_timeline import AgentTimeline
 from src.application.use_cases.agent.manage_agent_session import (
     ManageAgentSessionUseCase,
 )
@@ -51,6 +52,7 @@ from src.application.use_cases.agent.orchestrate_agent_iteration import (
 from src.application.use_cases.agent.recover_stale_agent_runs import (
     RecoverStaleAgentRunsUseCase,
 )
+from src.domain.agents.event import AgentEvent, AgentEventKind, AgentEventOutcome
 from src.domain.agents.objective import AgentObjective, AgentObjectiveStatus
 from src.domain.project_graph.entities import GraphNode, NodeKind, ProjectGraph
 
@@ -388,13 +390,16 @@ def _use_case(
     monitoring=None,
     audit=None,
     project_graph=None,
+    timeline=None,
+    packages=None,
+    budget=None,
 ):
     repositories = {
         "sessions": sessions_repository or InMemorySessions(session),
         "iterations": InMemoryIterations(),
         "runs": InMemoryRuns(),
-        "budget": InMemoryBudget(),
-        "packages": InMemoryPackages(),
+        "budget": budget or InMemoryBudget(),
+        "packages": packages or InMemoryPackages(),
         "verifications": InMemoryVerifications(),
     }
     use_case = OrchestrateAgentIterationUseCase(
@@ -411,6 +416,7 @@ def _use_case(
         monitoring=monitoring,
         audit=audit,
         project_graph=project_graph,
+        timeline=timeline,
     )
     return use_case, repositories
 
@@ -531,9 +537,10 @@ def test_optimizer_stops_deterministically_after_configured_stagnation() -> None
         status=AgentSessionStatus.ACTIVE,
         rev=repositories["sessions"].session.rev + 1,
     )
-    assert use_case.execute("s1") == "stopped_by_stagnation"
+    assert use_case.execute("s1") == "blocked_by_stagnation"
 
-    assert repositories["sessions"].session.status == AgentSessionStatus.STOPPED
+    assert repositories["sessions"].session.status == AgentSessionStatus.WAITING_USER
+    assert repositories["sessions"].session.block["code"] == "STAGNATION"
     assert len(repositories["iterations"].items) == 3
     assert all(
         item.package_id is None for item in repositories["iterations"].items.values()
@@ -629,6 +636,7 @@ def test_optimizer_uses_project_graph_lever_map_and_passes_it_to_specialist() ->
     session = replace(
         _session("optimization"), scope={"areas": ["embeddings retrieval"]}
     )
+
     class RecordingNamedSubagent(NamedStubSubagent):
         request = None
 
@@ -673,7 +681,7 @@ def test_critical_specialist_failure_is_visible_as_a_safe_failure_code() -> None
         audit=audit,
     )
 
-    assert use_case.execute("s1") == "stopped_by_critical_failure"
+    assert use_case.execute("s1") == "blocked_by_critical_failure"
 
     iteration = repositories["iterations"].items[1]
     assert iteration.decision["reason"] == "critical_failure"
@@ -703,8 +711,11 @@ def test_unknown_specialist_error_is_not_exposed_verbatim() -> None:
         subagent=UnsafeErrorSubagent(),
     )
 
-    assert use_case.execute("s1") == "stopped_by_critical_failure"
-    assert repositories["iterations"].items[1].decision["failure_code"] == "SPECIALIST_FAILED"
+    assert use_case.execute("s1") == "blocked_by_critical_failure"
+    assert (
+        repositories["iterations"].items[1].decision["failure_code"]
+        == "SPECIALIST_FAILED"
+    )
 
 
 class NamedStubSubagent(InMemoryStubSubagent):
@@ -1051,3 +1062,173 @@ def test_stale_cancelled_session_has_lease_cleared_without_requeue() -> None:
     assert sessions.session.status == AgentSessionStatus.CANCELLED
     assert sessions.session.lease_owner is None
     assert sessions.session.lease_expires_at is None
+
+
+class InMemoryEvents:
+    def __init__(self) -> None:
+        self.items: list[AgentEvent] = []
+
+    def append(self, event):
+        stored = replace(event, seq=len(self.items) + 1)
+        self.items.append(stored)
+        return stored
+
+    def list_for_session(self, session_id, *, after_seq=0, limit=100):
+        return [item for item in self.items if item.seq > after_seq][:limit]
+
+    def list_latest(self, session_id, limit=20):
+        return list(reversed(self.items))[:limit]
+
+
+def _timeline(events: InMemoryEvents) -> AgentTimeline:
+    return AgentTimeline(events=events, clock=FixedClock(), ids=SequenceIdGenerator())
+
+
+def _optimizer_settings(**changes) -> InMemorySettings:
+    return InMemorySettings(
+        AssistantOptimizerSettings(optimizer_enabled=True, **changes)
+    )
+
+
+def test_exhausted_budget_blocks_for_the_channel_manager_instead_of_pausing() -> None:
+    events = InMemoryEvents()
+    budget = InMemoryBudget()
+    budget.spent["tokens"] = 10
+    session = replace(
+        _session("optimization"),
+        budget_limits={"tokens": 10, "usd_micros": 10, "seconds": 10},
+    )
+    use_case, repositories = _use_case(
+        session,
+        _optimizer_settings(),
+        budget=budget,
+        timeline=_timeline(events),
+    )
+
+    assert use_case.execute("s1") == "blocked_by_budget"
+
+    saved = repositories["sessions"].session
+    assert saved.status == AgentSessionStatus.WAITING_USER
+    assert saved.block["code"] == "BUDGET_EXHAUSTED"
+    assert saved.lease_owner is None
+    assert repositories["iterations"].items == {}
+    blocked = [item for item in events.items if item.kind is AgentEventKind.BLOCKED]
+    assert [item.reason_code for item in blocked] == ["BUDGET_EXHAUSTED"]
+
+
+def test_candidate_limit_blocks_and_a_granted_allowance_lets_it_continue() -> None:
+    packages = InMemoryPackages()
+    packages.items["p1"] = AgentPackage(
+        package_id="p1",
+        session_id="s1",
+        iteration_number=1,
+        status="VERIFIED",
+        content={},
+        content_hash="h",
+        created_at=NOW,
+    )
+    session = _session("optimization")
+    use_case, repositories = _use_case(
+        session,
+        _optimizer_settings(optimizer_max_candidates_per_session=1),
+        packages=packages,
+    )
+
+    assert use_case.execute("s1") == "blocked_by_candidate_limit"
+    assert repositories["sessions"].session.block["code"] == "CANDIDATE_LIMIT_REACHED"
+
+    repositories["sessions"].session = replace(
+        repositories["sessions"].session,
+        status=AgentSessionStatus.ACTIVE,
+        block={},
+        candidate_allowance=1,
+        rev=repositories["sessions"].session.rev + 1,
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+
+
+def test_running_out_of_hypotheses_asks_for_context_instead_of_stopping() -> None:
+    events = InMemoryEvents()
+    hypotheses = InMemoryHypotheses()
+    session = replace(_session("optimization"), scope={"areas": ["model"]})
+    use_case, repositories = _use_case(
+        session,
+        _optimizer_settings(),
+        subagent=MetricSubagent(),
+        hypotheses=hypotheses,
+        timeline=_timeline(events),
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+    repositories["sessions"].session = replace(
+        repositories["sessions"].session,
+        status=AgentSessionStatus.ACTIVE,
+        rev=repositories["sessions"].session.rev + 1,
+    )
+    assert use_case.execute("s1") == "blocked_no_context"
+
+    saved = repositories["sessions"].session
+    assert saved.status == AgentSessionStatus.WAITING_USER
+    assert saved.block["code"] == "CONTEXT_MISSING"
+    assert events.items[-1].reason_code == "CONTEXT_MISSING"
+
+
+def test_iteration_leaves_an_ordered_timeline_with_opaque_references() -> None:
+    events = InMemoryEvents()
+    session = replace(_session("optimization"), scope={"areas": ["model"]})
+    use_case, _ = _use_case(
+        session,
+        _optimizer_settings(),
+        subagent=MetricSubagent(),
+        hypotheses=InMemoryHypotheses(),
+        timeline=_timeline(events),
+    )
+
+    use_case.execute("s1")
+
+    kinds = [(item.kind.value, item.outcome.value) for item in events.items]
+    assert kinds[:3] == [
+        ("iteration", "STARTED"),
+        ("hypothesis", "STARTED"),
+        ("specialist", "STARTED"),
+    ]
+    assert ("verification", "SUCCEEDED") in kinds
+    assert ("iteration", "SUCCEEDED") in kinds
+    assert [item.seq for item in events.items] == list(range(1, len(events.items) + 1))
+    assert all(
+        set(item.refs)
+        <= {
+            "iteration",
+            "run_id",
+            "hypothesis_id",
+            "verification_id",
+            "package_id",
+            "experiment_id",
+            "specialist",
+        }
+        for item in events.items
+    )
+
+
+def test_specialist_failure_event_uses_catalogue_copy_without_raw_text() -> None:
+    events = InMemoryEvents()
+    session = replace(_session("optimization"), scope={"areas": ["model"]})
+    use_case, _ = _use_case(
+        session,
+        _optimizer_settings(),
+        subagent=FailedSpecialistSubagent(),
+        timeline=_timeline(events),
+    )
+
+    use_case.execute("s1")
+
+    failed = [
+        item
+        for item in events.items
+        if item.kind is AgentEventKind.SPECIALIST
+        and item.outcome is AgentEventOutcome.FAILED
+    ]
+    assert failed[0].reason_code == "MODEL_REPORT_INCOMPLETE"
+    assert failed[0].summary == "Reporte del modelo incompleto"
+    assert events.items[-1].reason_code == "CRITICAL_FAILURE"
