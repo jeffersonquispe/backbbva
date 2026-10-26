@@ -20,6 +20,7 @@ class DatasetOrigin(StrEnum):
     EMPTY = "EMPTY"
     EXTRACTED = "EXTRACTED"
     ALERT_CURATED = "ALERT_CURATED"
+    PARTITIONED = "PARTITIONED"
 
 
 @dataclass
@@ -58,3 +59,4 @@ class DatasetSummaryRecord:
     extraction_filter: dict[str, str] | None = None
     fraud_marking_analysis: dict[str, Any] | None = None
     fraud_marking_analysis_config: dict[str, Any] | None = None
+    split_metadata: dict[str, Any] | None = None

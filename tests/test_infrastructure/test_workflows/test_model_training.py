@@ -125,6 +125,27 @@ def test_mature_snapshot_uses_only_non_final_partitions() -> None:
     assert set(partitions) == {"training", "validation", "calibration"}
 
 
+def test_dataset_split_preserves_user_partitions_for_training_and_holdout() -> None:
+    partition_names = ("training", "validation", "calibration", "test")
+    rows = [
+        {
+            "__aria_split_partition": partition_names[index // 4],
+            "feature": index,
+        }
+        for index in range(16)
+    ]
+    labels = np.array([index % 2 for index in range(16)])
+
+    partitions = split_indices(rows, labels, config=None)
+
+    assert {name: values.tolist() for name, values in partitions.items()} == {
+        "training": [0, 1, 2, 3],
+        "validation": [4, 5, 6, 7],
+        "calibration": [8, 9, 10, 11],
+        "test": [12, 13, 14, 15],
+    }
+
+
 def test_mature_snapshot_rejects_reserved_final_partition() -> None:
     rows = [
         {"__aria_partition": partition, "feature": index}

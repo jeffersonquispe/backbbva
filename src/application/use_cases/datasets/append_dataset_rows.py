@@ -6,6 +6,7 @@ from src.application.dtos.dataset_dtos import (
     AppendDatasetRowsInput,
     AppendDatasetRowsOutput,
 )
+from src.application.errors import ConflictError
 from src.application.ports.clock_port import Clock
 from src.application.ports.dataset_analysis_dispatcher_port import (
     DatasetAnalysisDispatcher,
@@ -34,9 +35,10 @@ def append_rows_and_dispatch(
     this codebase's "use cases orchestrate via ports only" rule) so both
     AppendDatasetRowsUseCase and curate_alert_to_dataset.py can reuse it by
     taking the same ports themselves, without one use case wrapping another."""
-    new_total = dataset_repository.append_rows(name, rows)
-
     existing = summary_repository.get(name)
+    if existing is not None and existing.origin == DatasetOrigin.PARTITIONED:
+        raise ConflictError("Los datasets particionados son inmutables")
+    new_total = dataset_repository.append_rows(name, rows)
     now = (clock or DEFAULT_CLOCK).now()
     uploaded_at = existing.uploaded_at if existing else now
     # Provenance is set once at creation and must survive every
@@ -57,6 +59,7 @@ def append_rows_and_dispatch(
             origin=origin,
             source_dataset_names=source_dataset_names,
             extraction_filter=extraction_filter,
+            split_metadata=existing.split_metadata if existing else None,
         )
     )
     dispatcher.dispatch(name)

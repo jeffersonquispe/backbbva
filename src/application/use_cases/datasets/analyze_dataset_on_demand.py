@@ -63,6 +63,7 @@ class AnalyzeDatasetOnDemandUseCase:
                     origin=existing.origin,
                     source_dataset_names=existing.source_dataset_names,
                     extraction_filter=existing.extraction_filter,
+                    split_metadata=existing.split_metadata,
                 )
             )
         else:

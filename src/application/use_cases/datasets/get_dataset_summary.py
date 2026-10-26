@@ -45,7 +45,7 @@ class GetDatasetSummaryUseCase:
                     available_fields = discover_fields(
                         self._datasets.get_rows(dataset_name)
                     )
-            except Exception:
+            except (FileNotFoundError, OSError, ValueError):
                 # The statistical fields remain a useful compatibility
                 # fallback if the source object is temporarily unavailable.
                 available_fields = list(field_distributions)
@@ -65,4 +65,5 @@ class GetDatasetSummaryUseCase:
             extraction_filter=summary.extraction_filter,
             fraud_marking_analysis=summary.fraud_marking_analysis,
             fraud_marking_analysis_config=summary.fraud_marking_analysis_config,
+            split_metadata=summary.split_metadata,
         )

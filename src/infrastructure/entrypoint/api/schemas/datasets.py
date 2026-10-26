@@ -90,6 +90,7 @@ class DatasetSummaryResponse(BaseModel):
     source_dataset_names: list[str]
     extraction_filter: dict[str, str] | None
     fraud_marking_analysis: FraudMarkingAnalysisResponse | None = None
+    split_metadata: dict[str, Any] | None = None
 
 
 class CreateEmptyDatasetRequest(BaseModel):
@@ -102,6 +103,31 @@ class ExtractDatasetRequest(BaseModel):
     filters: dict[str, str] = Field(default_factory=dict)
     percentage: float = Field(..., gt=0, le=100)
     target_name: str = Field(..., min_length=1)
+
+
+class PrepareDatasetSplitRequest(BaseModel):
+    target_name: str = Field(..., min_length=1, max_length=184)
+    proportions: dict[Literal["training", "validation", "calibration", "test"], float] = Field(
+        default_factory=lambda: {
+            "training": 0.6,
+            "validation": 0.2,
+            "calibration": 0.1,
+            "test": 0.1,
+        }
+    )
+    seed: int = 42
+    stratify_fields: list[str] = Field(default_factory=list, max_length=20)
+
+
+class PrepareDatasetSplitResponse(BaseModel):
+    dataset_name: str
+    snapshot_id: str
+    source_content_sha256: str
+    partition_field: str
+    partition_counts: dict[str, int]
+    proportions: dict[str, float]
+    seed: int
+    stratify_fields: list[str]
 
 
 class AppendDatasetRowsRequest(BaseModel):

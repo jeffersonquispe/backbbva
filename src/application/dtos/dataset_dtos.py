@@ -167,3 +167,4 @@ class DatasetSummaryOutput:
     extraction_filter: dict[str, str] | None = None
     fraud_marking_analysis: dict | None = None
     fraud_marking_analysis_config: dict | None = None
+    split_metadata: dict | None = None

@@ -23,7 +23,7 @@ from src.application.dtos.dataset_dtos import (
     GetDatasetRowsInput,
     UploadDatasetInput,
 )
-from src.application.errors import ValidationError
+from src.application.errors import ConflictError, ValidationError
 from src.application.use_cases.datasets.analyze_dataset_on_demand import (
     AnalyzeDatasetOnDemandUseCase,
 )
@@ -51,6 +51,9 @@ from src.application.use_cases.datasets.get_dataset_summary import (
 from src.application.use_cases.datasets.get_dataset_template import (
     GetDatasetTemplateUseCase,
 )
+from src.application.use_cases.datasets.prepare_dataset_split import (
+    PrepareDatasetSplitUseCase,
+)
 from src.application.use_cases.datasets.save_alert_field_mapping import (
     SaveAlertFieldMappingUseCase,
 )
@@ -75,6 +78,7 @@ from src.infrastructure.entrypoint.api.factories.dataset_factory import (
     get_get_dataset_summary_use_case,
     get_get_dataset_template_use_case,
     get_list_datasets_use_case,
+    get_prepare_dataset_split_use_case,
     get_save_alert_field_mapping_use_case,
     get_upload_dataset_chunks_use_case,
     get_upload_dataset_use_case,
@@ -91,6 +95,8 @@ from src.infrastructure.entrypoint.api.schemas import (
     DeleteDatasetResponse,
     ExtractDatasetRequest,
     FraudMarkingAnalysisQueuedResponse,
+    PrepareDatasetSplitRequest,
+    PrepareDatasetSplitResponse,
     SaveAlertFieldMappingRequest,
     StartDatasetUploadRequest,
     UploadDatasetResponse,
@@ -395,6 +401,34 @@ def extract_dataset(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post(
+    "/datasets/{name}/splits",
+    response_model=PrepareDatasetSplitResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def prepare_dataset_split(
+    name: str,
+    request: PrepareDatasetSplitRequest,
+    use_case: Annotated[
+        PrepareDatasetSplitUseCase, Depends(get_prepare_dataset_split_use_case)
+    ],
+):
+    try:
+        return use_case.execute(
+            source_name=name,
+            target_name=request.target_name,
+            proportions=request.proportions,
+            seed=request.seed,
+            stratify_fields=request.stratify_fields,
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post(

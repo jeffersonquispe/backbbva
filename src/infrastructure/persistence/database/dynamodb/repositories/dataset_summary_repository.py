@@ -58,6 +58,7 @@ def _to_item(summary: DatasetSummaryRecord) -> dict[str, Any]:
         "fraud_marking_analysis_config": to_dynamodb(
             summary.fraud_marking_analysis_config
         ),
+        "split_metadata": to_dynamodb(summary.split_metadata),
     }
 
 
@@ -90,6 +91,11 @@ def _from_item(item: dict[str, Any]) -> DatasetSummaryRecord:
         fraud_marking_analysis_config=(
             from_dynamodb(item["fraud_marking_analysis_config"])
             if item.get("fraud_marking_analysis_config")
+            else None
+        ),
+        split_metadata=(
+            from_dynamodb(item["split_metadata"])
+            if item.get("split_metadata")
             else None
         ),
     )

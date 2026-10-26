@@ -41,11 +41,23 @@ from src.infrastructure.workflows.celery.model_training import (
 )
 
 _MATURE_SAMPLE_PARTITION_FIELD = "__aria_partition"
+_DATASET_SPLIT_PARTITION_FIELD = "__aria_split_partition"
 
 
 def split_indices(
     rows: list[dict], y: np.ndarray, config: TrainingConfig
 ) -> dict[str, np.ndarray]:
+    if rows and all(_DATASET_SPLIT_PARTITION_FIELD in row for row in rows):
+        partition_map = {name: [] for name in ("training", "validation", "calibration", "test")}
+        for index, row in enumerate(rows):
+            partition = row[_DATASET_SPLIT_PARTITION_FIELD]
+            if partition not in partition_map:
+                raise ValueError(f"Partición de dataset desconocida: {partition}")
+            partition_map[partition].append(index)
+        return _validate_partitions(
+            {name: np.asarray(indices, dtype=int) for name, indices in partition_map.items()},
+            y,
+        )
     if rows and all(_MATURE_SAMPLE_PARTITION_FIELD in row for row in rows):
         partition_map = {name: [] for name in ("training", "validation", "calibration")}
         source_names = {
@@ -173,7 +185,12 @@ def train_model_bundle(
             feature_configuration, forbidden_paths=(record.target_field,)
         )
     feature_rows = [
-        {key: value for key, value in row.items() if key != _MATURE_SAMPLE_PARTITION_FIELD}
+        {
+            key: value
+            for key, value in row.items()
+            if key
+            not in {_MATURE_SAMPLE_PARTITION_FIELD, _DATASET_SPLIT_PARTITION_FIELD}
+        }
         for row in rows
     ]
     y = target_vector(feature_rows, record.target_field, record.positive_labels)

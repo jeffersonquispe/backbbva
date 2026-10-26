@@ -56,11 +56,12 @@ class AnalyzeDatasetUseCase:
         origin = existing.origin if existing else DatasetOrigin.UPLOADED
         source_dataset_names = existing.source_dataset_names if existing else []
         extraction_filter = existing.extraction_filter if existing else None
+        split_metadata = existing.split_metadata if existing else None
         iter_rows = getattr(self._datasets, "iter_rows", None)
         if callable(iter_rows):
             self._analyze_streaming(
                 dataset_name, iter_rows, uploaded_at, origin,
-                source_dataset_names, extraction_filter, progress,
+                source_dataset_names, extraction_filter, split_metadata, progress,
             )
             return
         get_size = getattr(self._datasets, "get_size", None)
@@ -81,6 +82,7 @@ class AnalyzeDatasetUseCase:
                     origin=origin,
                     source_dataset_names=source_dataset_names,
                     extraction_filter=extraction_filter,
+                    split_metadata=split_metadata,
                 )
             )
             return
@@ -118,6 +120,7 @@ class AnalyzeDatasetUseCase:
                     origin=origin,
                     source_dataset_names=source_dataset_names,
                     extraction_filter=extraction_filter,
+                    split_metadata=split_metadata,
                 )
             )
         except Exception as exc:
@@ -133,13 +136,14 @@ class AnalyzeDatasetUseCase:
                     origin=origin,
                     source_dataset_names=source_dataset_names,
                     extraction_filter=extraction_filter,
+                    split_metadata=split_metadata,
                 )
             )
             raise
 
     def _analyze_streaming(
         self, dataset_name, iter_rows, uploaded_at, origin, source_dataset_names,
-        extraction_filter, progress
+        extraction_filter, split_metadata, progress
     ) -> None:
         """Profile MinIO CSVs in one pass with bounded memory."""
         self._samples.delete_by_dataset(dataset_name)
@@ -209,6 +213,7 @@ class AnalyzeDatasetUseCase:
                 updated_at=self._clock.now(), origin=origin,
                 source_dataset_names=source_dataset_names,
                 extraction_filter=extraction_filter,
+                split_metadata=split_metadata,
             ))
             if progress is not None:
                 progress({
@@ -222,5 +227,6 @@ class AnalyzeDatasetUseCase:
                 updated_at=self._clock.now(), error=str(exc), origin=origin,
                 source_dataset_names=source_dataset_names,
                 extraction_filter=extraction_filter,
+                split_metadata=split_metadata,
             ))
             raise

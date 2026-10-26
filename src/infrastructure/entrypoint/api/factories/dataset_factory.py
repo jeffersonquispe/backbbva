@@ -37,6 +37,9 @@ from src.application.use_cases.datasets.get_dataset_summary import (
 from src.application.use_cases.datasets.get_dataset_template import (
     GetDatasetTemplateUseCase,
 )
+from src.application.use_cases.datasets.prepare_dataset_split import (
+    PrepareDatasetSplitUseCase,
+)
 from src.application.use_cases.datasets.save_alert_field_mapping import (
     SaveAlertFieldMappingUseCase,
 )
@@ -107,6 +110,12 @@ def get_dataset_analysis_dispatcher() -> DatasetAnalysisDispatcher:
 def get_list_datasets_use_case() -> ListDatasetsUseCase:
     return ListDatasetsUseCase(
         get_dataset_repository(), get_dataset_summary_repository()
+    )
+
+
+def get_prepare_dataset_split_use_case() -> PrepareDatasetSplitUseCase:
+    return PrepareDatasetSplitUseCase(
+        get_dataset_repository(), get_dataset_summary_repository(), clock=get_clock()
     )
 
 
