@@ -57,6 +57,7 @@ from src.infrastructure.workflows.celery.task_factories import (
     get_preview_features_use_case,
     get_reconcile_async_operations_use_case,
     get_run_alert_review_workflow_use_case,
+    get_start_production_alert_workflow_use_case,
 )
 
 
@@ -232,6 +233,25 @@ def run_alert_review_workflow(self, workflow_execution_id: str) -> dict:
         UUID(workflow_execution_id), is_final_attempt=is_final_attempt
     )
     return asdict(output)
+
+
+@app.task(
+    bind=True,
+    name="events.production.receive",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def receive_production_alert(self, alert_id: str, event_id: str) -> dict[str, str]:
+    output = get_start_production_alert_workflow_use_case().execute_existing_production_alert(
+        alert_id=UUID(alert_id), event_id=event_id
+    )
+    return {
+        "alert_id": str(output.alert_id),
+        "async_operation_id": str(output.async_operation_id),
+        "workflow_execution_id": str(output.workflow_execution_id),
+        "status": output.status,
+    }
 
 
 @app.task(

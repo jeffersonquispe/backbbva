@@ -13,6 +13,7 @@ from src.application.dtos.pre_process_dtos import (
     PreProcessAlertInput,
     PreProcessAlertOutput,
 )
+from src.application.ports.alert_payload_source_port import AlertPayloadSource
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -35,6 +36,7 @@ from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
 )
+from src.domain.alerts.entities import AlertOrigin
 from src.domain.alerts.exceptions import (
     AlertFieldTypeMismatchError,
     MandatoryAlertDataMissingError,
@@ -453,6 +455,7 @@ class PreProcessAlertUseCase:
         status_reporter: WorkflowStatusReporter | None = None,
         workflow_execution_id: UUID | None = None,
         step_id: UUID | None = None,
+        alert_payload_source: AlertPayloadSource | None = None,
     ) -> None:
         self._aric = aric_alert_port
         self._host_customer = host_customer_profile_port
@@ -462,6 +465,7 @@ class PreProcessAlertUseCase:
         self._status_reporter = status_reporter
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
+        self._alert_payload_source = alert_payload_source
 
     def _report_progress(self, detail: str) -> None:
         if self._status_reporter is None or self._workflow_execution_id is None:
@@ -482,8 +486,17 @@ class PreProcessAlertUseCase:
         )
         if schema is None:
             raise NoActiveAlertSchemaError()
+        payload = input.payload
+        if input.origin == AlertOrigin.PRODUCTION:
+            payload_source = self._alert_payload_source
+            if payload_source is None:
+                raise RuntimeError("Production alert payload source is not configured")
+            self._report_progress("fetching_alert_from_alert_api")
+            payload = _with_retry(
+                lambda: payload_source.fetch_alert(input.alert_id)
+            )
         aric_input, labels, roles, missing = _schema_values(
-            schema, {AlertSchemaDataSource.ARIC: input.payload}
+            schema, {AlertSchemaDataSource.ARIC: payload}
         )
         if missing:
             raise MandatoryAlertDataMissingError(missing)
@@ -498,11 +511,11 @@ class PreProcessAlertUseCase:
             # Optimizer replay must not call customer, ARIC, or history
             # services using identities intentionally absent from snapshots.
             aric_signals = AricAlertSignals()
-            customer_profile = input.payload.get("customer_profile", {})
-            mapped_replay = _optimizer_replay_history(schema, input.payload)
+            customer_profile = payload.get("customer_profile", {})
+            mapped_replay = _optimizer_replay_history(schema, payload)
             if mapped_replay is None:
                 transaction_history = (
-                    _transaction_history_from_payload(input.payload) or []
+                    _transaction_history_from_payload(payload) or []
                 )
             else:
                 transaction_history, replay_history = mapped_replay
@@ -511,13 +524,13 @@ class PreProcessAlertUseCase:
             fetched_aric_signals = _with_retry(
                 lambda: self._aric.fetch_signals(event_id, session_id)
             )
-            aric_signals = _merge_aric_signals(input.payload, fetched_aric_signals)
+            aric_signals = _merge_aric_signals(payload, fetched_aric_signals)
             self._report_progress("fetching_customer_profile")
             customer_profile = _with_retry(
                 lambda: self._host_customer.fetch_customer_profile(customer_id)
             )
             self._report_progress("fetching_transaction_history")
-            transaction_history = _transaction_history_from_payload(input.payload)
+            transaction_history = _transaction_history_from_payload(payload)
             if transaction_history is None:
                 transaction_history = _with_retry(
                     lambda: self._host_tx_history.fetch_transaction_history(
@@ -532,7 +545,7 @@ class PreProcessAlertUseCase:
             else _history_values(schema, transaction_history)
         )
         if input.skip_external_enrichment:
-            personal_data_changes = input.payload.get("personal_data_changes", {})
+            personal_data_changes = payload.get("personal_data_changes", {})
         else:
             self._report_progress("fetching_personal_data_changes")
             personal_data_changes = _with_retry(
@@ -540,7 +553,7 @@ class PreProcessAlertUseCase:
             )
 
         host_sources = {
-            AlertSchemaDataSource.ARIC: input.payload,
+            AlertSchemaDataSource.ARIC: payload,
             AlertSchemaDataSource.HOST: {
                 "customer_profile": customer_profile,
                 "personal_data_changes": personal_data_changes,

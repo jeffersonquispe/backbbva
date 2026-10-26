@@ -37,6 +37,9 @@ from src.application.use_cases.alerts.resolve_alert_segment import (
 from src.application.use_cases.alerts.run_alert_review_workflow import (
     RunAlertReviewWorkflowUseCase,
 )
+from src.application.use_cases.alerts.start_alert_test_workflow import (
+    StartAlertTestWorkflowUseCase,
+)
 from src.application.use_cases.async_operations.reconcile_async_operations import (
     ReconcileAsyncOperationsUseCase,
 )
@@ -494,7 +497,6 @@ def get_run_alert_review_workflow_use_case() -> RunAlertReviewWorkflowUseCase:
     from src.infrastructure.workflows.celery.review_step_executor import (
         CeleryWorkerStepExecutor,
     )
-
     workflows = get_workflow_execution_repository()
     steps = get_workflow_step_execution_repository()
     return RunAlertReviewWorkflowUseCase(
@@ -517,6 +519,17 @@ def get_run_alert_review_workflow_use_case() -> RunAlertReviewWorkflowUseCase:
         raw_payload_loader_factory=get_raw_alert_payload_loader,
         alert_schemas_factory=get_alert_schema_repository,
         alert_object_storage_factory=get_alert_object_storage,
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
+
+
+def get_start_production_alert_workflow_use_case() -> StartAlertTestWorkflowUseCase:
+    return StartAlertTestWorkflowUseCase(
+        alert_repository=get_alert_repository(),
+        async_operation_repository=get_async_operation_repository(),
+        workflow_repository=get_workflow_execution_repository(),
+        workflow_executor=CeleryWorkflowExecutor(),
         clock=get_clock(),
         id_generator=get_id_generator(),
     )

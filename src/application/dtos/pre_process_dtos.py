@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
+from src.domain.alerts.entities import AlertOrigin
+
 
 @dataclass
 class PreProcessAlertInput:
@@ -11,6 +13,7 @@ class PreProcessAlertInput:
     payload: dict[str, Any]
     schema: Any | None = None
     skip_external_enrichment: bool = False
+    origin: AlertOrigin | None = None
 
 
 @dataclass

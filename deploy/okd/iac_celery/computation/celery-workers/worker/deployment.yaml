@@ -20,7 +20,7 @@ spec:
       containers:
         - name: aria-worker-main
           image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:14a263531ebcb2d03a531cfcafde3254af3a1589
-          command: [celery, -A, src.infrastructure.entrypoint.worker.celery.celery_app:app, worker, --loglevel=INFO, --concurrency=10, -Q, default]
+          command: [celery, -A, src.infrastructure.entrypoint.worker.celery.celery_app:app, worker, --loglevel=INFO, --concurrency=10, -Q, "$(CELERY_WORKER_QUEUES)"]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: "1", memory: 2Gi}, limits: {cpu: "2", memory: 4Gi}}
           envFrom:

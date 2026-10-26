@@ -5,6 +5,7 @@ from typing import cast
 from uuid import UUID
 
 from src.application.ports.agent_subagent_port import AgentSubagent
+from src.application.ports.alert_payload_source_port import AlertPayloadSource
 from src.application.ports.alert_port import AlertRepository
 from src.application.ports.alert_schema_port import AlertSchemaRepository
 from src.application.ports.alert_schema_presence_report_port import (
@@ -115,6 +116,9 @@ from src.infrastructure.agents.factories import (
     get_optimizer_agent_specialists,
 )
 from src.infrastructure.agents.stub_subagent import StubAgentSubagent
+from src.infrastructure.alerts.storage.stored_alert_payload_adapter import (
+    StoredAlertPayloadAdapter,
+)
 from src.infrastructure.aric.mock.aric_alert_adapter import MockAricAlertAdapter
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.core.runtime.system_clock import get_clock
@@ -238,6 +242,13 @@ def get_alert_repository() -> AlertRepository:
 @lru_cache
 def get_alert_schema_repository() -> AlertSchemaRepository:
     return DynamoAlertSchemaRepository()
+
+
+@lru_cache
+def get_alert_payload_source() -> AlertPayloadSource:
+    return StoredAlertPayloadAdapter(
+        alerts=get_alert_repository(), object_storage=get_alert_object_storage()
+    )
 
 
 @lru_cache
@@ -487,6 +498,7 @@ def get_pre_process_alert_use_case(
         host_transaction_history_port=get_host_transaction_history_port(),
         host_personal_data_changes_port=get_host_personal_data_changes_port(),
         schema_repository=get_alert_schema_repository(),
+        alert_payload_source=get_alert_payload_source(),
         status_reporter=status_reporter,
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,

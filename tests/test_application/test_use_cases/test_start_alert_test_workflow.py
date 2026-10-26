@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -8,6 +9,7 @@ from src.application.ports.async_operation_port import (
     AsyncOperationRecord,
     AsyncOperationStatus,
 )
+from src.application.ports.object_storage_port import ObjectStorageRef
 from src.application.ports.workflow_executor_port import (
     WorkflowExecutionRef,
     WorkflowExecutor,
@@ -60,6 +62,7 @@ class InMemoryAlertRepository:
             or alert.workflow_execution_id,
             created_at=alert.created_at,
             updated_at=alert.updated_at,
+            raw_payload_ref=alert.raw_payload_ref,
         )
         self.alerts[alert_id] = updated
         return updated
@@ -289,3 +292,44 @@ def test_start_alert_test_workflow_passes_payload_to_repository() -> None:
     use_case.execute(StartAlertWorkflowInput(payload=payload))
 
     assert alerts.alerts
+
+
+def test_existing_production_alert_is_dispatched_once_and_correlated() -> None:
+    alerts = InMemoryAlertRepository()
+    operations = InMemoryAsyncOperationRepository()
+    workflows = InMemoryWorkflowExecutionRepository()
+    executor = RecordingWorkflowExecutor()
+    use_case = StartAlertTestWorkflowUseCase(
+        alert_repository=alerts,
+        async_operation_repository=operations,
+        workflow_repository=workflows,
+        workflow_executor=executor,
+    )
+    alert_id = UUID("82bb44df-bef1-4de2-8dfb-8c49fd7d96c8")
+    alerts.create(
+        AlertRecord(
+            id=alert_id,
+            event_id="frm-event-77",
+            event_type="payment",
+            status=AlertStatus.RECEIVED,
+            created_at=datetime(2026, 10, 25, tzinfo=UTC),
+            updated_at=datetime(2026, 10, 25, tzinfo=UTC),
+            raw_payload_ref=ObjectStorageRef(
+                bucket="alerts", key=f"alerts/{alert_id}/raw-payload.json", uri="s3://alerts/payload"
+            ),
+        )
+    )
+
+    first = use_case.execute_existing_production_alert(
+        alert_id=alert_id, event_id="frm-event-77"
+    )
+    second = use_case.execute_existing_production_alert(
+        alert_id=alert_id, event_id="frm-event-77"
+    )
+
+    assert first == second
+    assert len(operations.operations) == 1
+    workflow = workflows.get(first.workflow_execution_id)
+    assert workflow.input["origin"] == AlertOrigin.PRODUCTION.value
+    assert workflow.input["raw_payload_ref"]["key"] == f"alerts/{alert_id}/raw-payload.json"
+    assert executor.started.id == workflow.id

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+from uuid import UUID
 
 from src.application.dtos.alert_dtos import (
     StartAlertWorkflowInput,
@@ -39,6 +40,7 @@ from src.domain.alerts.entities import (
     AlertRecord,
     AlertStatus,
 )
+from src.domain.alerts.exceptions import AlertNotFoundError
 from src.domain.workflows.entities import (
     WorkflowExecutionRecord,
     WorkflowStatus,
@@ -177,6 +179,101 @@ class StartAlertTestWorkflowUseCase:
             operation.id,
             status=AsyncOperationStatus.DISPATCHED,
             dispatched_at=dispatched_at,
+            execution_backend=execution_ref.backend,
+            external_id=execution_ref.external_id,
+        )
+        self._alert_repository.update(
+            alert.id,
+            status=AlertStatus.PROCESSING,
+            async_operation_id=operation.id,
+            workflow_execution_id=workflow.id,
+        )
+        return StartAlertWorkflowOutput(
+            alert_id=alert.id,
+            async_operation_id=operation.id,
+            workflow_execution_id=workflow.id,
+            status=WorkflowStatus.DISPATCHED.value,
+        )
+
+    def execute_existing_production_alert(
+        self, *, alert_id: UUID, event_id: str
+    ) -> StartAlertWorkflowOutput:
+        """Start the production workflow for an alert already stored by Alert API."""
+        alert = self._alert_repository.get(alert_id)
+        if alert is None:
+            raise AlertNotFoundError(str(alert_id))
+        if alert.event_id != event_id:
+            raise ValueError("Event id does not match the stored alert")
+        if alert.workflow_execution_id is not None:
+            workflow = self._workflow_repository.get(alert.workflow_execution_id)
+            if workflow is None or alert.async_operation_id is None:
+                raise RuntimeError("Alert has incomplete workflow dispatch state")
+            return StartAlertWorkflowOutput(
+                alert_id=alert.id,
+                async_operation_id=alert.async_operation_id,
+                workflow_execution_id=workflow.id,
+                status=workflow.status.value,
+            )
+        if alert.raw_payload_ref is None:
+            raise ValueError("Alert API must store the canonical payload before dispatch")
+
+        now = self._clock.now()
+        workflow_id = self._id_generator.new_id()
+        operation_id = self._id_generator.new_id()
+        operation = self._async_operation_repository.create(
+            AsyncOperationRecord(
+                id=operation_id,
+                operation_type=f"workflow.{WORKFLOW_NAME}",
+                status=AsyncOperationStatus.PENDING,
+                payload={
+                    "alert_id": str(alert.id),
+                    "workflow_execution_id": str(workflow_id),
+                    "event_id": event_id,
+                    "event_type": alert.event_type,
+                    "origin": AlertOrigin.PRODUCTION.value,
+                },
+                result=None,
+                error=None,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        workflow = self._workflow_repository.create(
+            WorkflowExecutionRecord(
+                id=workflow_id,
+                alert_id=alert.id,
+                async_operation_id=operation.id,
+                workflow_name=WORKFLOW_NAME,
+                status=WorkflowStatus.PENDING,
+                input={
+                    "raw_payload_ref": dataclasses.asdict(alert.raw_payload_ref),
+                    "test_labels": {},
+                    "config_overrides": {},
+                    "schema_version": None,
+                    "active_schema_version": None,
+                    "configuration_ref": None,
+                    "origin": AlertOrigin.PRODUCTION.value,
+                },
+                output=None,
+                error=None,
+                current_step=None,
+                feedback_iterations=0,
+                max_feedback_iterations=1,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        execution_ref = self._workflow_executor.start(workflow)
+        self._workflow_repository.update(
+            workflow.id,
+            status=WorkflowStatus.DISPATCHED,
+            execution_backend=execution_ref.backend,
+            external_id=execution_ref.external_id,
+        )
+        self._async_operation_repository.update(
+            operation.id,
+            status=AsyncOperationStatus.DISPATCHED,
+            dispatched_at=self._clock.now(),
             execution_backend=execution_ref.backend,
             external_id=execution_ref.external_id,
         )

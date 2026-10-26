@@ -5,6 +5,7 @@ import uuid
 import pytest
 
 from src.application.dtos.pre_process_dtos import PreProcessAlertInput
+from src.application.ports.alert_payload_source_port import AlertPayloadSource
 from src.application.ports.alert_schema_port import (
     AlertSchemaDataSource,
     AlertSchemaField,
@@ -27,6 +28,7 @@ from src.application.ports.host_service_transaction_history_port import (
 from src.application.use_cases.alerts.pre_process_alert import (
     PreProcessAlertUseCase,
 )
+from src.domain.alerts.entities import AlertOrigin
 from src.domain.alerts.exceptions import MandatoryAlertDataMissingError
 from src.domain.datasets.mature_sample_entities import (
     OPTIMIZER_REPLAY_HISTORY_COLUMN,
@@ -75,6 +77,16 @@ class RecordingAricAlertPort(AricAlertPort):
     def fetch_signals(self, event_id, session_id) -> AricAlertSignals:
         self.calls += 1
         return AricAlertSignals(is_rat=False, is_bot=False)
+
+
+class RecordingAlertPayloadSource(AlertPayloadSource):
+    def __init__(self, payload):
+        self.payload = payload
+        self.alert_ids = []
+
+    def fetch_alert(self, alert_id):
+        self.alert_ids.append(alert_id)
+        return self.payload
 
 
 class RecordingHostServiceCustomerProfilePort(HostServiceCustomerProfilePort):
@@ -240,7 +252,7 @@ class SchemaRepository:
 
 
 def _use_case(
-    personal_data_port=None, transaction_history=None
+    personal_data_port=None, transaction_history=None, alert_payload_source=None
 ) -> PreProcessAlertUseCase:
     return PreProcessAlertUseCase(
         aric_alert_port=RecordingAricAlertPort(),
@@ -252,6 +264,7 @@ def _use_case(
             personal_data_port or FlakyHostServicePersonalDataChangesPort(0)
         ),
         schema_repository=SchemaRepository(),
+        alert_payload_source=alert_payload_source,
     )
 
 
@@ -268,6 +281,21 @@ def test_pre_process_alert_extracts_fields_and_enriches() -> None:
     assert output.optional_fields["reason_code"] == "none"
     assert output.enrichment["customer_profile"].customer_name == "Jane"
     assert "pre_process" in output.pre_process_note.lower()
+
+
+def test_production_pre_process_fetches_canonical_payload_by_alert_id() -> None:
+    alert_id = uuid.uuid4()
+    payload_source = RecordingAlertPayloadSource(VALID_PAYLOAD)
+    output = _use_case(alert_payload_source=payload_source).execute(
+        PreProcessAlertInput(
+            alert_id=alert_id,
+            payload={"alert_id": str(alert_id)},
+            origin=AlertOrigin.PRODUCTION,
+        )
+    )
+
+    assert payload_source.alert_ids == [alert_id]
+    assert output.input["customer_id"] == "10264559"
 
 
 def test_pre_process_maps_only_is_history_fields_to_canonical_history() -> None:

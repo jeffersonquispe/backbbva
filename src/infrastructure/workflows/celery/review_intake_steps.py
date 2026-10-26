@@ -45,6 +45,14 @@ from src.infrastructure.workflows.celery.task_factories import (
 )
 
 
+def _skip_external_enrichment(origin: str | None) -> bool:
+    return origin in {
+        AlertOrigin.TEST_RUN.value,
+        AlertOrigin.OPTIMIZER_EVALUATION.value,
+        AlertOrigin.SIMULATOR.value,
+    }
+
+
 def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
     workflow_input = context.get("input") or {}
     payload = (
@@ -69,9 +77,13 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
             alert_id=UUID(context["alert_id"]),
             payload=payload,
             schema=candidate_schema,
-            skip_external_enrichment=(
+            skip_external_enrichment=_skip_external_enrichment(
                 workflow_input.get("origin")
-                == AlertOrigin.OPTIMIZER_EVALUATION.value
+            ),
+            origin=(
+                AlertOrigin(workflow_input["origin"])
+                if workflow_input.get("origin")
+                else None
             ),
         )
     )
@@ -101,9 +113,13 @@ def _run_pre_process(context: dict[str, Any]) -> PreProcessAlertOutput:
                 alert_id=UUID(context["alert_id"]),
                 payload=payload,
                 schema=active_schema,
-                skip_external_enrichment=(
+                skip_external_enrichment=_skip_external_enrichment(
                     workflow_input.get("origin")
-                    == AlertOrigin.OPTIMIZER_EVALUATION.value
+                ),
+                origin=(
+                    AlertOrigin(workflow_input["origin"])
+                    if workflow_input.get("origin")
+                    else None
                 ),
             )
         )
