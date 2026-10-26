@@ -482,6 +482,7 @@ class OptimizerStatusResponse(BaseModel):
 
     sessions: dict[str, int]
     blocked_by_reason: dict[str, int]
+    reason_titles: dict[str, str] = Field(default_factory=dict)
     running_candidates: int
     active_runs: int
     max_concurrent_runs: int

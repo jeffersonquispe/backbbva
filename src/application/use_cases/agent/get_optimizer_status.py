@@ -21,6 +21,7 @@ from src.application.ports.assistant_optimizer_settings_port import (
 )
 from src.application.ports.clock_port import Clock
 from src.application.ports.dataset_snapshot_port import DatasetSnapshotRepository
+from src.domain.agents.failure_catalog import describe_failure
 
 # Sessions the Monitor counts; terminal ones are history, not current load.
 _LIVE_STATUSES = (
@@ -48,6 +49,8 @@ class OptimizerSampleUse:
 class OptimizerStatus:
     sessions: dict[str, int] = field(default_factory=dict)
     blocked_by_reason: dict[str, int] = field(default_factory=dict)
+    # Spanish title of each blocking code, so readers need no catalogue access.
+    reason_titles: dict[str, str] = field(default_factory=dict)
     running_candidates: int = 0
     active_runs: int = 0
     max_concurrent_runs: int = 0
@@ -128,16 +131,18 @@ class GetOptimizerStatusUseCase:
                     experiments=count,
                 )
             )
+        blocked = dict(
+            Counter(
+                str(session.block.get("code"))
+                for session in live
+                if session.status == AgentSessionStatus.WAITING_USER
+                and session.block.get("code")
+            )
+        )
         return OptimizerStatus(
             sessions=dict(Counter(session.status.value for session in live)),
-            blocked_by_reason=dict(
-                Counter(
-                    str(session.block.get("code"))
-                    for session in live
-                    if session.status == AgentSessionStatus.WAITING_USER
-                    and session.block.get("code")
-                )
-            ),
+            blocked_by_reason=blocked,
+            reason_titles={code: describe_failure(code).title for code in blocked},
             running_candidates=running,
             active_runs=len(self._runs.list_active(self._clock.now(), limit=100)),
             max_concurrent_runs=settings.optimizer_max_concurrent_runs,

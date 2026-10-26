@@ -176,6 +176,7 @@ def test_status_aggregates_live_optimizer_sessions_without_ids() -> None:
 
     assert status.sessions == {"ACTIVE": 1, "WAITING_USER": 1}
     assert status.blocked_by_reason == {"BUDGET_EXHAUSTED": 1}
+    assert status.reason_titles == {"BUDGET_EXHAUSTED": "Presupuesto agotado"}
     assert status.running_candidates == 2
     assert status.active_runs == 2
     assert (status.max_parallel_experiments, status.max_concurrent_runs) == (3, 6)
