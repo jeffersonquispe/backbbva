@@ -76,6 +76,8 @@ class OptimizerSpecialistSubagent:
             "objective_id": request.objective_id,
             "objective_version": request.objective_version,
             "objective": _objective_context(request),
+            "project_map": request.project_map,
+            "selected_project_lever": self.name,
         }
         safe_request = replace(
             request,

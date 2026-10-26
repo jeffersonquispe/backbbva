@@ -339,9 +339,13 @@ Never edit the JSON by hand: `make project-graph` rebuilds it from
 `scripts/ts_scan.mjs` (frontend, TypeScript compiler API), Python `ast` over the
 routers/use cases/ports/adapters, and `scripts/project_graph_curated.json`
 (descriptions, tasks, concepts; every id it references is validated, a dangling
-one fails the build). Rebuild whenever routes, components, API functions,
-routers, roles or the curated file change; `make project-graph-check` (also a
-pre-commit hook, skipped when `../frontend_mockup` is absent) fails if stale.
+one fails the build). `make project-graph` generates descriptions for new,
+uncurated components through the configured LLM and caches them in
+`scripts/project_graph_descriptions.json`; ordinary builds reuse this cache,
+and `make project-graph-check` verifies the result deterministically. Rebuild
+whenever routes, components, API functions, routers, roles or curated graph
+data change. Jenkins checks out the matching frontend branch before checking
+staleness.
 
 Retrieval (`RetrieveProjectContextUseCase`): BM25 over name/keywords/
 description with a light Spanish stemmer + intent boosts ("qué es" → concepts,
@@ -362,3 +366,9 @@ Quality gate: `tests/test_infrastructure/test_agents/project_graph_golden.json`
 is the golden question set (every question must retrieve an expected node, for
 every role nothing hidden may leak). Add a golden question whenever a real
 question is answered badly, then fix the graph or the retrieval.
+
+The optimizer orchestrator also reads the graph's four `optimizer-lever-*`
+concepts to route hypotheses to configuration, library, model or vector-store
+specialists. It passes those descriptions to the selected specialist as
+bounded project context; the graph augments routing and never grants authority
+to edit or activate a candidate.

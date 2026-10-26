@@ -5,4 +5,6 @@ incluida en domain_context. Cada path debe existir en editable_configuration;
 no inventes segmentos ni campos. Devuelve experiment como
 {"changes":[{"path":"segments.canales_digitales.agent.max_tokens","value":400}]}. No incluyas
 datos por caso, valores de clientes, operaciones, secretos ni cambios de
-infraestructura/operación. Devuelve {"experiment": {...}, "rationale": "..."}.
+infraestructura/operación. Usa project_map como mapa de palancas de ARIA y
+selected_project_lever para mantener la propuesta dentro de configuración.
+Devuelve {"experiment": {...}, "rationale": "..."}.

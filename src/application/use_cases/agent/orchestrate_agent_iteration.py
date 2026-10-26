@@ -61,10 +61,12 @@ from src.application.ports.assistant_optimizer_settings_port import (
 from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.project_graph_port import ProjectGraphRepository
 from src.application.use_cases.agent.evaluate_agent_experiment import (
     EvaluateAgentExperiment,
 )
 from src.domain.agents.experiment import AgentExperimentKind
+from src.domain.project_graph.index import tokenize
 
 LEASE_SECONDS = 90
 _SAFE_AUDIT_REASONS = {
@@ -134,6 +136,7 @@ class OrchestrateAgentIterationUseCase:
         audit: AgentAuditRepository | None = None,
         components: AgentExperimentComponentResolver | None = None,
         experiment_evaluator: EvaluateAgentExperiment | None = None,
+        project_graph: ProjectGraphRepository | None = None,
     ) -> None:
         self._sessions = sessions
         self._iterations = iterations
@@ -155,6 +158,7 @@ class OrchestrateAgentIterationUseCase:
         self._audit = audit
         self._components = components
         self._experiment_evaluator = experiment_evaluator
+        self._project_graph = project_graph
 
     def execute(self, session_id: str) -> str:
         # Settings are deliberately read on each invocation, never captured in
@@ -329,6 +333,7 @@ class OrchestrateAgentIterationUseCase:
         number = max((item.number for item in prior), default=0) + 1
         run_id = str(self._ids.new_id())
         selected_subagent = self._select_subagent(leased, hypothesis, prior)
+        project_map = self._optimizer_project_map()
         prompt_key = (
             f"agent.specialist.{selected_subagent.name}"
             if selected_subagent.name in self._specialists
@@ -384,6 +389,7 @@ class OrchestrateAgentIterationUseCase:
             objective_version=leased.objective_version,
             objective=objective,
             baseline_components=leased.baseline_components,
+            project_map=project_map,
         )
         if self._monitoring is None:
             output = selected_subagent.execute(subagent_input)
@@ -846,9 +852,17 @@ class OrchestrateAgentIterationUseCase:
         )
 
     def _select_subagent(self, session, hypothesis, prior):
-        """Route each tick from the active hypothesis and latest experiment result."""
+        """Route through graph levers, retaining the legacy route as fallback."""
         if not self._specialists:
             return self._subagent
+        last = prior[-1].decision if prior else {}
+        if last.get("experiment_verified") is False:
+            return self._specialists.get("library", self._subagent)
+        lever = self._graph_optimizer_lever(session, hypothesis)
+        if lever:
+            specialist = "xgboost" if lever == "model" else lever
+            if specialist in self._specialists:
+                return self._specialists[specialist]
         area = " ".join(
             str(value).lower()
             for value in ((hypothesis.scope if hypothesis else {}).values())
@@ -857,10 +871,7 @@ class OrchestrateAgentIterationUseCase:
             area = " ".join(
                 str(value).lower() for value in session.scope.get("areas", [])
             )
-        last = prior[-1].decision if prior else {}
-        if last.get("experiment_verified") is False:
-            selected = "library"
-        elif any(term in area for term in ("vector", "retrieval", "embedding")):
+        if any(term in area for term in ("vector", "retrieval", "embedding")):
             selected = "vector_store"
         elif any(term in area for term in ("model", "xgboost", "classifier")):
             selected = "xgboost"
@@ -871,6 +882,48 @@ class OrchestrateAgentIterationUseCase:
         else:
             selected = "library"
         return self._specialists.get(selected, self._subagent)
+
+    def _optimizer_project_map(self) -> dict[str, dict[str, str]]:
+        if self._project_graph is None:
+            return {}
+        graph = self._project_graph.load()
+        result: dict[str, dict[str, str]] = {}
+        for node_id, node in graph.nodes.items():
+            prefix = "concept:optimizer-lever-"
+            if not node_id.startswith(prefix):
+                continue
+            lever = node_id.removeprefix(prefix).replace("-", "_")
+            specialist = "xgboost" if lever == "model" else lever
+            result[specialist] = {
+                "name": node.display,
+                "description": node.description,
+                "keywords": " ".join(node.keywords),
+            }
+        return result
+
+    def _graph_optimizer_lever(self, session, hypothesis) -> str | None:
+        if self._project_graph is None:
+            return None
+        graph = self._project_graph.load()
+        query_parts = [str(value) for value in session.scope.get("areas", [])]
+        query_parts.extend(str(value) for value in session.scope.values())
+        if hypothesis is not None:
+            query_parts.append(hypothesis.statement)
+            query_parts.extend(str(value) for value in hypothesis.scope.values())
+        weights = {token: 1.0 for token in tokenize(" ".join(query_parts))}
+        if not weights:
+            return None
+        prefix = "concept:optimizer-lever-"
+        scores = graph.index.score(weights)
+        ranked = sorted(
+            (
+                (node_id.removeprefix(prefix).replace("-", "_"), score)
+                for node_id, score in scores.items()
+                if node_id.startswith(prefix)
+            ),
+            key=lambda item: (-item[1], item[0]),
+        )
+        return ranked[0][0] if ranked and ranked[0][1] > 0 else None
 
     def _select_hypothesis(self, session, now, prior):
         if session.mode != "optimization" or self._hypotheses is None:

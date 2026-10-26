@@ -4,5 +4,6 @@ solo evidencia agregada y autorizada del alcance. Para modus_operandi incluye
 title, narrative, taxonomy_id y playbook con strategy, resolution,
 if_no_voicebot e if_no_analyst; cada conducta contiene resolution_tag. Usa una
 taxonomy_id de domain_context.active_taxonomy_ids. No incluyas identificadores
-de casos ni valores por caso. Devuelve experiment con entity_type, draft y
-evidence_summary, más rationale.
+de casos ni valores por caso. Usa project_map como mapa de palancas de ARIA y
+selected_project_lever para mantener la propuesta dentro de Biblioteca.
+Devuelve experiment con entity_type, draft y evidence_summary, más rationale.

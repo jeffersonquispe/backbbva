@@ -4,4 +4,5 @@ features del modelo baseline autorizado en domain_context; no propongas ni
 modifiques dataset_ref. Nunca alteres el modelo activo ni incluyas datos de
 filas. Devuelve experiment con parameters (n_estimators 1-2000, max_depth 1-16,
 learning_rate 0.001-0.5, subsample y colsample_bytree 0.1-1.0), más
-rationale, como JSON.
+rationale, como JSON. Usa project_map como mapa de palancas de ARIA y
+selected_project_lever para mantener la propuesta dentro de Modelo.

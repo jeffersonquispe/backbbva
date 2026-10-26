@@ -678,6 +678,34 @@
       "description": "Registro de alertas gestionadas con marca y resultado, filtros por rango temporal, búsqueda, paginación y auditoría de correcciones.",
       "aliases": ["histórico", "historial", "rango temporal", "fecha desde", "fecha hasta"],
       "nodes": ["view:/historico-fraude"]
+    },
+    {
+      "id": "optimizer-lever-configuration",
+      "name": "Palanca de optimización: configuración",
+      "description": "Ajusta reglas, umbrales y parámetros versionados del agente por segmento; cada cambio se prueba y requiere validación antes de desplegarse.",
+      "aliases": ["configuration", "configurar", "reglas", "threshold", "umbral", "prompt", "rúbrica", "segmento", "filtro"],
+      "nodes": ["concept:configuracion-agente"]
+    },
+    {
+      "id": "optimizer-lever-library",
+      "name": "Palanca de optimización: biblioteca",
+      "description": "Ajusta conocimiento de fraude: taxonomías, modus operandi, señales, casos similares y listas; aporta evidencia y contexto sin decidir directamente la marca de fraude.",
+      "aliases": ["library", "biblioteca", "taxonomía", "modus operandi", "flag", "red flag", "watchlist", "casos similares", "conocimiento", "playbook"],
+      "nodes": ["concept:modus-operandi", "concept:watchlist"]
+    },
+    {
+      "id": "optimizer-lever-model",
+      "name": "Palanca de optimización: modelo",
+      "description": "Crea y entrena un modelo de fraude sobre datasets y variables; el candidato se evalúa antes de proponerse para activación.",
+      "aliases": ["model", "modelo", "xgboost", "clasificador", "clasificación", "entrenamiento", "train", "dataset", "features", "variables"],
+      "nodes": ["concept:modelo", "concept:dataset"]
+    },
+    {
+      "id": "optimizer-lever-vector-store",
+      "name": "Palanca de optimización: vector store",
+      "description": "Construye y verifica una versión del índice semántico que consulta la biblioteca de fraude; permite ajustar recuperación sin alterar el modelo de clasificación.",
+      "aliases": ["vector store", "vector_store", "embeddings", "embedding", "retrieval", "búsqueda semántica", "índice vectorial", "recuperación", "similaridad"],
+      "nodes": ["concept:vector-store"]
     }
   ]
 }

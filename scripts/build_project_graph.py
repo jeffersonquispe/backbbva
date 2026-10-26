@@ -39,6 +39,7 @@ SCRIPTS = Path(__file__).resolve().parent
 DEFAULT_FRONTEND = BACKEND.parent / "frontend_mockup"
 OUTPUT = BACKEND / "src/infrastructure/agents/project_graph/project_graph.json"
 CURATED = SCRIPTS / "project_graph_curated.json"
+GENERATED_DESCRIPTIONS = SCRIPTS / "project_graph_descriptions.json"
 
 API_PREFIX = "/api/v0"
 MAX_KEYWORDS = 40
@@ -695,6 +696,24 @@ def apply_curated(graph: Graph, curated_path: Path) -> list[str]:
     return errors
 
 
+def apply_generated_descriptions(graph: Graph, descriptions_path: Path) -> list[str]:
+    """Apply cached LLM descriptions without making graph builds nondeterministic."""
+    if not descriptions_path.is_file():
+        return []
+    payload = json.loads(descriptions_path.read_text(encoding="utf-8"))
+    descriptions = payload.get("descriptions", {})
+    errors: list[str] = []
+    for node_id, description in descriptions.items():
+        node = graph.nodes.get(node_id)
+        if node is None or node["kind"] != "component":
+            errors.append(f"generated description target is not a component: {node_id}")
+        elif not isinstance(description, str) or not description.strip():
+            errors.append(f"generated description is empty: {node_id}")
+        elif not node["description"]:
+            node["description"] = clean_text(description)
+    return errors
+
+
 # --------------------------------------------------------------------------
 
 
@@ -704,7 +723,9 @@ def build(frontend: Path) -> tuple[Graph, list[str]]:
     build_backend(graph, BACKEND)
     build_role_navigation(graph, frontend)
     build_docs(graph, frontend, BACKEND)
-    return graph, apply_curated(graph, CURATED)
+    errors = apply_curated(graph, CURATED)
+    errors.extend(apply_generated_descriptions(graph, GENERATED_DESCRIPTIONS))
+    return graph, errors
 
 
 def render(graph: Graph) -> str:

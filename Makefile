@@ -397,7 +397,12 @@ FRONTEND_DIR ?= ../frontend_mockup
 
 .PHONY: project-graph
 project-graph:  ## Rebuild the project knowledge graph (views, components, actions, API, assets) used by the chat agent's graph-RAG. Var: FRONTEND_DIR(../frontend_mockup)
+	$(PYTHON) scripts/generate_project_graph_descriptions.py --frontend $(or $(FRONTEND_DIR),../frontend_mockup)
 	python3 scripts/build_project_graph.py --frontend $(or $(FRONTEND_DIR),../frontend_mockup)
+
+.PHONY: project-graph-descriptions
+project-graph-descriptions:  ## Generate and cache missing frontend component descriptions with the configured LLM. Var: FRONTEND_DIR
+	$(MAKE) project-graph FRONTEND_DIR=$(or $(FRONTEND_DIR),../frontend_mockup)
 
 .PHONY: project-graph-check
 project-graph-check:  ## Fail if the frontend is missing or the committed project graph is stale.

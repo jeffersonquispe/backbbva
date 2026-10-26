@@ -839,6 +839,7 @@ def get_orchestrate_agent_iteration_use_case(
         get_agent_audit_repository,
         get_agent_experiment_component_resolver,
         get_agent_experiment_repository,
+        get_project_graph_repository,
     )
     from src.infrastructure.workflows.celery.task_factories import (
         get_agent_pipeline_replay_scorer,
@@ -878,6 +879,7 @@ def get_orchestrate_agent_iteration_use_case(
         audit=get_agent_audit_repository(),
         components=component_resolver,
         experiment_evaluator=experiment_evaluator,
+        project_graph=get_project_graph_repository(),
         monitoring=get_monitoring(),
         clock=get_clock(),
         id_generator=get_id_generator(),

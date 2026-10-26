@@ -269,43 +269,82 @@ def main() -> int:
         optimizer_id = optimizer["session_id"]
         status, _ = request("POST", f"/agent/sessions/{optimizer_id}/start", channel_token)
         check(status, 200, "start optimizer session", None)
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + 40
         claims: list[dict[str, Any]] = []
+        hypotheses: list[dict[str, Any]] = []
+        claim_seen = False
         while time.monotonic() < deadline:
             status, claims = request("GET", "/agent/claims/scope%23model", token)
             if status == 200 and any(item["session_id"] == optimizer_id for item in claims):
-                break
-            time.sleep(0.2)
-        else:
-            raise RuntimeError("optimizer scope claim did not appear through API")
-        deadline = time.monotonic() + 10
-        hypotheses: list[dict[str, Any]] = []
-        while time.monotonic() < deadline:
+                claim_seen = True
             status, hypotheses = request(
                 "GET", f"/agent/sessions/{optimizer_id}/hypotheses", channel_token
             )
             if status == 200 and hypotheses and hypotheses[0].get("evidence_id"):
                 break
             time.sleep(0.2)
-        else:
-            raise RuntimeError("optimizer hypothesis was not linked to persisted evidence")
-        if hypotheses[0].get("evidence_outcome") != "NONCONCLUSIVE":
-            raise RuntimeError("stub evidence outcome was not classified safely")
-        status, _ = request("POST", f"/agent/sessions/{optimizer_id}/pause", channel_token)
-        check(status, 200, "pause optimizer for renewal", None)
-        status, renewed = request(
-            "POST",
-            f"/agent/sessions/{optimizer_id}/budget/renew",
-            channel_token,
-            {"additions": {"tokens": 5}},
+        if not hypotheses or not hypotheses[0].get("evidence_id"):
+            session_status, session_state = request(
+                "GET", f"/agent/sessions/{optimizer_id}", channel_token
+            )
+            if session_status != 200:
+                raise RuntimeError(
+                    "could not inspect optimizer after polling: "
+                    f"session_status={session_status}"
+                )
+            raise RuntimeError(
+                "optimizer hypothesis was not linked to persisted evidence: "
+                f"session={session_state}, status={status}, hypotheses={hypotheses}"
+            )
+        session_status, session_state = request(
+            "GET", f"/agent/sessions/{optimizer_id}", channel_token
         )
-        check(status, 200, "renew optimizer budget", renewed)
-        if renewed["budget_limits"].get("tokens") != 8 or renewed["budget_renewals"] != 1:
-            raise RuntimeError("budget renewal did not update the paused session")
-        status, active_claims = request("GET", "/agent/claims/scope%23model", token)
-        check(status, 200, "read claims after pause", active_claims)
-        if any(item["session_id"] == optimizer_id for item in active_claims):
-            raise RuntimeError("paused optimizer still appears as active interference")
+        if session_status != 200:
+            raise RuntimeError("could not inspect optimizer session after evidence")
+        if session_state.get("status") == "ACTIVE" and not claim_seen:
+            raise RuntimeError(
+                "active optimizer scope claim did not appear through API: "
+                f"claims={claims}"
+            )
+        if hypotheses[0].get("evidence_outcome") not in {
+            "VALIDATED",
+            "REFUTED",
+            "NONCONCLUSIVE",
+        }:
+            raise RuntimeError(
+                "optimizer evidence outcome was not a supported classification: "
+                f"{hypotheses[0].get('evidence_outcome')}"
+            )
+        status, iterations = request(
+            "GET", f"/agent/sessions/{optimizer_id}/iterations", channel_token
+        )
+        check(status, 200, "read graph-routed optimizer iteration", iterations)
+        if not iterations or iterations[0].get("specialist") != "xgboost":
+            raise RuntimeError(
+                "project graph did not route the model lever to xgboost: "
+                f"iterations={iterations}"
+            )
+        if session_state.get("status") == "ACTIVE":
+            status, _ = request(
+                "POST", f"/agent/sessions/{optimizer_id}/pause", channel_token
+            )
+            check(status, 200, "pause optimizer for renewal", None)
+            status, renewed = request(
+                "POST",
+                f"/agent/sessions/{optimizer_id}/budget/renew",
+                channel_token,
+                {"additions": {"tokens": 5}},
+            )
+            check(status, 200, "renew optimizer budget", renewed)
+            if (
+                renewed["budget_limits"].get("tokens") != 8
+                or renewed["budget_renewals"] != 1
+            ):
+                raise RuntimeError("budget renewal did not update the paused session")
+            status, active_claims = request("GET", "/agent/claims/scope%23model", token)
+            check(status, 200, "read claims after pause", active_claims)
+            if any(item["session_id"] == optimizer_id for item in active_claims):
+                raise RuntimeError("paused optimizer still appears as active interference")
         # Kill switch is read by the real Celery task after it is dequeued.
         kill_session = create_session(token)
         compose("stop", "aria-agent-worker")

@@ -41,6 +41,7 @@ from src.application.ports.clock_port import Clock
 from src.application.ports.id_generator_port import IdGenerator
 from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.monitoring_span_port import MonitoringSpan
+from src.application.ports.project_graph_port import ProjectGraphRepository
 from src.application.use_cases.agent.manage_agent_session import (
     ManageAgentSessionUseCase,
 )
@@ -51,6 +52,7 @@ from src.application.use_cases.agent.recover_stale_agent_runs import (
     RecoverStaleAgentRunsUseCase,
 )
 from src.domain.agents.objective import AgentObjective, AgentObjectiveStatus
+from src.domain.project_graph.entities import GraphNode, NodeKind, ProjectGraph
 
 NOW = datetime(2026, 10, 18, tzinfo=UTC)
 
@@ -185,6 +187,14 @@ class InMemoryVerifications:
 
     def list_for_subject(self, subject_id):
         return [item for item in self.items.values() if item.subject_id == subject_id]
+
+
+class InMemoryProjectGraph(ProjectGraphRepository):
+    def __init__(self, graph: ProjectGraph) -> None:
+        self.graph = graph
+
+    def load(self) -> ProjectGraph:
+        return self.graph
 
 
 class InMemoryHypotheses:
@@ -377,6 +387,7 @@ def _use_case(
     objectives=None,
     monitoring=None,
     audit=None,
+    project_graph=None,
 ):
     repositories = {
         "sessions": sessions_repository or InMemorySessions(session),
@@ -399,6 +410,7 @@ def _use_case(
         objectives=objectives,
         monitoring=monitoring,
         audit=audit,
+        project_graph=project_graph,
     )
     return use_case, repositories
 
@@ -593,6 +605,57 @@ def test_optimizer_routes_to_specialist_for_hypothesis_area() -> None:
     assert decision["specialist"] == "vector_store"
     assert decision["specialist_verified"] is True
     assert decision["experiment_verified"] is False
+
+
+def test_optimizer_uses_project_graph_lever_map_and_passes_it_to_specialist() -> None:
+    graph = ProjectGraph(
+        nodes={
+            "concept:optimizer-lever-vector-store": GraphNode(
+                "concept:optimizer-lever-vector-store",
+                NodeKind.CONCEPT,
+                "Palanca de optimización: vector store",
+                "Ajusta recuperación semántica de la biblioteca.",
+                ("vector store", "embeddings", "retrieval", "búsqueda semántica"),
+            ),
+            "concept:optimizer-lever-model": GraphNode(
+                "concept:optimizer-lever-model",
+                NodeKind.CONCEPT,
+                "Palanca de optimización: modelo",
+                "Crea y entrena un modelo de fraude.",
+                ("xgboost", "clasificador", "entrenamiento"),
+            ),
+        }
+    )
+    session = replace(
+        _session("optimization"), scope={"areas": ["embeddings retrieval"]}
+    )
+    class RecordingNamedSubagent(NamedStubSubagent):
+        request = None
+
+        def execute(self, request):
+            self.request = request
+            return super().execute(request)
+
+    vector_store = RecordingNamedSubagent("vector_store")
+    specialists = {
+        name: vector_store if name == "vector_store" else NamedStubSubagent(name)
+        for name in ("configuration", "library", "vector_store", "xgboost")
+    }
+    use_case, repositories = _use_case(
+        session,
+        InMemorySettings(AssistantOptimizerSettings(optimizer_enabled=True)),
+        specialists=specialists,
+        project_graph=InMemoryProjectGraph(graph),
+    )
+    assert set(use_case._optimizer_project_map()) == {"vector_store", "xgboost"}
+
+    assert use_case.execute("s1") == "iteration_completed"
+
+    decision = repositories["iterations"].items[1].decision
+    assert decision["specialist"] == "vector_store"
+    assert vector_store.request.project_map["vector_store"]["description"].startswith(
+        "Ajusta recuperación"
+    )
 
 
 def test_critical_specialist_failure_is_visible_as_a_safe_failure_code() -> None:

@@ -83,6 +83,20 @@ def test_tasks_concepts_and_views_are_wired_and_described(
     assert problems == []
 
 
+def test_components_have_curated_or_llm_generated_descriptions(
+    repository: JsonProjectGraphRepository,
+) -> None:
+    graph = repository.load()
+
+    missing = [
+        node.node_id
+        for node in graph.nodes.values()
+        if node.kind is NodeKind.COMPONENT and not node.description.strip()
+    ]
+
+    assert missing == []
+
+
 def test_every_golden_question_retrieves_an_expected_node(
     use_case: RetrieveProjectContextUseCase,
 ) -> None:

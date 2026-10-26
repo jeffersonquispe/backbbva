@@ -3702,6 +3702,36 @@
   },
   {
    "relation": "manifested_in",
+   "source": "concept:optimizer-lever-configuration",
+   "target": "concept:configuracion-agente"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:optimizer-lever-library",
+   "target": "concept:modus-operandi"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:optimizer-lever-library",
+   "target": "concept:watchlist"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:optimizer-lever-model",
+   "target": "concept:dataset"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:optimizer-lever-model",
+   "target": "concept:modelo"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:optimizer-lever-vector-store",
+   "target": "concept:vector-store"
+  },
+  {
+   "relation": "manifested_in",
    "source": "concept:pruebas-agente",
    "target": "component:testing/NewTestRunModal"
   },
@@ -17418,7 +17448,7 @@
    "attrs": {
     "file": "components/AlertFiltersBar.tsx"
    },
-   "description": "",
+   "description": "Barra de filtros comunes para tablas de alertas, combinando selección de canal/subcanal/segmento, rango de monto y reglas. También expone utilidades para contar filtros activos y para evaluar si una fila coincide con los filtros seleccionados.",
    "id": "component:AlertFiltersBar",
    "keywords": [
     "Monto"
@@ -17430,7 +17460,7 @@
    "attrs": {
     "file": "components/AppSidebar.tsx"
    },
-   "description": "",
+   "description": "Sidebar de navegación principal con opción de colapsar/expandir, resaltado de la ruta activa y accesos a secciones del producto. Muestra un bloque de usuario/rol y dispara un diálogo de cierre de sesión; además deshabilita los ítems si el servicio API no está saludable.",
    "id": "component:AppSidebar",
    "keywords": [
     "Dashboard",
@@ -17454,7 +17484,7 @@
    "attrs": {
     "file": "components/ChannelFilter.tsx"
    },
-   "description": "",
+   "description": "Conjunto de selects para filtrar por canal, subcanal (dependiente del canal) y segmento. Carga los segmentos desde el catálogo de canales (Biblioteca) y resetea el subcanal al cambiar de canal.",
    "id": "component:ChannelFilter",
    "keywords": [
     "Canal",
@@ -17469,7 +17499,7 @@
    "attrs": {
     "file": "components/ClassificationMetricsSection.tsx"
    },
-   "description": "",
+   "description": "Sección para visualizar resultados de clasificación mediante paneles con matriz de confusión y tablas por clase. Presenta dos comparaciones independientes (modelo vs. analista y modelo vs. verdad real) con etiquetas fijas para render consistente.",
    "id": "component:ClassificationMetricsSection",
    "keywords": [
     "Resultados de clasificación",
@@ -17491,7 +17521,7 @@
    "attrs": {
     "file": "components/ColumnVisibilityMenu.tsx"
    },
-   "description": "",
+   "description": "Menú desplegable \"Columnas\" para mostrar/ocultar columnas de una tabla mediante checkboxes. Incluye un hook para persistir la preferencia por tabla en localStorage sin romper la hidratación inicial.",
    "id": "component:ColumnVisibilityMenu",
    "keywords": [
     "Columnas"
@@ -17503,7 +17533,7 @@
    "attrs": {
     "file": "components/DashboardLayout.tsx"
    },
-   "description": "",
+   "description": "Layout base de la aplicación que compone sidebar, contenido principal, botón de volver y un panel inferior opcional. Gestiona el estado colapsado del sidebar, el redireccionamiento a login y muestra un aviso cuando el API no está disponible.",
    "id": "component:DashboardLayout",
    "keywords": [
     "Volver a la vista anterior",
@@ -17517,7 +17547,7 @@
    "attrs": {
     "file": "components/LogoutDialog.tsx"
    },
-   "description": "",
+   "description": "Diálogo de confirmación para cerrar sesión, con estados de carga/error. Si detecta una alerta tomada por el usuario, ofrece la opción de liberarla antes de cerrar sesión.",
    "id": "component:LogoutDialog",
    "keywords": [
     "Cerrar sesión",
@@ -17533,7 +17563,7 @@
    "attrs": {
     "file": "components/MetricsFilterBar.tsx"
    },
-   "description": "",
+   "description": "Barra de filtros reutilizable para vistas de métricas, basada en selects configurables por dimensión y por rango de fechas. Construye opciones desde fuentes consultadas (segmentos, configuraciones, rangos de monto actuales e históricos y valores observados de canal/subcanal cuando están habilitados).",
    "id": "component:MetricsFilterBar",
    "keywords": [
     "Sin rango",
@@ -17553,7 +17583,7 @@
    "attrs": {
     "file": "components/PageHeader.tsx"
    },
-   "description": "",
+   "description": "Encabezado fijo para páginas de alertas con filtros: muestra el título (y un badge opcional) a la izquierda y agrupa acciones de la página a la derecha. Su responsabilidad es dar estructura consistente al área superior de la vista.",
    "id": "component:PageHeader",
    "keywords": [
     "Filtros",
@@ -17566,7 +17596,7 @@
    "attrs": {
     "file": "components/RefreshControl.tsx"
    },
-   "description": "",
+   "description": "Control de actualización que muestra la hora de la última actualización y un botón \"Actualizar\" con animación de giro. Su función es disparar la acción de refresco y presentar el indicador temporal asociado.",
    "id": "component:RefreshControl",
    "keywords": [
     "Actualizar"
@@ -17588,7 +17618,7 @@
    "attrs": {
     "file": "components/RulesFilter.tsx"
    },
-   "description": "",
+   "description": "Filtro compacto multi-selección para \"Reglas\" que abre un popover con una lista seleccionable y contador de seleccionadas. Su responsabilidad es permitir elegir y alternar reglas disparadas para filtrar resultados.",
    "id": "component:RulesFilter",
    "keywords": [
     "Reglas"
@@ -17702,7 +17732,7 @@
    "attrs": {
     "file": "components/agent/AgentReleasePanel.tsx"
    },
-   "description": "",
+   "description": "Panel para gestionar la liberación de experimentos: permite ingresar IDs de sesión y experimento, ejecutar una validación retrospectiva y mostrar avisos/estado. También lista releases (cuando aplica) y ofrece acciones para crear o transicionar un release con un motivo.",
    "id": "component:agent/AgentReleasePanel",
    "keywords": [
     "Liberación de experimentos",
@@ -17764,7 +17794,7 @@
    "attrs": {
     "file": "components/alert/AlertSchemaView.tsx"
    },
-   "description": "",
+   "description": "Vista para inspeccionar datos de una alerta contra una versión de esquema, organizando campos y formateando valores (incluye locales para números/fechas). Permite marcar campos faltantes y, cuando está habilitado, reportar un campo ausente mediante un botón por fila.",
    "id": "component:alert/AlertSchemaView",
    "keywords": [
     "No llegó en esta alerta",
@@ -17800,7 +17830,7 @@
    "attrs": {
     "file": "components/async/AsyncOperationProgressCard.tsx"
    },
-   "description": "",
+   "description": "Tarjeta de progreso para operaciones asíncronas que muestra etapa, porcentaje, filas procesadas y estado de éxito o fallo. Su responsabilidad es consultar el progreso y notificar por callbacks cuando la operación se completa o falla.",
    "id": "component:async/AsyncOperationProgressCard",
    "keywords": [],
    "kind": "component",
@@ -17810,7 +17840,7 @@
    "attrs": {
     "file": "components/biblioteca/AlertFieldMappingEditor.tsx"
    },
-   "description": "",
+   "description": "Editor en un side drawer para definir pares entre nombres de campos de la alerta (texto libre) y columnas disponibles del dataset (selección). Su responsabilidad es cargar el mapeo existente, permitir agregar/eliminar/editar pares y guardar el reemplazo completo del mapeo.",
    "id": "component:biblioteca/AlertFieldMappingEditor",
    "keywords": [
     "Exportar a formato externo:",
@@ -18004,7 +18034,7 @@
    "attrs": {
     "file": "components/configuracion/AmountTierEditor.tsx"
    },
-   "description": "",
+   "description": "Editor tabular de rangos de monto con validación en vivo, permitiendo definir código, etiqueta y límites desde/hasta. Su responsabilidad es facilitar la edición de tiers y mostrar el rango calculado, además de permitir agregar o eliminar filas.",
    "id": "component:configuracion/AmountTierEditor",
    "keywords": [
     "Código",
@@ -18042,7 +18072,7 @@
    "attrs": {
     "file": "components/configuracion/ConfigurationVersionGraph.tsx"
    },
-   "description": "",
+   "description": "Renderiza un grafo tipo Git con el historial de versiones de configuraciones y su linaje (incluyendo referencias a padres) para visualizar estados y conexiones. Permite seleccionar una versión haciendo clic en los nodos y resalta la versión actualmente vista.",
    "id": "component:configuracion/ConfigurationVersionGraph",
    "keywords": [
     "Esta configuración todavía no tiene versiones guardadas.",
@@ -18056,7 +18086,7 @@
    "attrs": {
     "file": "components/configuracion/ConfigurationVersionGuide.tsx"
    },
-   "description": "",
+   "description": "Muestra, en un tooltip, una guía visual del ciclo de versionado (configuración → borrador → guardar → probar → desplegar). Su responsabilidad es explicar de forma compacta cómo se gestionan configuraciones y versiones dentro de la interfaz.",
    "id": "component:configuracion/ConfigurationVersionGuide",
    "keywords": [
     "Ver ciclo de creación de versiones",
@@ -18080,7 +18110,7 @@
    "attrs": {
     "file": "components/configuracion/FilterGroupBuilder.tsx"
    },
-   "description": "",
+   "description": "Editor recursivo para construir árboles de filtros con operadores lógicos AND/OR, condiciones y grupos anidados. Permite agregar, actualizar y eliminar condiciones y subgrupos, y selecciona valores mediante un selector de etiquetas.",
    "id": "component:configuracion/FilterGroupBuilder",
    "keywords": [
     "Combinar con",
@@ -18097,7 +18127,7 @@
    "attrs": {
     "file": "components/configuracion/MarcacionCatalogManager.tsx"
    },
-   "description": "",
+   "description": "Panel en SideDrawer para gestionar (crear, editar, activar/desactivar y eliminar) categorías del catálogo de marcación, incluyendo una etiqueta de riesgo por entrada. Presenta formulario de alta y una tabla con acciones, con confirmación al borrar.",
    "id": "component:configuracion/MarcacionCatalogManager",
    "keywords": [
     "Riesgo sospechado",
@@ -18169,7 +18199,7 @@
    "attrs": {
     "file": "components/configuracion/ResolutionMethodCatalogManager.tsx"
    },
-   "description": "",
+   "description": "Panel en SideDrawer para administrar un catálogo de métodos de resolución con su mapeo a un tag de resolución, con alta, actualización, activación/desactivación y borrado. Muestra un formulario de creación y una tabla con acciones y confirmación de eliminación, invalidando la caché de consulta asociada.",
    "id": "component:configuracion/ResolutionMethodCatalogManager",
    "keywords": [
     "Gestionar métodos de resolución",
@@ -18188,7 +18218,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentAdversarialSection.tsx"
    },
-   "description": "",
+   "description": "Sección de configuración del componente “adversarial” de un segmento: selección de herramientas y edición del prompt con inserción de variables disponibles. También permite ajustar parámetros numéricos como ciclos de reclasificación y, opcionalmente, el máximo de iteraciones de pensamiento.",
    "id": "component:configuracion/SegmentAdversarialSection",
    "keywords": [
     "Prompt adversarial",
@@ -18206,7 +18236,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentAgentSection.tsx"
    },
-   "description": "",
+   "description": "Router de subtabs para editar la configuración del agente de un segmento (determinístico, perfilamiento, detector, adversarial, clasificación, analista, ejecutor) mostrando la sección correspondiente. Normaliza valores faltantes con defaults para evitar fallos al abrir configuraciones antiguas y aplica el estado disabled solo al contenido.",
    "id": "component:configuracion/SegmentAgentSection",
    "keywords": [
     "Determinístico",
@@ -18229,7 +18259,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentAgentTab.tsx"
    },
-   "description": "",
+   "description": "Pestaña “Agente” que ofrece un selector de segmento basado en los códigos disponibles y renderiza la edición del agente para el segmento elegido. Su responsabilidad es coordinar el cambio de segmento y propagar parches de configuración al segmento activo.",
    "id": "component:configuracion/SegmentAgentTab",
    "keywords": [],
    "kind": "component",
@@ -18239,7 +18269,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentAnalystSection.tsx"
    },
-   "description": "",
+   "description": "Sección para editar el “Prompt del analista” que guía la resolución de una alerta. Permite insertar variables disponibles en el prompt y abrir gestores de catálogos de marcación y métodos de resolución.",
    "id": "component:configuracion/SegmentAnalystSection",
    "keywords": [
     "Prompt del analista",
@@ -18259,7 +18289,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentClassificationSection.tsx"
    },
-   "description": "",
+   "description": "Sección para configurar el agente de clasificación: herramientas disponibles y su prompt. Incluye editor de prompt con resaltado de variables, selector para insertarlas y un campo para definir etiquetas de salida.",
    "id": "component:configuracion/SegmentClassificationSection",
    "keywords": [
     "Qué puede consultar el agente de clasificación al evaluar una alerta.",
@@ -18279,7 +18309,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentDetectorSection.tsx"
    },
-   "description": "",
+   "description": "Sección para configurar el detector de alertas: herramientas del agente (con indicación de puntuación XGBoost) y su prompt. Permite definir etiquetas de salida y gestionar variables insertables dentro del prompt.",
    "id": "component:configuracion/SegmentDetectorSection",
    "keywords": [
     "Detector de alertas",
@@ -18302,7 +18332,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentDeterministicSection.tsx"
    },
-   "description": "",
+   "description": "Sección para crear y editar reglas de decisiones determinísticas basadas en condiciones. Permite seleccionar la decisión y una acción ARIC asociada, además de agregar nuevas decisiones con su condición.",
    "id": "component:configuracion/SegmentDeterministicSection",
    "keywords": [
     "Decisiones determinísticas",
@@ -18319,7 +18349,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentDocumentationSection.tsx"
    },
-   "description": "",
+   "description": "Sección para elegir y configurar una estrategia de documentación entre “Plantilla” y “Agente”. Ofrece editores de texto/prompt con inserción de variables, habilitando solo la estrategia seleccionada sin perder lo escrito en la otra.",
    "id": "component:configuracion/SegmentDocumentationSection",
    "keywords": [
     "Plantilla",
@@ -18339,7 +18369,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentEvaluationSection.tsx"
    },
-   "description": "",
+   "description": "Sección de “Evaluación” por segmento que agrupa intervalo de muestreo, filtros/distribución y límites de muestras. También incluye campos de prompts e insumos para que el agente de monitoreo califique cada muestra, usando un pool de variables combinadas.",
    "id": "component:configuracion/SegmentEvaluationSection",
    "keywords": [
     "1. Intervalo de muestreo",
@@ -18364,7 +18394,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentEvaluationTab.tsx"
    },
-   "description": "",
+   "description": "Pestaña de “Evaluación” que permite elegir un segmento mediante un selector y mostrar su configuración. Encapsula la edición de la sección de evaluación y pasa variables extra provenientes de enriquecimientos habilitados del segmento.",
    "id": "component:configuracion/SegmentEvaluationTab",
    "keywords": [],
    "kind": "component",
@@ -18374,7 +18404,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentExecutorSection.tsx"
    },
-   "description": "",
+   "description": "Sección para configurar el “Ejecutor” con múltiples bloques, incluyendo un prompt para marcación ARIC con inserción de variables. Además integra la sección de documentación y gestiona prompts relacionados con voicebot/escalado mediante editores y listas editables.",
    "id": "component:configuracion/SegmentExecutorSection",
    "keywords": [
     "Marcación ARIC",
@@ -18396,7 +18426,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentProfilingSection.tsx"
    },
-   "description": "",
+   "description": "Sección para configurar el “profiling” de un segmento: define enriquecimiento de campos y tres estrategias en orden, usando un pool de variables disponible. También integra la edición de rúbricas asociadas al segmento y permite insertar variables en prompts.",
    "id": "component:configuracion/SegmentProfilingSection",
    "keywords": [
     "Prompt",
@@ -18409,7 +18439,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentRubricsSection.tsx"
    },
-   "description": "",
+   "description": "Componentes y utilidades para crear y editar rúbricas basadas en condiciones (variable, comparación, valores y puntaje). Incluye cálculo/validación del total de puntos y un editor de condiciones con inputs y selectores.",
    "id": "component:configuracion/SegmentRubricsSection",
    "keywords": [
     "es mayor que",
@@ -18439,7 +18469,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentStageJsonInspector.tsx"
    },
-   "description": "",
+   "description": "Inspector desplegable que muestra un “contrato JSON” con entradas y salidas esperadas para una etapa (parser, profiling, detector, etc.). Formatea y presenta el JSON en dos bloques legibles para revisión.",
    "id": "component:configuracion/SegmentStageJsonInspector",
    "keywords": [
     "Visualizador de contrato JSON",
@@ -18453,7 +18483,7 @@
    "attrs": {
     "file": "components/configuracion/SegmentoTab.tsx"
    },
-   "description": "",
+   "description": "Pestaña para listar y editar la configuración de segmentos/canales, incluyendo agregar/quitar canales y reordenarlos por drag-and-drop. Expone controles y enlaces relacionados y permite actualizar propiedades del segmento desde la UI.",
    "id": "component:configuracion/SegmentoTab",
    "keywords": [
     "Los canales se gestionan en",
@@ -18469,7 +18499,7 @@
    "attrs": {
     "file": "components/configuracion/TagMultiSelect.tsx"
    },
-   "description": "",
+   "description": "Selector múltiple de tags por categoría con búsqueda, que carga opciones desde un catálogo remoto y permite agregar/quitar valores seleccionados. Muestra los tags como chips y usa un popover con lista filtrable.",
    "id": "component:configuracion/TagMultiSelect",
    "keywords": [
     "Sin valores seleccionados.",
@@ -18483,7 +18513,7 @@
    "attrs": {
     "file": "components/configuracion/VariableCatalogManager.tsx"
    },
-   "description": "",
+   "description": "Panel lateral para administrar el catálogo de variables de origen: listar, crear, editar descripción, activar/desactivar y eliminar entradas. Mantiene el estado de carga/errores y refresca/invalida el pool de variables tras cambios.",
    "id": "component:configuracion/VariableCatalogManager",
    "keywords": [
     "Gestionar variables de origen",
@@ -18553,7 +18583,7 @@
    "attrs": {
     "file": "components/configuracion/shared/AgentToolsSection.tsx"
    },
-   "description": "",
+   "description": "Sección de configuración de “Herramientas del agente” que agrupa toggles y campos asociados (p. ej., modelo XGBoost e investigación delegada). Consulta modelos disponibles y actualiza el objeto de configuración de herramientas de forma centralizada.",
    "id": "component:configuracion/shared/AgentToolsSection",
    "keywords": [
     "Fecha",
@@ -18589,7 +18619,7 @@
    "attrs": {
     "file": "components/configuracion/shared/FormControls.tsx"
    },
-   "description": "",
+   "description": "Conjunto de controles reutilizables para formularios (Field, SwitchField, LimitField, TagInput y otros) usados en varias secciones de configuración. Encapsula patrones comunes de UI como etiquetas, ayudas, switches, límites numéricos y entradas tipo tags.",
    "id": "component:configuracion/shared/FormControls",
    "keywords": [
     "rango",
@@ -18620,7 +18650,7 @@
    "attrs": {
     "file": "components/configuracion/shared/PromptEditor.tsx"
    },
-   "description": "",
+   "description": "Editor de texto para prompts que resalta visualmente los tokens con formato {variable}. Sincroniza el scroll entre un textarea transparente y una capa de preformateado, y expone métodos para leer la selección y mover el cursor.",
    "id": "component:configuracion/shared/PromptEditor",
    "keywords": [],
    "kind": "component",
@@ -18630,7 +18660,7 @@
    "attrs": {
     "file": "components/configuracion/shared/ResolutionMethodPicker.tsx"
    },
-   "description": "",
+   "description": "Selector desplegable para elegir un método del catálogo de “resolution methods”, mostrando su etiqueta asociada. Permite filtrar por tags permitidos y, opcionalmente, abrir la acción de “Gestionar métodos”.",
    "id": "component:configuracion/shared/ResolutionMethodPicker",
    "keywords": [
     "Gestionar métodos"
@@ -18642,7 +18672,7 @@
    "attrs": {
     "file": "components/datasets/CreateEmptyDatasetModal.tsx"
    },
-   "description": "",
+   "description": "Panel lateral para crear un dataset vacío definiendo nombre y columnas mediante entrada de etiquetas. Gestiona el envío, estados de error y reset al cancelar o cerrar.",
    "id": "component:datasets/CreateEmptyDatasetModal",
    "keywords": [
     "Crear dataset vacío",
@@ -18659,7 +18689,7 @@
    "attrs": {
     "file": "components/datasets/DatasetColumnVisibilityMenu.tsx"
    },
-   "description": "",
+   "description": "Menú desplegable para mostrar/ocultar columnas en tablas de filas de un dataset. Incluye búsqueda (regex o substring) y una lista con scroll para manejar muchos campos.",
    "id": "component:datasets/DatasetColumnVisibilityMenu",
    "keywords": [
     "Sin coincidencias."
@@ -18671,7 +18701,7 @@
    "attrs": {
     "file": "components/datasets/DatasetDetailDrawer.tsx"
    },
-   "description": "",
+   "description": "Drawer de detalle de un dataset con pestañas para Resumen, Filas y Mapeo de alertas. Recuerda la pestaña activa por dataset usando localStorage.",
    "id": "component:datasets/DatasetDetailDrawer",
    "keywords": [
     "Dataset:",
@@ -18687,7 +18717,7 @@
    "attrs": {
     "file": "components/datasets/DatasetMappingTab.tsx"
    },
-   "description": "",
+   "description": "Pestaña para editar y guardar pares de mapeo entre “campo de la alerta” y “columna del dataset”, con sugerencias vía datalist. Carga el mapeo existente y permite agregar, modificar o eliminar filas antes de guardar.",
    "id": "component:datasets/DatasetMappingTab",
    "keywords": [
     "Cargando mapeo…",
@@ -18711,7 +18741,7 @@
    "attrs": {
     "file": "components/datasets/DatasetRowsTab.tsx"
    },
-   "description": "",
+   "description": "Pestaña para listar filas del dataset en una tabla paginada con columnas derivadas de las claves presentes en los registros. Incluye acciones para descargar una plantilla CSV y agregar filas pegando JSON, además de abrir modales relacionados.",
    "id": "component:datasets/DatasetRowsTab",
    "keywords": [
     "filas totales.",
@@ -18730,7 +18760,7 @@
    "attrs": {
     "file": "components/datasets/DatasetSplitDrawer.tsx"
    },
-   "description": "",
+   "description": "Drawer para preparar una copia particionada de un dataset configurando nombre destino, proporciones por partición, semilla y campos de estratificación. Muestra una vista previa y habilita la confirmación cuando la distribución es válida.",
    "id": "component:datasets/DatasetSplitDrawer",
    "keywords": [
     "Preparar particiones",
@@ -18753,7 +18783,7 @@
    "attrs": {
     "file": "components/datasets/DatasetSummaryTab.tsx"
    },
-   "description": "",
+   "description": "Pestaña que muestra el resumen de un dataset (estado, origen y distribuciones) y se actualiza periódicamente según el estado. También permite lanzar un análisis bajo demanda y ejecutar una consulta de “marcación” a partir de un formulario de campos/valores, mostrando el progreso si es asíncrono.",
    "id": "component:datasets/DatasetSummaryTab",
    "keywords": [
     "Cargando resumen…",
@@ -18800,7 +18830,7 @@
    "attrs": {
     "file": "components/datasets/ExtractDatasetModal.tsx"
    },
-   "description": "",
+   "description": "Modal tipo SideDrawer para crear un dataset nuevo derivado de uno o más datasets existentes. Su responsabilidad es recoger datasets fuente, filtros campo=valor, porcentaje y nombre objetivo, y ejecutar la acción de extracción.",
    "id": "component:datasets/ExtractDatasetModal",
    "keywords": [
     "Extraer / derivar dataset",
@@ -18822,7 +18852,7 @@
    "attrs": {
     "file": "components/datasets/PickDatasetRecordsModal.tsx"
    },
-   "description": "",
+   "description": "Modal tipo SideDrawer para navegar filas paginadas de un dataset fuente, buscar dentro de la página cargada y seleccionar registros. Permite agregar las filas seleccionadas al dataset objetivo y muestra contador de selección y paginación.",
    "id": "component:datasets/PickDatasetRecordsModal",
    "keywords": [
     "Elegir registros de otro dataset",
@@ -18845,7 +18875,7 @@
    "attrs": {
     "file": "components/datasets/RowJsonModal.tsx"
    },
-   "description": "",
+   "description": "Modal que visualiza una fila como JSON formateado, parseando campos con JSON embebido para una lectura más clara. Incluye acción para copiar el JSON al portapapeles y un visor en formato <pre>.",
    "id": "component:datasets/RowJsonModal",
    "keywords": [
     "Fila como JSON"
@@ -18902,7 +18932,7 @@
    "attrs": {
     "file": "components/metrics/MetricsShared.tsx"
    },
-   "description": "",
+   "description": "Conjunto de componentes reutilizables para pantallas de métricas: control de rango (presets y calendario) y badges/avisos informativos. Su responsabilidad es gestionar la selección de periodo y presentar advertencias/resumenes con detalle bajo demanda.",
    "id": "component:metrics/MetricsShared",
    "keywords": [
     "Cancelar",
@@ -18918,7 +18948,7 @@
    "attrs": {
     "file": "components/modelos/FeatureEngineering.tsx"
    },
-   "description": "",
+   "description": "Editor interactivo para definir y evaluar features sobre un JSON de ejemplo, soportando operaciones como mapeo, transformaciones numéricas y agregaciones sobre arrays. Se encarga de mantener la lista de definiciones, el JSON de entrada y calcular el resultado/soporte de cada feature.",
    "id": "component:modelos/FeatureEngineering",
    "keywords": [
     "Ingeniería de características",
@@ -18951,7 +18981,7 @@
    "attrs": {
     "file": "components/modelos/FeatureRecipeWorkspace.tsx"
    },
-   "description": "",
+   "description": "Espacio de trabajo para construir, previsualizar y gestionar “recetas” de features mediante pasos/operaciones configurables. Centraliza la edición de recetas y el acceso a catálogos/capacidades/plantillas para componer y probar transformaciones.",
    "id": "component:modelos/FeatureRecipeWorkspace",
    "keywords": [
     "La constante no coincide con el tipo de salida",
@@ -19002,7 +19032,7 @@
    "attrs": {
     "file": "components/modelos/ModelContractTester.tsx"
    },
-   "description": "",
+   "description": "Formulario para probar el contrato de entrada de un modelo generando campos a partir de su configuración guardada. Permite introducir valores (texto/número/JSON), construir el objeto anidado por path y ejecutar una prueba de scoring, mostrando errores de parseo si ocurren.",
    "id": "component:modelos/ModelContractTester",
    "keywords": [
     "Entrena el modelo para probar el contrato de scoring.",
@@ -19022,7 +19052,7 @@
    "attrs": {
     "file": "components/modelos/ModelDesignStudio.tsx"
    },
-   "description": "",
+   "description": "Asistente tipo “studio” para diseñar un modelo paso a paso (datos/objetivo, características, XGBoost y revisión), con formularios y paneles de configuración. Incluye previsualización/simulación de ingeniería de features y visualizaciones (gráficas) para explorar resultados.",
    "id": "component:modelos/ModelDesignStudio",
    "keywords": [
     "PROTOTIPO · DATOS DE EJEMPLO",
@@ -19073,7 +19103,7 @@
    "attrs": {
     "file": "components/modelos/ModelFormModal.tsx"
    },
-   "description": "",
+   "description": "Modal lateral para crear un nuevo modelo definiendo tag, descripción, dataset, campo objetivo y etiquetas positivas. Permite construir y gestionar una lista de transformaciones por campo antes de enviar la creación.",
    "id": "component:modelos/ModelFormModal",
    "keywords": [
     "Nuevo modelo",
@@ -19195,7 +19225,7 @@
    "attrs": {
     "file": "components/testing/AlertFullData.tsx"
    },
-   "description": "",
+   "description": "Vista de datos canónicos de una alerta a partir de una salida de preproceso, formateada según el esquema activo. Su responsabilidad es normalizar el objeto de entrada y renderizarlo con el componente de esquema.",
    "id": "component:testing/AlertFullData",
    "keywords": [
     "No hay datos canónicos de la alerta."
@@ -19207,7 +19237,7 @@
    "attrs": {
     "file": "components/testing/CaseAlertData.tsx"
    },
-   "description": "",
+   "description": "Panel que muestra los datos de la alerta de un caso (input, labels, historial y salida del agente) usando el esquema activo. También presenta un bloque con las etiquetas esperadas de evaluación para el caso.",
    "id": "component:testing/CaseAlertData",
    "keywords": [
     "Datos de la alerta",
@@ -19221,7 +19251,7 @@
    "attrs": {
     "file": "components/testing/CaseClassificationLoop.tsx"
    },
-   "description": "",
+   "description": "Listado de intentos del clasificador y su revisión adversarial dentro de las ejecuciones del caso. Resume para cada paso el resultado (predicción/aprobación/retorno) y la duración.",
    "id": "component:testing/CaseClassificationLoop",
    "keywords": [
     "Intentos del clasificador",
@@ -19239,7 +19269,7 @@
    "attrs": {
     "file": "components/testing/CaseDetail.tsx"
    },
-   "description": "",
+   "description": "Vista de detalle de un caso de testing que organiza el pipeline, el selector de ejecuciones y el detalle del paso activo. Integra además el resultado del caso, comparación de esquema y el bucle de clasificación.",
    "id": "component:testing/CaseDetail",
    "keywords": [
     "Pipeline",
@@ -19253,7 +19283,7 @@
    "attrs": {
     "file": "components/testing/CaseList.tsx"
    },
-   "description": "",
+   "description": "Tabla compacta para listar casos de testing con búsqueda por IDs, estado y duración. Permite seleccionar un caso haciendo clic en una fila y resalta el caso activo.",
    "id": "component:testing/CaseList",
    "keywords": [
     "Caso",
@@ -19270,7 +19300,7 @@
    "attrs": {
     "file": "components/testing/CasePipeline.tsx"
    },
-   "description": "",
+   "description": "Diagrama horizontal interactivo del pipeline de pasos para una ejecución, mostrando estado (completado/fallido/en curso/no ejecutado) y duración por nodo. Permite seleccionar un paso con datos disponibles y muestra ayuda contextual por etapa.",
    "id": "component:testing/CasePipeline",
    "keywords": [],
    "kind": "component",
@@ -19280,7 +19310,7 @@
    "attrs": {
     "file": "components/testing/CaseResult.tsx"
    },
-   "description": "",
+   "description": "Muestra un resumen del resultado de un caso en una caja con tono visual (en proceso, fallido o completado). Su responsabilidad es traducir el estado y los outputs de pasos (p. ej., determinístico o clasificación) a un mensaje legible para el usuario.",
    "id": "component:testing/CaseResult",
    "keywords": [
     "text-primary",
@@ -19297,7 +19327,7 @@
    "attrs": {
     "file": "components/testing/CaseStatusFilters.tsx"
    },
-   "description": "",
+   "description": "Renderiza un conjunto de botones/segmentos para filtrar casos por grupos de resultado y ver el conteo y porcentaje de cada grupo. También muestra estadísticas informativas adicionales con ayudas (hints) y permite seleccionar/deseleccionar un filtro.",
    "id": "component:testing/CaseStatusFilters",
    "keywords": [
     "Todos los casos",
@@ -19311,7 +19341,7 @@
    "attrs": {
     "file": "components/testing/CaseStepDetail.tsx"
    },
-   "description": "",
+   "description": "Presenta el detalle de un paso del workflow en pestañas (salida, entrada, error, razonamiento y JSONs relacionados). Su función principal es permitir inspeccionar y copiar el contenido mostrado (incluyendo datos completos de alerta y el JSON completo del caso).",
    "id": "component:testing/CaseStepDetail",
    "keywords": [
     "Intento",
@@ -19336,7 +19366,7 @@
    "attrs": {
     "file": "components/testing/CopyButton.tsx"
    },
-   "description": "",
+   "description": "Botón reutilizable para copiar un texto al portapapeles con feedback temporal de “Copiado”. Su responsabilidad es ejecutar la acción de copia y mostrar un hint/estado visual según el resultado.",
    "id": "component:testing/CopyButton",
    "keywords": [],
    "kind": "component",
@@ -19346,7 +19376,7 @@
    "attrs": {
     "file": "components/testing/DatasetDetailModal.tsx"
    },
-   "description": "",
+   "description": "Panel lateral (side drawer) para consultar en modo lectura el detalle de un dataset seleccionado, reutilizando el tab de resumen. Sirve para “ojear” totales y distribuciones y ofrece un enlace para gestionarlo en la vista de Biblioteca.",
    "id": "component:testing/DatasetDetailModal",
    "keywords": [
     "Dataset:",
@@ -19360,7 +19390,7 @@
    "attrs": {
     "file": "components/testing/DatasetTestForm.tsx"
    },
-   "description": "",
+   "description": "Formulario para configurar y lanzar una prueba basada en un dataset, incluyendo selección de dataset, tamaño de muestra e inputs de configuración/esquema. Se encarga de manejar el estado del formulario, persistir la selección de configuración/versión y abrir la vista de detalle del dataset dentro del flujo.",
    "id": "component:testing/DatasetTestForm",
    "keywords": [
     "Ej: Regresión semanal",
@@ -19394,7 +19424,7 @@
    "attrs": {
     "file": "components/testing/ExecutionMarkers.tsx"
    },
-   "description": "",
+   "description": "Muestra marcadores numerados para navegar entre múltiples ejecuciones/intentos de un caso, con tooltips de resumen. Su responsabilidad es indicar visualmente estado de cada ejecución (fallida, exitosa o en progreso) y permitir seleccionar cuál ver.",
    "id": "component:testing/ExecutionMarkers",
    "keywords": [
     "Ejecuciones del caso",
@@ -19407,7 +19437,7 @@
    "attrs": {
     "file": "components/testing/FormularioTestForm.tsx"
    },
-   "description": "",
+   "description": "Interfaz para probar una alerta ingresando un payload JSON en un formulario y despacharlo al pipeline, mostrando el progreso de la operación asíncrona. Su responsabilidad es validar/parsing del JSON, iniciar la prueba y renderizar estado, errores y resultado en línea.",
    "id": "component:testing/FormularioTestForm",
    "keywords": [
     "Alerta",
@@ -19427,7 +19457,7 @@
    "attrs": {
     "file": "components/testing/GeneradorScenarioForm.tsx"
    },
-   "description": "",
+   "description": "Formulario para crear y configurar un escenario de simulación, definiendo intervalos de tasa y generadores por campo. Permite crear un borrador, ver una vista previa, iniciar la ejecución y descartar/eliminar escenarios desde la misma interfaz.",
    "id": "component:testing/GeneradorScenarioForm",
    "keywords": [
     "Constante",
@@ -19478,7 +19508,7 @@
    "attrs": {
     "file": "components/testing/Hint.tsx"
    },
-   "description": "",
+   "description": "Componente de ayuda contextual que muestra un tooltip al interactuar con un elemento disparador. Incluye una variante \"InfoHint\" que renderiza un icono accesible para desplegar la información.",
    "id": "component:testing/Hint",
    "keywords": [],
    "kind": "component",
@@ -19488,7 +19518,7 @@
    "attrs": {
     "file": "components/testing/JsonTree.tsx"
    },
-   "description": "",
+   "description": "Visor de datos JSON en formato árbol, con expansión/colapso por niveles para facilitar la lectura. Resalta valores primitivos y evita abrir completamente estructuras grandes por defecto.",
    "id": "component:testing/JsonTree",
    "keywords": [
     "null"
@@ -19500,7 +19530,7 @@
    "attrs": {
     "file": "components/testing/LegendStat.tsx"
    },
-   "description": "",
+   "description": "Tarjeta/ítem de estadística con etiqueta, valor y texto auxiliar, pensada para resúmenes en dashboards. Puede mostrar un tooltip de ayuda y aplicar un estilo de color configurable.",
    "id": "component:testing/LegendStat",
    "keywords": [],
    "kind": "component",
@@ -19526,7 +19556,7 @@
    "attrs": {
     "file": "components/testing/RunDetailTabs.tsx"
    },
-   "description": "",
+   "description": "Navegación por pestañas para alternar entre secciones de detalle de una ejecución, mostrando el contenido asociado a cada tab. Opcionalmente incluye una estadística destacada en el encabezado de la pestaña activa con ayuda contextual.",
    "id": "component:testing/RunDetailTabs",
    "keywords": [],
    "kind": "component",
@@ -19536,7 +19566,7 @@
    "attrs": {
     "file": "components/testing/RunDurationSummary.tsx"
    },
-   "description": "",
+   "description": "Resumen visual de métricas de duración agregadas (totales y por etapa), con indicadores y una tabla de tiempos por paso. Calcula y presenta duraciones formateadas y proporciones como procesamiento vs espera/reintentos.",
    "id": "component:testing/RunDurationSummary",
    "keywords": [
     "Casos terminados",
@@ -19562,7 +19592,7 @@
    "attrs": {
     "file": "components/testing/SchemaComparison.tsx"
    },
-   "description": "",
+   "description": "Sección que compara la entrada de pre-proceso entre un esquema activo y uno candidato, listando campos que aparecen, desaparecen o cambian. Presenta versiones y un estado cuando no hay diferencias.",
    "id": "component:testing/SchemaComparison",
    "keywords": [
     "Comparación de pre-proceso",
@@ -19576,7 +19606,7 @@
    "attrs": {
     "file": "components/testing/SectionDivider.tsx"
    },
-   "description": "",
+   "description": "Divisor visual horizontal con efecto de brillo animado para separar secciones de la interfaz. Es decorativo y se marca como no relevante para lectores de pantalla.",
    "id": "component:testing/SectionDivider",
    "keywords": [],
    "kind": "component",
@@ -19598,7 +19628,7 @@
    "attrs": {
     "file": "components/ui/PaginationFooter.tsx"
    },
-   "description": "",
+   "description": "Pie de paginación para listas o tablas: muestra un resumen de resultados (rango y total) y controles para navegar entre páginas (inicio, anterior, siguiente, final). También puede incluir controles extra, un modo compacto y un selector de “filas por página”.",
    "id": "component:ui/PaginationFooter",
    "keywords": [
     "Filas por página",
@@ -19614,7 +19644,7 @@
    "attrs": {
     "file": "components/ui/accordion.tsx"
    },
-   "description": "",
+   "description": "Conjunto de componentes de acordeón (raíz, ítem, disparador y contenido) para mostrar secciones expandibles/colapsables. Su responsabilidad es envolver Radix Accordion y aplicar estilos y el icono de despliegue.",
    "id": "component:ui/accordion",
    "keywords": [],
    "kind": "component",
@@ -19624,7 +19654,7 @@
    "attrs": {
     "file": "components/ui/alert.tsx"
    },
-   "description": "",
+   "description": "Componentes para mostrar un mensaje de alerta con variantes visuales (por defecto y destructiva). Incluye título y descripción, y se encarga del layout, rol ARIA y estilos.",
    "id": "component:ui/alert",
    "keywords": [],
    "kind": "component",
@@ -19634,7 +19664,7 @@
    "attrs": {
     "file": "components/ui/alert-dialog.tsx"
    },
-   "description": "",
+   "description": "Componentes para un diálogo de confirmación/alerta modal basado en Radix (overlay, contenido, encabezado, pie, título, descripción, acción y cancelar). Su responsabilidad es renderizar la estructura del modal con estilos y botones consistentes.",
    "id": "component:ui/alert-dialog",
    "keywords": [],
    "kind": "component",
@@ -19644,7 +19674,7 @@
    "attrs": {
     "file": "components/ui/aspect-ratio.tsx"
    },
-   "description": "",
+   "description": "Wrapper de AspectRatio de Radix para mantener una proporción fija en su contenido. Se usa para asegurar dimensiones consistentes en elementos como imágenes o contenedores.",
    "id": "component:ui/aspect-ratio",
    "keywords": [],
    "kind": "component",
@@ -19654,7 +19684,7 @@
    "attrs": {
     "file": "components/ui/avatar.tsx"
    },
-   "description": "",
+   "description": "Componentes de avatar (contenedor, imagen y fallback) para representar visualmente a un usuario o entidad. Gestiona el recorte circular, el tamaño y un estado alternativo cuando no hay imagen.",
    "id": "component:ui/avatar",
    "keywords": [],
    "kind": "component",
@@ -19664,7 +19694,7 @@
    "attrs": {
     "file": "components/ui/badge.tsx"
    },
-   "description": "",
+   "description": "Insignia/etiqueta pequeña con variantes de estilo (default, secondary, destructive, outline) para resaltar estados o categorías. Su responsabilidad es aplicar clases y estilos consistentes al contenido.",
    "id": "component:ui/badge",
    "keywords": [],
    "kind": "component",
@@ -19674,7 +19704,7 @@
    "attrs": {
     "file": "components/ui/breadcrumb.tsx"
    },
-   "description": "",
+   "description": "Componentes de breadcrumb para mostrar la ruta de navegación (lista, ítems, enlaces, página actual, separador y elipsis). Se encarga de la estructura accesible y de los elementos visuales como el separador con iconos.",
    "id": "component:ui/breadcrumb",
    "keywords": [
     "breadcrumb",
@@ -19687,7 +19717,7 @@
    "attrs": {
     "file": "components/ui/button.tsx"
    },
-   "description": "",
+   "description": "Botón reutilizable para disparar acciones o navegación con estilos consistentes. Gestiona variantes (default, outline, link, etc.), tamaños y la opción de renderizarse como hijo mediante Slot.",
    "id": "component:ui/button",
    "keywords": [],
    "kind": "component",
@@ -19697,7 +19727,7 @@
    "attrs": {
     "file": "components/ui/calendar.tsx"
    },
-   "description": "",
+   "description": "Calendario interactivo basado en DayPicker para seleccionar y navegar fechas. Se encarga del layout, estilos/clases y de los controles de navegación (meses y flechas) usando variantes de Button.",
    "id": "component:ui/calendar",
    "keywords": [],
    "kind": "component",
@@ -19707,7 +19737,7 @@
    "attrs": {
     "file": "components/ui/card.tsx"
    },
-   "description": "",
+   "description": "Contenedor tipo tarjeta para agrupar y presentar contenido de forma estructurada. Provee subcomponentes (Header, Title, Description, Content, Footer) con estilos base consistentes.",
    "id": "component:ui/card",
    "keywords": [],
    "kind": "component",
@@ -19717,7 +19747,7 @@
    "attrs": {
     "file": "components/ui/carousel.tsx"
    },
-   "description": "",
+   "description": "Carrusel para mostrar contenido en diapositivas desplazables en orientación horizontal o vertical. Administra el estado de navegación (puede/no puede desplazarse), control por teclado y botones de anterior/siguiente mediante contexto.",
    "id": "component:ui/carousel",
    "keywords": [
     "Previous slide",
@@ -19730,7 +19760,7 @@
    "attrs": {
     "file": "components/ui/chart.tsx"
    },
-   "description": "",
+   "description": "Contenedor y utilidades para gráficos con Recharts, orientado a mantener configuración y estilos por tema. Incluye contexto de configuración, inyección de variables CSS de color y componentes de tooltip para mostrar detalles del gráfico.",
    "id": "component:ui/chart",
    "keywords": [],
    "kind": "component",
@@ -19740,7 +19770,7 @@
    "attrs": {
     "file": "components/ui/checkbox.tsx"
    },
-   "description": "",
+   "description": "Checkbox estilizado basado en Radix para activar o desactivar una opción. Maneja estados (checked/disabled) y renderiza el indicador con un icono de check.",
    "id": "component:ui/checkbox",
    "keywords": [],
    "kind": "component",
@@ -19750,7 +19780,7 @@
    "attrs": {
     "file": "components/ui/collapsible.tsx"
    },
-   "description": "",
+   "description": "Componentes wrapper de Radix para secciones expandibles/colapsables. Expone Root, Trigger y Content para controlar la visibilidad de contenido asociado.",
    "id": "component:ui/collapsible",
    "keywords": [],
    "kind": "component",
@@ -19760,7 +19790,7 @@
    "attrs": {
     "file": "components/ui/command.tsx"
    },
-   "description": "",
+   "description": "Interfaz de comandos/búsqueda (cmdk) para filtrar y seleccionar opciones en una lista. Incluye variante en diálogo (CommandDialog), entrada con icono de búsqueda, grupos, elementos, separadores y estado vacío.",
    "id": "component:ui/command",
    "keywords": [],
    "kind": "component",
@@ -19770,7 +19800,7 @@
    "attrs": {
     "file": "components/ui/confirm-delete-dialog.tsx"
    },
-   "description": "",
+   "description": "Diálogo de confirmación para eliminar un elemento, mostrando el nombre y una descripción de consecuencias. Gestiona estados de carga (pending) y la visualización de un error para reintentar la acción.",
    "id": "component:ui/confirm-delete-dialog",
    "keywords": [
     "Eliminar",
@@ -19783,7 +19813,7 @@
    "attrs": {
     "file": "components/ui/confirm-vector-store-documents-dialog.tsx"
    },
-   "description": "",
+   "description": "Diálogo de confirmación para agregar una lista de documentos relacionados a una instancia, mostrando el recuento y el detalle de cada documento. Permite cancelar o confirmar, e indica estado pendiente y posibles errores.",
    "id": "component:ui/confirm-vector-store-documents-dialog",
    "keywords": [
     "Agregar documentos a la instancia",
@@ -19798,7 +19828,7 @@
    "attrs": {
     "file": "components/ui/context-menu.tsx"
    },
-   "description": "",
+   "description": "Conjunto de componentes de menú contextual (clic derecho) basado en Radix, con soporte para ítems, grupos, submenús y selecciones (checkbox/radio). Su responsabilidad es aportar estructura y estilos para desplegar acciones contextuales.",
    "id": "component:ui/context-menu",
    "keywords": [],
    "kind": "component",
@@ -19808,7 +19838,7 @@
    "attrs": {
     "file": "components/ui/dialog.tsx"
    },
-   "description": "",
+   "description": "Componentes reutilizables para construir un modal (diálogo) con overlay, contenido centrado y botón de cierre. Proporciona encabezado, pie, título y descripción con estilos consistentes.",
    "id": "component:ui/dialog",
    "keywords": [
     "Close"
@@ -19820,7 +19850,7 @@
    "attrs": {
     "file": "components/ui/drawer.tsx"
    },
-   "description": "",
+   "description": "Componentes para un panel tipo “drawer” deslizable desde la parte inferior con overlay y contenido en portal. Incluye secciones de header/footer y título/descripción para organizar información en un panel móvil.",
    "id": "component:ui/drawer",
    "keywords": [],
    "kind": "component",
@@ -19830,7 +19860,7 @@
    "attrs": {
     "file": "components/ui/dropdown-menu.tsx"
    },
-   "description": "",
+   "description": "Conjunto de componentes para menús desplegables basados en Radix, con ítems, submenús y opciones tipo checkbox/radio. Se encarga de la estructura, accesibilidad y estilos del menú emergente.",
    "id": "component:ui/dropdown-menu",
    "keywords": [],
    "kind": "component",
@@ -19840,7 +19870,7 @@
    "attrs": {
     "file": "components/ui/form.tsx"
    },
-   "description": "",
+   "description": "Utilidades y componentes para construir formularios con react-hook-form, conectando campos, etiquetas, descripciones y mensajes de error. Centraliza el manejo de ids/ARIA y el render de validaciones por campo.",
    "id": "component:ui/form",
    "keywords": [],
    "kind": "component",
@@ -19850,7 +19880,7 @@
    "attrs": {
     "file": "components/ui/hover-card.tsx"
    },
-   "description": "",
+   "description": "Componentes para mostrar una tarjeta emergente al pasar el cursor (hover), con contenido en popover. Su función es presentar información contextual breve con estilos y posicionamiento configurables.",
    "id": "component:ui/hover-card",
    "keywords": [],
    "kind": "component",
@@ -19860,7 +19890,7 @@
    "attrs": {
     "file": "components/ui/input.tsx"
    },
-   "description": "",
+   "description": "Campo de entrada HTML reutilizable con estilos consistentes y soporte de ref. Su responsabilidad es renderizar un <input> con clases predefinidas y permitir personalización vía props y className.",
    "id": "component:ui/input",
    "keywords": [],
    "kind": "component",
@@ -19870,7 +19900,7 @@
    "attrs": {
     "file": "components/ui/input-otp.tsx"
    },
-   "description": "",
+   "description": "Conjunto de componentes para capturar códigos OTP en slots individuales (grupo, slot y separador). Su responsabilidad es componer y estilizar el OTPInput, mostrando el carácter por posición, el caret simulado y un separador visual.",
    "id": "component:ui/input-otp",
    "keywords": [],
    "kind": "component",
@@ -19880,7 +19910,7 @@
    "attrs": {
     "file": "components/ui/label.tsx"
    },
-   "description": "",
+   "description": "Etiqueta accesible basada en Radix Label para asociar texto descriptivo a controles de formulario. Su responsabilidad es renderizar un label con variantes de estilo y estados como deshabilitado mediante clases.",
    "id": "component:ui/label",
    "keywords": [],
    "kind": "component",
@@ -19890,7 +19920,7 @@
    "attrs": {
     "file": "components/ui/menubar.tsx"
    },
-   "description": "",
+   "description": "Componentes de barra de menú basados en Radix Menubar (root, triggers, submenús, contenido y grupos). Su responsabilidad es estructurar y dar estilo a menús desplegables y submenús con indicadores visuales e iconos.",
    "id": "component:ui/menubar",
    "keywords": [],
    "kind": "component",
@@ -19900,7 +19930,7 @@
    "attrs": {
     "file": "components/ui/navigation-menu.tsx"
    },
-   "description": "",
+   "description": "Componentes de navegación basados en Radix Navigation Menu para construir menús superiores con listas, triggers y panel de contenido. Su responsabilidad es gestionar la estructura visual (viewport e indicator incluidos) y aplicar estilos/animaciones a las transiciones.",
    "id": "component:ui/navigation-menu",
    "keywords": [],
    "kind": "component",
@@ -19910,7 +19940,7 @@
    "attrs": {
     "file": "components/ui/pagination.tsx"
    },
-   "description": "",
+   "description": "Componentes de paginación (contenedor, items y enlaces) con controles de anterior/siguiente y elipsis. Su responsabilidad es renderizar la UI de navegación entre páginas con estados activos y etiquetas ARIA.",
    "id": "component:ui/pagination",
    "keywords": [
     "pagination",
@@ -19927,7 +19957,7 @@
    "attrs": {
     "file": "components/ui/popover.tsx"
    },
-   "description": "",
+   "description": "Componentes de popover basados en Radix Popover (root, trigger, anchor y content). Su responsabilidad es mostrar contenido flotante alineado respecto a un disparador con estilos y animaciones.",
    "id": "component:ui/popover",
    "keywords": [],
    "kind": "component",
@@ -19937,7 +19967,7 @@
    "attrs": {
     "file": "components/ui/progress.tsx"
    },
-   "description": "",
+   "description": "Barra de progreso basada en Radix Progress que representa visualmente un valor. Su responsabilidad es renderizar el contenedor y el indicador ajustando su desplazamiento según la prop value.",
    "id": "component:ui/progress",
    "keywords": [],
    "kind": "component",
@@ -19947,7 +19977,7 @@
    "attrs": {
     "file": "components/ui/radio-group.tsx"
    },
-   "description": "",
+   "description": "Conjunto de controles de opción única basado en Radix Radio Group, para que el usuario elija una alternativa dentro de un grupo. Incluye RadioGroupItem con estilos y un indicador visual (círculo) para el estado seleccionado.",
    "id": "component:ui/radio-group",
    "keywords": [],
    "kind": "component",
@@ -19957,7 +19987,7 @@
    "attrs": {
     "file": "components/ui/resizable.tsx"
    },
-   "description": "",
+   "description": "Componentes para crear layouts con paneles redimensionables (grupo, panel y separador) usando react-resizable-panels. El handle opcional muestra un agarre visual para indicar que el usuario puede arrastrar y ajustar el tamaño.",
    "id": "component:ui/resizable",
    "keywords": [],
    "kind": "component",
@@ -19967,7 +19997,7 @@
    "attrs": {
     "file": "components/ui/scroll-area.tsx"
    },
-   "description": "",
+   "description": "Área con scroll personalizada basada en Radix Scroll Area para mostrar contenido dentro de un contenedor con overflow controlado. Incluye ScrollBar vertical u horizontal y su thumb estilizado.",
    "id": "component:ui/scroll-area",
    "keywords": [],
    "kind": "component",
@@ -19977,7 +20007,7 @@
    "attrs": {
     "file": "components/ui/section-tabs.tsx"
    },
-   "description": "",
+   "description": "Navegación por secciones mediante botones tipo pestaña, usada como navegación compartida en configuración y un asistente (wizard). Permite cambiar el valor activo, mostrar estado deshabilitado y marcar secciones con cambios sin guardar mediante un indicador (dirty).",
    "id": "component:ui/section-tabs",
    "keywords": [],
    "kind": "component",
@@ -19987,7 +20017,7 @@
    "attrs": {
     "file": "components/ui/select.tsx"
    },
-   "description": "",
+   "description": "Select desplegable basado en Radix Select para que el usuario elija un valor de una lista. Provee trigger, contenido con viewport y scroll buttons, labels e items con indicador de selección.",
    "id": "component:ui/select",
    "keywords": [],
    "kind": "component",
@@ -19997,7 +20027,7 @@
    "attrs": {
     "file": "components/ui/separator.tsx"
    },
-   "description": "",
+   "description": "Separador visual horizontal o vertical basado en Radix Separator para dividir secciones de la interfaz. Su responsabilidad principal es renderizar una línea con la orientación y estilos adecuados.",
    "id": "component:ui/separator",
    "keywords": [],
    "kind": "component",
@@ -20007,7 +20037,7 @@
    "attrs": {
     "file": "components/ui/sheet.tsx"
    },
-   "description": "",
+   "description": "Panel tipo “sheet” (diálogo lateral/superior/inferior) basado en Radix Dialog, con overlay y animaciones según el lado. Incluye piezas composables (Content, Header/Footer, Title/Description) y un botón de cierre integrado.",
    "id": "component:ui/sheet",
    "keywords": [
     "Close"
@@ -20019,7 +20049,7 @@
    "attrs": {
     "file": "components/ui/side-drawer.tsx"
    },
-   "description": "",
+   "description": "Cajón lateral derecho (overlay) para formularios de crear/editar, construido con Radix Dialog para gestionar foco, cierre por Esc y click fuera. Incluye cabecera con título/descrición, opción de footer, tamaños configurables y un aviso/confirmación al cerrar si hay cambios sin guardar (dirty), además de una marca visual cuando el contenido fue “propuesto por ARIA”.",
    "id": "component:ui/side-drawer",
    "keywords": [
     "Propuesto por ARIA: revísalo antes de guardar",
@@ -20035,7 +20065,7 @@
    "attrs": {
     "file": "components/ui/sidebar.tsx"
    },
-   "description": "",
+   "description": "Componente de barra lateral que envuelve la UI con un proveedor de contexto para gestionar su estado (expandida/colapsada) y el comportamiento en móvil. Su responsabilidad principal es renderizar y coordinar la apertura/cierre (incluyendo atajo de teclado) y exponer utilidades de control a los elementos hijos.",
    "id": "component:ui/sidebar",
    "keywords": [
     "Sidebar",
@@ -20049,7 +20079,7 @@
    "attrs": {
     "file": "components/ui/skeleton.tsx"
    },
-   "description": "",
+   "description": "Componente visual de “placeholder” con animación de pulso para mostrar carga mientras el contenido real no está disponible. Su responsabilidad es renderizar un bloque estilizado configurable por clases.",
    "id": "component:ui/skeleton",
    "keywords": [],
    "kind": "component",
@@ -20059,7 +20089,7 @@
    "attrs": {
     "file": "components/ui/slider.tsx"
    },
-   "description": "",
+   "description": "Control deslizante basado en Radix para seleccionar valores mediante un carril y un “thumb”. Su responsabilidad es proporcionar la estructura y estilos del slider y pasar props al componente raíz.",
    "id": "component:ui/slider",
    "keywords": [],
    "kind": "component",
@@ -20069,7 +20099,7 @@
    "attrs": {
     "file": "components/ui/sonner.tsx"
    },
-   "description": "",
+   "description": "Componente Toaster que integra la librería Sonner para mostrar notificaciones tipo toast. Su responsabilidad principal es aplicar clases/estilos consistentes a los toasts y exponer las props del Toaster subyacente.",
    "id": "component:ui/sonner",
    "keywords": [
     "group-[.toast]:text-muted-foreground"
@@ -20081,7 +20111,7 @@
    "attrs": {
     "file": "components/ui/switch.tsx"
    },
-   "description": "",
+   "description": "Interruptor (toggle) basado en Radix para activar o desactivar una opción. Su responsabilidad es renderizar el root y el thumb con estilos y estados accesibles, propagando props al componente base.",
    "id": "component:ui/switch",
    "keywords": [],
    "kind": "component",
@@ -20091,7 +20121,7 @@
    "attrs": {
     "file": "components/ui/table.tsx"
    },
-   "description": "",
+   "description": "Conjunto de componentes para construir tablas (Table, Header, Body, Footer, Row, Head, Cell y Caption) con estilos predefinidos y contenedor con scroll horizontal. Su responsabilidad es ofrecer una estructura de tabla reutilizable y consistente.",
    "id": "component:ui/table",
    "keywords": [],
    "kind": "component",
@@ -20101,7 +20131,7 @@
    "attrs": {
     "file": "components/ui/tabs.tsx"
    },
-   "description": "",
+   "description": "Componentes de pestañas basados en Radix (TabsList, TabsTrigger y TabsContent) para organizar contenido en secciones conmutables. Su responsabilidad es renderizar la estructura de tabs y aplicar estilos/estados a cada parte.",
    "id": "component:ui/tabs",
    "keywords": [],
    "kind": "component",
@@ -20111,7 +20141,7 @@
    "attrs": {
     "file": "components/ui/textarea.tsx"
    },
-   "description": "",
+   "description": "Área de texto multilinea estilizada para entrada de contenido largo. Su responsabilidad principal es renderizar un <textarea> con estilos consistentes y soporte de ref/props.",
    "id": "component:ui/textarea",
    "keywords": [],
    "kind": "component",
@@ -20121,7 +20151,7 @@
    "attrs": {
     "file": "components/ui/toggle.tsx"
    },
-   "description": "",
+   "description": "Componente Toggle basado en Radix que permite alternar un estado on/off con estilos configurables por variante (default/outline) y tamaño. Su responsabilidad es renderizar el control con clases consistentes, estados de hover/focus/disabled y soporte de ref.",
    "id": "component:ui/toggle",
    "keywords": [],
    "kind": "component",
@@ -20131,7 +20161,7 @@
    "attrs": {
     "file": "components/ui/toggle-group.tsx"
    },
-   "description": "",
+   "description": "Grupo de toggles basado en Radix Toggle Group que organiza varios items y comparte configuración de variante y tamaño mediante contexto. Su responsabilidad es envolver el contenedor del grupo y proveer un ToggleGroupItem que hereda estilos de toggleVariants.",
    "id": "component:ui/toggle-group",
    "keywords": [],
    "kind": "component",
@@ -20141,7 +20171,7 @@
    "attrs": {
     "file": "components/ui/tooltip.tsx"
    },
-   "description": "",
+   "description": "Conjunto de componentes de tooltip basado en Radix (Provider, Root, Trigger y Content) para mostrar información contextual al interactuar con un elemento. Su responsabilidad principal es renderizar el contenido en un Portal con estilos y animaciones, permitiendo ajustar el sideOffset.",
    "id": "component:ui/tooltip",
    "keywords": [],
    "kind": "component",
@@ -20272,6 +20302,80 @@
    ],
    "kind": "concept",
    "name": "Modus operandi"
+  },
+  {
+   "attrs": {},
+   "description": "Ajusta reglas, umbrales y parámetros versionados del agente por segmento; cada cambio se prueba y requiere validación antes de desplegarse.",
+   "id": "concept:optimizer-lever-configuration",
+   "keywords": [
+    "configuration",
+    "configurar",
+    "reglas",
+    "threshold",
+    "umbral",
+    "prompt",
+    "rúbrica",
+    "segmento",
+    "filtro"
+   ],
+   "kind": "concept",
+   "name": "Palanca de optimización: configuración"
+  },
+  {
+   "attrs": {},
+   "description": "Ajusta conocimiento de fraude: taxonomías, modus operandi, señales, casos similares y listas; aporta evidencia y contexto sin decidir directamente la marca de fraude.",
+   "id": "concept:optimizer-lever-library",
+   "keywords": [
+    "library",
+    "biblioteca",
+    "taxonomía",
+    "modus operandi",
+    "flag",
+    "red flag",
+    "watchlist",
+    "casos similares",
+    "conocimiento",
+    "playbook"
+   ],
+   "kind": "concept",
+   "name": "Palanca de optimización: biblioteca"
+  },
+  {
+   "attrs": {},
+   "description": "Crea y entrena un modelo de fraude sobre datasets y variables; el candidato se evalúa antes de proponerse para activación.",
+   "id": "concept:optimizer-lever-model",
+   "keywords": [
+    "model",
+    "modelo",
+    "xgboost",
+    "clasificador",
+    "clasificación",
+    "entrenamiento",
+    "train",
+    "dataset",
+    "features",
+    "variables"
+   ],
+   "kind": "concept",
+   "name": "Palanca de optimización: modelo"
+  },
+  {
+   "attrs": {},
+   "description": "Construye y verifica una versión del índice semántico que consulta la biblioteca de fraude; permite ajustar recuperación sin alterar el modelo de clasificación.",
+   "id": "concept:optimizer-lever-vector-store",
+   "keywords": [
+    "vector store",
+    "vector_store",
+    "embeddings",
+    "embedding",
+    "retrieval",
+    "búsqueda semántica",
+    "índice vectorial",
+    "recuperación",
+    "similaridad"
+   ],
+   "kind": "concept",
+   "name": "Palanca de optimización: vector store"
   },
   {
    "attrs": {},

@@ -19,6 +19,8 @@ class AgentSubagentInput:
     objective_version: int | None = None
     objective: AgentObjective | None = None
     baseline_components: tuple[ComponentVersionReference, ...] = ()
+    # Curated optimizer levers loaded from the project graph, keyed by specialist.
+    project_map: dict[str, dict[str, str]] = field(default_factory=dict)
     cancelled: bool = False
 
 
