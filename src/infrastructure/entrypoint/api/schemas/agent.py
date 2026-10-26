@@ -461,3 +461,32 @@ class OptimizationRunResponse(BaseModel):
     events_stream: str = ""
     candidates: list[RunCandidateResponse] = Field(default_factory=list)
     findings: list[AgentFindingResponse] = Field(default_factory=list)
+
+
+class OptimizerSampleUseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    snapshot_id: str
+    period_start: str
+    period_end: str
+    maturing_days: int
+    partition_counts: dict[str, int]
+    schema_versions: list[int]
+    experiments: int
+
+
+class OptimizerStatusResponse(BaseModel):
+    """Aggregate optimizer load for the Monitor (no session identifiers)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    sessions: dict[str, int]
+    blocked_by_reason: dict[str, int]
+    running_candidates: int
+    active_runs: int
+    max_concurrent_runs: int
+    max_parallel_experiments: int
+    max_concurrent_sessions: int
+    budget: dict[str, dict[str, int]]
+    experiments: dict[str, int]
+    samples: list[OptimizerSampleUseResponse]

@@ -383,3 +383,28 @@ def test_a_session_without_its_first_tick_has_an_empty_pending_run(monkeypatch) 
     assert response.status_code == 200
     assert response.json()["status"] == "PENDING"
     assert response.json()["candidates"] == []
+
+
+def test_optimizer_status_is_a_monitor_aggregate(monkeypatch) -> None:
+    from src.application.use_cases.agent.get_optimizer_status import OptimizerStatus
+
+    class UseCase:
+        def execute(self, limit=50):
+            return OptimizerStatus(
+                sessions={"ACTIVE": 1},
+                running_candidates=3,
+                active_runs=3,
+                max_concurrent_runs=6,
+                max_parallel_experiments=3,
+                max_concurrent_sessions=2,
+                budget={"tokens": {"spent": 10, "limit": 100}},
+            )
+
+    monkeypatch.setattr(agent_router, "get_optimizer_status_use_case", UseCase)
+
+    allowed = _client(monkeypatch, LocalRole.OPS_ANALYST).get("/agent/optimizer-status")
+    denied = _client(monkeypatch, LocalRole.FRAUD_ANALYST).get("/agent/optimizer-status")
+
+    assert allowed.status_code == 200
+    assert allowed.json()["running_candidates"] == 3
+    assert denied.status_code == 403

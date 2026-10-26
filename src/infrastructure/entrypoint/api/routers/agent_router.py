@@ -67,6 +67,7 @@ from src.infrastructure.entrypoint.api.factories.agent_factory import (
     get_create_agent_session_use_case,
     get_manage_agent_insight_use_case,
     get_manage_agent_session_use_case,
+    get_optimizer_status_use_case,
     get_renew_agent_budget_use_case,
     get_resolve_agent_block_use_case,
 )
@@ -90,6 +91,7 @@ from src.infrastructure.entrypoint.api.schemas.agent import (
     CreateAgentSessionRequest,
     OptimizationRunResponse,
     OptimizerInsightResponse,
+    OptimizerStatusResponse,
     RenewAgentBudgetRequest,
     ResolveAgentBlockRequest,
     SendAgentMessageRequest,
@@ -314,6 +316,16 @@ def list_run_tool_calls(
         }
         for call in get_agent_tool_call_repository().list_for_run(run_id)
     ]
+
+
+@router.get(
+    "/optimizer-status",
+    response_model=OptimizerStatusResponse,
+    dependencies=[Depends(require_permission("monitor"))],
+)
+def get_optimizer_status():
+    """Current optimizer load for the Monitor: counts and caps, never ids."""
+    return get_optimizer_status_use_case().execute()
 
 
 @router.get("/failure-catalog", response_model=list[AgentFailureResponse])

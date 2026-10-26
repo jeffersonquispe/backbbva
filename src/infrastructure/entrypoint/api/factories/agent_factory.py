@@ -8,6 +8,9 @@ from src.application.use_cases.agent.create_agent_session import (
 from src.application.use_cases.agent.get_agent_session_overview import (
     GetAgentSessionOverviewUseCase,
 )
+from src.application.use_cases.agent.get_optimizer_status import (
+    GetOptimizerStatusUseCase,
+)
 from src.application.use_cases.agent.manage_agent_entity_claims import (
     AgentEntityClaimUseCase,
 )
@@ -39,6 +42,7 @@ from src.infrastructure.agents.factories import (
     get_agent_message_repository,
     get_agent_objective_repository,
     get_agent_prompt_repository,
+    get_agent_run_repository,
     get_agent_session_repository,
     get_agent_session_summary_repository,
     get_agent_timeline,
@@ -154,4 +158,21 @@ def get_resolve_agent_block_use_case() -> ResolveAgentBlockUseCase:
         timeline=get_agent_timeline(),
         clock=get_clock(),
         ids=get_id_generator(),
+    )
+
+
+def get_optimizer_status_use_case() -> GetOptimizerStatusUseCase:
+    from src.infrastructure.persistence.database.dynamodb.repositories.mature_sample_repository import (
+        DynamoDatasetSnapshotRepository,
+    )
+
+    return GetOptimizerStatusUseCase(
+        sessions=get_agent_session_repository(),
+        iterations=get_agent_iteration_repository(),
+        runs=get_agent_run_repository(),
+        budget=get_agent_budget_ledger_repository(),
+        experiments=get_agent_experiment_repository(),
+        snapshots=DynamoDatasetSnapshotRepository(),
+        settings=get_assistant_optimizer_settings_repository(),
+        clock=get_clock(),
     )
