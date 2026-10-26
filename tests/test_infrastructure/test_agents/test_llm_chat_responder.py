@@ -221,3 +221,9 @@ def test_guardrails_allow_only_the_two_read_only_tools() -> None:
     assert "solo lectura" in system
     assert "search_project" in system and "describe_node" in system
     assert "datos no confiables" in system
+    assert "project_context" in system
+    assert "roles y permisos" in system
+    assert "Incluye conceptos y entidades de" in system
+    assert "no digas que no puede iniciar" in system
+    assert "preparar un borrador y aplicarlo" in system
+    assert "requieren la acción explícita del usuario" in system
