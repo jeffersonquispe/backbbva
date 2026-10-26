@@ -51,7 +51,9 @@ class _Releases:
         self.observations = []
 
     def get_validation(self, validation_id):
-        return self.validation if validation_id == self.validation.validation_id else None
+        return (
+            self.validation if validation_id == self.validation.validation_id else None
+        )
 
     def list_releases(self, limit=100, statuses=None):
         if self.release is None:
@@ -67,7 +69,11 @@ class _Releases:
         return release
 
     def get_release(self, release_id):
-        return self.release if self.release and self.release.release_id == release_id else None
+        return (
+            self.release
+            if self.release and self.release.release_id == release_id
+            else None
+        )
 
     def update_release(self, release, *, expected_version):
         if self.release.version != expected_version:
@@ -128,12 +134,20 @@ def test_release_requires_shadow_observations_and_distinct_manager_approval():
 
     with pytest.raises(AgentReleasePolicyError, match="GUARDRAIL_NOT_MET"):
         use_case.submit_for_approval(
-            "release-1", expected_version=1, actor="requester", actor_id="channel-manager", reason="Review"
+            "release-1",
+            expected_version=1,
+            actor="requester",
+            actor_id="channel-manager",
+            reason="Review",
         )
 
     releases.release = replace(release, observations={"count": 30, "disagreements": 0})
     submitted = use_case.submit_for_approval(
-        "release-1", expected_version=1, actor="requester", actor_id="channel-manager", reason="Review complete"
+        "release-1",
+        expected_version=1,
+        actor="requester",
+        actor_id="channel-manager",
+        reason="Review complete",
     )
     with pytest.raises(AgentReleasePolicyError, match="SELF_APPROVAL"):
         use_case.approve(
@@ -273,7 +287,11 @@ def test_release_approval_and_rollback_are_recorded_in_audit_log_and_timeline():
     )
     releases.release = replace(release, observations={"count": 30, "disagreements": 0})
     submitted = use_case.submit_for_approval(
-        "release-1", expected_version=1, actor="requester", actor_id="channel-manager", reason="Review complete"
+        "release-1",
+        expected_version=1,
+        actor="requester",
+        actor_id="channel-manager",
+        reason="Review complete",
     )
     use_case.approve(
         "release-1",
@@ -299,10 +317,129 @@ def test_release_approval_and_rollback_are_recorded_in_audit_log_and_timeline():
         item for item in events.items if item.kind.value == "production_change"
     ]
     assert len(production) == 3
-    assert all(
-        item.refs["audit_correlation_id"] == "release-1" for item in production
-    )
+    assert all(item.refs["audit_correlation_id"] == "release-1" for item in production)
     assert {item.kind.value for item in events.items} >= {
         "user_action",
         "production_change",
     }
+
+
+class _RecordingPromoter:
+    def __init__(self):
+        self.handed: list[str] = []
+
+    def hand_off(self, release, pin, *, actor, actor_id):
+        from src.application.ports.agent_release_promoter_port import ComponentHandoff
+
+        self.handed.append(pin.component)
+        return ComponentHandoff(
+            component=pin.component,
+            flow={"configuration": "configuration_deploy_request"}.get(
+                pin.component, "vector_store_promotion"
+            ),
+            reference=f"ref-{pin.component}",
+            status="pending" if pin.component == "configuration" else "promoted",
+        )
+
+
+def _component_use_case(candidate, promoter=None):
+    releases, components, audit = _Releases(), _Components(), _Audit()
+    releases.validation = replace(releases.validation, component_pins=candidate)
+    use_case = ManageAgentReleaseUseCase(
+        releases=releases,
+        components=components,
+        audit=audit,
+        now=lambda: datetime(2026, 10, 26, tzinfo=UTC),
+        new_id=lambda: "release-1",
+        promoter=promoter,
+    )
+    return use_case, releases, audit
+
+
+def _with(changed: set[str]):
+    baseline, candidate = _pins("baseline"), _pins("candidate")
+    return tuple(
+        new if new.component in changed else old
+        for old, new in zip(baseline, candidate)
+    )
+
+
+def test_component_only_release_skips_shadow_and_hands_off_on_approval():
+    promoter = _RecordingPromoter()
+    use_case, releases, audit = _component_use_case(
+        _with({"configuration", "vector_store"}), promoter
+    )
+
+    release = use_case.request(
+        validation_id="validation-1",
+        title="Mejor configuración",
+        reason="Validada",
+        actor="cm",
+        actor_id="channel-manager",
+    )
+    assert release.status is AgentReleaseStatus.PENDING_APPROVAL
+    approved = use_case.approve(
+        "release-1",
+        expected_version=release.version,
+        actor="approver",
+        actor_id="manager",
+        reason="Revisado",
+    )
+
+    assert approved.status is AgentReleaseStatus.FULL
+    assert sorted(promoter.handed) == ["configuration", "vector_store"]
+    assert approved.handoffs["configuration"] == {
+        "flow": "configuration_deploy_request",
+        "reference": "ref-configuration",
+        "status": "pending",
+    }
+    statuses = [event.status for event in audit.events]
+    assert "SHADOW_STARTED" not in statuses
+    assert statuses.count("COMPONENT_HANDED_OFF") == 2
+
+
+def test_component_release_without_a_promoter_is_refused():
+    use_case, _, _ = _component_use_case(_with({"configuration"}))
+
+    with pytest.raises(AgentReleasePolicyError, match="UNSUPPORTED_COMPONENT_ROLLOUT"):
+        use_case.request(
+            validation_id="validation-1",
+            title="x",
+            reason="x",
+            actor="cm",
+            actor_id="channel-manager",
+        )
+
+
+def test_mixed_release_canaries_the_model_and_hands_off_the_rest():
+    promoter = _RecordingPromoter()
+    use_case, releases, _ = _component_use_case(
+        _with({"model", "configuration"}), promoter
+    )
+    release = use_case.request(
+        validation_id="validation-1",
+        title="x",
+        reason="x",
+        actor="cm",
+        actor_id="channel-manager",
+    )
+    assert release.status is AgentReleaseStatus.SHADOW
+    releases.release = replace(release, observations={"count": 30, "disagreements": 0})
+    submitted = use_case.submit_for_approval(
+        "release-1",
+        expected_version=1,
+        actor="cm",
+        actor_id="channel-manager",
+        reason="ok",
+    )
+
+    approved = use_case.approve(
+        "release-1",
+        expected_version=submitted.version,
+        actor="approver",
+        actor_id="manager",
+        reason="ok",
+    )
+
+    assert approved.status is AgentReleaseStatus.CANARY_5
+    assert promoter.handed == ["configuration"]

@@ -307,4 +307,7 @@ def _release(item: dict[str, Any]) -> AgentRelease:
             "disagreements": int(item.get("disagreement_count", 0)),
         },
         rollback_reason=item.get("rollback_reason"),
+        handoffs={
+            component: dict(value) for component, value in item.get("handoffs", {}).items()
+        },
     )

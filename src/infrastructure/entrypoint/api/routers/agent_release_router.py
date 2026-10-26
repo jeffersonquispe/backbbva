@@ -94,6 +94,8 @@ class AgentReleaseResponse(BaseModel):
     updated_at: str | None = None
     observations: dict[str, Any]
     rollback_reason: str | None = None
+    # Non-model components handed to their promotion flow on approval.
+    handoffs: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 def _require_role(user: LocalUser, *roles: LocalRole) -> None:

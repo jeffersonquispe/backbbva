@@ -7,6 +7,9 @@ from src.application.ports.agent_experiment_component_port import (
     AgentExperimentComponentResolver,
 )
 from src.application.ports.agent_release_port import AgentReleaseRepository
+from src.application.ports.agent_release_promoter_port import (
+    AgentReleaseComponentPromoter,
+)
 from src.application.use_cases.agent.agent_timeline import AgentTimeline
 from src.domain.agents.event import AgentEventKind, AgentEventOutcome
 from src.domain.agents.release import (
@@ -22,13 +25,17 @@ class AgentReleasePolicyError(ValueError):
 
 _MINIMUM_STAGE_OBSERVATIONS = 30
 _MAXIMUM_DECISION_DISAGREEMENT_PCT = 5
-_ROLLOUT_POLICY_VERSION = "h12_model_only_v1"
+# Model changes roll out through shadow and canary; configuration, library and
+# vector store changes are handed to their existing production flows.
+_ROLLOUT_POLICY_VERSION = "h12_model_canary_component_handoff_v2"
+_HANDOFF_COMPONENTS = ("configuration", "library", "vector_store")
 # Release steps that change what production runs. They are written to the
 # global audit log as well as to the session timeline.
 _PRODUCTION_STATUSES = {
     "RELEASE_APPROVED": "Release aprobado",
     "ROLLOUT_ADVANCED": "Despliegue gradual avanzado",
     "ROLLED_BACK": "Release revertido",
+    "COMPONENT_HANDED_OFF": "Componente entregado a su flujo de promoción",
 }
 
 
@@ -42,7 +49,9 @@ class ManageAgentReleaseUseCase:
         now,
         new_id,
         timeline: AgentTimeline | None = None,
+        promoter: AgentReleaseComponentPromoter | None = None,
     ) -> None:
+        self._promoter = promoter
         self._releases = releases
         self._components = components
         self._audit = audit
@@ -64,12 +73,12 @@ class ManageAgentReleaseUseCase:
             raise AgentReleasePolicyError("VALIDATION_NOT_FOUND")
         if validation.status is not RetrospectiveValidationStatus.PASSED:
             raise AgentReleasePolicyError("VALIDATION_FAILED")
-        baseline = {pin.component: pin for pin in validation.baseline_component_pins}
-        candidate = {pin.component: pin for pin in validation.component_pins}
-        if any(
-            baseline.get(component) != candidate.get(component)
-            for component in {"configuration", "library", "vector_store"}
-        ):
+        changed = _changed_components(
+            validation.component_pins, validation.baseline_component_pins
+        )
+        if not changed:
+            raise AgentReleasePolicyError("NOTHING_TO_RELEASE")
+        if set(changed) - {"model"} and self._promoter is None:
             raise AgentReleasePolicyError("UNSUPPORTED_COMPONENT_ROLLOUT")
         try:
             current_stack = self._components.active_baseline()
@@ -95,7 +104,13 @@ class ManageAgentReleaseUseCase:
             validation_id=validation.validation_id,
             session_id=validation.session_id,
             experiment_id=validation.experiment_id,
-            status=AgentReleaseStatus.SHADOW,
+            # Shadow compares model predictions; without a model change the
+            # retrospective validation is the evidence and approval comes next.
+            status=(
+                AgentReleaseStatus.SHADOW
+                if "model" in changed
+                else AgentReleaseStatus.PENDING_APPROVAL
+            ),
             candidate_component_pins=validation.component_pins,
             previous_component_pins=validation.baseline_component_pins,
             requested_by=actor,
@@ -113,7 +128,8 @@ class ManageAgentReleaseUseCase:
         except ValueError as error:
             raise AgentReleasePolicyError(str(error)) from error
         self._audit_event(release, "RELEASE_REQUESTED", actor=actor, actor_id=actor_id)
-        self._audit_event(release, "SHADOW_STARTED", actor=actor, actor_id=actor_id)
+        if release.status is AgentReleaseStatus.SHADOW:
+            self._audit_event(release, "SHADOW_STARTED", actor=actor, actor_id=actor_id)
         return result
 
     def submit_for_approval(
@@ -162,15 +178,39 @@ class ManageAgentReleaseUseCase:
             raise AgentReleasePolicyError("INVALID_STATE")
         if release.requested_by_id == actor_id:
             raise AgentReleasePolicyError("SELF_APPROVAL")
+        changed = _changed_components(
+            release.candidate_component_pins, release.previous_component_pins
+        )
+        handoffs: dict[str, dict[str, str]] = {}
+        for pin in release.candidate_component_pins:
+            if pin.component not in changed or pin.component not in _HANDOFF_COMPONENTS:
+                continue
+            if self._promoter is None:
+                raise AgentReleasePolicyError("UNSUPPORTED_COMPONENT_ROLLOUT")
+            handoff = self._promoter.hand_off(
+                release, pin, actor=actor, actor_id=actor_id
+            )
+            handoffs[pin.component] = {
+                "flow": handoff.flow,
+                "reference": handoff.reference,
+                "status": handoff.status,
+            }
         updated = replace(
             release,
-            status=AgentReleaseStatus.CANARY_5,
+            # Only a model is routed gradually; component-only releases are done
+            # once every component is in its own promotion flow.
+            status=(
+                AgentReleaseStatus.CANARY_5
+                if "model" in changed
+                else AgentReleaseStatus.FULL
+            ),
             approved_by=actor,
             approved_by_id=actor_id,
             approved_at=self._now(),
             updated_at=self._now(),
             version=expected_version + 1,
             observations={},
+            handoffs=handoffs,
         )
         result = self._releases.update_release(
             updated, expected_version=expected_version
@@ -178,10 +218,18 @@ class ManageAgentReleaseUseCase:
         self._audit_event(
             result, "RELEASE_APPROVED", reason=reason, actor=actor, actor_id=actor_id
         )
+        for component, entry in handoffs.items():
+            self._audit_event(
+                result,
+                "COMPONENT_HANDED_OFF",
+                reason=f"{component}:{entry['flow']}:{entry['status']}",
+                actor=actor,
+                actor_id=actor_id,
+            )
         self._audit_event(
             result,
             "ROLLOUT_ADVANCED",
-            reason="CANARY_5",
+            reason="CANARY_5" if "model" in changed else "FULL",
             actor=actor,
             actor_id=actor_id,
         )
@@ -342,6 +390,11 @@ def _validate_observation_guardrail(observations: dict) -> None:
         or disagreements * 100 > count * _MAXIMUM_DECISION_DISAGREEMENT_PCT
     ):
         raise AgentReleasePolicyError("GUARDRAIL_NOT_MET")
+
+
+def _changed_components(candidate, baseline) -> set[str]:
+    base = {pin.component: pin for pin in baseline}
+    return {pin.component for pin in candidate if base.get(pin.component) != pin}
 
 
 def _same_pins(left, right) -> bool:

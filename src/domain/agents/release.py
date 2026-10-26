@@ -66,3 +66,6 @@ class AgentRelease:
     updated_at: datetime | None = None
     observations: dict[str, Any] = field(default_factory=dict)
     rollback_reason: str | None = None
+    # Non-model components handed to their existing promotion flow on approval:
+    # component -> {"flow", "reference", "status"}.
+    handoffs: dict[str, dict[str, str]] = field(default_factory=dict)
