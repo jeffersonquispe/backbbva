@@ -116,3 +116,13 @@ class MinioObjectStorageAdapter(ObjectStoragePort):
 
     def delete(self, key: str) -> None:
         self._client.delete_object(Bucket=self._bucket, Key=key)
+
+    def delete_many(self, keys: list[str]) -> None:
+        for offset in range(0, len(keys), 1000):
+            self._client.delete_objects(
+                Bucket=self._bucket,
+                Delete={
+                    "Objects": [{"Key": key} for key in keys[offset : offset + 1000]],
+                    "Quiet": True,
+                },
+            )

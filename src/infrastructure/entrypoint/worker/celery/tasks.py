@@ -468,7 +468,7 @@ def train_model_task(model_id: str, async_operation_id: str) -> dict:
 
 
 @app.task(bind=True, name="datasets.sample_mature")
-def sample_mature_dataset_task(task, operation_id: str | None = None) -> dict:
+def sample_mature_dataset_task(task: Any, operation_id: str | None = None) -> dict:
     from datetime import UTC, datetime
     from uuid import UUID, uuid4
 
@@ -532,6 +532,7 @@ def sample_mature_dataset_task(task, operation_id: str | None = None) -> dict:
             error=str(exc),
         )
         raise
+
 
 @app.task(name="models.preview_features")
 def preview_features_task(
@@ -630,6 +631,18 @@ def cleanup_expired_metric_rollups() -> dict[str, int]:
         int(datetime.now(UTC).timestamp())
     )
     return {"deleted": deleted}
+
+
+@app.task(name="audit.archive_log")
+def archive_audit_log() -> dict[str, int]:
+    """Archive audit rows older than five days or beyond the 5,000-row cap."""
+    from src.infrastructure.persistence.database.dynamodb.audit_archive_factory import (
+        get_flush_audit_log_archive_use_case,
+    )
+
+    return get_flush_audit_log_archive_use_case().execute(
+        max_hot_items=5000, retention_days=5
+    )
 
 
 # T3/T5: one sample of the operational gauges per Beat tick (60 s, see

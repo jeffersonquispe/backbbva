@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
     Query,
+    Request,
     Response,
     UploadFile,
     status,
@@ -53,6 +55,11 @@ from src.application.use_cases.datasets.save_alert_field_mapping import (
     SaveAlertFieldMappingUseCase,
 )
 from src.application.use_cases.datasets.upload_dataset import UploadDatasetUseCase
+from src.application.use_cases.datasets.upload_dataset_chunks import (
+    PART_SIZE_BYTES,
+    DatasetUploadChunksUseCase,
+    DatasetUploadSessionNotFoundError,
+)
 from src.application.use_cases.test_runs.list_datasets import ListDatasetsUseCase
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.dataset_factory import (
@@ -69,6 +76,7 @@ from src.infrastructure.entrypoint.api.factories.dataset_factory import (
     get_get_dataset_template_use_case,
     get_list_datasets_use_case,
     get_save_alert_field_mapping_use_case,
+    get_upload_dataset_chunks_use_case,
     get_upload_dataset_use_case,
 )
 from src.infrastructure.entrypoint.api.schemas import (
@@ -79,10 +87,12 @@ from src.infrastructure.entrypoint.api.schemas import (
     DatasetResponse,
     DatasetRowsResponse,
     DatasetSummaryResponse,
+    DatasetUploadSessionResponse,
     DeleteDatasetResponse,
     ExtractDatasetRequest,
     FraudMarkingAnalysisQueuedResponse,
     SaveAlertFieldMappingRequest,
+    StartDatasetUploadRequest,
     UploadDatasetResponse,
 )
 
@@ -116,6 +126,98 @@ async def upload_dataset(
         return use_case.execute(UploadDatasetInput(name=name, file=file.file))
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post(
+    "/datasets/uploads",
+    response_model=DatasetUploadSessionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def start_dataset_upload(
+    request: StartDatasetUploadRequest,
+    use_case: Annotated[
+        DatasetUploadChunksUseCase,
+        Depends(get_upload_dataset_chunks_use_case),
+    ],
+):
+    try:
+        return use_case.start(request.filename, request.total_size_bytes)
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.put(
+    "/datasets/uploads/{upload_id}/parts/{part_number}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def upload_dataset_part(
+    upload_id: str,
+    part_number: int,
+    request: Request,
+    use_case: Annotated[
+        DatasetUploadChunksUseCase,
+        Depends(get_upload_dataset_chunks_use_case),
+    ],
+):
+    if request.headers.get("content-type", "").split(";", 1)[0] != "application/octet-stream":
+        raise HTTPException(status_code=415, detail="Part body must be application/octet-stream")
+    content = bytearray()
+    async for block in request.stream():
+        if len(content) + len(block) > PART_SIZE_BYTES:
+            raise HTTPException(status_code=413, detail="Upload part exceeds the 5 MiB limit")
+        content.extend(block)
+    try:
+        use_case.upload_part(UUID(upload_id), part_number, bytes(content))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid upload id") from exc
+    except DatasetUploadSessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post(
+    "/datasets/uploads/{upload_id}/complete",
+    response_model=UploadDatasetResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def complete_dataset_upload(
+    upload_id: str,
+    use_case: Annotated[
+        DatasetUploadChunksUseCase,
+        Depends(get_upload_dataset_chunks_use_case),
+    ],
+):
+    try:
+        return use_case.complete(UUID(upload_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid upload id") from exc
+    except DatasetUploadSessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/datasets/uploads/{upload_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def abort_dataset_upload(
+    upload_id: str,
+    use_case: Annotated[
+        DatasetUploadChunksUseCase,
+        Depends(get_upload_dataset_chunks_use_case),
+    ],
+):
+    try:
+        use_case.abort(UUID(upload_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid upload id") from exc
+    except DatasetUploadSessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get(

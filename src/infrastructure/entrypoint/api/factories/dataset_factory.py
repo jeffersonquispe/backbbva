@@ -41,6 +41,9 @@ from src.application.use_cases.datasets.save_alert_field_mapping import (
     SaveAlertFieldMappingUseCase,
 )
 from src.application.use_cases.datasets.upload_dataset import UploadDatasetUseCase
+from src.application.use_cases.datasets.upload_dataset_chunks import (
+    DatasetUploadChunksUseCase,
+)
 from src.application.use_cases.test_runs.list_datasets import ListDatasetsUseCase
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.core.runtime.system_clock import get_clock
@@ -113,6 +116,16 @@ def get_upload_dataset_use_case() -> UploadDatasetUseCase:
         summary_repository=get_dataset_summary_repository(),
         dispatcher=get_dataset_analysis_dispatcher(),
         async_operation_repository=get_async_operation_repository(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+    )
+
+
+def get_upload_dataset_chunks_use_case() -> DatasetUploadChunksUseCase:
+    return DatasetUploadChunksUseCase(
+        storage=get_dataset_object_storage(),
+        datasets=get_dataset_repository(),
+        upload_dataset=get_upload_dataset_use_case(),
         clock=get_clock(),
         id_generator=get_id_generator(),
     )

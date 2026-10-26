@@ -6,14 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from src.application.ports.async_execution_inspector_port import AsyncExecutionState
 from src.application.ports.async_operation_port import AsyncOperationStatus
-
-
-class CreateAsyncOperationRequest(BaseModel):
-    operation_type: str = Field(..., min_length=1, max_length=120)
-    payload: dict[str, Any] = Field(default_factory=dict)
-    created_by: str | None = Field(default=None, max_length=120)
 
 
 class UpdateAsyncOperationRequest(BaseModel):
@@ -50,21 +43,3 @@ class AsyncOperationPollingResponse(BaseModel):
     result: dict[str, Any] | None
     error: str | None
     updated_at: datetime
-
-
-class ReconcileAsyncOperationsRequest(BaseModel):
-    limit: int = Field(default=100, ge=1, le=500)
-
-
-class ReconciledAsyncOperationResponse(BaseModel):
-    id: UUID
-    previous_status: AsyncOperationStatus
-    current_status: AsyncOperationStatus
-    execution_state: AsyncExecutionState
-    detail: str | None
-
-
-class ReconcileAsyncOperationsResponse(BaseModel):
-    inspected: int
-    updated: int
-    operations: list[ReconciledAsyncOperationResponse]

@@ -65,3 +65,7 @@ class ObjectStoragePort(ABC):
 
     def delete(self, key: str) -> None:
         raise NotImplementedError
+
+    def delete_many(self, keys: list[str]) -> None:
+        for key in keys:
+            self.delete(key)

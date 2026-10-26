@@ -23,6 +23,19 @@ class UploadDatasetResponse(BaseModel):
     async_operation_id: UUID | None = None
 
 
+class StartDatasetUploadRequest(BaseModel):
+    filename: str = Field(min_length=5, max_length=184)
+    total_size_bytes: int = Field(ge=1)
+
+
+class DatasetUploadSessionResponse(BaseModel):
+    upload_id: UUID
+    name: str
+    part_size_bytes: int
+    total_parts: int
+    expires_at: datetime
+
+
 class DeleteDatasetResponse(BaseModel):
     name: str
     deleted: bool
