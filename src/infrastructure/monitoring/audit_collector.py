@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
@@ -24,6 +26,16 @@ _WRITE_OPERATIONS = {
     "CreateBucket",
 }
 _COLLECTING: ContextVar[bool] = ContextVar("aria_audit_collecting", default=False)
+
+
+@contextmanager
+def suppress_audit_collection() -> Iterator[None]:
+    """Suppress per-object audit rows for a single internal batch operation."""
+    token = _COLLECTING.set(True)
+    try:
+        yield
+    finally:
+        _COLLECTING.reset(token)
 
 
 def install_audit_hooks(client: Any, service_name: str) -> None:

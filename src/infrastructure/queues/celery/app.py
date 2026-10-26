@@ -34,6 +34,12 @@ def periodic_schedule(
             "task": "metrics.cleanup_expired_rollups",
             "schedule": crontab(hour=4, minute=0),
         },
+        # Keep the hot audit table bounded while preserving history in MinIO.
+        "archive-audit-log": {
+            "task": "audit.archive_log",
+            "schedule": 60.0,
+            "options": {"expires": 60},
+        },
         # R7 safety net: 02:00 in the app's Celery timezone
         # (OPERATIONS_TIMEZONE, Bogota) - quiet hours, after the day closed.
         "reconcile-alert-rollups": {

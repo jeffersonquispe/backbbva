@@ -66,6 +66,9 @@ from src.infrastructure.entrypoint.api.routers.assistant_optimizer_settings_rout
 from src.infrastructure.entrypoint.api.routers.async_operations_router import (
     router as async_operations_router,
 )
+from src.infrastructure.entrypoint.api.routers.audit_log_router import (
+    router as audit_log_router,
+)
 from src.infrastructure.entrypoint.api.routers.auth_router import (
     router as auth_router,
 )
@@ -171,6 +174,7 @@ def create_app() -> FastAPI:
     app.include_router(agent_objectives_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_release_router, prefix=genai_config.API_V0_STR)
     app.include_router(backups_router, prefix=genai_config.API_V0_STR)
+    app.include_router(audit_log_router, prefix=genai_config.API_V0_STR)
     app.include_router(alert_schema_router, prefix=genai_config.API_V0_STR)
     app.include_router(e2e_router, prefix=genai_config.API_V0_STR)
     app.include_router(
