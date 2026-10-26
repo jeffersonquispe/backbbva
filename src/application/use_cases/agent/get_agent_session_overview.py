@@ -218,10 +218,19 @@ class GetAgentSessionOverviewUseCase:
                 failure.approval,
                 failure.retryable,
             )
-        if last is not None and last.status == AgentIterationStatus.RUNNING:
+        running = [
+            item for item in iterations if item.status == AgentIterationStatus.RUNNING
+        ]
+        if len(running) > 1:
             return AgentVerdict(
                 "running",
-                f"Trabajando en la iteración {last.number}",
+                f"Trabajando en {len(running)} candidatos en paralelo",
+                "Cada especialista prueba un componente distinto contra la misma línea base.",
+            )
+        if running:
+            return AgentVerdict(
+                "running",
+                f"Trabajando en la iteración {running[0].number}",
                 "Un especialista está ejecutando el experimento.",
             )
         return AgentVerdict("running", "En marcha", "El agente está entre iteraciones.")

@@ -186,6 +186,9 @@
     },
     "optimizer/SessionTimeline": {
       "description": "Línea de tiempo de una sesión del optimizador, más reciente primero y agrupada por iteración; distingue fallos, esperas y cambios en producción registrados también en el log de auditoría."
+    },
+    "optimizer/RunTree": {
+      "description": "Vista «Corrida» del optimizador: la corrida completa en una estructura con estrategia, configuración base, ganadores y configuración ganadora, y cada candidato con su hipótesis, insights, conclusión, experimentos en paralelo y los eventos propios de cada experimento."
     }
   },
   "tasks": [
@@ -519,6 +522,7 @@
       "view": "/configuracion",
       "steps": [
         "component:optimizer/OptimizerCenter",
+        "component:optimizer/RunTree",
         "component:optimizer/SessionTimeline"
       ]
     }

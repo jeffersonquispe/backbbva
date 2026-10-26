@@ -2615,3 +2615,39 @@ retrospectiva de H12 (hoy usa el scorer del MCP desde el API) y la promoción de
 conjunto versionado completo (hoy solo modelo); ambos requieren ejecutar la
 validación en el worker y enrutar configuración/Biblioteca/Vector Store por
 alerta en el flujo de revisión.
+
+## `OptimizationRun` y experimentos en paralelo — 2026-10-26 (#29 del MVC)
+
+**Una sola macroestructura por corrida.** Tabla `optimization_runs`, partición
+`run_id` (= sesión), un ítem por nodo:
+
+| Nodo | Contiene |
+|---|---|
+| `RUN` | configuración base del optimizador (objetivo, línea base fijada, presupuesto, topes de paralelismo, piso de precisión), alcance, insights generales y de memoria, ganadores (ranking por recall), configuración ganadora, estrategia (`explore`/`combine`/`promote`) y la llave de su línea de tiempo general |
+| `CAND#<id>` | hipótesis del candidato, área, dependencias (combinaciones), insights propios y **su conclusión** (veredicto, resumen, evidencia, decisión `keep`/`discard`/`retry`, recomendación) |
+| `EXP#<id>` | pila candidata contra la línea base, resultados, error y la llave de **su propia línea de eventos** (`<sesión>#exp#<experimento>` en `agent_events`) |
+| `FIND#<id>` | hallazgos agregados |
+
+Los puertos de hipótesis, experimentos y hallazgos escriben en esta estructura
+(`DynamoRunHypothesisRepository`, `DynamoRunExperimentRepository`,
+`DynamoRunFindingRepository`); ya no existen `agent_hypotheses`,
+`agent_experiments` ni `agent_findings`. `GET /agent/optimization-runs/{id}`
+devuelve el árbol completo.
+
+**Paralelismo.** Con un `AgentCandidateDispatcher` (worker), el tick planifica
+hasta `optimizer_max_parallel_experiments` (3) candidatos independientes —uno
+por componente, ninguno dependiente de otro— dentro del tope global
+`optimizer_max_concurrent_runs` (6) y lanza cada uno como tarea
+`agent.run_candidate`. Cada tarea renueva el lease de su run cada 30 s, de modo
+que el barrido de recuperación solo cierra candidatos cuyo worker murió. Cuando
+hay ganadores en componentes distintos, el tick crea un candidato
+`combination` que depende de ellos y corre solo, en serie, con la pila
+combinada construida sin LLM. Sin candidatos listos ni en curso: con ganadores
+la corrida termina (`COMPLETED`, estrategia `promote`); sin ganadores pide
+contexto al Channel Manager. Sin dispatcher (asistente, pruebas) se conserva
+la ejecución secuencial en el mismo tick.
+
+**Trazabilidad.** Cada ejecución de especialista queda en `agent_tool_calls`
+(duración, costo, resultado seguro) y se expone en
+`/agent/sessions/{id}/runs/{run_id}/tool-calls`. Iniciar, pausar, reanudar,
+cancelar y confirmar o rechazar insights son eventos `user_action`.

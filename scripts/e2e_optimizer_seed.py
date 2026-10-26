@@ -28,7 +28,8 @@ sys.path.insert(0, str(ROOT))
 # The seeder runs on the host next to the E2E runner, whose environment points at
 # the containers; always talk to the published DynamoDB port with the repo defaults.
 os.environ["DYNAMO_ENDPOINT"] = os.getenv(
-    "E2E_DYNAMO_ENDPOINT", f"http://localhost:{os.getenv('LOCAL_DYNAMODB_PORT', '8002')}"
+    "E2E_DYNAMO_ENDPOINT",
+    f"http://localhost:{os.getenv('LOCAL_DYNAMODB_PORT', '8002')}",
 )
 # `test` loads the repo defaults; DYNAMO_ENDPOINT above points it at the local stack.
 os.environ["GENAI_ENVIRONMENT"] = "test"
@@ -52,6 +53,7 @@ from src.application.ports.agent_iteration_port import (  # noqa: E402
     AgentIteration,
     AgentIterationStatus,
 )
+from src.application.ports.agent_run_port import AgentRun, AgentRunStatus
 from src.application.ports.agent_session_port import (  # noqa: E402
     AgentSession,
     AgentSessionStatus,
@@ -74,6 +76,11 @@ from src.domain.agents.finding import (  # noqa: E402
     OptimizerInsightKind,
     OptimizerInsightStatus,
 )
+from src.domain.agents.optimization_run import (
+    OptimizationRun,
+    OptimizationRunStatus,
+    rank_winners,
+)
 from src.infrastructure.agents.factories import (  # noqa: E402
     get_agent_budget_ledger_repository,
     get_agent_event_repository,
@@ -82,7 +89,9 @@ from src.infrastructure.agents.factories import (  # noqa: E402
     get_agent_hypothesis_repository,
     get_agent_insight_repository,
     get_agent_iteration_repository,
+    get_agent_run_repository,
     get_agent_session_repository,
+    get_optimization_run_repository,
     get_optimizer_insight_repository,
 )
 
@@ -95,6 +104,7 @@ STATES = (
     "failing",
     "inconclusive",
     "completed",
+    "parallel",
 )
 SESSION_TABLES = (
     ("agent_events", "seq"),
@@ -141,12 +151,20 @@ class _Seeder:
         return self._clock
 
     def event(
-        self, kind, outcome, summary, *, reason=None, refs=None, duration_ms=None
+        self,
+        kind,
+        outcome,
+        summary,
+        *,
+        reason=None,
+        refs=None,
+        duration_ms=None,
+        stream=None,
     ) -> None:
         self.events.append(
             get_agent_event_repository().append(
                 AgentEvent(
-                    session_id=self.session_id,
+                    session_id=stream or self.session_id,
                     seq=0,
                     event_id=str(uuid.uuid4()),
                     occurred_at=self.tick(),
@@ -160,7 +178,7 @@ class _Seeder:
             )
         )
 
-    def iteration(self, number, status, **decision) -> None:
+    def iteration(self, number, status, run_ids=None, **decision) -> None:
         started = self.tick()
         get_agent_iteration_repository().create(
             AgentIteration(
@@ -171,12 +189,22 @@ class _Seeder:
                 finished_at=None
                 if status == AgentIterationStatus.RUNNING
                 else self.tick(),
-                run_ids=(str(uuid.uuid4()),),
+                run_ids=run_ids or (str(uuid.uuid4()),),
                 decision=dict(decision),
             )
         )
 
-    def hypothesis(self, statement, status, *, insight_id=None, area="xgboost") -> str:
+    def hypothesis(
+        self,
+        statement,
+        status,
+        *,
+        insight_id=None,
+        area="model",
+        conclusion=None,
+        depends_on=(),
+        priority=1,
+    ) -> str:
         hypothesis_id = str(uuid.uuid4())
         get_agent_hypothesis_repository().create(
             AgentHypothesis(
@@ -184,11 +212,14 @@ class _Seeder:
                 hypothesis_id=hypothesis_id,
                 statement=statement,
                 scope={"area": area},
-                priority=1,
+                priority=priority,
                 status=status,
                 created_at=self.tick(),
                 updated_at=self.tick(),
                 source_insight_id=insight_id,
+                insight_ids=(insight_id,) if insight_id else (),
+                depends_on=tuple(depends_on),
+                conclusion=conclusion or _conclusion(status),
             )
         )
         return hypothesis_id
@@ -212,18 +243,32 @@ class _Seeder:
                 )
             )
 
-    def experiment(self, number, status, *, error=None, evaluation=None) -> str:
+    def experiment(
+        self,
+        number,
+        status,
+        *,
+        error=None,
+        evaluation=None,
+        candidate_id=None,
+        changed=("model",),
+    ) -> str:
         experiment_id = str(uuid.uuid4())
         candidate = dict(PINS)
-        candidate["configuration"] = ComponentVersionReference(
-            "configuration", "configuration-2", "2", "b" * 64
-        )
+        for component in changed:
+            candidate[component] = ComponentVersionReference(
+                component, f"{component}-2", "2", "b" * 64
+            )
         get_agent_experiment_repository().create(
             AgentExperiment(
                 session_id=self.session_id,
                 experiment_id=experiment_id,
                 iteration_number=number,
-                kind=AgentExperimentKind.ISOLATED,
+                kind=(
+                    AgentExperimentKind.COMBINATION
+                    if len(changed) > 1
+                    else AgentExperimentKind.ISOLATED
+                ),
                 status=status,
                 components=tuple(candidate.values()),
                 baseline_components=tuple(PINS.values()),
@@ -235,13 +280,179 @@ class _Seeder:
                 else self.tick(),
                 global_evaluation=evaluation or {},
                 error_code=error,
+                candidate_id=candidate_id,
             )
         )
+        stream = f"{self.session_id}#exp#{experiment_id}"
+        self.event(
+            AgentEventKind.EXPERIMENT,
+            AgentEventOutcome.STARTED,
+            "Experimento iniciado",
+            refs={"iteration": number, "experiment_id": experiment_id},
+            stream=stream,
+        )
+        if status != AgentExperimentStatus.RUNNING:
+            self.event(
+                AgentEventKind.EXPERIMENT,
+                AgentEventOutcome.SUCCEEDED
+                if status == AgentExperimentStatus.SUCCEEDED
+                else AgentEventOutcome.FAILED,
+                "Experimento cumplió el objetivo global"
+                if status == AgentExperimentStatus.SUCCEEDED
+                else "Experimento falló",
+                reason=error,
+                refs={"iteration": number, "experiment_id": experiment_id},
+                stream=stream,
+            )
         return experiment_id
+
+
+def _conclusion(status, recall=0.71, baseline=0.6) -> dict:
+    if status == AgentHypothesisStatus.ACTIVE:
+        return {}
+    verdict = status.value
+    return {
+        "verdict": verdict,
+        "summary": {
+            "VALIDATED": f"Mejora el recall en {(recall - baseline) * 100:.1f} pts sin bajar del piso de precisión.",
+            "REFUTED": "No cumple el objetivo: se descarta.",
+        }.get(verdict, "La evidencia no alcanza para concluir."),
+        "evidence": {"recall": recall, "precision": 0.94, "baseline_recall": baseline}
+        if verdict == "VALIDATED"
+        else {},
+        "decision": {"VALIDATED": "keep", "REFUTED": "discard"}.get(verdict, "retry"),
+        "recommendation": {
+            "VALIDATED": "Candidato a promover o a combinar con otros ganadores.",
+            "REFUTED": "Descartar este cambio.",
+        }.get(verdict, "Repetir con más evidencia o con otro enfoque."),
+    }
+
+
+def _evaluation(recall: float) -> dict:
+    return {
+        "eligible_count": 120,
+        "candidate": {"precision": 0.94, "recall": recall},
+        "baseline": {"precision": 0.93, "recall": 0.6},
+    }
+
+
+def _seed_root(session_id: str, now, areas, status, insight_ids=()) -> None:
+    experiments = get_agent_experiment_repository().list_for_session(session_id, 200)
+    winners = rank_winners(
+        [(item.candidate_id, item) for item in experiments if item.candidate_id]
+    )
+    best = next(
+        (
+            item
+            for item in experiments
+            if winners and item.experiment_id == winners[0].experiment_id
+        ),
+        None,
+    )
+    distinct = {item.component for item in winners if "+" not in item.component}
+    combined = any("+" in item.component for item in winners)
+    strategy = (
+        {
+            "action": "explore",
+            "rationale": "Aún no hay un candidato que mejore el objetivo.",
+        }
+        if not winners
+        else {
+            "action": "combine",
+            "rationale": "Hay ganadores en componentes distintos; se medirán juntos.",
+        }
+        if len(distinct) >= 2 and not combined
+        else {
+            "action": "promote",
+            "rationale": f"El mejor candidato mejora el recall en {winners[0].recall_delta * 100:.1f} pts sobre la línea base.",
+            "winner": winners[0].candidate_id,
+        }
+    )
+    get_optimization_run_repository().create_once(
+        OptimizationRun(
+            run_id=session_id,
+            status=status,
+            created_at=now - timedelta(minutes=31),
+            updated_at=now,
+            objective_id="seed-objective",
+            objective_version=1,
+            baseline_components=tuple(PINS.values()),
+            budget_limits=dict(LIMITS),
+            optimizer_settings={
+                "max_parallel_experiments": 3,
+                "max_concurrent_runs": 6,
+                "iterations_without_improvement": 3,
+                "precision_floor": 0.9,
+            },
+            scope_areas=tuple(areas),
+            insight_ids=tuple(insight_ids),
+            winners=winners,
+            winning_components=best.components if best else (),
+            strategy=strategy,
+            events_stream=session_id,
+        )
+    )
+
+
+def _seed_parallel(owner_id: str, session_id: str) -> str:
+    """Three independent candidates running at once, each with a live run lease."""
+    seeder = _Seeder(owner_id, session_id, "parallel")
+    now = seeder.now
+    areas = ("model", "configuration", "library")
+    for number, area in enumerate(areas, start=1):
+        hypothesis_id = seeder.hypothesis(
+            f"Evaluar si el área {area} puede mejorar el recall sin incumplir el piso de precisión.",
+            AgentHypothesisStatus.ACTIVE,
+            area=area,
+        )
+        run_id = str(uuid.uuid4())
+        get_agent_run_repository().create(
+            AgentRun(
+                run_id=run_id,
+                session_id=session_id,
+                iteration_number=number,
+                subagent={"model": "xgboost"}.get(area, area),
+                status=AgentRunStatus.RUNNING,
+                prompt_ref={},
+                created_at=now,
+                lease_expires_at=now + timedelta(minutes=10),
+            )
+        )
+        seeder.iteration(
+            number,
+            AgentIterationStatus.RUNNING,
+            run_ids=(run_id,),
+            hypothesis_id=hypothesis_id,
+            action="running",
+        )
+        seeder.event(
+            AgentEventKind.ITERATION,
+            AgentEventOutcome.STARTED,
+            f"Iteración {number} iniciada",
+            refs={"iteration": number, "run_id": run_id},
+        )
+    seeder.spend(3, 3, 3)
+    get_agent_session_repository().create(
+        AgentSession(
+            session_id=session_id,
+            mode="optimization",
+            status=AgentSessionStatus.ACTIVE,
+            owner_id=owner_id,
+            created_at=now - timedelta(minutes=31),
+            updated_at=now,
+            scope={"areas": list(areas)},
+            budget_limits=dict(LIMITS),
+            baseline_components=tuple(PINS.values()),
+        )
+    )
+    _seed_root(session_id, now, areas, OptimizationRunStatus.RUNNING)
+    return session_id
 
 
 def seed(owner_id: str, state: str, prefix: str) -> str:
     session_id = f"{prefix}-{state.replace('_', '-')}-{uuid.uuid4().hex[:8]}"
+    if state == "parallel":
+        return _seed_parallel(owner_id, session_id)
     seeder = _Seeder(owner_id, session_id, state)
     now = seeder.now
     status = {
@@ -287,7 +498,7 @@ def seed(owner_id: str, state: str, prefix: str) -> str:
             )
         )
     first = seeder.hypothesis(
-        "Evaluar si el área xgboost puede mejorar el recall sin incumplir el piso de precisión.",
+        "Evaluar si el área model puede mejorar el recall sin incumplir el piso de precisión.",
         {
             "completed": AgentHypothesisStatus.VALIDATED,
             "inconclusive": AgentHypothesisStatus.REFUTED,
@@ -316,15 +527,15 @@ def seed(owner_id: str, state: str, prefix: str) -> str:
         experiment_id = seeder.experiment(
             1,
             AgentExperimentStatus.SUCCEEDED,
-            evaluation={
-                "eligible_count": 120,
-                "candidate": {"precision": 0.94, "recall": 0.71},
-                "baseline": {"precision": 0.93, "recall": 0.6},
-            },
+            evaluation=_evaluation(0.71),
+            candidate_id=first,
         )
     elif state == "failing":
         experiment_id = seeder.experiment(
-            1, AgentExperimentStatus.FAILED, error="PIPELINE_REPLAY_WORKFLOW_FAILED"
+            1,
+            AgentExperimentStatus.FAILED,
+            error="PIPELINE_REPLAY_WORKFLOW_FAILED",
+            candidate_id=first,
         )
 
     if state == "failing":
@@ -377,6 +588,34 @@ def seed(owner_id: str, state: str, prefix: str) -> str:
         )
 
     if state == "completed":
+        second = seeder.hypothesis(
+            "Evaluar si el área configuration puede mejorar el recall sin incumplir el piso de precisión.",
+            AgentHypothesisStatus.VALIDATED,
+            area="configuration",
+            conclusion=_conclusion(AgentHypothesisStatus.VALIDATED, recall=0.68),
+        )
+        seeder.experiment(
+            2,
+            AgentExperimentStatus.SUCCEEDED,
+            evaluation=_evaluation(0.68),
+            candidate_id=second,
+            changed=("configuration",),
+        )
+        combination = seeder.hypothesis(
+            "Combinar los ganadores (configuration, model) y medirlos juntos contra la línea base.",
+            AgentHypothesisStatus.VALIDATED,
+            area="combination",
+            depends_on=(first, second),
+            priority=200,
+            conclusion=_conclusion(AgentHypothesisStatus.VALIDATED, recall=0.76),
+        )
+        seeder.experiment(
+            3,
+            AgentExperimentStatus.SUCCEEDED,
+            evaluation=_evaluation(0.76),
+            candidate_id=combination,
+            changed=("model", "configuration"),
+        )
         seeder.event(
             AgentEventKind.PRODUCTION_CHANGE,
             AgentEventOutcome.SUCCEEDED,
@@ -476,6 +715,21 @@ def seed(owner_id: str, state: str, prefix: str) -> str:
             lease_expires_at=lease_expires,
             block=({"code": block, "since": now.isoformat()} if block else {}),
         )
+    )
+    _seed_root(
+        session_id,
+        now,
+        ("model", "configuration") if state == "completed" else ("model",),
+        {
+            "completed": OptimizationRunStatus.COMPLETED,
+            "inconclusive": OptimizationRunStatus.STOPPED,
+        }.get(
+            state,
+            OptimizationRunStatus.WAITING_USER
+            if block
+            else OptimizationRunStatus.RUNNING,
+        ),
+        (insight_id,) if insight_id else (),
     )
     return session_id
 

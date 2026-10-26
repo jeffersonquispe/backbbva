@@ -229,3 +229,17 @@ def test_other_owners_cannot_read_the_overview() -> None:
 
     with pytest.raises(AgentOverviewNotFoundError):
         use_case.execute("s1", "someone-else")
+
+
+def test_parallel_candidates_are_reported_together() -> None:
+    overview = _overview(
+        _session(),
+        iterations=[
+            _iteration(1, AgentIterationStatus.RUNNING),
+            _iteration(2, AgentIterationStatus.RUNNING),
+            _iteration(3, AgentIterationStatus.RUNNING),
+        ],
+    )
+
+    assert overview.verdict.state == "running"
+    assert overview.verdict.title == "Trabajando en 3 candidatos en paralelo"

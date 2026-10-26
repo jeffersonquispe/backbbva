@@ -217,10 +217,17 @@ def get_optimization_run(
     _: LocalUser = _CONFIGURATION_ACCESS,
 ):
     """Root, candidates with their conclusion, experiments and findings at once."""
-    _owned_session(session_id, str(user.id))
+    session = _owned_session(session_id, str(user.id))
     tree = get_optimization_run_repository().load_tree(session_id)
     if tree is None:
-        raise HTTPException(status_code=404, detail={"code": "RUN_NOT_FOUND"})
+        # The run is created on the session's first tick; until then it is empty.
+        return {
+            "run_id": session_id,
+            "status": "PENDING",
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
+            "events_stream": session_id,
+        }
     root = tree.root
     return {
         **{
@@ -516,6 +523,7 @@ def list_session_iterations(
             "started_at": item.started_at,
             "finished_at": item.finished_at,
             "hypothesis": item.decision.get("hypothesis"),
+            "hypothesis_id": item.decision.get("hypothesis_id"),
             "objective_id": item.decision.get("objective_id"),
             "objective_version": item.decision.get("objective_version"),
             "specialist": item.decision.get("specialist"),

@@ -82,6 +82,11 @@
   },
   {
    "relation": "requests",
+   "source": "api:agent.getOptimizationRun",
+   "target": "endpoint:GET /api/v0/agent/optimization-runs/{session_id}"
+  },
+  {
+   "relation": "requests",
    "source": "api:agent.listAgentAudit",
    "target": "endpoint:GET /api/v0/agent/sessions/{session_id}/audit"
   },
@@ -144,6 +149,11 @@
    "relation": "requests",
    "source": "api:agent.listAgentSessions",
    "target": "endpoint:GET /api/v0/agent/sessions"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.listExperimentEvents",
+   "target": "endpoint:GET /api/v0/agent/sessions/{session_id}/experiments/{experiment_id}/events"
   },
   {
    "relation": "requests",
@@ -3068,12 +3078,12 @@
   {
    "relation": "calls",
    "source": "component:optimizer/OptimizerCenter",
-   "target": "api:agent.listAgentEvents"
+   "target": "api:agent.getOptimizationRun"
   },
   {
    "relation": "calls",
    "source": "component:optimizer/OptimizerCenter",
-   "target": "api:agent.listAgentExperiments"
+   "target": "api:agent.listAgentEvents"
   },
   {
    "relation": "calls",
@@ -3084,11 +3094,6 @@
    "relation": "calls",
    "source": "component:optimizer/OptimizerCenter",
    "target": "api:agent.listAgentFindings"
-  },
-  {
-   "relation": "calls",
-   "source": "component:optimizer/OptimizerCenter",
-   "target": "api:agent.listAgentHypotheses"
   },
   {
    "relation": "calls",
@@ -3118,16 +3123,6 @@
   {
    "relation": "renders",
    "source": "component:optimizer/OptimizerCenter",
-   "target": "component:optimizer/ExperimentsPanel"
-  },
-  {
-   "relation": "renders",
-   "source": "component:optimizer/OptimizerCenter",
-   "target": "component:optimizer/HypothesisBoard"
-  },
-  {
-   "relation": "renders",
-   "source": "component:optimizer/OptimizerCenter",
    "target": "component:optimizer/LearningsPanel"
   },
   {
@@ -3139,6 +3134,11 @@
    "relation": "renders",
    "source": "component:optimizer/OptimizerCenter",
    "target": "component:optimizer/OptimizerLaunchDrawer"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/OptimizerCenter",
+   "target": "component:optimizer/RunTree"
   },
   {
    "relation": "renders",
@@ -3189,6 +3189,21 @@
    "relation": "renders",
    "source": "component:optimizer/OptimizerLaunchDrawer",
    "target": "component:ui/side-drawer"
+  },
+  {
+   "relation": "offers",
+   "source": "component:optimizer/RunTree",
+   "target": "action:eventos-del-experimento@component-optimizer-runtree"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/RunTree",
+   "target": "api:agent.listExperimentEvents"
+  },
+  {
+   "relation": "renders",
+   "source": "component:optimizer/RunTree",
+   "target": "component:optimizer/ExperimentsPanel"
   },
   {
    "relation": "offers",
@@ -4197,6 +4212,16 @@
   },
   {
    "relation": "requires",
+   "source": "endpoint:GET /api/v0/agent/optimization-runs/{session_id}",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/optimization-runs/{session_id}",
+   "target": "resource:agent"
+  },
+  {
+   "relation": "requires",
    "source": "endpoint:GET /api/v0/agent/packages/{package_id}",
    "target": "permission:configuration"
   },
@@ -4297,6 +4322,16 @@
   },
   {
    "relation": "requires",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/experiments/{experiment_id}/events",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/experiments/{experiment_id}/events",
+   "target": "resource:agent"
+  },
+  {
+   "relation": "requires",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/findings",
    "target": "permission:configuration"
   },
@@ -4388,6 +4423,16 @@
   {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/packages",
+   "target": "resource:agent"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/runs/{run_id}/tool-calls",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/runs/{run_id}/tool-calls",
    "target": "resource:agent"
   },
   {
@@ -6383,12 +6428,12 @@
   {
    "relation": "implemented_by",
    "source": "port:AgentExperimentRepository",
-   "target": "adapter:DynamoAgentExperimentRepository"
+   "target": "adapter:DynamoRunExperimentRepository"
   },
   {
    "relation": "implemented_by",
    "source": "port:AgentHypothesisRepository",
-   "target": "adapter:DynamoAgentHypothesisRepository"
+   "target": "adapter:DynamoRunHypothesisRepository"
   },
   {
    "relation": "implemented_by",
@@ -7328,6 +7373,12 @@
   },
   {
    "position": 1,
+   "relation": "involves",
+   "source": "task:entender-optimizador",
+   "target": "component:optimizer/RunTree"
+  },
+  {
+   "position": 2,
    "relation": "involves",
    "source": "task:entender-optimizador",
    "target": "component:optimizer/SessionTimeline"
@@ -12633,6 +12684,18 @@
   },
   {
    "attrs": {
+    "owner": "component:optimizer/RunTree"
+   },
+   "description": "Acción «Eventos del experimento» en RunTree.",
+   "id": "action:eventos-del-experimento@component-optimizer-runtree",
+   "keywords": [
+    "Eventos del experimento"
+   ],
+   "kind": "action",
+   "name": "Eventos del experimento"
+  },
+  {
+   "attrs": {
     "owner": "component:modelos/FeatureRecipeWorkspace"
    },
    "description": "Acción «Expandir todo» en FeatureRecipeWorkspace.",
@@ -14361,30 +14424,6 @@
   },
   {
    "attrs": {
-    "file": "src/infrastructure/persistence/database/dynamodb/repositories/agent_repositories.py"
-   },
-   "description": "Append-only component pins with status-guarded result completion.",
-   "id": "adapter:DynamoAgentExperimentRepository",
-   "keywords": [
-    "Dynamo Agent Experiment Repository"
-   ],
-   "kind": "adapter",
-   "name": "DynamoAgentExperimentRepository"
-  },
-  {
-   "attrs": {
-    "file": "src/infrastructure/persistence/database/dynamodb/repositories/agent_repositories.py"
-   },
-   "description": "",
-   "id": "adapter:DynamoAgentHypothesisRepository",
-   "keywords": [
-    "Dynamo Agent Hypothesis Repository"
-   ],
-   "kind": "adapter",
-   "name": "DynamoAgentHypothesisRepository"
-  },
-  {
-   "attrs": {
     "file": "src/infrastructure/persistence/database/dynamodb/repositories/agent_chat_repositories.py"
    },
    "description": "",
@@ -14862,6 +14901,30 @@
    ],
    "kind": "adapter",
    "name": "DynamoRevokedTokenRepository"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/persistence/database/dynamodb/repositories/optimization_run_repositories.py"
+   },
+   "description": "Experiments of an optimization run (`EXP#` nodes), status-guarded.",
+   "id": "adapter:DynamoRunExperimentRepository",
+   "keywords": [
+    "Dynamo Run Experiment Repository"
+   ],
+   "kind": "adapter",
+   "name": "DynamoRunExperimentRepository"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/persistence/database/dynamodb/repositories/optimization_run_repositories.py"
+   },
+   "description": "Candidates of an optimization run (`CAND#` nodes).",
+   "id": "adapter:DynamoRunHypothesisRepository",
+   "keywords": [
+    "Dynamo Run Hypothesis Repository"
+   ],
+   "kind": "adapter",
+   "name": "DynamoRunHypothesisRepository"
   },
   {
    "attrs": {
@@ -15451,6 +15514,20 @@
    "attrs": {
     "file": "lib/api/agent.functions.ts",
     "http_method": "GET",
+    "url": "/api/v0/agent/optimization-runs/${encodeURIComponent(sessionId)}"
+   },
+   "description": "GET /api/v0/agent/optimization-runs/{id}",
+   "id": "api:agent.getOptimizationRun",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getOptimizationRun"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
     "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/audit?${query}"
    },
    "description": "GET /api/v0/agent/sessions/{id}/audit?",
@@ -15628,6 +15705,20 @@
    ],
    "kind": "api_call",
    "name": "listAgentSessions"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/experiments/${encodeURIComponent(experimentId)}/events?limit=200"
+   },
+   "description": "GET /api/v0/agent/sessions/{id}/experiments/{id}/events?limit=200",
+   "id": "api:agent.listExperimentEvents",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listExperimentEvents"
   },
   {
    "attrs": {
@@ -18356,6 +18447,7 @@
     "Detener ante fallo crítico",
     "Sesiones concurrentes máximas",
     "Ejecuciones concurrentes máximas",
+    "Experimentos en paralelo por sesión",
     "Candidatos por sesión",
     "Tope de presupuesto por tokens",
     "Tope de presupuesto monetario",
@@ -18380,8 +18472,7 @@
     "Periodo de datos muestreado",
     "Volumen para disparar muestreo",
     "Margen de error",
-    "Nivel de confianza",
-    "Mínimo por estrato"
+    "Nivel de confianza"
    ],
    "kind": "component",
    "name": "AgentSettingsPanel"
@@ -19625,27 +19716,6 @@
   },
   {
    "attrs": {
-    "file": "components/optimizer/HypothesisBoard.tsx"
-   },
-   "description": "Tablero que organiza las hipótesis por resultado (en prueba, validadas, refutadas, inconclusas). Permite ver cada hipótesis y desplegar su trazabilidad basada en eventos asociados y el insight de origen cuando existe.",
-   "id": "component:optimizer/HypothesisBoard",
-   "keywords": [
-    "En prueba o en cola",
-    "Validadas",
-    "Refutadas",
-    "Inconclusas",
-    "Ninguna.",
-    "Nace de tu contexto",
-    "Respaldada por sesiones previas",
-    "Trazabilidad",
-    "Contexto → hipótesis creada",
-    "Aún sin eventos."
-   ],
-   "kind": "component",
-   "name": "HypothesisBoard"
-  },
-  {
-   "attrs": {
     "file": "components/optimizer/LearningsPanel.tsx"
    },
    "description": "Vista para consultar aprendizajes guardados de sesiones anteriores filtrados por área, con resumen de evidencia y fechas relevantes. También muestra una tabla con hallazgos agregados de la sesión actual (casos y métricas por baseline/candidato).",
@@ -19675,9 +19745,8 @@
    "id": "component:optimizer/OptimizerCenter",
    "keywords": [
     "Resumen",
+    "Corrida",
     "Línea de tiempo",
-    "Hipótesis",
-    "Experimentos",
     "Aprendizajes",
     "Conversación",
     "Releases",
@@ -19691,6 +19760,8 @@
     "Leyendo el estado de la sesión…",
     "Secciones del optimizador",
     "Hay otra sesión activa investigando un área de este alcance:",
+    "Cargando la corrida…",
+    "Esta sesión todavía no tiene una corrida: se crea en su primer tick.",
     "Presupuesto",
     "Contadores",
     "con problema",
@@ -19736,6 +19807,53 @@
    ],
    "kind": "component",
    "name": "OptimizerLaunchDrawer"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/RunTree.tsx"
+   },
+   "description": "Vista «Corrida» del optimizador: la corrida completa en una estructura con estrategia, configuración base, ganadores y configuración ganadora, y cada candidato con su hipótesis, insights, conclusión, experimentos en paralelo y los eventos propios de cada experimento.",
+   "id": "component:optimizer/RunTree",
+   "keywords": [
+    "Explorar",
+    "Combinar ganadores",
+    "Promover el ganador",
+    "Validada",
+    "Refutada",
+    "Inconclusa",
+    "En prueba o en cola",
+    "Estrategia de la corrida",
+    "Estrategia",
+    "Configuración base del optimizador",
+    "Objetivo",
+    "Experimentos en paralelo",
+    "hasta",
+    "por sesión",
+    "Alcance",
+    "Insights",
+    "generales ·",
+    "de memoria",
+    "Ganadores",
+    "Aún ningún candidato mejora el objetivo frente a la línea base.",
+    "Candidato",
+    "Cambia",
+    "Recall",
+    "Mejora",
+    "pts",
+    "Configuración ganadora:",
+    "Candidatos",
+    "en paralelo",
+    "La corrida aún no tiene candidatos.",
+    "Combina:",
+    "Insights del candidato",
+    "Conclusión",
+    "Conclusión ·",
+    "Eventos del experimento",
+    "Cargando…",
+    "Sin eventos propios todavía."
+   ],
+   "kind": "component",
+   "name": "RunTree"
   },
   {
    "attrs": {
@@ -21404,6 +21522,20 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/agent/optimization-runs/{session_id}"
+   },
+   "description": "Root, candidates with their conclusion, experiments and findings at once.",
+   "id": "endpoint:GET /api/v0/agent/optimization-runs/{session_id}",
+   "keywords": [
+    "get optimization run",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/optimization-runs/{session_id}"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/agent/packages/{package_id}"
    },
    "description": "",
@@ -21572,6 +21704,20 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/agent/sessions/{session_id}/experiments/{experiment_id}/events"
+   },
+   "description": "The experiment's own timeline, separate from the session's.",
+   "id": "endpoint:GET /api/v0/agent/sessions/{session_id}/experiments/{experiment_id}/events",
+   "keywords": [
+    "list experiment events",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/sessions/{session_id}/experiments/{experiment_id}/events"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/agent/sessions/{session_id}/findings"
    },
    "description": "",
@@ -21708,6 +21854,20 @@
    ],
    "kind": "endpoint",
    "name": "GET /api/v0/agent/sessions/{session_id}/packages"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/agent/sessions/{session_id}/runs/{run_id}/tool-calls"
+   },
+   "description": "Measured calls of one specialist run (duration, cost, safe result only).",
+   "id": "endpoint:GET /api/v0/agent/sessions/{session_id}/runs/{run_id}/tool-calls",
+   "keywords": [
+    "list run tool calls",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/sessions/{session_id}/runs/{run_id}/tool-calls"
   },
   {
    "attrs": {

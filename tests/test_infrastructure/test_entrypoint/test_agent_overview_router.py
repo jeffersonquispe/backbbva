@@ -369,3 +369,17 @@ def test_experiment_events_read_the_experiment_stream(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert seen == ["session-1#exp#e1"]
+
+
+def test_a_session_without_its_first_tick_has_an_empty_pending_run(monkeypatch) -> None:
+    class Tree:
+        def load_tree(self, run_id):
+            return None
+
+    monkeypatch.setattr(agent_router, "get_optimization_run_repository", lambda: Tree())
+
+    response = _client(monkeypatch).get("/agent/optimization-runs/session-1")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "PENDING"
+    assert response.json()["candidates"] == []
