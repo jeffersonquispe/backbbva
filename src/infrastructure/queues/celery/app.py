@@ -52,6 +52,13 @@ def periodic_schedule(
             "task": "object_storage.retention",
             "schedule": crontab(hour=3, minute=0),
         },
+        # Fraud-history retention: 03:30 Bogota, after the object-storage
+        # sweep. No-op unless FRAUD_HISTORY_RETENTION_ENABLED.
+        "fraud-history-retention": {
+            "task": "fraud_history.retention",
+            "schedule": crontab(hour=3, minute=30),
+            "options": {"expires": 24 * 60 * 60},
+        },
         "analyze-alert-schema-presence": {
             "task": "alert_schema.analyze_presence",
             "schedule": crontab(hour=2, minute=30),

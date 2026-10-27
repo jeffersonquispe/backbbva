@@ -137,6 +137,19 @@ class Config(BaseSettings):
     OBJECT_STORAGE_RETENTION_ENABLED: bool = False
     OBJECT_STORAGE_RETENTION_DRY_RUN: bool = True
     OBJECT_STORAGE_RETENTION_RULES: str = "[]"
+    # SSE-KMS key for every object ARIA writes (archives, datasets, models).
+    # Empty = no encryption header; set it only once the platform's KMS
+    # (MinIO KES) serves the key, or every write fails.
+    OBJECT_STORAGE_SSE_KMS_KEY_ID: str = ""
+    # Fraud-history retention (daily, Celery Beat): alerts plus their
+    # fraud-label reviews and notes older than HOT_DAYS move to
+    # fraud-history-archive/ in the reports store, then leave DynamoDB. Off
+    # and dry-run by default; the archive's legal lifetime is an
+    # OBJECT_STORAGE_RETENTION_RULES rule on that prefix.
+    FRAUD_HISTORY_RETENTION_ENABLED: bool = False
+    FRAUD_HISTORY_RETENTION_DRY_RUN: bool = True
+    FRAUD_HISTORY_HOT_DAYS: int = 365
+    FRAUD_HISTORY_RETENTION_SCAN_DAYS: int = 31
 
     # OPENSEARCH (fraud knowledge vector store)
     OPENSEARCH_ENDPOINT: str = "http://opensearch:9200"

@@ -46,6 +46,7 @@ from src.infrastructure.workflows.celery.task_factories import (
     get_analyze_dataset_use_case,
     get_analyze_fraud_marking_use_case,
     get_apply_object_storage_retention_use_case,
+    get_archive_fraud_history_use_case,
     get_backup_catalog_repository,
     get_cleanup_test_runs_use_case,
     get_dataset_repository,
@@ -197,6 +198,36 @@ def apply_object_storage_retention() -> dict[str, Any]:
                 "bytes_matched": r.bytes_matched,
             }
             for r in output.results
+        ],
+    }
+
+
+@app.task(name="fraud_history.retention")
+def archive_fraud_history() -> dict[str, Any]:
+    if not genai_config.FRAUD_HISTORY_RETENTION_ENABLED:
+        return {"enabled": False}
+    output = get_archive_fraud_history_use_case().execute(
+        hot_days=genai_config.FRAUD_HISTORY_HOT_DAYS,
+        scan_days=genai_config.FRAUD_HISTORY_RETENTION_SCAN_DAYS,
+        dry_run=genai_config.FRAUD_HISTORY_RETENTION_DRY_RUN,
+    )
+    return {
+        "enabled": True,
+        "dry_run": output.dry_run,
+        "alerts": output.alerts,
+        "deleted": output.deleted,
+        "days": [
+            {
+                "created_day": day.created_day.isoformat(),
+                "alerts": day.alerts,
+                "reviews": day.reviews,
+                "held": day.held,
+                "deleted": day.deleted,
+                "object_key": day.object_key,
+                "sha256": day.sha256,
+            }
+            for day in output.days
+            if day.alerts or day.held
         ],
     }
 

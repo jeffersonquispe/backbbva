@@ -25,6 +25,12 @@ class MinioObjectStorageAdapter(ObjectStoragePort):
             aws_secret_access_key=genai_config.OBJECT_STORAGE_SECRET_KEY,
         )
         install_audit_hooks(self._client, "s3")
+        kms_key_id = genai_config.OBJECT_STORAGE_SSE_KMS_KEY_ID
+        self._encryption: dict[str, str] = (
+            {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": kms_key_id}
+            if kms_key_id
+            else {}
+        )
         self._ensure_bucket()
 
     def _ensure_bucket(self) -> None:
@@ -52,6 +58,7 @@ class MinioObjectStorageAdapter(ObjectStoragePort):
             Key=key,
             Body=content,
             ContentType=content_type,
+            **self._encryption,
         )
         return ObjectStorageRef(
             bucket=self._bucket,
@@ -71,7 +78,7 @@ class MinioObjectStorageAdapter(ObjectStoragePort):
             Fileobj=file,
             Bucket=self._bucket,
             Key=key,
-            ExtraArgs={"ContentType": content_type},
+            ExtraArgs={"ContentType": content_type, **self._encryption},
         )
         return ObjectStorageRef(
             bucket=self._bucket,

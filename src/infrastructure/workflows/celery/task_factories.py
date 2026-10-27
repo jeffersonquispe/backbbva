@@ -7,6 +7,7 @@ from src.application.dtos.research_dtos import ResearchSource
 from src.application.ports.backup_catalog_port import BackupCatalogRepository
 from src.application.ports.dataset_analysis_port import DatasetSampleRepository
 from src.application.ports.dataset_summary_port import DatasetSummaryRepository
+from src.application.ports.fraud_history_archive_port import FraudHistoryArchivePort
 from src.application.ports.history_research_planner_port import HistoryResearchPlanner
 from src.application.ports.model_scoring_port import ModelScoringPort
 from src.application.use_cases.agent.evaluate_global_pipeline import (
@@ -54,6 +55,9 @@ from src.application.use_cases.datasets.delete_dataset import DeleteDatasetUseCa
 from src.application.use_cases.datasets.preview_mature_sample import (
     PreviewMatureSampleUseCase,
 )
+from src.application.use_cases.fraud_review.archive_fraud_history import (
+    ArchiveFraudHistory,
+)
 from src.application.use_cases.object_storage.apply_retention import (
     ApplyObjectStorageRetentionUseCase,
     RetentionRule,
@@ -100,6 +104,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sampl
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_summary_repository import (
     DynamoDatasetSummaryRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.fraud_history_archive_repository import (
+    DynamoFraudHistoryArchiveRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.mature_sample_repository import (
     DynamoDatasetSamplerStateRepository,
@@ -291,6 +298,19 @@ def get_apply_object_storage_retention_use_case() -> ApplyObjectStorageRetention
             "models": get_model_object_storage(),
         },
         clock=get_clock(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_fraud_history_archive_repository() -> FraudHistoryArchivePort:
+    return DynamoFraudHistoryArchiveRepository(get_object_storage())
+
+
+def get_archive_fraud_history_use_case() -> ArchiveFraudHistory:
+    return ArchiveFraudHistory(
+        get_fraud_history_archive_repository(),
+        clock=get_clock(),
+        timezone_name=genai_config.OPERATIONS_TIMEZONE,
     )
 
 

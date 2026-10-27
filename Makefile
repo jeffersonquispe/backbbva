@@ -176,6 +176,31 @@ test-integration-retention:  ## Run the object-storage retention e2e against the
 		OBJECT_STORAGE_SECRET_KEY=$${OBJECT_STORAGE_SECRET_KEY:-dummy123} \
 		python -m pytest -m docker_integration tests/test_integration/test_object_storage_retention
 
+.PHONY: test-integration-fraud-history-retention
+test-integration-fraud-history-retention:  ## Run fraud-history retention (archive, verify, delete) against the running local DynamoDB and MinIO on throwaway tables/bucket. Vars: DYNAMO_PORT(8002), MINIO_PORT(9000)
+	GENAI_ENVIRONMENT=test DYNAMO_ENDPOINT=http://localhost:$${DYNAMO_PORT:-8002} DYNAMO_REGION_NAME=us-east-1 \
+		DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
+		OBJECT_STORAGE_ENDPOINT=http://localhost:$${MINIO_PORT:-9000} \
+		OBJECT_STORAGE_ACCESS_KEY=$${OBJECT_STORAGE_ACCESS_KEY:-dummy} \
+		OBJECT_STORAGE_SECRET_KEY=$${OBJECT_STORAGE_SECRET_KEY:-dummy123} \
+		python -m pytest -m docker_integration tests/test_integration/test_fraud_history_retention
+
+.PHONY: test-integration-sse-kms
+test-integration-sse-kms:  ## Start a throwaway MinIO with a static KMS key (stands in for KES), check SSE-KMS writes, then remove it. Vars: SSE_KMS_MINIO_PORT(9100)
+	@set -euo pipefail; \
+	port=$${SSE_KMS_MINIO_PORT:-9100}; name=aria-it-minio-kms; \
+	$(DOCKER) rm -f $$name >/dev/null 2>&1 || true; \
+	trap '$(DOCKER) rm -f '"$$name"' >/dev/null 2>&1 || true' EXIT; \
+	$(DOCKER) run -d --name $$name -p $$port:9000 \
+		-e MINIO_ROOT_USER=dummy -e MINIO_ROOT_PASSWORD=dummy123 \
+		-e MINIO_KMS_SECRET_KEY="aria-it-key:$$(openssl rand -base64 32)" \
+		minio/minio:latest server /data >/dev/null; \
+	for _ in $$(seq 1 30); do curl -sf http://localhost:$$port/minio/health/ready >/dev/null && break; sleep 1; done; \
+	GENAI_ENVIRONMENT=test OBJECT_STORAGE_ENDPOINT=http://localhost:$$port \
+		OBJECT_STORAGE_ACCESS_KEY=dummy OBJECT_STORAGE_SECRET_KEY=dummy123 \
+		OBJECT_STORAGE_SSE_KMS_KEY_ID=aria-it-key \
+		python -m pytest -m docker_integration tests/test_integration/test_object_storage_encryption
+
 .PHONY: metrics-backfill
 metrics-backfill:  ## Rebuild metrics snapshots + rollups for alerts of FROM..TO (Bogota days, inclusive) that have none. Idempotent. Vars: FROM, TO (YYYY-MM-DD, required), DYNAMO_PORT(8002), GENAI_ENVIRONMENT(local)
 	@if [ -z "$(FROM)" ] || [ -z "$(TO)" ]; then \

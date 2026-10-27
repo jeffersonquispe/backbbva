@@ -38,6 +38,15 @@ data:
   OBJECT_STORAGE_RETENTION_ENABLED: "false"
   OBJECT_STORAGE_RETENTION_DRY_RUN: "true"
   OBJECT_STORAGE_RETENTION_RULES: "[]"
+  # SSE-KMS key id for MinIO writes; empty until KES serves the key.
+  OBJECT_STORAGE_SSE_KMS_KEY_ID: ""
+  # Fraud-history retention (daily 03:30 Bogota): alerts + fraud-label
+  # reviews older than HOT_DAYS go to fraud-history-archive/ and leave
+  # DynamoDB. Off and dry-run until legal sets the periods.
+  FRAUD_HISTORY_RETENTION_ENABLED: "false"
+  FRAUD_HISTORY_RETENTION_DRY_RUN: "true"
+  FRAUD_HISTORY_HOT_DAYS: "365"
+  FRAUD_HISTORY_RETENTION_SCAN_DAYS: "31"
   OPENSEARCH_ENDPOINT: https://opensearch:9200
   OPENSEARCH_AUTH_MODE: basic
   OPENSEARCH_INDEX: fraud_knowledge
