@@ -79,9 +79,9 @@ so Argo CD never commits, syncs, or overwrites real values.
 | --- | --- | --- |
 | API | `aria-api-runtime` | `AUTH_JWT_SECRET`, `AUTH_BOOTSTRAP_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY`, `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`, `OPENAI_KEY` |
 | MCP | `aria-mcp-runtime` | AWS, Dynamo, and object-storage keys |
-| `aria-worker-main` | `aria-worker-main-runtime` | AWS, Dynamo, and object-storage keys, `OPENAI_KEY` |
+| `aria-worker-main` | `aria-worker-main-runtime` | AWS, Dynamo, object-storage, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`, `OPENAI_KEY` |
 | `aria-worker-training` | `aria-worker-main-runtime` | AWS, Dynamo, and object-storage keys, `OPENAI_KEY` |
-| `aria-worker-test` | `aria-worker-test-runtime` | AWS, Dynamo, and object-storage keys, `OPENAI_KEY` |
+| `aria-worker-test` | `aria-worker-test-runtime` | AWS, Dynamo, object-storage, `OPENSEARCH_USERNAME`, `OPENSEARCH_PASSWORD`, `OPENAI_KEY` |
 | `aria-worker-scheduler` | — | no application secret required |
 | `aria-worker-simulator` | `aria-worker-simulator-runtime` | `EVENT_SIMULATOR_ARIA_API_TOKEN`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY`, `OPENAI_KEY` |
 | MinIO | `aria-minio-runtime` | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` |
@@ -93,3 +93,38 @@ so Argo CD never commits, syncs, or overwrites real values.
 Redis and DynamoDB are configured without credentials and need no Secret.
 Changing a Secret value does not restart pods: run
 `oc rollout restart deployment/<name>` (or `statefulset/<name>`) afterwards.
+
+## Vector Store generations and agent context
+
+The main, test, and simulator-alert workers use 3,072-dimensional embeddings.
+The test worker connects to the same OpenSearch service as the main worker and
+reads its credentials from `aria-worker-test-runtime`. Add the two OpenSearch
+keys to an existing test-worker Secret before applying this Deployment; its
+`secret.example.yaml` is a template only. The main worker runs the daily
+generation cleanup at 04:30 Bogotá (14-day retention, two rollback
+configurations). The main Celery beat uses `Recreate` so two schedulers do not
+publish the same sweep during a rollout.
+
+For an existing environment, coordinate a maintenance window and back up
+DynamoDB and OpenSearch first. Build and select API and worker image tags that
+contain the generation and prompt-upgrade code; the image tags in these
+manifests do not automatically change when source changes. Before allowing
+alert traffic onto the new code, run from a newly deployed main-worker pod:
+
+```sh
+oc exec deployment/aria-worker-main -- python -m src.infrastructure.entrypoint.worker.vector_store_generations migrate
+# Inspect the report; resolve every segment_tools_unresolved entry first.
+oc exec deployment/aria-worker-main -- python -m src.infrastructure.entrypoint.worker.vector_store_generations migrate --apply
+# A second dry run verifies that nothing remains to migrate.
+oc exec deployment/aria-worker-main -- python -m src.infrastructure.entrypoint.worker.vector_store_generations migrate
+
+oc exec deployment/aria-worker-main -- python scripts/upgrade_agent_context_prompts.py
+# Review custom_prompt or other reported conflicts before applying.
+oc exec deployment/aria-worker-main -- python scripts/upgrade_agent_context_prompts.py --apply
+```
+
+The prompt command upgrades known defaults only and preserves older versions
+for pinned sessions. Integrate customized prompts manually. Migration changes
+configuration and Vector Store pins: old H11/H12 evidence may need to be
+repeated; see `docs/VECTOR_STORE_GENERATIONS.md`. These operations have not
+been executed in OKD by this change.

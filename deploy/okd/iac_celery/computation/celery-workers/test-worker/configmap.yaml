@@ -30,6 +30,11 @@ data:
   DATASET_STORAGE_BACKEND: minio
   DATASET_STORAGE_BUCKET: datasets
   MODEL_STORAGE_BUCKET: models
+  # Test and optimizer replays search the same pinned generation as production.
+  OPENSEARCH_ENDPOINT: https://opensearch:9200
+  OPENSEARCH_AUTH_MODE: basic
+  OPENSEARCH_INDEX: fraud_knowledge
+  OPENSEARCH_VERIFY_CERTS: "false"
   LLM_BACKEND: azure
   OPENAI_ENDPOINT: https://genai-lupitaasistente-work-llm-openai.openai.azure.com/
   OPENAI_VERSION: "2024-08-01-preview"
@@ -45,6 +50,7 @@ data:
   # LLM-judge (reasoning evaluation); empty = falls back to REPORT_LLM_MODEL.
   JUDGE_LLM_MODEL: ""
   EMBEDDING_MODEL: agentepqrs-llm-live-emebed-3-large
+  EMBEDDING_DIMENSIONS: "3072"
   # Namespace Collector (observability/otel-collector), the only OTLP boundary.
   OTEL_ENDPOINT: http://otel-collector:4317
   OTEL_CAPTURE_LLM_CONTENT: "false"

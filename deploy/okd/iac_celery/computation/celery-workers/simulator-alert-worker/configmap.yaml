@@ -48,5 +48,6 @@ data:
   REPORT_LLM_MODEL: asistentelupita-llm-work-agent-gpt52
   JUDGE_LLM_MODEL: ""
   EMBEDDING_MODEL: agentepqrs-llm-live-emebed-3-large
+  EMBEDDING_DIMENSIONS: "3072"
   OTEL_ENDPOINT: http://otel-collector:4317
   OTEL_CAPTURE_LLM_CONTENT: "false"

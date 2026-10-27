@@ -9,6 +9,8 @@ metadata:
     app.kubernetes.io/managed-by: argocd
 spec:
   replicas: 1
+  # One beat publishes each retention sweep, including Vector Store cleanup.
+  strategy: {type: Recreate}
   selector: {matchLabels: {app.kubernetes.io/name: aria-worker-scheduler}}
   template:
     metadata: {labels: {app.kubernetes.io/name: aria-worker-scheduler, app.kubernetes.io/component: celery-scheduler, app.kubernetes.io/part-of: aria-workers}}
