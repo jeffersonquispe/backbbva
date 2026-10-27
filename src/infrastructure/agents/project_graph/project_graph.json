@@ -18443,6 +18443,18 @@
    "attrs": {
     "subtype": "doc"
    },
+   "description": "Documento backend: Generaciones de Vector Store",
+   "id": "asset:docs/backend/VECTOR_STORE_GENERATIONS.md",
+   "keywords": [
+    "Generaciones de Vector Store"
+   ],
+   "kind": "asset",
+   "name": "VECTOR_STORE_GENERATIONS.md"
+  },
+  {
+   "attrs": {
+    "subtype": "doc"
+   },
    "description": "Documento frontend: Especificación: E2E integral del frontend ARIA",
    "id": "asset:docs/frontend/E2E_FRONTEND_COVERAGE_SPEC.md",
    "keywords": [
@@ -19615,7 +19627,6 @@
     "Máx. interacciones",
     "Análisis de historial",
     "Columnas",
-    "Máximo de transacciones",
     "Máx. rondas",
     "Planificador",
     "Planificador del análisis de historial",

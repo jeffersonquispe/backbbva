@@ -68,16 +68,14 @@ make e2e-selected-real E2E_TEST_FILES=e2e/adversarial-routing-real.spec.ts
 La regresión general requiere además `make e2e-all-local` y
 `make e2e-observability` conforme a `AGENTS.md`.
 
-## Seguimiento acordado
+## Contexto de los agentes
 
-Pendiente para la siguiente revisión, por indicación del usuario: actualizar el
-contexto funcional que reciben el **optimizador** y el **asistente**, incluidos
-sus prompts y fuentes de conocimiento del pipeline. Ambos deben conocer las
-tres salidas del primer adversarial, la diferencia entre incertidumbre y
-feedback de corrección, los pasos que cada ruta omite y la interpretación de
-la escalada como sin decisión en el replay. La adaptación del scorer incluida
-en esta iteración resuelve el cómputo; la actualización del contexto de esos
-agentes se revisará después de cerrar esta iteración.
+El grafo del proyecto y el prompt del especialista de configuración explican
+las tres salidas y su interpretación en el replay del optimizador. El asistente
+recibe el grafo como contexto de sus consultas. Los prompts versionados de
+entornos existentes deben actualizarse mediante una nueva versión; las
+sesiones anteriores conservan sus pins. El seguimiento está en
+`PENDIENTES_MVC.md`.
 
 Durante la regresión general también se corrigieron dos problemas de soporte:
 la prueba del drawer del optimizador libera sus propias sesiones sintéticas

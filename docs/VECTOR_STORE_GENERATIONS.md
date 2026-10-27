@@ -127,6 +127,28 @@ de generación, así que las búsquedas de producción devolverían vacío. Hace
 respaldo, desplegar API y worker, correr el dry run y aplicar la migración
 antes de dejar pasar tráfico de alertas.
 
+## Prompts de asistente y optimizador existentes
+
+Los entornos nuevos siembran los prompts de los archivos fuente. En entornos
+existentes se conservan las versiones ya fijadas por sesiones antiguas; para
+actualizar los tres prompts activos del asistente y los especialistas de
+configuración y Vector Store ejecutar, contra el DynamoDB del entorno elegido:
+
+```bash
+make agent-context-prompts-upgrade             # simulación
+make agent-context-prompts-upgrade DRY_RUN=0   # aplicar
+```
+
+El comando crea una versión nueva y activa el puntero con comparación de
+versión. Repite sin cambios si ya está actualizado; si el contenido activo no
+coincide con un default anterior conocido, informa `custom_prompt` y no lo
+sobrescribe. Para un prompt personalizado hay que integrar y publicar los
+cambios mediante el proceso de versionado del entorno. El target apunta a
+DynamoDB local por defecto; no se ha ejecutado en OKD.
+
+Local, 2026-10-27: los tres prompts pasaron de v1 a v2; la repetición devolvió
+`up_to_date` en los tres y se conservaron las v1.
+
 ## Hashes históricos
 
 - Configuraciones: el resolver omite `vector_store_generation: null`, así que

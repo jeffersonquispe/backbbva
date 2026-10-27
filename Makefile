@@ -219,6 +219,10 @@ VECTOR_STORE_MAINT_ENV = GENAI_ENVIRONMENT=$${GENAI_ENVIRONMENT:-local} API_V0_S
 	DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
 	OPENSEARCH_ENDPOINT=http://localhost:$${OPENSEARCH_PORT:-9200}
 
+.PHONY: agent-context-prompts-upgrade
+agent-context-prompts-upgrade:  ## Upgrade known default assistant/optimizer prompts; dry-run unless DRY_RUN=0. Custom prompts require manual review.
+	$(VECTOR_STORE_MAINT_ENV) python scripts/upgrade_agent_context_prompts.py $(if $(filter 0,$(DRY_RUN)),--apply,)
+
 .PHONY: vector-store-generations-migrate
 vector-store-generations-migrate:  ## Turn legacy promoted vector stores into generation records and pin saved configurations to them. Run make db-backup first. Vars: DRY_RUN(1), DYNAMO_PORT(8002), OPENSEARCH_PORT(9200)
 	$(VECTOR_STORE_MAINT_ENV) python -m src.infrastructure.entrypoint.worker.vector_store_generations migrate $(if $(filter 0,$(DRY_RUN)),--apply,)
