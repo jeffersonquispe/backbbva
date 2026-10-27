@@ -28,21 +28,32 @@ class DynamoAlertSchemaRepository(AlertSchemaRepository):
         self._table = get_dynamodb_resource().Table(TABLE_NAME)
 
     def get_active(self) -> AlertSchemaVersion | None:
-        result = self._table.scan(
+        items = self._scan_all(
             FilterExpression="#status = :active",
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={":active": "active"},
         )
-        items = result.get("Items", [])
         return _from_item(items[0]) if items else None
 
     def list_versions(self) -> list[AlertSchemaVersion]:
-        result = self._table.scan()
         return sorted(
-            (_from_item(item) for item in result.get("Items", [])),
+            (_from_item(item) for item in self._scan_all()),
             key=lambda item: item.version,
             reverse=True,
         )
+
+    def _scan_all(self, **kwargs: Any) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        # Approvals and draft allocation immediately read these versions.
+        # A filtered page can be empty while the active schema is later.
+        scan_kwargs = {**kwargs, "ConsistentRead": True}
+        while True:
+            result = self._table.scan(**scan_kwargs)
+            items.extend(result.get("Items", []))
+            cursor = result.get("LastEvaluatedKey")
+            if not cursor:
+                return items
+            scan_kwargs["ExclusiveStartKey"] = cursor
 
     def get(self, version: int) -> AlertSchemaVersion | None:
         item = self._table.get_item(Key={"version": version}).get("Item")
