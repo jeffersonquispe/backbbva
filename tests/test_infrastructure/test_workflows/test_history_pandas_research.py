@@ -10,6 +10,29 @@ from src.domain.configurations.entities import (
 from src.infrastructure.workflows.celery.history_pandas_research import (
     HistoryPandasResearchAgent,
 )
+from src.infrastructure.workflows.celery.research_adapters import (
+    LLMHistoryResearchPlanner,
+)
+
+
+class _LLM:
+    def __init__(self, content):
+        self.content = content
+        self.messages = None
+
+    def invoke(self, messages):
+        self.messages = messages
+        return type("Invocation", (), {"content": self.content})()
+
+
+class _LLMFactory:
+    def __init__(self, llm):
+        self.llm = llm
+        self.options = None
+
+    def create(self, **options):
+        self.options = options
+        return self.llm
 
 
 class _Planner:
@@ -22,6 +45,31 @@ class _Planner:
 
 def _history_request():
     return ResearchRequest(ResearchSource.HISTORY_PANDAS, "is amount unusual?")
+
+
+def test_llm_history_planner_uses_closed_schema_and_rejects_unavailable_columns():
+    llm = _LLM(
+        '{"operations":['
+        '{"name":"comparison","column":"amount","current_value":900},'
+        '{"name":"aggregate","column":"document","aggregate":"count"},'
+        '{"name":"run_python","column":"amount"}]}'
+    )
+    factory = _LLMFactory(llm)
+    planner = LLMHistoryResearchPlanner(
+        factory,
+        model="cheap-model",
+        monitoring=object(),
+        columns=["amount"],
+        allowed_operations=["comparison", "aggregate"],
+        max_operations=4,
+    )
+
+    plan = planner.plan(_history_request())
+
+    assert plan == [HistoryOperation("comparison", column="amount", current_value=900)]
+    assert factory.options["model"] == "cheap-model"
+    assert factory.options["temperature"] == 0.0
+    assert "available_columns" in llm.messages[1].content
 
 
 def test_history_agent_executes_only_declared_operations_and_returns_audit_trace():

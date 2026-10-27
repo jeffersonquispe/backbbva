@@ -13,8 +13,12 @@ from src.domain.alerts.transaction_history_selection import (
 from src.domain.configurations.entities import (
     AgentToolsConfig,
 )
+from src.infrastructure.core.config import genai_config
+from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
+from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.workflows.celery.research_adapters import (
     HeuristicHistoryResearchPlanner,
+    LLMHistoryResearchPlanner,
 )
 
 
@@ -38,8 +42,20 @@ def _history_research(
     )
     from src.infrastructure.workflows.celery import task_factories
 
+    if genai_config.REPORT_LLM_MODEL:
+        planner = LLMHistoryResearchPlanner(
+            get_llm_unit_of_work_factory(),
+            model=genai_config.REPORT_LLM_MODEL,
+            monitoring=get_monitoring(),
+            columns=settings.allowed_columns
+            or (list(selected[0].keys()) if selected else []),
+            allowed_operations=settings.allowed_operations,
+            max_operations=settings.max_analysis_operations,
+        )
+    else:
+        planner = HeuristicHistoryResearchPlanner(pre_process.roles.get("amount"))
     agent = task_factories.get_history_research_agent(
-        HeuristicHistoryResearchPlanner(pre_process.roles.get("amount")),
+        planner,
         settings,
         history_provider=lambda _request: selected,
     )
@@ -47,6 +63,8 @@ def _history_research(
         ResearchSource.HISTORY_PANDAS,
         "Investiga evidencia adicional en el historial de la alerta. "
         f"Razonamiento previo: {reasoning}",
+        alert_context={"amount": pre_process.roles.get("amount")},
+        prior_evidence=[],
     )
     results = task_factories.get_research_delegation_coordinator(
         {ResearchSource.HISTORY_PANDAS: agent}

@@ -349,6 +349,8 @@ class HistoryPandasResearchConfig(ResearchAgentConfig):
     # the step stays open and each round brings new findings. The selector below scopes the
     # history it analyzes: allowed_columns (empty = all), window_days
     # before the alert (0 = no limit), max_history_rows most recent rows.
+    # Includes one bounded planner call to the configured low-cost model.
+    timeout_seconds: int = 25
     max_history_rows: int = 50
     window_days: int = 30
     max_analysis_operations: int = 4

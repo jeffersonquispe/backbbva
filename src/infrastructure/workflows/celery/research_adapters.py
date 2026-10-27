@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from src.application.dtos.research_dtos import HistoryOperation, ResearchRequest
 from src.application.ports.fraud_knowledge_port import DocumentType, SearchPipeline
+from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
+from src.application.ports.llm_unit_of_work_port import LLMMessage, LLMMessageRole
+from src.application.ports.monitoring_port import MonitoringPort
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
 )
@@ -78,4 +82,82 @@ class HeuristicHistoryResearchPlanner:
                     ),
                 ]
             )
+        return operations
+
+
+class LLMHistoryResearchPlanner:
+    """Plans bounded history operations from the alert question and schema.
+
+    The model only returns JSON in the executor's closed operation language;
+    it never receives transaction rows or executable code.
+    """
+
+    _SYSTEM = (
+        "Eres un planificador de análisis de historial transaccional. Devuelve "
+        "solo JSON con la forma {\"operations\":[{\"name\":..., ...}]}. "
+        "Usa exclusivamente columnas y operaciones permitidas. Operaciones: "
+        "filter (column, operator eq/ne/gt/gte/lt/lte/in, value), aggregate "
+        "(column, aggregate count/sum/mean/median/min/max/nunique), distribution "
+        "(column), group_by (group_by, opcional column y aggregate), comparison "
+        "(column, current_value), outlier (column, current_value), trend "
+        "(column de fecha, group_by frecuencia). No infieras hechos; si no hay "
+        "columnas útiles, devuelve operations vacío. Máximo 4 operaciones."
+    )
+
+    def __init__(
+        self,
+        llm_factory: LLMUnitOfWorkFactory,
+        *,
+        model: str,
+        monitoring: MonitoringPort,
+        columns: list[str],
+        allowed_operations: list[str],
+        max_operations: int,
+    ) -> None:
+        self._llm_factory = llm_factory
+        self._model = model
+        self._monitoring = monitoring
+        self._columns = columns
+        self._allowed_operations = set(allowed_operations)
+        self._max_operations = min(max_operations, 4)
+
+    def plan(self, request: ResearchRequest) -> list[HistoryOperation]:
+        payload = {
+            "question": request.question,
+            "alert_context": request.alert_context,
+            "available_columns": self._columns,
+            "allowed_operations": sorted(self._allowed_operations),
+        }
+        response = self._llm_factory.create(
+            model=self._model,
+            monitoring=self._monitoring,
+            operation_name="plan_history_research",
+            temperature=0.0,
+            max_tokens=600,
+        ).invoke(
+            [
+                LLMMessage(
+                    LLMMessageRole.SYSTEM,
+                    self._SYSTEM
+                    + f" Límite configurado: {self._max_operations} operaciones.",
+                ),
+                LLMMessage(LLMMessageRole.USER, json.dumps(payload, ensure_ascii=False)),
+            ]
+        )
+        parsed = json.loads(response.content)
+        if not isinstance(parsed, dict) or not isinstance(parsed.get("operations"), list):
+            raise ValueError("invalid history plan response")
+        operations: list[HistoryOperation] = []
+        for raw in parsed["operations"][: self._max_operations]:
+            if not isinstance(raw, dict) or raw.get("name") not in self._allowed_operations:
+                continue
+            operation = HistoryOperation(**{
+                key: raw[key]
+                for key in HistoryOperation.__dataclass_fields__
+                if key in raw
+            })
+            columns = (operation.column, operation.group_by)
+            if any(column and column not in self._columns for column in columns):
+                continue
+            operations.append(operation)
         return operations
