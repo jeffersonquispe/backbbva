@@ -70,16 +70,31 @@ def cleanup_synthetic_alerts() -> None:
             scan["ExclusiveStartKey"] = last_key
 
 
-# Fraud signal the replay can see without external enrichment (it never calls
-# ARIC, so BioCatch flags stay unavailable): positives spend far above the
-# customer's habitual amounts and highest-amount fields, towards a beneficiary
-# absent from their history; negatives look like that history.
+# Fraud signal the replay can see without external enrichment: positives spend
+# far above the customer's habitual amounts and highest-amount fields, towards
+# a beneficiary absent from their history; negatives look like that history.
 HABITUAL_AMOUNTS = (Decimal("40"), Decimal("50"), Decimal("60"))
 HABITUAL_MAX_AMOUNT = Decimal("150")
 FRAUD_AMOUNT = Decimal("2400")
 LEGITIMATE_AMOUNT = Decimal("50")
 HABITUAL_COUNTERPARTY = "Supermercado del barrio"
-NEW_COUNTERPARTY = "Beneficiario nuevo"
+NEW_COUNTERPARTY = "Comercializadora Andina Express SAS"
+# The replay reads BioCatch flags from the alert's own fields. Positives show
+# remote access during an active call, the usual social-engineering pattern;
+# negatives carry every flag explicitly clean.
+BIOCATCH_FLAG_FIELDS = frozenset(
+    {
+        "biocatch_isMobileRat",
+        "biocatch_isEmulator",
+        "biocatch_isRat",
+        "biocatch_isBot",
+        "biocatch_indrobo1",
+        "biocatch_isOnCall",
+        "biocatch_isVoipOnCall",
+        "biocatch_screenBroadcast",
+    }
+)
+FRAUD_BIOCATCH_FLAGS = frozenset({"biocatch_isRat", "biocatch_isOnCall"})
 
 
 def _synthetic_field_timestamp(
@@ -447,7 +462,23 @@ def seed_mature_alerts(
     all_alert_ids: list[str] = []
     final_ids: list[str] = []
     required_final_ids = 30 if FAST_E2E else 59
-    for _ in range(10):
+    if FAST_E2E:
+        # Each optimizer experiment replays every final row through the real
+        # workflow for both stacks, so the smoke holds the final partition at
+        # exactly the 30-case aggregate floor.
+        while len(all_alert_ids) < BASE_ALERT_COUNT:
+            alert_id = str(uuid4())
+            is_final = deterministic_partition(alert_id, partition_spec) == "final"
+            if is_final and len(final_ids) == required_final_ids:
+                continue
+            if not is_final and len(all_alert_ids) - len(final_ids) == (
+                BASE_ALERT_COUNT - required_final_ids
+            ):
+                continue
+            all_alert_ids.append(alert_id)
+            if is_final:
+                final_ids.append(alert_id)
+    for _ in range(0 if FAST_E2E else 10):
         all_alert_ids = [str(uuid4()) for _ in range(BASE_ALERT_COUNT)]
         final_ids = [
             alert_id for alert_id in all_alert_ids
@@ -495,6 +526,7 @@ def seed_mature_alerts(
                     and not field.get("is_mandatory", False)
                     and name != fields["strata"]
                     and "counterparty" not in name.casefold()
+                    and name not in BIOCATCH_FLAG_FIELDS
                 ):
                     continue
                 if name == mapping["initial_mark_field"]:
@@ -508,6 +540,9 @@ def seed_mature_alerts(
                     value = FRAUD_AMOUNT if positive else LEGITIMATE_AMOUNT
                 elif name == fields["strata"]:
                     value = segment_values[alert_id]
+                elif name in BIOCATCH_FLAG_FIELDS:
+                    flagged = positive and name in FRAUD_BIOCATCH_FLAGS
+                    value = flagged if field["type"] == "bool" else str(flagged).lower()
                 elif field["type"] == "number":
                     normalized_name = name.casefold()
                     if "monto" in normalized_name and "alto" in normalized_name:
