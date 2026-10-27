@@ -499,5 +499,7 @@ class OptimizerStatusResponse(BaseModel):
     max_parallel_experiments: int
     max_concurrent_sessions: int
     budget: dict[str, dict[str, int]]
+    embedding_usage: dict[str, int] = Field(default_factory=dict)
+    sessions_with_embeddings: int = 0
     experiments: dict[str, int]
     samples: list[OptimizerSampleUseResponse]

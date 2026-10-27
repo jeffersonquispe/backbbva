@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 
-from src.application.ports.agent_budget_ledger_port import AgentBudgetLedgerRepository
+from src.application.ports.agent_budget_ledger_port import (
+    EMBEDDING_USAGE_RESOURCES,
+    AgentBudgetLedgerRepository,
+)
 from src.application.ports.agent_experiment_port import AgentExperimentRepository
 from src.application.ports.agent_iteration_port import (
     AgentIterationRepository,
@@ -57,6 +60,9 @@ class OptimizerStatus:
     max_parallel_experiments: int = 0
     max_concurrent_sessions: int = 0
     budget: dict[str, dict[str, int]] = field(default_factory=dict)
+    # Aggregate embedding usage of live sessions (no limit is enforced on it).
+    embedding_usage: dict[str, int] = field(default_factory=dict)
+    sessions_with_embeddings: int = 0
     experiments: dict[str, int] = field(default_factory=dict)
     samples: tuple[OptimizerSampleUse, ...] = ()
 
@@ -93,6 +99,8 @@ class GetOptimizerStatusUseCase:
         ]
         running = 0
         spent: Counter[str] = Counter()
+        embedding_usage: Counter[str] = Counter()
+        sessions_with_embeddings = 0
         limits: Counter[str] = Counter()
         experiment_status: Counter[str] = Counter()
         by_snapshot: Counter[str] = Counter()
@@ -104,9 +112,17 @@ class GetOptimizerStatusUseCase:
                 )
                 if item.status == AgentIterationStatus.RUNNING
             )
+            session_embeddings = 0
             for entry in self._budget.list_for_session(session.session_id):
-                if entry.entry_type == "SPEND" and entry.resource in _RESOURCES:
+                if entry.entry_type != "SPEND":
+                    continue
+                if entry.resource in _RESOURCES:
                     spent[entry.resource] += entry.amount
+                elif entry.resource in EMBEDDING_USAGE_RESOURCES:
+                    embedding_usage[entry.resource] += entry.amount
+                    session_embeddings += entry.amount
+            if session_embeddings:
+                sessions_with_embeddings += 1
             for resource in _RESOURCES:
                 limits[resource] += int(session.budget_limits.get(resource, 0))
             for experiment in self._experiments.list_for_session(
@@ -152,6 +168,11 @@ class GetOptimizerStatusUseCase:
                 resource: {"spent": spent[resource], "limit": limits[resource]}
                 for resource in _RESOURCES
             },
+            embedding_usage={
+                resource: embedding_usage[resource]
+                for resource in EMBEDDING_USAGE_RESOURCES
+            },
+            sessions_with_embeddings=sessions_with_embeddings,
             experiments=dict(experiment_status),
             samples=tuple(samples),
         )

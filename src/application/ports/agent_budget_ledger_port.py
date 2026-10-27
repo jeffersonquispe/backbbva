@@ -4,6 +4,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
+# Usage-only resources: specialists report them in ``safe_metrics`` and the
+# orchestrator records them as SPEND entries without a limit to enforce.
+EMBEDDING_USAGE_RESOURCES = (
+    "embedding_calls",
+    "embedding_texts",
+    "embedding_characters",
+)
+
 
 @dataclass(frozen=True)
 class AgentBudgetEntry:

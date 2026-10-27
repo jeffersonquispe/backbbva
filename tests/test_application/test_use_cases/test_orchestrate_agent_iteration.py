@@ -1500,3 +1500,42 @@ def test_steady_costs_never_trigger_the_anomaly_rule() -> None:
         _resume(repositories)
 
     assert results == ["iteration_completed"] * 5
+
+
+class EmbeddingUsageSubagent:
+    name = "stub"
+
+    def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
+        return AgentSubagentOutput(
+            subagent=self.name,
+            verification_status="PASSED",
+            safe_metrics={
+                "aggregate_hits": 2,
+                "embedding_calls": 3,
+                "embedding_texts": 7,
+                "embedding_characters": 0,
+            },
+        )
+
+
+def test_specialist_embedding_usage_is_recorded_on_the_session_ledger() -> None:
+    use_case, repositories = _use_case(
+        _session(),
+        InMemorySettings(AssistantOptimizerSettings()),
+        subagent=EmbeddingUsageSubagent(),
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+
+    usage = {
+        entry.resource: entry.amount
+        for entry in repositories["budget"].entries
+        if entry.resource.startswith("embedding_")
+    }
+    # Zero amounts are not written; usage never reserves budget limits.
+    assert usage == {"embedding_calls": 3, "embedding_texts": 7}
+    assert all(
+        entry.entry_type == "SPEND" and entry.session_id == "s1"
+        for entry in repositories["budget"].entries
+    )
+    assert "embedding_calls" not in repositories["budget"].spent

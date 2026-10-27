@@ -25,6 +25,7 @@ from src.application.ports.agent_subagent_port import (
 )
 from src.application.ports.personal_data_masker_port import PersonalDataMasker
 from src.domain.agents.experiment import ComponentVersionReference
+from src.infrastructure.embedding.usage_meter import measure_embedding_usage
 
 logger = logging.getLogger(__name__)
 
@@ -134,17 +135,32 @@ class OptimizerSpecialistSubagent:
                 verification_status="PENDING_VERIFICATION",
                 safe_metrics={"proposal_fields": len(payload["experiment"])},
             )
-        try:
-            execution = self._executor.execute(safe_request, safe_payload["experiment"])
-        except (RuntimeError, ValueError, TypeError) as error:
-            logger.warning(
-                "Optimizer specialist execution failed safely: %s",
-                type(error).__name__,
+        # Embedding work is attributed to the session even when the
+        # execution fails, so the ledger reflects what was really consumed.
+        with measure_embedding_usage() as embedding_usage:
+            try:
+                execution = self._executor.execute(
+                    safe_request, safe_payload["experiment"]
+                )
+            except (RuntimeError, ValueError, TypeError) as error:
+                logger.warning(
+                    "Optimizer specialist execution failed safely: %s",
+                    type(error).__name__,
+                )
+                execution = None
+        if execution is None:
+            return AgentSubagentOutput(
+                self.name,
+                error_code="EXECUTION_FAILED",
+                safe_metrics=embedding_usage.as_metrics(),
             )
-            return AgentSubagentOutput(self.name, error_code="EXECUTION_FAILED")
         safe_execution = _mask_strings(execution.contribution, self._masker)
         if not isinstance(safe_execution, dict):
-            return AgentSubagentOutput(self.name, error_code="EXECUTION_INVALID")
+            return AgentSubagentOutput(
+                self.name,
+                error_code="EXECUTION_INVALID",
+                safe_metrics=embedding_usage.as_metrics(),
+            )
         safe_payload["execution"] = safe_execution
         candidate_components = self._candidate_components(
             request, execution.contribution
@@ -153,7 +169,7 @@ class OptimizerSpecialistSubagent:
             subagent=self.name,
             contribution=safe_payload,
             verification_status=execution.status,
-            safe_metrics=execution.safe_metrics,
+            safe_metrics={**execution.safe_metrics, **embedding_usage.as_metrics()},
             error_code=execution.error_code,
             experiment_candidate_components=candidate_components,
         )

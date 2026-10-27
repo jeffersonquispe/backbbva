@@ -243,6 +243,27 @@ class _Seeder:
                 )
             )
 
+    def spend_embeddings(self, calls, texts, characters) -> None:
+        # Same SPEND rows the orchestrator writes from a specialist's
+        # measured embedding usage (no limit is reserved for them).
+        for resource, amount in (
+            ("embedding_calls", calls),
+            ("embedding_texts", texts),
+            ("embedding_characters", characters),
+        ):
+            get_agent_budget_ledger_repository().append(
+                AgentBudgetEntry(
+                    session_id=self.session_id,
+                    entry_id=str(uuid.uuid4()),
+                    entry_type="SPEND",
+                    resource=resource,
+                    amount=amount,
+                    actor="agent",
+                    reason="specialist embedding usage",
+                    created_at=self.tick(),
+                )
+            )
+
     def experiment(
         self,
         number,
@@ -436,6 +457,7 @@ def _seed_parallel(owner_id: str, session_id: str) -> str:
             refs={"iteration": number, "run_id": run_id},
         )
     seeder.spend(3, 3, 3)
+    seeder.spend_embeddings(4, 12, 2400)
     get_agent_session_repository().create(
         AgentSession(
             session_id=session_id,

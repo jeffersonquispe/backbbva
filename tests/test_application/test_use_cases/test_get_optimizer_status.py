@@ -86,20 +86,29 @@ class Runs:
         ]
 
 
+def _spend(session_id, resource, amount):
+    return AgentBudgetEntry(
+        session_id=session_id,
+        entry_id="e",
+        entry_type="SPEND",
+        resource=resource,
+        amount=amount,
+        actor="agent",
+        reason="x",
+        created_at=NOW,
+    )
+
+
 class Budget:
     def list_for_session(self, session_id, limit=100):
-        return [
-            AgentBudgetEntry(
-                session_id=session_id,
-                entry_id="e",
-                entry_type="SPEND",
-                resource="tokens",
-                amount=10,
-                actor="agent",
-                reason="x",
-                created_at=NOW,
-            )
-        ]
+        entries = [_spend(session_id, "tokens", 10)]
+        if session_id == "sess-active-7f3a":
+            entries += [
+                _spend(session_id, "embedding_calls", 2),
+                _spend(session_id, "embedding_texts", 5),
+                _spend(session_id, "embedding_characters", 640),
+            ]
+        return entries
 
 
 class Experiments:
@@ -181,6 +190,14 @@ def test_status_aggregates_live_optimizer_sessions_without_ids() -> None:
     assert status.active_runs == 2
     assert (status.max_parallel_experiments, status.max_concurrent_runs) == (3, 6)
     assert status.budget["tokens"] == {"spent": 20, "limit": 200}
+    # Embedding usage is reported apart from the enforced budget resources.
+    assert "embedding_calls" not in status.budget
+    assert status.embedding_usage == {
+        "embedding_calls": 2,
+        "embedding_texts": 5,
+        "embedding_characters": 640,
+    }
+    assert status.sessions_with_embeddings == 1
     assert status.experiments == {"SUCCEEDED": 1, "FAILED": 1}
     sample = status.samples[0]
     assert (

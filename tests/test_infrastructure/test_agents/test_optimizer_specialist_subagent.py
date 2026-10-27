@@ -8,10 +8,18 @@ from decimal import Decimal
 import pytest
 
 from src.application.ports.agent_prompt_port import AgentPrompt
+from src.application.ports.agent_specialist_executor_port import (
+    AgentSpecialistExecution,
+    AgentSpecialistExecutor,
+)
 from src.application.ports.agent_structured_generator_port import (
     AgentStructuredGenerationInput,
 )
 from src.application.ports.agent_subagent_port import AgentSubagentInput
+from src.application.ports.embedding_port import EmbeddingResult, EmbeddingUnitOfWork
+from src.application.ports.embedding_unit_of_work_factory_port import (
+    EmbeddingUnitOfWorkFactory,
+)
 from src.application.ports.personal_data_masker_port import (
     MaskedPersonalData,
     PersonalDataMasker,
@@ -19,6 +27,10 @@ from src.application.ports.personal_data_masker_port import (
 from src.domain.agents.objective import AgentObjective, AgentObjectiveStatus
 from src.infrastructure.agents.optimizer_specialist_subagent import (
     OptimizerSpecialistSubagent,
+)
+from src.infrastructure.embedding.usage_meter import (
+    MeteredEmbeddingUnitOfWorkFactory,
+    measure_embedding_usage,
 )
 
 
@@ -306,3 +318,76 @@ def test_specialists_validate_their_candidate_shape_before_evaluation(
 
     assert result.error_code is None
     assert result.verification_status == "PENDING_VERIFICATION"
+
+
+class InMemoryEmbeddingUnitOfWork(EmbeddingUnitOfWork):
+    def embed(self, texts: list[str]) -> EmbeddingResult:
+        return EmbeddingResult(vectors=[[0.1, 0.2] for _ in texts], model="m", dimensions=2)
+
+
+class InMemoryEmbeddingFactory(EmbeddingUnitOfWorkFactory):
+    def create(self, *, model, monitoring, operation_name) -> EmbeddingUnitOfWork:
+        return InMemoryEmbeddingUnitOfWork()
+
+
+class RecordingEmbeddingExecutor(AgentSpecialistExecutor):
+    """Embeds through the metered factory, as the vector store specialist does
+    when it builds and queries a candidate generation."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self.embeddings = MeteredEmbeddingUnitOfWorkFactory(InMemoryEmbeddingFactory())
+        self.fail = fail
+
+    def context(self, request: AgentSubagentInput) -> dict[str, object]:
+        return {}
+
+    def execute(self, request, experiment) -> AgentSpecialistExecution:
+        unit = self.embeddings.create(model="m", monitoring=None, operation_name="op")
+        unit.embed(["abcd", "ef"])
+        unit.embed(["ghi"])
+        if self.fail:
+            raise RuntimeError("opensearch unavailable")
+        return AgentSpecialistExecution(status="PASSED", safe_metrics={"aggregate_hits": 3})
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_specialist_reports_embedding_usage_of_its_execution(fail: bool) -> None:
+    prompt = _prompt()
+    specialist = OptimizerSpecialistSubagent(
+        name="xgboost",
+        prompt_name=prompt.name,
+        prompts=InMemoryPromptRepository(prompt),
+        generator=RecordingGenerator(
+            '{"experiment":{"dataset_ref":"dataset-v3",'
+            '"parameters":{"learning_rate":0.04}},"rationale":"ok"}'
+        ),
+        masker=InMemoryMasker(),
+        executor=RecordingEmbeddingExecutor(fail=fail),
+    )
+
+    result = specialist.execute(
+        _request(
+            **{prompt.name: {"name": prompt.name, "version": "3", "hash": "sha256-v3"}}
+        )
+    )
+
+    usage = {"embedding_calls": 2, "embedding_texts": 3, "embedding_characters": 9}
+    if fail:
+        assert result.error_code == "EXECUTION_FAILED"
+        assert result.safe_metrics == usage
+    else:
+        assert result.safe_metrics == {"aggregate_hits": 3, **usage}
+
+
+def test_embedding_usage_is_only_counted_inside_a_measurement() -> None:
+    unit = MeteredEmbeddingUnitOfWorkFactory(InMemoryEmbeddingFactory()).create(
+        model="m", monitoring=None, operation_name="op"
+    )
+    unit.embed(["outside"])
+    with measure_embedding_usage() as usage:
+        unit.embed(["inside"])
+        with measure_embedding_usage() as nested:
+            unit.embed(["deeper", "x"])
+
+    assert (usage.calls, usage.texts, usage.characters) == (1, 1, 6)
+    assert (nested.calls, nested.texts, nested.characters) == (1, 2, 7)

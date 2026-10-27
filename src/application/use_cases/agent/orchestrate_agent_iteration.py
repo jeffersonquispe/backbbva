@@ -8,6 +8,7 @@ from typing import Any
 
 from src.application.ports.agent_audit_port import AgentAuditEvent, AgentAuditRepository
 from src.application.ports.agent_budget_ledger_port import (
+    EMBEDDING_USAGE_RESOURCES,
     AgentBudgetEntry,
     AgentBudgetLedgerRepository,
 )
@@ -494,6 +495,26 @@ class OrchestrateAgentIterationUseCase:
             )
         return True
 
+    def _record_embedding_usage(
+        self, session_id: str, metrics: dict[str, Any], now: datetime
+    ) -> None:
+        for resource in EMBEDDING_USAGE_RESOURCES:
+            amount = metrics.get(resource)
+            if not isinstance(amount, int) or isinstance(amount, bool) or amount <= 0:
+                continue
+            self._budget.append(
+                AgentBudgetEntry(
+                    session_id=session_id,
+                    entry_id=str(self._ids.new_id()),
+                    entry_type="SPEND",
+                    resource=resource,
+                    amount=amount,
+                    actor="agent",
+                    reason="specialist embedding usage",
+                    created_at=now,
+                )
+            )
+
     def _open_candidate(
         self,
         gate: _Gate,
@@ -814,6 +835,7 @@ class OrchestrateAgentIterationUseCase:
             else None
         )
         tick.cost_micros = cost_micros
+        self._record_embedding_usage(session_id, output.safe_metrics, tick.finished)
         for category, extra in (
             ("tool", {"tool": selected_subagent.name}),
             ("specialist", {"specialist": selected_subagent.name}),
