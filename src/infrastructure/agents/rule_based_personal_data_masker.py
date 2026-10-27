@@ -80,7 +80,14 @@ class RuleBasedPersonalDataMasker(PersonalDataMasker):
             cursor = match.end()
         spans.append((cursor, len(text)))
         for label, pattern, group in _PATTERNS:
-            for span_start, span_end in spans:
+            # An email can itself contain a UUID (for example in its local
+            # part), so non-numeric patterns must still inspect the full text.
+            scan_spans = (
+                spans
+                if label in {"NIT", "TEL", "CUENTA", "TARJETA", "CC", "IP"}
+                else [(0, len(text))]
+            )
+            for span_start, span_end in scan_spans:
                 for match in pattern.finditer(text[span_start:span_end]):
                     start, end = match.span(group) if group else match.span()
                     if label == "IP" and not _valid_ipv4(match.group()):

@@ -72,6 +72,15 @@ def test_preserves_uuid_references_and_masks_personal_data_next_to_them() -> Non
     assert masker.unmask(result.text, result.replacements) == text
 
 
+def test_masks_email_even_when_its_local_part_is_a_uuid() -> None:
+    email = "5909a2d1-a66f-4c26-b123-456789012345@example.com"
+
+    result = RuleBasedPersonalDataMasker().mask(f"Contactar {email}")
+
+    assert email not in result.text
+    assert result.counts == {"EMAIL": 1}
+
+
 def test_restores_only_values_from_the_same_masking_request() -> None:
     masker = RuleBasedPersonalDataMasker()
     result = masker.mask("Añade CC 123456789 y correo ana@example.com")
