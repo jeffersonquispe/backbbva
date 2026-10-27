@@ -26,6 +26,7 @@ from src.application.use_cases.watchlists.check_watchlist_membership import (
     WatchlistMatch,
 )
 from src.domain.alerts.calculator import CalculatorError, safe_calculate
+from src.domain.alerts.entities import AdversarialDecision
 from src.domain.workflows.entities import (
     WorkflowStepStatus,
 )
@@ -126,19 +127,42 @@ _RESPONSE_FORMAT = (
 )
 
 
-def _build_system_prompt(tool_names: list[str]) -> str:
+_DETECTOR_DECISIONS = (
+    "\n\nEres el primer revisor, después del Detector. Al concluir debes elegir "
+    "exactamente una de tres salidas en el campo decision: "
+    "pass (dejar pasar: la evidencia respalda que no requiere gestión), "
+    "scale_to_analyst (escalar a un analista humano: no tienes certeza suficiente), "
+    "handle_by_aria (ARIA gestiona: continuar con Clasificación y el Analista agente). "
+    "Revisa también las conclusiones not_fraud del Detector; no son una autorización "
+    "automática de paso. Nunca uses pass por ausencia de datos. Si la incertidumbre "
+    "no se puede resolver con las herramientas, elige scale_to_analyst. "
+    "has_issues solo solicita corregir una contradicción concreta del Detector; "
+    "es un ciclo interno y decision se aplica cuando has_issues es false. "
+    "Justifica siempre la salida en reasoning."
+)
+
+
+def _build_system_prompt(tool_names: list[str], step_name: str = "adversarial") -> str:
     tools_block = "Herramientas:\n" + "\n".join(
         f"- {_TOOL_DESCRIPTIONS[name]}"
         for name in tool_names
         if name in _TOOL_DESCRIPTIONS
     )
+    response_format = _RESPONSE_FORMAT
+    if step_name == "detector_adversarial":
+        response_format = response_format.replace(
+            '"has_issues": true|false, ',
+            '"decision": "pass|scale_to_analyst|handle_by_aria", '
+            '"has_issues": true|false, ',
+        )
     return (
         _INTRO
         + tools_block
         + "\n\n"
-        + _RESPONSE_FORMAT.format(
+        + response_format.format(
             tool_names=", ".join(tool_names) or "ninguna - concluye directamente"
         )
+        + (_DETECTOR_DECISIONS if step_name == "detector_adversarial" else "")
     )
 
 
@@ -208,19 +232,29 @@ def _transcript(messages: list[LLMMessage]) -> str:
     return "\n\n".join(m.content for m in messages[2:])
 
 
-def _parse_final_answer(raw: str) -> AdversarialReviewAlertOutput:
+def _parse_final_answer(
+    raw: str, *, require_decision: bool = False
+) -> AdversarialReviewAlertOutput:
     try:
         data = json.loads(raw)
+        if not isinstance(data, dict) or type(data.get("has_issues")) is not bool:
+            raise ValueError("has_issues must be a boolean")
+        decision = AdversarialDecision(
+            data["decision"]
+            if require_decision
+            else data.get("decision", AdversarialDecision.HANDLE_BY_ARIA)
+        )
         weak_points = data.get("weak_points") or []
         if not isinstance(weak_points, list):
             weak_points = [str(weak_points)]
         return AdversarialReviewAlertOutput(
-            requires_classification_feedback=bool(data.get("has_issues", False)),
+            requires_classification_feedback=data["has_issues"],
             feedback=str(data.get("feedback") or ""),
             weak_points=[str(point) for point in weak_points],
             reasoning=str(data.get("reasoning", "")),
+            decision=decision,
         )
-    except (json.JSONDecodeError, AttributeError):
+    except (ValueError, KeyError, TypeError):
         # Malformed output can't be trusted to certify the classification -
         # treat it as an issue so it routes back for another attempt
         # instead of silently passing.
@@ -294,7 +328,7 @@ class AdversarialReviewAlertUseCase:
                 if name in enabled_tools or name == "search_vector_store"
             }
 
-        base_prompt = _build_system_prompt(list(self._tools))
+        base_prompt = _build_system_prompt(list(self._tools), step_name)
         if system_prompt is not None:
             # Full replace - test-run admin override, expected to already
             # include the ReAct protocol below. Wins outright over any
@@ -405,7 +439,10 @@ class AdversarialReviewAlertUseCase:
             )
             action, action_input, final_answer = _parse_react_step(result.content)
             if final_answer is not None:
-                output = _parse_final_answer(final_answer)
+                output = _parse_final_answer(
+                    final_answer,
+                    require_decision=self._step_name == "detector_adversarial",
+                )
                 output.cot = _transcript(messages)
                 output.input_tokens = input_tokens
                 output.output_tokens = output_tokens

@@ -15,7 +15,6 @@ from src.application.dtos.alert_metrics_dtos import (
     RecordAlertMetricsEventInput,
 )
 from src.application.dtos.analyst_review_alert_dtos import AnalystReviewAlertOutput
-from src.application.dtos.classify_alert_dtos import ClassifyAlertOutput
 from src.application.dtos.discard_alert_dtos import DiscardAlertInput
 from src.application.dtos.evaluate_deterministic_rules_dtos import (
     DeterministicRuleMatch,
@@ -98,6 +97,7 @@ from src.application.use_cases.metrics.record_workflow_step_metrics import (
     RecordWorkflowStepMetrics,
 )
 from src.domain.alerts.entities import (
+    AdversarialDecision,
     AlertOrigin,
     AlertStatus,
 )
@@ -276,6 +276,13 @@ class RunAlertReviewWorkflowUseCase:
                     continue
                 if step_name == "detector_adversarial":
                     context = self._run_detector_adversarial_review(workflow, context)
+                    review = context["detector_adversarial"]
+                    if review.decision != AdversarialDecision.HANDLE_BY_ARIA:
+                        context["analyst"] = AnalystReviewAlertOutput(
+                            decision=review.decision.value,
+                            reasoning=review.reasoning,
+                        )
+                        skip_steps |= {"classification", "adversarial", "analyst"}
                     continue
                 context = self._run_step(workflow, step_name, context)
                 context = self._executor.enrich(step_name, context)
@@ -324,28 +331,6 @@ class RunAlertReviewWorkflowUseCase:
                         )
                         discarded = True
                         break
-                if step_name == "detector":
-                    detector_output: ClassifyAlertOutput = context["detector"]
-                    if detector_output.is_fraud == "not_fraud":
-                        # Not a discard (no DiscardAlertUseCase log) - this
-                        # is a normal "no action needed" conclusion, same
-                        # as an analyst deciding "pass" would be. Executor
-                        # and post_process still run normally below,
-                        # reading this synthetic AnalystReviewAlertOutput
-                        # exactly like a real one.
-                        context["analyst"] = AnalystReviewAlertOutput(
-                            decision="pass",
-                            reasoning=(
-                                "Detector determined this alert is not "
-                                f"fraud: {detector_output.reasoning}"
-                            ),
-                        )
-                        skip_steps |= {
-                            "detector_adversarial",
-                            "classification",
-                            "adversarial",
-                            "analyst",
-                        }
                 if step_name == "analyst":
                     # Fire-and-forget: runs in its own task, concurrently
                     # with the rest of this workflow, so a slow/failed
@@ -806,7 +791,7 @@ class RunAlertReviewWorkflowUseCase:
             raise AdversarialFeedbackLimitExceededError(
                 f"Adversarial review "
                 f"{AdversarialFeedbackLimitExceededError.MESSAGE_MARKER} "
-                f"{context['feedback_iterations']} feedback loop(s) back to "
+                f"{context.get('feedback_iterations', 0)} feedback loop(s) back to "
                 f"classification: {adversarial.feedback}"
             )
         return context
@@ -839,7 +824,12 @@ class RunAlertReviewWorkflowUseCase:
                 context,
                 attempt=context["detector_attempt"],
             )
-            context = self._run_step(workflow, "detector_adversarial", context)
+            context = self._run_step(
+                workflow,
+                "detector_adversarial",
+                context,
+                attempt=context["detector_attempt"],
+            )
 
         detector_adversarial: AdversarialReviewAlertOutput = context[
             "detector_adversarial"
@@ -851,7 +841,7 @@ class RunAlertReviewWorkflowUseCase:
             raise AdversarialFeedbackLimitExceededError(
                 f"Adversarial review (detector) "
                 f"{AdversarialFeedbackLimitExceededError.MESSAGE_MARKER} "
-                f"{context['detector_feedback_iterations']} feedback loop(s) "
+                f"{context.get('detector_feedback_iterations', 0)} feedback loop(s) "
                 f"back to detector: {detector_adversarial.feedback}"
             )
         return context

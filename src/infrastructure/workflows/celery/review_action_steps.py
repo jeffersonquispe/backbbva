@@ -17,7 +17,8 @@ from src.application.dtos.post_process_alert_dtos import (
     PostProcessAlertOutput,
 )
 from src.application.use_cases.alerts.alert_review_policy import active_segment
-from src.domain.alerts.entities import AlertOrigin
+from src.application.use_cases.alerts.route_alert_resolution import ResolutionRouting
+from src.domain.alerts.entities import AdversarialDecision, AlertOrigin
 from src.domain.configurations.entities import (
     DocumentationStrategy,
 )
@@ -131,11 +132,21 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
     # The analyst saw availability when deciding, but it may be gone now:
     # reserve the voicebot slot / confirm an analyst is available, and
     # follow the playbook's fallbacks otherwise.
-    routing = get_route_alert_resolution_use_case().execute(
-        alert_id=str(alert_id),
-        decision=analyst.decision,
-        playbook=analyst.playbook,
-    )
+    review = context.get("detector_adversarial")
+    if (
+        review is not None
+        and review.decision == AdversarialDecision.SCALE_TO_ANALYST
+        and not review.requires_classification_feedback
+    ):
+        # Uncertainty requires human review even when nobody is available
+        # right now. Keep it queued instead of applying a blocking fallback.
+        routing = ResolutionRouting(decision="scale_to_analyst")
+    else:
+        routing = get_route_alert_resolution_use_case().execute(
+            alert_id=str(alert_id),
+            decision=analyst.decision,
+            playbook=analyst.playbook,
+        )
     decision = routing.decision
     routing_detail: dict[str, Any] = {}
     if routing.fallbacks:

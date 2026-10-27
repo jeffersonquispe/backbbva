@@ -139,3 +139,54 @@ def test_feedback_limit_escalation_records_failure_for_human_review() -> None:
         workflow.alert_id,
         {"status": AlertStatus.ESCALATED},
     )
+
+
+@pytest.mark.parametrize("max_cycles", [0, 1])
+def test_detector_feedback_limit_remains_bounded_for_invalid_reviews(max_cycles):
+    use_case = _harness()
+    use_case._run_step = MethodType(
+        lambda self, workflow, step_name, context, attempt=1: context
+        | {step_name: AdversarialReviewAlertOutput(True, "invalid review")},
+        use_case,
+    )
+    context: WorkflowRunState = {"detector_attempt": 1}
+    with pytest.raises(AdversarialFeedbackLimitExceededError):
+        use_case._run_detector_adversarial_review(_workflow(max_cycles), context)
+    assert context.get("detector_feedback_iterations", 0) <= max_cycles
+
+
+def test_detector_correction_finishes_with_human_routing_without_another_loop():
+    from src.domain.alerts.entities import AdversarialDecision
+
+    use_case = _harness()
+    reviews = iter(
+        [
+            AdversarialReviewAlertOutput(True, "contradictory evidence"),
+            AdversarialReviewAlertOutput(
+                False,
+                "",
+                reasoning="Uncertainty remains",
+                decision=AdversarialDecision.SCALE_TO_ANALYST,
+            ),
+        ]
+    )
+    seen = []
+
+    def run_step(self, workflow, step_name, context, attempt=1):
+        seen.append((step_name, attempt))
+        if step_name == "detector_adversarial":
+            context[step_name] = next(reviews)
+        return context
+
+    use_case._run_step = MethodType(run_step, use_case)
+    result = use_case._run_detector_adversarial_review(
+        _workflow(), {"detector_attempt": 1}
+    )
+    assert (
+        result["detector_adversarial"].decision == AdversarialDecision.SCALE_TO_ANALYST
+    )
+    assert seen == [
+        ("detector_adversarial", 1),
+        ("detector", 2),
+        ("detector_adversarial", 2),
+    ]

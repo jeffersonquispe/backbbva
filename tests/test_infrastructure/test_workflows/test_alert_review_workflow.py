@@ -711,7 +711,7 @@ _LLM_RESPONSES: dict[str, str] = {
     ),
     "detector_adversarial": (
         "Thought: detector's call holds up on independent review.\n"
-        'Final Answer: {"has_issues": false, "feedback": "", '
+        'Final Answer: {"decision": "handle_by_aria", "has_issues": false, "feedback": "", '
         '"weak_points": [], "reasoning": "Detector correctly flagged this '
         'for deeper investigation."}'
     ),
@@ -1428,6 +1428,14 @@ class _NotFraudDetectorLLMUnitOfWork(LLMUnitOfWork):
                 ),
                 model="fake-model",
             )
+        if self._operation_name == "detector_adversarial":
+            return LLMInvocationResult(
+                content=(
+                    'Final Answer: {"decision": "pass", "has_issues": false, '
+                    '"feedback": "", "reasoning": "No anomalies on independent review."}'
+                ),
+                model="fake-model",
+            )
         return LLMInvocationResult(
             content=_LLM_RESPONSES[self._operation_name], model="fake-model"
         )
@@ -1577,7 +1585,7 @@ def test_alert_review_workflow_skips_to_pass_when_detector_finds_no_fraud(monkey
     assert finished_alert is not None
     assert finished_alert.status == AlertStatus.CLOSED
 
-    # detector_adversarial/classification/adversarial/analyst were all
+    # classification/adversarial/analyst were all
     # skipped - only pre_process, deterministic, profiling, detector,
     # executor and post_process actually ran.
     recorded_steps = {s.step_name for s in steps.list_by_workflow(workflow_id)}
@@ -1586,6 +1594,7 @@ def test_alert_review_workflow_skips_to_pass_when_detector_finds_no_fraud(monkey
         "deterministic",
         "profiling",
         "detector",
+        "detector_adversarial",
         "executor",
         "post_process",
     }
@@ -1594,6 +1603,7 @@ def test_alert_review_workflow_skips_to_pass_when_detector_finds_no_fraud(monkey
         "transaction_profile",
         "transactional_profile",
         "detector",
+        "detector_adversarial",
     ]
     assert action_dispatcher.calls == []
     assert escalation_dispatcher.calls == []
@@ -1882,11 +1892,14 @@ def test_reasoning_evaluation_dispatched_only_when_sampled(
     ],
 )
 def test_isolated_runs_execute_pipeline_without_operational_dispatches(
-    monkeypatch, evaluation_dispatches, metrics_events, step_metrics, origin, records_metrics
+    monkeypatch,
+    evaluation_dispatches,
+    metrics_events,
+    step_metrics,
+    origin,
+    records_metrics,
 ):
-    run = _run_full_pipeline(
-        monkeypatch, _ARIA_PLAYBOOK, origin=origin
-    )
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK, origin=origin)
 
     assert run["result"]["status"] == "ok"
     assert run["action_dispatcher"].calls == []
@@ -1896,7 +1909,8 @@ def test_isolated_runs_execute_pipeline_without_operational_dispatches(
     assert bool(metrics_events.events) is records_metrics
     assert bool(step_metrics.inputs) is records_metrics
     executor_step = next(
-        step for step in run["steps"].list_by_workflow(run["workflow_id"])
+        step
+        for step in run["steps"].list_by_workflow(run["workflow_id"])
         if step.step_name == "executor"
     )
     assert executor_step.output["executed_action"] == "simulated"
@@ -2087,3 +2101,122 @@ def test_skipped_run_records_its_duration_as_skipped(monkeypatch, in_memory_moni
     assert [(step, outcome) for step, outcome, _ in monitoring.workflow_durations] == [
         (WORKFLOW_TOTAL_STEP, "SKIPPED")
     ]
+
+
+@pytest.mark.parametrize("detector_verdict", ["fraud", "not_fraud", "unknown"])
+@pytest.mark.parametrize("decision", ["pass", "scale_to_analyst", "handle_by_aria"])
+def test_first_adversarial_controls_routing_independently_of_detector(
+    monkeypatch, metrics_events, detector_verdict, decision
+):
+    import json
+
+    monkeypatch.setitem(
+        _LLM_RESPONSES,
+        "detector",
+        "Final Answer: "
+        + json.dumps(
+            {
+                "is_fraud": detector_verdict,
+                "fraud_classification": "unknown",
+                "reasoning": "Detector evidence",
+            }
+        ),
+    )
+    monkeypatch.setitem(
+        _LLM_RESPONSES,
+        "detector_adversarial",
+        "Final Answer: "
+        + json.dumps(
+            {
+                "decision": decision,
+                "has_issues": False,
+                "feedback": "",
+                "reasoning": "Independent review evidence",
+            }
+        ),
+    )
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+    workflow = run["workflows"].get(run["workflow_id"])
+    steps = run["steps"].list_by_workflow(run["workflow_id"])
+    names = {step.step_name for step in steps}
+
+    assert workflow.status == WorkflowStatus.SUCCEEDED
+    assert {"detector", "detector_adversarial", "executor", "post_process"} <= names
+    review = next(s for s in steps if s.step_name == "detector_adversarial")
+    assert review.output["decision"] == decision
+    if decision == "handle_by_aria":
+        assert {"classification", "adversarial", "analyst"} <= names
+        assert workflow.output["resolution_path"] == "bidi"
+    else:
+        assert not {"classification", "adversarial", "analyst"} & names
+        assert workflow.output["resolution_path"] == decision
+        assert run["action_dispatcher"].calls == []
+        assert run["documenter_dispatcher"].calls == []
+        expected_status = (
+            AlertStatus.ESCALATED
+            if decision == "scale_to_analyst"
+            else AlertStatus.CLOSED
+        )
+        assert run["alerts"].get(run["alert_id"]).status == expected_status
+        assert len(run["escalation_dispatcher"].calls) == (
+            decision == "scale_to_analyst"
+        )
+        assert metrics_events.events[-1].status == expected_status
+
+
+@pytest.mark.parametrize(
+    "origin", [AlertOrigin.TEST_RUN, AlertOrigin.OPTIMIZER_EVALUATION]
+)
+@pytest.mark.parametrize("decision", ["pass", "scale_to_analyst"])
+def test_first_adversarial_test_routes_never_dispatch_operational_actions(
+    monkeypatch, origin, decision
+):
+    import json
+
+    monkeypatch.setitem(
+        _LLM_RESPONSES,
+        "detector_adversarial",
+        "Final Answer: "
+        + json.dumps(
+            {
+                "decision": decision,
+                "has_issues": False,
+                "reasoning": "Independent review evidence",
+            }
+        ),
+    )
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK, origin=origin)
+    assert run["workflows"].get(run["workflow_id"]).status == WorkflowStatus.SUCCEEDED
+    assert run["escalation_dispatcher"].calls == []
+    assert run["action_dispatcher"].calls == []
+    assert run["documenter_dispatcher"].calls == []
+    executor = next(
+        s
+        for s in run["steps"].list_by_workflow(run["workflow_id"])
+        if s.step_name == "executor"
+    )
+    assert executor.output["executed_action"] == "simulated"
+    assert executor.output["proposed_action"] == decision
+
+
+def test_uncertain_first_review_queues_without_capacity_fallback(monkeypatch):
+    def capacity_routing_must_not_run():
+        raise AssertionError(
+            "Human uncertainty must queue regardless of current capacity"
+        )
+
+    monkeypatch.setattr(
+        workflow_module,
+        "get_route_alert_resolution_use_case",
+        capacity_routing_must_not_run,
+    )
+    monkeypatch.setitem(
+        _LLM_RESPONSES,
+        "detector_adversarial",
+        'Final Answer: {"decision": "scale_to_analyst", "has_issues": false, '
+        '"reasoning": "Evidence is inconclusive"}',
+    )
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+    assert run["alerts"].get(run["alert_id"]).status == AlertStatus.ESCALATED
+    assert len(run["escalation_dispatcher"].calls) == 1
+    assert run["action_dispatcher"].calls == []

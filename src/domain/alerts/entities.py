@@ -24,6 +24,12 @@ class AlertOrigin(StrEnum):
     PRODUCTION = "production"
 
 
+class AdversarialDecision(StrEnum):
+    PASS = "pass"
+    SCALE_TO_ANALYST = "scale_to_analyst"
+    HANDLE_BY_ARIA = "handle_by_aria"
+
+
 PROCESSED_WHILE_AGENT_OFF = frozenset(
     {AlertOrigin.MANUAL, AlertOrigin.TEST_RUN, AlertOrigin.OPTIMIZER_EVALUATION}
 )

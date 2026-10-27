@@ -20,7 +20,7 @@ from src.application.use_cases.test_runs.delete_test_runs import (
     DeleteTestRunsUseCase,
 )
 from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
-from src.domain.alerts.entities import AlertOrigin
+from src.domain.alerts.entities import AdversarialDecision, AlertOrigin
 from src.domain.alerts.exceptions import AdversarialFeedbackLimitExceededError
 from src.domain.configurations.entities import ConfigurationRef
 from src.domain.datasets.mature_sample_entities import (
@@ -218,6 +218,21 @@ class WorkflowAgentPipelineScorer:
 
     def _workflow_decision(self, workflow_id) -> str:
         records = self._steps.list_by_workflow(workflow_id)
+        reviews = [
+            step
+            for step in records
+            if step.step_name == "detector_adversarial" and step.output is not None
+        ]
+        if reviews:
+            review = (
+                max(reviews, key=lambda step: (step.attempt, step.created_at)).output
+                or {}
+            )
+            if not review.get("requires_classification_feedback"):
+                if review.get("decision") == AdversarialDecision.PASS:
+                    return "pass"
+                if review.get("decision") == AdversarialDecision.SCALE_TO_ANALYST:
+                    return "unknown"
         for step_name in ("classification", "detector", "deterministic"):
             attempts = [
                 step

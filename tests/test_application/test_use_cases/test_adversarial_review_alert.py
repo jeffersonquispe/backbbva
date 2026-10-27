@@ -3,6 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import UTC
 
+import pytest
+
 from src.application.dtos.adversarial_review_alert_dtos import (
     AdversarialReviewAlertInput,
 )
@@ -33,6 +35,7 @@ from src.application.use_cases.alerts.adversarial_review_alert import (
     AdversarialReviewAlertUseCase,
     _build_system_prompt,
 )
+from src.domain.alerts.entities import AdversarialDecision
 
 # Default tool set (no enabled_tools filter, no watchlist configured) - see
 # AdversarialReviewAlertUseCase.__init__.
@@ -238,6 +241,43 @@ def test_adversarial_review_routes_back_on_malformed_final_answer() -> None:
     output = use_case.execute(_input())
 
     assert output.requires_classification_feedback is True
+
+
+@pytest.mark.parametrize("decision", list(AdversarialDecision))
+def test_detector_reviewer_returns_each_explicit_routing_decision(decision) -> None:
+    use_case, factory = _use_case(
+        [
+            'Final Answer: {"decision": "' + decision.value + '", '
+            '"has_issues": false, "reasoning": "Independent evidence reviewed"}'
+        ],
+        step_name="detector_adversarial",
+    )
+
+    output = use_case.execute(_input())
+
+    assert output.decision == decision
+    assert output.requires_classification_feedback is False
+    prompt = factory.created[0].received_messages[0][0].content
+    assert "exactamente una de tres salidas" in prompt
+    assert "Nunca uses pass por ausencia de datos" in prompt
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "{}",
+        "[]",
+        "null",
+        '{"has_issues": false}',
+        '{"decision": "block", "has_issues": false}',
+        '{"decision": "pass", "has_issues": "false"}',
+        '{"decision": "pass", "has_issues": null}',
+    ],
+)
+def test_detector_reviewer_never_certifies_an_invalid_decision(raw) -> None:
+    use_case, _ = _use_case(["Final Answer: " + raw], step_name="detector_adversarial")
+
+    assert use_case.execute(_input()).requires_classification_feedback is True
 
 
 def test_adversarial_review_sends_base_system_prompt_verbatim_by_default() -> None:

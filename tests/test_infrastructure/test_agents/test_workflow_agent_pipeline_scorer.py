@@ -335,3 +335,50 @@ def test_workflow_pipeline_scorer_fails_candidate_on_other_workflow_errors():
             snapshot=_snapshot(),
         )
     assert len(cleanup.deleted) == 1
+
+
+@pytest.mark.parametrize(
+    "decision,expected",
+    [("pass", "pass"), ("scale_to_analyst", "unknown"), ("handle_by_aria", "fraud")],
+)
+def test_pipeline_scorer_respects_first_adversarial_terminal_decision(
+    decision, expected
+):
+    from dataclasses import replace
+
+    workflows = InMemoryWorkflowRepository()
+    steps = InMemoryStepRepository()
+    starter = RecordingStartTestRun(workflows, steps, ["fraud"])
+    scorer = WorkflowAgentPipelineScorer(
+        start_test_run=starter,
+        schemas=InMemorySchemaRepository(),
+        workflows=workflows,
+        steps=steps,
+        delete_test_runs=RecordingDeleteTestRuns(),
+        preserve_test_data=True,
+        timeout_seconds=1,
+        poll_interval_seconds=0.001,
+    )
+    scorer.predict_positive(_components(), [{"amount": 100}], snapshot=_snapshot())
+    workflow_id, records = next(iter(steps.items.items()))
+    review = replace(
+        records[0],
+        id=uuid4(),
+        step_name="detector_adversarial",
+        output={
+            "decision": decision,
+            "requires_classification_feedback": False,
+        },
+    )
+    # An earlier internal correction must not hide the final routing decision.
+    earlier = replace(
+        review,
+        id=uuid4(),
+        attempt=0,
+        output={
+            "decision": "handle_by_aria",
+            "requires_classification_feedback": True,
+        },
+    )
+    steps.items[workflow_id] += [earlier, review]
+    assert scorer._workflow_decision(workflow_id) == expected

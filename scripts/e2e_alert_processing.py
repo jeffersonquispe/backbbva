@@ -114,7 +114,24 @@ def wait_for_workflow(api: Api, operation_id: str, alert_id: str) -> dict[str, A
     detail = api.request("GET", f"/analyst-queue/{alert_id}")
     steps = detail.get("steps") or []
     names = {step.get("step_name") or step.get("name") for step in steps}
-    expected = {"pre_process", "classification", "analyst", "executor", "post_process"}
+    expected = {
+        "pre_process",
+        "detector",
+        "detector_adversarial",
+        "executor",
+        "post_process",
+    }
+    reviews = [
+        step for step in steps if step.get("step_name") == "detector_adversarial"
+    ]
+    review = max(reviews, key=lambda step: step.get("attempt", 1)) if reviews else {}
+    decision = (review.get("output") or {}).get("decision")
+    require(
+        decision in {"pass", "scale_to_analyst", "handle_by_aria"},
+        f"Primer adversarial sin una decisión válida: {decision!r}",
+    )
+    if decision == "handle_by_aria":
+        expected |= {"classification", "adversarial", "analyst"}
     missing = expected - names
     require(
         not missing,
