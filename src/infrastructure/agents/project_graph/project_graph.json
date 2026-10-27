@@ -87,6 +87,16 @@
   },
   {
    "relation": "requests",
+   "source": "api:agent.getOptimizerStatus",
+   "target": "endpoint:GET /api/v0/agent/optimizer-status"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.getRetrospectiveValidation",
+   "target": "endpoint:GET /api/v0/agent/releases/retrospective-validations/{validation_id}"
+  },
+  {
+   "relation": "requests",
    "source": "api:agent.listAgentAudit",
    "target": "endpoint:GET /api/v0/agent/sessions/{session_id}/audit"
   },
@@ -1268,6 +1278,11 @@
   {
    "relation": "calls",
    "source": "component:agent/AgentReleasePanel",
+   "target": "api:agent.getRetrospectiveValidation"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentReleasePanel",
    "target": "api:agent.listAgentReleases"
   },
   {
@@ -2308,6 +2323,11 @@
   {
    "relation": "renders",
    "source": "component:configuracion/schema/AlertSchemaEditor",
+   "target": "component:ui/DataTable"
+  },
+  {
+   "relation": "renders",
+   "source": "component:configuracion/schema/AlertSchemaEditor",
    "target": "component:ui/section-tabs"
   },
   {
@@ -3189,6 +3209,11 @@
    "relation": "renders",
    "source": "component:optimizer/OptimizerLaunchDrawer",
    "target": "component:ui/side-drawer"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerMonitorPanel",
+   "target": "api:agent.getOptimizerStatus"
   },
   {
    "relation": "offers",
@@ -4218,6 +4243,16 @@
   {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/optimization-runs/{session_id}",
+   "target": "resource:agent"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/agent/optimizer-status",
+   "target": "permission:monitor"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/optimizer-status",
    "target": "resource:agent"
   },
   {
@@ -6469,6 +6504,11 @@
    "relation": "implemented_by",
    "source": "port:AgentPromptRepository",
    "target": "adapter:DynamoAgentPromptRepository"
+  },
+  {
+   "relation": "implemented_by",
+   "source": "port:AgentReleaseComponentPromoter",
+   "target": "adapter:ExistingFlowReleasePromoter"
   },
   {
    "relation": "implemented_by",
@@ -9267,6 +9307,11 @@
   {
    "relation": "uses_port",
    "source": "use_case:ManageAgentReleaseUseCase",
+   "target": "port:AgentReleaseComponentPromoter"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ManageAgentReleaseUseCase",
    "target": "port:AgentReleaseRepository"
   },
   {
@@ -10918,6 +10963,11 @@
    "relation": "renders",
    "source": "view:/monitor",
    "target": "component:metrics/MetricsShared"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/monitor",
+   "target": "component:optimizer/OptimizerMonitorPanel"
   },
   {
    "relation": "renders",
@@ -15048,6 +15098,18 @@
   },
   {
    "attrs": {
+    "file": "src/infrastructure/agents/release_component_promoter.py"
+   },
+   "description": "Configuration -> deploy request (approved by manager/release manager); vector store -> its promotion; library -> manual review in Biblioteca, because library entries are not versioned for automatic activation.",
+   "id": "adapter:ExistingFlowReleasePromoter",
+   "keywords": [
+    "Existing Flow Release Promoter"
+   ],
+   "kind": "adapter",
+   "name": "ExistingFlowReleasePromoter"
+  },
+  {
+   "attrs": {
     "file": "src/infrastructure/agents/modus_operandi_draft_applier.py"
    },
    "description": "",
@@ -15523,6 +15585,34 @@
    ],
    "kind": "api_call",
    "name": "getOptimizationRun"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/agent/optimizer-status"
+   },
+   "description": "GET /api/v0/agent/optimizer-status",
+   "id": "api:agent.getOptimizerStatus",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getOptimizerStatus"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/agent/releases/retrospective-validations/${encodeURIComponent(validationId)}"
+   },
+   "description": "GET /api/v0/agent/releases/retrospective-validations/{id}",
+   "id": "api:agent.getRetrospectiveValidation",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getRetrospectiveValidation"
   },
   {
    "attrs": {
@@ -18201,6 +18291,7 @@
     "Solicitante:",
     "Observaciones:",
     "Snapshot",
+    "Componentes entregados",
     "Aprobar · manager",
     "Avanzar a",
     "No hay releases registrados."
@@ -18986,11 +19077,27 @@
     "Campos de sistema",
     "Propuestas",
     "Sugerencias",
+    "Campo",
+    "Nombre visible",
+    "Descripción",
+    "Ubicación",
+    "Tipo",
+    "Origen",
     "aric",
     "host",
     "aria",
+    "Core",
+    "Alerta",
+    "Obligatorio",
+    "Historial",
+    "Etiqueta",
+    "Sensible",
+    "Estrategia",
     "anonymize",
     "obfuscate",
+    "Locale",
+    "Tipo locale",
+    "Grupo",
     "Esquema de alerta",
     "Activo: v",
     "Estado:",
@@ -19000,28 +19107,12 @@
     "Filtrar origen",
     "Todos los orígenes",
     "Editar borrador",
-    "Campo",
-    "Nombre visible",
-    "Descripción",
-    "Ubicación",
-    "Tipo",
-    "Origen",
-    "Core",
-    "Alerta",
-    "Obligatorio",
-    "Historial",
-    "Etiqueta",
-    "Sensible",
-    "Estrategia",
-    "Locale",
-    "Tipo locale",
-    "Grupo",
+    "campos",
+    "Buscar campo, ubicación o tipo…",
     "Los roles sólo aceptan campos is_alert del tipo compatible.",
     "Sin asignar",
     "Comparación con la versión activa",
-    "Impacto en uso",
-    "Entiendo el impacto",
-    "Guardar"
+    "Impacto en uso"
    ],
    "kind": "component",
    "name": "AlertSchemaEditor"
@@ -19807,6 +19898,35 @@
    ],
    "kind": "component",
    "name": "OptimizerLaunchDrawer"
+  },
+  {
+   "attrs": {
+    "file": "components/optimizer/OptimizerMonitorPanel.tsx"
+   },
+   "description": "Panel de monitoreo del optimizador que consulta periódicamente su estado y lo resume en tarjetas y secciones. Muestra carga (sesiones, candidatos, ejecuciones, bloqueos), desglose por estado/motivo de espera y presupuesto agregado con barras de progreso, incluyendo estados de carga y error.",
+   "id": "component:optimizer/OptimizerMonitorPanel",
+   "keywords": [
+    "Cargando el estado del optimizador…",
+    "No se pudo leer el estado del optimizador.",
+    "Carga del optimizador",
+    "Sesiones por estado",
+    "No hay sesiones del optimizador en curso.",
+    "Esperas por motivo",
+    "Ninguna sesión espera una aprobación.",
+    "Presupuesto agregado",
+    "Experimentos por resultado",
+    "Aún no hay experimentos en las sesiones en curso.",
+    "Muestras maduras en uso",
+    "Ningún experimento en curso usa todavía una muestra madura.",
+    "Periodo",
+    "Madurez",
+    "Particiones",
+    "Versión de esquema",
+    "Experimentos",
+    "días"
+   ],
+   "kind": "component",
+   "name": "OptimizerMonitorPanel"
   },
   {
    "attrs": {
@@ -21532,6 +21652,20 @@
    ],
    "kind": "endpoint",
    "name": "GET /api/v0/agent/optimization-runs/{session_id}"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/agent/optimizer-status"
+   },
+   "description": "Current optimizer load for the Monitor: counts and caps, never ids.",
+   "id": "endpoint:GET /api/v0/agent/optimizer-status",
+   "keywords": [
+    "get optimizer status",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/optimizer-status"
   },
   {
    "attrs": {
@@ -24776,6 +24910,16 @@
    ],
    "kind": "port",
    "name": "AgentPromptRepository"
+  },
+  {
+   "attrs": {},
+   "description": "Hands a winning configuration, library or vector store to the flow that already promotes it in production (deploy request, promotion, review).",
+   "id": "port:AgentReleaseComponentPromoter",
+   "keywords": [
+    "Agent Release Component Promoter"
+   ],
+   "kind": "port",
+   "name": "AgentReleaseComponentPromoter"
   },
   {
    "attrs": {},
@@ -28368,6 +28512,7 @@
     "Analistas y otros canales",
     "Explicabilidad",
     "Indicadores técnicos",
+    "Optimizador",
     "ARIA",
     "Analistas",
     "Voicebot",
