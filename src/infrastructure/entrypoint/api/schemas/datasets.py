@@ -141,6 +141,10 @@ class PreviewDatasetSplitResponse(BaseModel):
     seed: int
     stratify_fields: list[str]
     available_fields: list[str]
+    strata_distribution: dict[str, dict[str, int]] = Field(default_factory=dict)
+    source_context: dict[str, Any] = Field(default_factory=dict)
+    schema_context: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class PrepareDatasetSplitResponse(BaseModel):
@@ -152,6 +156,10 @@ class PrepareDatasetSplitResponse(BaseModel):
     proportions: dict[str, float]
     seed: int
     stratify_fields: list[str]
+    strata_distribution: dict[str, dict[str, int]] = Field(default_factory=dict)
+    source_context: dict[str, Any] = Field(default_factory=dict)
+    schema_context: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class AppendDatasetRowsRequest(BaseModel):

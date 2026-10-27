@@ -187,6 +187,9 @@ class Config(BaseSettings):
     # uploads remain stored safely, but are not automatically profiled until
     # the analysis pipeline is made fully streaming.
     DATASET_ANALYSIS_MAX_BYTES: int = 268435456
+    # Reproducible splits run synchronously in the API and hold every row in
+    # memory; larger sources must be sampled first (POST /datasets/extract).
+    DATASET_SPLIT_MAX_ROWS: int = 200000
 
     # MODELS - versioned XGBoost training artifacts (joblib bundles), see
     # infrastructure/persistence/object_storage/minio/__init__.py's

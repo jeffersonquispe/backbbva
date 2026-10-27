@@ -64,6 +64,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sampl
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_summary_repository import (
     DynamoDatasetSummaryRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.mature_sample_repository import (
+    DynamoDatasetSnapshotRepository,
+)
 from src.infrastructure.persistence.dataset.filesystem.csv_dataset_repository import (
     FilesystemCsvDatasetRepository,
 )
@@ -113,9 +116,25 @@ def get_list_datasets_use_case() -> ListDatasetsUseCase:
     )
 
 
+@lru_cache
+def get_dataset_snapshot_repository() -> DynamoDatasetSnapshotRepository:
+    return DynamoDatasetSnapshotRepository()
+
+
 def get_prepare_dataset_split_use_case() -> PrepareDatasetSplitUseCase:
+    # alert_schema_factory imports this module through alert_factory.
+    from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
+        get_alert_schema_repository,
+    )
+
     return PrepareDatasetSplitUseCase(
-        get_dataset_repository(), get_dataset_summary_repository(), clock=get_clock()
+        get_dataset_repository(),
+        get_dataset_summary_repository(),
+        clock=get_clock(),
+        snapshots=get_dataset_snapshot_repository(),
+        alert_schemas=get_alert_schema_repository(),
+        field_mappings=get_alert_field_mapping_repository(),
+        max_rows=genai_config.DATASET_SPLIT_MAX_ROWS,
     )
 
 

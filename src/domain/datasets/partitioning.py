@@ -30,7 +30,7 @@ def partition_rows(
 
     groups: dict[tuple[str, ...], list[tuple[int, dict[str, Any]]]] = defaultdict(list)
     for index, row in enumerate(rows):
-        key = tuple(_field_value(row, field) for field in stratify_fields)
+        key = tuple(stratum_value(row, field) for field in stratify_fields)
         groups[key].append((index, row))
 
     result: dict[str, list[dict[str, Any]]] = {
@@ -70,7 +70,7 @@ def _allocation(size: int, proportions: dict[str, float]) -> dict[str, int]:
     return counts
 
 
-def _field_value(row: dict[str, Any], path: str) -> str:
+def stratum_value(row: dict[str, Any], path: str) -> str:
     value: Any = row
     for part in path.split("."):
         if isinstance(value, list):
