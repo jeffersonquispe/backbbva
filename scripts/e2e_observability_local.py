@@ -26,6 +26,7 @@ ROLE_USERS = {
     "E2E_DATA_ANALYST": ("e2e-data-analyst@example.com", "E2E Data Analyst", "data_analyst"),
     "E2E_FRAUD_ANALYST": ("e2e-fraud-analyst@example.com", "E2E Fraud Analyst", "fraud_analyst"),
     "E2E_OPS_ANALYST": ("e2e-ops-analyst@example.com", "E2E Ops Analyst", "ops_analyst"),
+    "E2E_FRAUD_REVIEWER": ("e2e-fraud-reviewer@example.com", "E2E Fraud Reviewer", "fraud_reviewer"),
 }
 opener = build_opener(ProxyHandler({}))
 
@@ -145,7 +146,9 @@ def main() -> int:
                 {
                     "E2E_RELEASE_MANAGER_EMAIL": RELEASE_EMAIL,
                     "E2E_RELEASE_MANAGER_PASSWORD": release_password,
-                    "E2E_FRAUD_REVIEW_EMAIL": "e2e-fraud-review@example.com",
+                    # Not the old address (a manager account) nor E2E_FRAUD_REVIEWER's,
+                    # whose password the later reset would overwrite.
+                    "E2E_FRAUD_REVIEW_EMAIL": "e2e-fraud-review-ui@example.com",
                     "E2E_BOOTSTRAP_TOKEN": temporary,
                 }
             )
@@ -186,7 +189,7 @@ def main() -> int:
                 temporary,
                 playwright_env["E2E_FRAUD_REVIEW_EMAIL"],
                 "ARIA E08 fraud-review E2E",
-                "manager",
+                "fraud_reviewer",
             )
             playwright_env["E2E_FRAUD_REVIEW_PASSWORD"] = fraud_review_password
             seed_result = subprocess.run(

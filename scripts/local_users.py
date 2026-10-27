@@ -26,11 +26,12 @@ from urllib.request import Request, urlopen
 
 ROLES = [
     ("manager", "Manager"),
-    ("channel_manager", "Channel manager — todos los permisos del frontend"),
+    ("channel_manager", "Channel manager — todo salvo corregir fraud_label"),
     ("release_manager", "Release manager"),
     ("data_analyst", "Data analyst"),
     ("fraud_analyst", "Fraud analyst — solo la cola"),
     ("ops_analyst", "Ops analyst"),
+    ("fraud_reviewer", "Fraud reviewer — corrige fraud_label en el histórico"),
 ]
 MIN_PASSWORD_LENGTH = 8
 

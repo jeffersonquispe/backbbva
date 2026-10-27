@@ -71,9 +71,20 @@ def test_local_login_returns_signed_token_and_fixed_permissions():
     ]
 
 
-def test_channel_manager_is_the_only_role_with_every_frontend_permission():
-    assert len(permissions_for(LocalRole.CHANNEL_MANAGER)) == 9
+def test_channel_manager_holds_every_frontend_permission_but_fraud_review():
+    assert len(permissions_for(LocalRole.CHANNEL_MANAGER)) == 8
+    assert "fraud_review" not in permissions_for(LocalRole.CHANNEL_MANAGER)
     assert permissions_for(LocalRole.FRAUD_ANALYST) == ["in_progress"]
+
+
+def test_only_fraud_reviewer_and_manager_may_correct_fraud_labels():
+    assert {
+        role for role in LocalRole if "fraud_review" in permissions_for(role)
+    } == {LocalRole.FRAUD_REVIEWER, LocalRole.MANAGER}
+    assert permissions_for(LocalRole.FRAUD_REVIEWER) == [
+        "fraud_history",
+        "fraud_review",
+    ]
 
 
 class InMemoryRevokedTokens:

@@ -7,6 +7,8 @@ import os
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+import pytest
+
 os.environ.setdefault("GENAI_ENVIRONMENT", "test")
 os.environ.setdefault("API_V0_STR", "/api/v0")
 
@@ -194,10 +196,11 @@ def _client(role: LocalRole):
     return TestClient(app), review, history, upload
 
 
-def test_review_records_the_authenticated_reviewer_and_returns_the_new_snapshot() -> (
-    None
-):
-    client, review, _, _ = _client(LocalRole.MANAGER)
+@pytest.mark.parametrize("role", [LocalRole.FRAUD_REVIEWER, LocalRole.MANAGER])
+def test_review_records_the_authenticated_reviewer_and_returns_the_new_snapshot(
+    role,
+) -> None:
+    client, review, _, _ = _client(role)
 
     response = client.post(
         f"/api/v0/alerts/{KNOWN}/fraud-review",
@@ -215,7 +218,7 @@ def test_review_records_the_authenticated_reviewer_and_returns_the_new_snapshot(
         "fraud_review_count",
     }
     assert body["review"]["channel"] == "ui"
-    assert body["review"]["reviewed_by"] == "manager@aria.test"
+    assert body["review"]["reviewed_by"] == f"{role.value}@aria.test"
     assert (body["review"]["from_label"], body["review"]["to_label"]) == (
         "fraud",
         "no_fraud",
@@ -240,9 +243,13 @@ def test_review_status_codes() -> None:
     )
 
 
-def test_review_and_bulk_csv_need_the_fraud_review_permission() -> None:
-    # release_manager sees the history but may not review.
-    client, review, _, upload = _client(LocalRole.RELEASE_MANAGER)
+@pytest.mark.parametrize(
+    "role", [LocalRole.RELEASE_MANAGER, LocalRole.CHANNEL_MANAGER]
+)
+def test_review_and_bulk_csv_need_the_fraud_review_permission(role) -> None:
+    # Both see the history but may not review; channel_manager launches the
+    # optimizer, so correcting labels would grade its own results.
+    client, review, _, upload = _client(role)
     assert (
         client.post(
             f"/api/v0/alerts/{KNOWN}/fraud-review", json={"fraud_label": "fraud"}
@@ -296,7 +303,7 @@ def test_history_passes_filters_and_returns_snapshot_fields() -> None:
 
 
 def test_bulk_csv_dispatches_and_reports_per_row() -> None:
-    client, _, _, upload = _client(LocalRole.CHANNEL_MANAGER)
+    client, _, _, upload = _client(LocalRole.FRAUD_REVIEWER)
 
     bad = client.post(
         "/api/v0/alerts/fraud-review-imports",
@@ -311,7 +318,7 @@ def test_bulk_csv_dispatches_and_reports_per_row() -> None:
     )
     assert response.status_code == 202
     assert response.json() == {"task_id": "task-1", "status": "PENDING"}
-    assert upload.calls == [(content, "channel_manager@aria.test")]
+    assert upload.calls == [(content, "fraud_reviewer@aria.test")]
 
     status = client.get("/api/v0/alerts/fraud-review-imports/task-1").json()
     assert (status["status"], status["total"], status["applied"], status["failed"]) == (

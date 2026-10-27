@@ -22,7 +22,8 @@ COMPOSE_FILE = os.getenv(
 PROJECT = os.getenv("LOCAL_DOCKER_PROJECT", "aria-local")
 BASE_URL = os.getenv("E2E_BASE_URL", "http://localhost").rstrip("/")
 API_HEALTH_URL = f"{BASE_URL}/health"
-EMAIL = "e2e-fraud-review@aria.local"
+# A fraud_reviewer: the old manager account of this address keeps its role.
+EMAIL = "e2e-fraud-reviewer@aria.local"
 
 opener = build_opener(ProxyHandler({}))
 
@@ -92,7 +93,7 @@ def main() -> int:
         "ARIA_E2E_BASE_URL": BASE_URL,
     }
 
-    print("E08: habilitando aprovisionamiento efímero y preparando manager de prueba…")
+    print("E08: habilitando aprovisionamiento efímero y preparando fraud_reviewer de prueba…")
     try:
         compose(
             "up", "-d", "--force-recreate", "api",

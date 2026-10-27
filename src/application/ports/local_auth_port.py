@@ -14,12 +14,15 @@ class LocalRole(StrEnum):
     DATA_ANALYST = "data_analyst"
     FRAUD_ANALYST = "fraud_analyst"
     OPS_ANALYST = "ops_analyst"
+    FRAUD_REVIEWER = "fraud_reviewer"
 
 
 ROLE_PERMISSIONS: dict[LocalRole, frozenset[str]] = {
     # fraud_review: correct an alert's fraud_label (POST /alerts/{id}/fraud-review
-    # and the bulk CSV) - a bank business record: manager, plus
-    # channel_manager, which by design holds every frontend permission.
+    # and the bulk CSV) - the ground truth that trains models and scores the
+    # optimizer. Held by the fraud team's fraud_reviewer, with manager as
+    # backup; never by channel_manager (launches the optimizer, so it would
+    # grade its own results) nor fraud_analyst (sets the mark it would grade).
     LocalRole.MANAGER: frozenset(
         {
             "dashboard",
@@ -48,7 +51,6 @@ ROLE_PERMISSIONS: dict[LocalRole, frozenset[str]] = {
             "dashboard",
             "in_progress",
             "fraud_history",
-            "fraud_review",
             "monitor",
             "configuration",
             "testing",
@@ -59,6 +61,7 @@ ROLE_PERMISSIONS: dict[LocalRole, frozenset[str]] = {
     LocalRole.DATA_ANALYST: frozenset({"monitor", "library", "testing", "models"}),
     LocalRole.FRAUD_ANALYST: frozenset({"in_progress"}),
     LocalRole.OPS_ANALYST: frozenset({"dashboard", "in_progress", "monitor"}),
+    LocalRole.FRAUD_REVIEWER: frozenset({"fraud_history", "fraud_review"}),
 }
 
 

@@ -10,7 +10,12 @@ pendientes están en `PENDIENTES.md`.
   `/metrics/technical` bajo `monitor`.
 - Restringir el historial y las revisiones de fraude a `fraud_history` y
   `fraud_review`, según corresponda. El historial autorizado contiene
-  `customer_id`, importes y etiquetas de fraude.
+  `customer_id`, importes y etiquetas de fraude. `fraud_review` solo lo
+  tienen `fraud_reviewer` (equipo de fraude) y `manager` de respaldo; nunca
+  `channel_manager`, que lanza el optimizador evaluado con esas etiquetas.
+- La retención del historial (`fraud_history.retention`) es el único proceso
+  que borra filas de `alerts` y `fraud_label_reviews`, y solo después de
+  releer el archivo frío y verificar su SHA-256.
 - Tratar la nota libre de revisión como dato de negocio sensible. No copiarla
   a logs genéricos ni registrar cuerpos, tokens, query strings o atributos de
   los ítems en la auditoría.

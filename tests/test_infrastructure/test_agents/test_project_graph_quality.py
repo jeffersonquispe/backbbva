@@ -35,6 +35,7 @@ ROLES = (
     "data_analyst",
     "fraud_analyst",
     "ops_analyst",
+    "fraud_reviewer",
 )
 
 
