@@ -211,6 +211,20 @@ def test_only_the_worker_package_imports_the_worker_entrypoint() -> None:
     _check("worker-entrypoint-private", found)
 
 
+def test_only_the_mcp_package_imports_the_mcp_entrypoint() -> None:
+    """Model serving belongs to ``entrypoint/mcp``; the worker and API score
+    through ``model_serving/mcp_scoring_client`` over HTTP instead."""
+    mcp_dir = SRC / "infrastructure/entrypoint/mcp"
+    found: set[tuple[str, str, str]] = set()
+    for path in _py_files(SRC):
+        if mcp_dir in path.parents:
+            continue
+        for mod in _imports(path):
+            if mod.startswith("src.infrastructure.entrypoint.mcp"):
+                found.add(("mcp-entrypoint-private", _rel(path), mod))
+    _check("mcp-entrypoint-private", found)
+
+
 def test_routers_do_not_build_persistence_adapters() -> None:
     """Routers get adapters through factories + Depends (CLAUDE.md DI)."""
 
