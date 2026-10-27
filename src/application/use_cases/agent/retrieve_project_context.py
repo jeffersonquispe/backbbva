@@ -146,7 +146,7 @@ TASK_BOOST = 1.3
 
 
 def _intent_boosts(query: str) -> dict[NodeKind, float]:
-    """"¿Qué es X?" prefers concepts; "¿cómo/dónde…?" prefers tasks."""
+    """ "¿Qué es X?" prefers concepts; "¿cómo/dónde…?" prefers tasks."""
     if DEFINITION_RE.search(query):
         return {NodeKind.CONCEPT: CONCEPT_BOOST}
     if HOWTO_RE.search(query):

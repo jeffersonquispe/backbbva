@@ -264,7 +264,8 @@ class ConfirmWatchlistDraftUseCase:
         entries: WatchlistRepository,
         create_entry: Any,
         update_entry: Any,
-        audit: AuditPort, timeline: AgentTimeline | None = None,
+        audit: AuditPort,
+        timeline: AgentTimeline | None = None,
         clock: Clock,
         ids: IdGenerator,
     ) -> None:
@@ -483,7 +484,9 @@ def _mask_tree(value: Any, masker: PersonalDataMasker) -> tuple[Any, int]:
         return [r[0] for r in list_rows], sum(r[1] for r in list_rows)
     if isinstance(value, dict):
         map_rows = {k: _mask_tree(v, masker) for k, v in value.items()}
-        return {k: v[0] for k, v in map_rows.items()}, sum(v[1] for v in map_rows.values())
+        return {k: v[0] for k, v in map_rows.items()}, sum(
+            v[1] for v in map_rows.values()
+        )
     return value, 0
 
 
@@ -521,7 +524,9 @@ def _verify(
     name, description = draft.get("name"), draft.get("description")
     raw_list_type = draft.get("list_type")
     try:
-        list_type = WatchlistType(raw_list_type) if isinstance(raw_list_type, str) else None
+        list_type = (
+            WatchlistType(raw_list_type) if isinstance(raw_list_type, str) else None
+        )
     except (ValueError, TypeError):
         list_type = None
     schema = (

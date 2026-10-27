@@ -129,7 +129,9 @@ class GenerateModusOperandiDraftUseCase:
         self._clock = clock
         self._ids = id_generator
 
-    def execute(self, request: GenerateModusOperandiDraftInput) -> ModusOperandiDraftResult:
+    def execute(
+        self, request: GenerateModusOperandiDraftInput
+    ) -> ModusOperandiDraftResult:
         session = self._sessions.get(request.session_id)
         if (
             session is None
@@ -150,7 +152,11 @@ class GenerateModusOperandiDraftUseCase:
         message = self._messages.get_by_client_message_id(
             request.session_id, request.client_message_id
         )
-        if message is None or message.role != "user" or message.author_id != request.owner_id:
+        if (
+            message is None
+            or message.role != "user"
+            or message.author_id != request.owner_id
+        ):
             raise AgentDraftNotFoundError("source message not found")
         source = self._masker.mask(message.content)
         if len(source.text) > settings.assistant_max_message_chars:
@@ -307,7 +313,9 @@ class GenerateModusOperandiDraftUseCase:
             _Check(
                 "taxonomy",
                 "PASS" if taxonomy is not None and taxonomy.active else "FAIL",
-                None if taxonomy is not None and taxonomy.active else "TAXONOMY_INVALID",
+                None
+                if taxonomy is not None and taxonomy.active
+                else "TAXONOMY_INVALID",
             )
         )
         title = draft.get("title")
@@ -320,7 +328,11 @@ class GenerateModusOperandiDraftUseCase:
                 for entry in self._entries.list()
             )
         checks.append(
-            _Check("duplicates", "FAIL" if duplicate else "PASS", "DUPLICATE_TITLE" if duplicate else None)
+            _Check(
+                "duplicates",
+                "FAIL" if duplicate else "PASS",
+                "DUPLICATE_TITLE" if duplicate else None,
+            )
         )
         playbook = _playbook(draft.get("playbook"))
         try:
@@ -367,7 +379,8 @@ class ConfirmModusOperandiDraftUseCase:
         confirmations: AgentConfirmationRepository,
         entries: ModusOperandiLibraryRepository,
         applier: ModusOperandiDraftApplier,
-        audit: AuditPort, timeline: AgentTimeline | None = None,
+        audit: AuditPort,
+        timeline: AgentTimeline | None = None,
         clock: Clock,
         id_generator: IdGenerator,
     ) -> None:
@@ -402,8 +415,10 @@ class ConfirmModusOperandiDraftUseCase:
         if item is None:
             raise AgentDraftNotFoundError("draft item not found")
         checks = self._verifications.list_for_subject(package.package_id)
-        if item.get("verification_status") != "PASS" or not checks or any(
-            check.status != "PASS" for check in checks
+        if (
+            item.get("verification_status") != "PASS"
+            or not checks
+            or any(check.status != "PASS" for check in checks)
         ):
             raise AgentDraftPolicyError("draft has blocking verifications")
         draft = item.get("draft")
@@ -446,9 +461,7 @@ class ConfirmModusOperandiDraftUseCase:
                 confirmed_at=now,
                 role=request.role,
                 base_version=item.get("base_version"),
-                verification_states={
-                    check.verifier: check.status for check in checks
-                },
+                verification_states={check.verifier: check.status for check in checks},
                 source_message_id=item.get("source_message_id"),
             )
         )
@@ -524,13 +537,20 @@ def _normalize_draft(value: dict[str, Any]) -> dict[str, Any]:
     return draft
 
 
-def _normalize_provenance(value: Any, source: str, message_id: str) -> dict[str, dict[str, str | None]]:
+def _normalize_provenance(
+    value: Any, source: str, message_id: str
+) -> dict[str, dict[str, str | None]]:
     result: dict[str, dict[str, str | None]] = {}
     for field_name in REQUIRED_DRAFT_FIELDS:
         raw = value.get(field_name, {}) if isinstance(value, dict) else {}
         kind = raw.get("source") if isinstance(raw, dict) else None
         quote = raw.get("source_quote") if isinstance(raw, dict) else None
-        if kind == "user_input" and isinstance(quote, str) and quote and quote in source:
+        if (
+            kind == "user_input"
+            and isinstance(quote, str)
+            and quote
+            and quote in source
+        ):
             origin = "user_input"
         elif kind == "inferred":
             origin = "inferred"
@@ -636,5 +656,7 @@ def _draft_fields(draft: dict[str, Any]) -> ModusOperandiDraftFields:
 
 
 def _hash(value: Any) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()

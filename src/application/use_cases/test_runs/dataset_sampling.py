@@ -102,7 +102,9 @@ def _resolve_proportions(
         )
     total_pct = sum(distribution.values())
     if abs(total_pct - 1.0) > 1e-6:
-        raise ValidationError(f"distribution percentages must sum to 1.0, got {total_pct}")
+        raise ValidationError(
+            f"distribution percentages must sum to 1.0, got {total_pct}"
+        )
     return {cls: distribution.get(cls, 0.0) for cls in MARCACION_CLASSES}
 
 

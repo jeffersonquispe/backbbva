@@ -46,7 +46,9 @@ class CreateSimulationScenarioUseCase:
         field_specs = input.field_specs
         if field_specs is None:
             if self._schema_repository is None:
-                raise ValidationError("field_specs is required when no schema is configured")
+                raise ValidationError(
+                    "field_specs is required when no schema is configured"
+                )
             schema = self._schema_repository.get_active()
             if schema is None:
                 raise ValidationError("No active alert schema is available")

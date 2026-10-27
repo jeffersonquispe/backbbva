@@ -50,7 +50,11 @@ class RenewAgentBudgetUseCase:
         if session.budget_renewals >= settings.optimizer_max_budget_renewals:
             raise AgentBudgetRenewalError("budget renewal limit reached")
         valid = {"tokens", "usd_micros", "seconds"}
-        if not additions or set(additions) - valid or any(value <= 0 for value in additions.values()):
+        if (
+            not additions
+            or set(additions) - valid
+            or any(value <= 0 for value in additions.values())
+        ):
             raise AgentBudgetRenewalError("invalid budget renewal")
         now = self._clock.now()
         limits = dict(session.budget_limits)

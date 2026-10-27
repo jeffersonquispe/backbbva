@@ -58,7 +58,8 @@ class VectorStoreResearchAgent:
                 kept = [
                     hit
                     for hit in hits
-                    if float(cast(float, hit.get("score", 0))) >= self._config.similarity_threshold
+                    if float(cast(float, hit.get("score", 0)))
+                    >= self._config.similarity_threshold
                 ]
                 trace.append({"asset_type": asset_type, "hits": len(kept)})
                 for hit in kept:

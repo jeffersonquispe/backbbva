@@ -39,7 +39,7 @@ class ApproveAlertSchemaUseCase:
             raise SelfApprovalError("A user cannot approve their own proposal")
         active = self._repository.get_active()
         if active is not None and schema.based_on_version != active.version:
-                raise ConflictError("Schema proposal is based on a stale version")
+            raise ConflictError("Schema proposal is based on a stale version")
         if schema.impact and not input.impact_acknowledged:
             raise ImpactAcknowledgementRequired("Impact acknowledgement is required")
         approved = AlertSchemaVersion(

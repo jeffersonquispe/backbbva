@@ -119,7 +119,9 @@ class StartTestRunUseCase:
             active_schema_version = active_schema.version if active_schema else None
             candidate_version = input.config.schema_version or active_schema_version
             if candidate_version is None:
-                raise ValidationError("No active alert schema is available for this test run")
+                raise ValidationError(
+                    "No active alert schema is available for this test run"
+                )
             if (
                 candidate_version is not None
                 and self._schemas.get(candidate_version) is None

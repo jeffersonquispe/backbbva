@@ -13,7 +13,5 @@ class MatureSamplerSchemaMappingRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def update(
-        self, mapping: MatureSamplerSchemaMapping
-    ) -> MatureSamplerSchemaMapping:
+    def update(self, mapping: MatureSamplerSchemaMapping) -> MatureSamplerSchemaMapping:
         raise NotImplementedError

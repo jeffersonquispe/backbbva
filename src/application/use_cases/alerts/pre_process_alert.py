@@ -492,9 +492,7 @@ class PreProcessAlertUseCase:
             if payload_source is None:
                 raise RuntimeError("Production alert payload source is not configured")
             self._report_progress("fetching_alert_from_alert_api")
-            payload = _with_retry(
-                lambda: payload_source.fetch_alert(input.alert_id)
-            )
+            payload = _with_retry(lambda: payload_source.fetch_alert(input.alert_id))
         aric_input, labels, roles, missing = _schema_values(
             schema, {AlertSchemaDataSource.ARIC: payload}
         )
@@ -514,9 +512,7 @@ class PreProcessAlertUseCase:
             customer_profile = payload.get("customer_profile", {})
             mapped_replay = _optimizer_replay_history(schema, payload)
             if mapped_replay is None:
-                transaction_history = (
-                    _transaction_history_from_payload(payload) or []
-                )
+                transaction_history = _transaction_history_from_payload(payload) or []
             else:
                 transaction_history, replay_history = mapped_replay
         else:

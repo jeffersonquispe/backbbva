@@ -25,7 +25,9 @@ class AgentEntityClaimUseCase:
         self._claims = claims
         self._clock = clock
 
-    def heartbeat(self, session_id: str, lease_seconds: int = 120) -> list[AgentEntityClaim]:
+    def heartbeat(
+        self, session_id: str, lease_seconds: int = 120
+    ) -> list[AgentEntityClaim]:
         session = self._sessions.get(session_id)
         if session is None or session.mode != "optimization":
             return []
@@ -35,7 +37,11 @@ class AgentEntityClaimUseCase:
         for area in sorted(set(session.scope.get("areas", []))):
             key = f"scope#{area}"
             existing = next(
-                (item for item in self._claims.list_by_session(session_id) if item.entity_key == key),
+                (
+                    item
+                    for item in self._claims.list_by_session(session_id)
+                    if item.entity_key == key
+                ),
                 None,
             )
             claims.append(

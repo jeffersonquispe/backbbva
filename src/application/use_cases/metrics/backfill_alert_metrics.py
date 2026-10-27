@@ -117,7 +117,9 @@ def lifecycle_events(
                 outcome=facts.voicebot_callback.outcome,
             )
         )
-    events.extend(sorted(human, key=lambda event: event.occurred_at or alert.created_at))
+    events.extend(
+        sorted(human, key=lambda event: event.occurred_at or alert.created_at)
+    )
     return events
 
 

@@ -50,15 +50,14 @@ class RecordAgentShadowObservation:
             AgentReleaseStatus.CANARY_50: 50,
             AgentReleaseStatus.FULL: 100,
         }[release.status]
-        bucket = int(
-            sha256(f"{self._stage_salt}:{alert_id}".encode()).hexdigest()[:8], 16
-        ) % 100
+        bucket = (
+            int(sha256(f"{self._stage_salt}:{alert_id}".encode()).hexdigest()[:8], 16)
+            % 100
+        )
         if bucket >= percentage:
             return None
         model_pin = next(
-            pin
-            for pin in release.candidate_component_pins
-            if pin.component == "model"
+            pin for pin in release.candidate_component_pins if pin.component == "model"
         )
         return model_pin.entity_id if self._components.resolve(model_pin) else None
 
@@ -96,9 +95,7 @@ class RecordAgentShadowObservation:
             ):
                 raise RuntimeError("SHADOW_SCORING_FAILED")
             candidate_prediction = result["predicted_positive"]
-        observation_id = sha256(
-            f"{release.release_id}:{alert_id}".encode()
-        ).hexdigest()
+        observation_id = sha256(f"{release.release_id}:{alert_id}".encode()).hexdigest()
         created = self._releases.record_observation(
             release.release_id,
             observation_id,

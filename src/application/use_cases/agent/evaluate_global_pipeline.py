@@ -40,11 +40,15 @@ class StartGlobalPipelineEvaluation:
         self._dispatcher = dispatcher
         self._clock = clock
 
-    def execute(self, *, snapshot_id: str, candidate_model_id: str) -> AgentVerification:
+    def execute(
+        self, *, snapshot_id: str, candidate_model_id: str
+    ) -> AgentVerification:
         snapshot = self._snapshots.get(snapshot_id)
         objective = self._objectives.get_active("global_fraud_effectiveness")
         if snapshot is None or "final" not in snapshot.dataset_refs:
-            raise GlobalPipelineEvaluationError("Mature snapshot with final partition required")
+            raise GlobalPipelineEvaluationError(
+                "Mature snapshot with final partition required"
+            )
         if objective is None:
             raise GlobalPipelineEvaluationError("An active objective is required")
         try:
@@ -52,7 +56,9 @@ class StartGlobalPipelineEvaluation:
 
             candidate = self._models.get(UUID(candidate_model_id))
         except ValueError as error:
-            raise GlobalPipelineEvaluationError("Candidate model id is invalid") from error
+            raise GlobalPipelineEvaluationError(
+                "Candidate model id is invalid"
+            ) from error
         baseline = self._models.get_active()
         if candidate is None or candidate.status != ModelStatus.READY:
             raise GlobalPipelineEvaluationError("Candidate model must be READY")
@@ -147,7 +153,9 @@ class EvaluateGlobalPipeline:
         candidate = self._models.get(_uuid(str(pinned["candidate_model_id"])))
         baseline = self._models.get(_uuid(str(pinned["baseline_model_id"])))
         if objective is None or candidate is None or baseline is None:
-            raise GlobalPipelineEvaluationError("Pinned evaluation inputs are unavailable")
+            raise GlobalPipelineEvaluationError(
+                "Pinned evaluation inputs are unavailable"
+            )
         rows = self._datasets.get_rows(snapshot.dataset_refs["final"])
         labels = [row.get(objective.success_label) for row in rows]
         eligible = [
@@ -157,11 +165,17 @@ class EvaluateGlobalPipeline:
         ]
         support = sum(labels[index] == objective.positive_label for index in eligible)
         if len(eligible) < objective.minimum_global_support or support < 1:
-            raise GlobalPipelineEvaluationError("Final partition does not meet objective support")
+            raise GlobalPipelineEvaluationError(
+                "Final partition does not meet objective support"
+            )
         candidate_predictions = self._evaluator.predict_positive(candidate, rows)
         baseline_predictions = self._evaluator.predict_positive(baseline, rows)
-        if len(candidate_predictions) != len(rows) or len(baseline_predictions) != len(rows):
-            raise GlobalPipelineEvaluationError("Scorer returned an invalid prediction count")
+        if len(candidate_predictions) != len(rows) or len(baseline_predictions) != len(
+            rows
+        ):
+            raise GlobalPipelineEvaluationError(
+                "Scorer returned an invalid prediction count"
+            )
         truth = [labels[index] == objective.positive_label for index in eligible]
         candidate_pred = [candidate_predictions[index] for index in eligible]
         baseline_pred = [baseline_predictions[index] for index in eligible]
@@ -193,10 +207,12 @@ class EvaluateGlobalPipeline:
             "candidate": candidate_metrics,
             "baseline": baseline_metrics,
             "candidate_minus_baseline_recall_ci95": [
-                round(recall_delta_ci[0], 6), round(recall_delta_ci[1], 6)
+                round(recall_delta_ci[0], 6),
+                round(recall_delta_ci[1], 6),
             ],
             "candidate_minus_baseline_precision_ci95": [
-                round(precision_delta_ci[0], 6), round(precision_delta_ci[1], 6)
+                round(precision_delta_ci[0], 6),
+                round(precision_delta_ci[1], 6),
             ],
         }
         completed = replace(
@@ -254,7 +270,9 @@ def _paired_bootstrap_metric_delta(
     snapshot_hash: str,
     metric: str,
 ) -> tuple[float, float]:
-    seed = int(hashlib.sha256(f"{snapshot_hash}:{metric}".encode()).hexdigest()[:16], 16)
+    seed = int(
+        hashlib.sha256(f"{snapshot_hash}:{metric}".encode()).hexdigest()[:16], 16
+    )
     rng = random.Random(seed)
     deltas = []
     for _ in range(1000):

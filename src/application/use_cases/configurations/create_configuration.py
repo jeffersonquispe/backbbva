@@ -33,19 +33,29 @@ class ConfigurationMergeConflictError(ConfigurationVersionConflictError):
         )
 
 
-def _merge_value(base: Any, latest: Any, proposed: Any, path: str) -> tuple[Any, list[str]]:
+def _merge_value(
+    base: Any, latest: Any, proposed: Any, path: str
+) -> tuple[Any, list[str]]:
     """Three-way merge immutable leaves and independent nested fields."""
     if proposed == base:
         return latest, []
     if latest == base or proposed == latest:
         return proposed, []
 
-    if isinstance(base, dict) and isinstance(latest, dict) and isinstance(proposed, dict):
+    if (
+        isinstance(base, dict)
+        and isinstance(latest, dict)
+        and isinstance(proposed, dict)
+    ):
         merged: dict[Any, Any] = {}
         dict_conflicts: list[str] = []
         for key in base.keys() | latest.keys() | proposed.keys():
             child_path = f"{path}.{key}" if path else str(key)
-            in_base, in_latest, in_proposed = key in base, key in latest, key in proposed
+            in_base, in_latest, in_proposed = (
+                key in base,
+                key in latest,
+                key in proposed,
+            )
             if not in_base:
                 if in_latest and in_proposed:
                     value, child_conflicts = _merge_value(
@@ -160,9 +170,13 @@ class CreateConfigurationUseCase:
             version = 1
             parent_ref = input.parent_ref
             if parent_ref is not None:
-                if parent_ref.version is None or self._configurations.get(
-                    parent_ref.configuration_id, parent_ref.version
-                ) is None:
+                if (
+                    parent_ref.version is None
+                    or self._configurations.get(
+                        parent_ref.configuration_id, parent_ref.version
+                    )
+                    is None
+                ):
                     raise ConfigurationVersionConflictError(
                         "Parent configuration version does not exist"
                     )

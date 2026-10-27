@@ -19,7 +19,9 @@ class AgentVerification:
 class AgentVerificationRepository(Protocol):
     def create(self, verification: AgentVerification) -> AgentVerification: ...
 
-    def get(self, subject_id: str, verification_id: str) -> AgentVerification | None: ...
+    def get(
+        self, subject_id: str, verification_id: str
+    ) -> AgentVerification | None: ...
 
     def update(
         self, verification: AgentVerification, *, expected_status: str

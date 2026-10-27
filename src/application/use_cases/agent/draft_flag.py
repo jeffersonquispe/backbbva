@@ -287,7 +287,8 @@ class ConfirmFlagDraftUseCase:
         create_entry: Any,
         update_entry: Any,
         synchronize_new_asset: Callable[[FlagType, str], None],
-        audit: AuditPort, timeline: AgentTimeline | None = None,
+        audit: AuditPort,
+        timeline: AgentTimeline | None = None,
         clock: Clock,
         ids: IdGenerator,
     ) -> None:

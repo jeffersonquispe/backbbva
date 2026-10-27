@@ -215,7 +215,9 @@ class StartAlertTestWorkflowUseCase:
                 status=workflow.status.value,
             )
         if alert.raw_payload_ref is None:
-            raise ValueError("Alert API must store the canonical payload before dispatch")
+            raise ValueError(
+                "Alert API must store the canonical payload before dispatch"
+            )
 
         now = self._clock.now()
         workflow_id = self._id_generator.new_id()

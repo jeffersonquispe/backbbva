@@ -84,8 +84,7 @@ class ReconcileAsyncOperationsUseCase:
         dispatched_at = operation.dispatched_at or operation.created_at
         age = self._clock.now() - dispatched_at
         return (
-            snapshot.state
-            in {AsyncExecutionState.QUEUED, AsyncExecutionState.RUNNING}
+            snapshot.state in {AsyncExecutionState.QUEUED, AsyncExecutionState.RUNNING}
             and age >= self._stuck_timeout
         )
 
@@ -112,6 +111,7 @@ class ReconcileAsyncOperationsUseCase:
             except ValueError:
                 pass
         return updated
+
     def _apply_snapshot(
         self,
         operation: AsyncOperationRecord,

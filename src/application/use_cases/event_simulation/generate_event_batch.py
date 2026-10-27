@@ -116,7 +116,9 @@ class GenerateEventBatchUseCase:
                 "SEED_RECREATION field requires an LLMUnitOfWorkFactory + MonitoringPort"
             )
         if self._dataset_reader is None:
-            raise ValidationError("SEED_RECREATION field requires a DatasetReaderGateway")
+            raise ValidationError(
+                "SEED_RECREATION field requires a DatasetReaderGateway"
+            )
         if not generator.seed_dataset_name or not generator.seed_field:
             raise ValidationError(
                 "SEED_RECREATION field requires seed_dataset_name and seed_field"

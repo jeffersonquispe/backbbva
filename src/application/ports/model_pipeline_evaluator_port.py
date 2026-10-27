@@ -6,6 +6,4 @@ from src.application.ports.model_port import ModelRecord
 
 
 class ModelPipelineEvaluator(Protocol):
-    def predict_positive(
-        self, model: ModelRecord, rows: list[dict]
-    ) -> list[bool]: ...
+    def predict_positive(self, model: ModelRecord, rows: list[dict]) -> list[bool]: ...
