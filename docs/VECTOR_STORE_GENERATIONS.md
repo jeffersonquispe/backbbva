@@ -201,18 +201,27 @@ Los siete resultados y las nueve celdas omitidas están en
 | Instancias × generaciones × docs | Híbrido p95 | Durante build p95 | Recall@5 |
 | --- | --- | --- | --- |
 | 5 × 1 × 1.000 | 20,8 ms | 37,9 ms | 1,0 |
+| 5 × 5 × 1.000 | 18,7 ms | 36,8 ms | 1,0 |
+| 5 × 20 × 1.000 | 62,2 ms | 53,2 ms | 1,0 |
 | 20 × 1 × 200 | 8,4 ms | 30,7 ms | 1,0 |
 | 20 × 5 × 200 | 5,9 ms | 33,3 ms | 1,0 |
+| 20 × 20 × 200 | 28,5 ms | 34,0 ms | 1,0 |
 | 20 × 1 × 1.000 | 12,9 ms | 29,6 ms | 1,0 |
 
 La corrida anterior ya había medido 5 × 50 × 200, que se omitió en esta por
-el límite más conservador. Entre ambas corridas quedan **ocho celdas sin
-medir**: 5 × 5/20/50 × 1.000, 20 × 20/50 × 200 y 20 × 5/20/50 × 1.000.
-No se extrapolan. La celda máxima (un millón de vectores) necesita más de
+el límite más conservador. Se midieron después 5 × 5 × 1.000, 5 × 20 × 1.000 y 20 × 20 × 200 (archivos individuales
+en `docs/benchmarks/`). En la última, dos pipelines temporales agotaron su
+timeout de 30 s durante la limpieza; no se afectó el OpenSearch de la app.
+El usuario aceptó estas mediciones para la volumetría prevista y decidió no
+ejecutar las **cinco celdas restantes**: 5 × 50 × 1.000, 20 × 50 × 200 y
+20 × 5/20/50 × 1.000.
+No se extrapolan. Tras guardar el resultado de 100.000 documentos se interrumpió
+la limpieza bloqueada y se eliminó el contenedor desechable completo.
+La celda máxima (un millón de vectores) necesita más de
 12 GB solo para vectores crudos de 3.072 dimensiones, además de índices,
 memoria de procesos y fusiones. El tamaño de los vectores no equivale al uso
-de RAM: este no se midió para las celdas grandes. Su ejecución requiere un
-presupuesto de recursos validado y aislado del stack compartido. La métrica
+de RAM: este no se midió para las celdas grandes. Si se retoman en el futuro, su ejecución requerirá un presupuesto de recursos
+validado y aislado del stack compartido. La métrica
 kNN de memoria del grafo dio 0; no representa el consumo total de memoria.
 
 Lectura práctica: el store crece linealmente con las generaciones retenidas

@@ -1,0 +1,38 @@
+{
+  "server_version": "2.19.1",
+  "dimensions": 3072,
+  "index_settings": "production mapping, 1 shard, 0 replicas",
+  "max_vector_bytes": 1300000000,
+  "measurements": [
+    {
+      "instances": 5,
+      "generations": 20,
+      "documents_per_generation": 1000,
+      "documents_total": 100000,
+      "dimensions": 3072,
+      "samples": 30,
+      "seed": 30,
+      "build_seconds": 327.724,
+      "ann": {
+        "p50_ms": 7.893,
+        "p95_ms": 30.044,
+        "p99_ms": 33.314
+      },
+      "hybrid": {
+        "p50_ms": 21.818,
+        "p95_ms": 62.207,
+        "p99_ms": 191.947
+      },
+      "hybrid_during_build": {
+        "p50_ms": 12.483,
+        "p95_ms": 53.219,
+        "p99_ms": 56.944
+      },
+      "queries_overlapping_build": 30,
+      "ann_recall_at_5": 1.0,
+      "index_store_bytes": 10675861001,
+      "cluster_knn_graph_memory_kb": 0
+    }
+  ],
+  "skipped": []
+}
