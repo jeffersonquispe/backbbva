@@ -1,0 +1,276 @@
+{
+  "server_version": "2.19.1",
+  "dimensions": 3072,
+  "index_settings": "production mapping, 1 shard, 0 replicas",
+  "max_vector_bytes": 260000000,
+  "measurements": [
+    {
+      "instances": 5,
+      "generations": 1,
+      "documents_per_generation": 200,
+      "documents_total": 1000,
+      "dimensions": 3072,
+      "samples": 30,
+      "seed": 30,
+      "build_seconds": 2.826,
+      "ann": {
+        "p50_ms": 5.859,
+        "p95_ms": 11.284,
+        "p99_ms": 95.151
+      },
+      "hybrid": {
+        "p50_ms": 8.64,
+        "p95_ms": 51.48,
+        "p99_ms": 118.668
+      },
+      "hybrid_during_build": {
+        "p50_ms": 7.524,
+        "p95_ms": 30.414,
+        "p99_ms": 38.451
+      },
+      "queries_overlapping_build": 30,
+      "ann_recall_at_5": 1.0,
+      "index_store_bytes": 82801085,
+      "cluster_knn_graph_memory_kb": 0
+    },
+    {
+      "instances": 5,
+      "generations": 5,
+      "documents_per_generation": 200,
+      "documents_total": 5000,
+      "dimensions": 3072,
+      "samples": 30,
+      "seed": 30,
+      "build_seconds": 17.801,
+      "ann": {
+        "p50_ms": 4.907,
+        "p95_ms": 7.953,
+        "p99_ms": 9.384
+      },
+      "hybrid": {
+        "p50_ms": 6.594,
+        "p95_ms": 9.751,
+        "p99_ms": 12.141
+      },
+      "hybrid_during_build": {
+        "p50_ms": 9.67,
+        "p95_ms": 32.761,
+        "p99_ms": 45.395
+      },
+      "queries_overlapping_build": 30,
+      "ann_recall_at_5": 1.0,
+      "index_store_bytes": 308900083,
+      "cluster_knn_graph_memory_kb": 0
+    },
+    {
+      "instances": 5,
+      "generations": 20,
+      "documents_per_generation": 200,
+      "documents_total": 20000,
+      "dimensions": 3072,
+      "samples": 30,
+      "seed": 30,
+      "build_seconds": 60.567,
+      "ann": {
+        "p50_ms": 6.149,
+        "p95_ms": 8.94,
+        "p99_ms": 9.865
+      },
+      "hybrid": {
+        "p50_ms": 8.892,
+        "p95_ms": 15.184,
+        "p99_ms": 15.826
+      },
+      "hybrid_during_build": {
+        "p50_ms": 11.061,
+        "p95_ms": 34.052,
+        "p99_ms": 38.317
+      },
+      "queries_overlapping_build": 30,
+      "ann_recall_at_5": 1.0,
+      "index_store_bytes": 1518669158,
+      "cluster_knn_graph_memory_kb": 0
+    },
+    {
+      "instances": 5,
+      "generations": 1,
+      "documents_per_generation": 1000,
+      "documents_total": 5000,
+      "dimensions": 3072,
+      "samples": 30,
+      "seed": 30,
+      "build_seconds": 11.589,
+      "ann": {
+        "p50_ms": 7.472,
+        "p95_ms": 10.906,
+        "p99_ms": 12.054
+      },
+      "hybrid": {
+        "p50_ms": 10.444,
+        "p95_ms": 20.834,
+        "p99_ms": 32.368
+      },
+      "hybrid_during_build": {
+        "p50_ms": 9.643,
+        "p95_ms": 37.896,
+        "p99_ms": 51.581
+      },
+      "queries_overlapping_build": 30,
+      "ann_recall_at_5": 1.0,
+      "index_store_bytes": 439482947,
+      "cluster_knn_graph_memory_kb": 0
+    },
+    {
+      "instances": 20,
+      "generations": 1,
+      "documents_per_generation": 200,
+      "documents_total": 4000,
+      "dimensions": 3072,
+      "samples": 30,
+      "seed": 30,
+      "build_seconds": 8.388,
+      "ann": {
+        "p50_ms": 3.723,
+        "p95_ms": 6.139,
+        "p99_ms": 6.202
+      },
+      "hybrid": {
+        "p50_ms": 5.824,
+        "p95_ms": 8.443,
+        "p99_ms": 20.763
+      },
+      "hybrid_during_build": {
+        "p50_ms": 6.882,
+        "p95_ms": 30.734,
+        "p99_ms": 35.459
+      },
+      "queries_overlapping_build": 30,
+      "ann_recall_at_5": 1.0,
+      "index_store_bytes": 306346965,
+      "cluster_knn_graph_memory_kb": 0
+    },
+    {
+      "instances": 20,
+      "generations": 5,
+      "documents_per_generation": 200,
+      "documents_total": 20000,
+      "dimensions": 3072,
+      "samples": 30,
+      "seed": 30,
+      "build_seconds": 57.605,
+      "ann": {
+        "p50_ms": 3.49,
+        "p95_ms": 4.892,
+        "p99_ms": 9.031
+      },
+      "hybrid": {
+        "p50_ms": 5.08,
+        "p95_ms": 5.889,
+        "p99_ms": 7.9
+      },
+      "hybrid_during_build": {
+        "p50_ms": 6.57,
+        "p95_ms": 33.29,
+        "p99_ms": 35.297
+      },
+      "queries_overlapping_build": 30,
+      "ann_recall_at_5": 1.0,
+      "index_store_bytes": 1754138679,
+      "cluster_knn_graph_memory_kb": 0
+    },
+    {
+      "instances": 20,
+      "generations": 1,
+      "documents_per_generation": 1000,
+      "documents_total": 20000,
+      "dimensions": 3072,
+      "samples": 30,
+      "seed": 30,
+      "build_seconds": 49.904,
+      "ann": {
+        "p50_ms": 3.803,
+        "p95_ms": 4.992,
+        "p99_ms": 5.439
+      },
+      "hybrid": {
+        "p50_ms": 5.619,
+        "p95_ms": 12.867,
+        "p99_ms": 17.518
+      },
+      "hybrid_during_build": {
+        "p50_ms": 6.659,
+        "p95_ms": 29.558,
+        "p99_ms": 33.474
+      },
+      "queries_overlapping_build": 30,
+      "ann_recall_at_5": 1.0,
+      "index_store_bytes": 1639619214,
+      "cluster_knn_graph_memory_kb": 0
+    }
+  ],
+  "skipped": [
+    {
+      "instances": 5,
+      "generations": 50,
+      "documents_per_generation": 200,
+      "raw_vector_bytes": 614400000,
+      "reason": "configured shared-host memory bound"
+    },
+    {
+      "instances": 5,
+      "generations": 5,
+      "documents_per_generation": 1000,
+      "raw_vector_bytes": 307200000,
+      "reason": "configured shared-host memory bound"
+    },
+    {
+      "instances": 5,
+      "generations": 20,
+      "documents_per_generation": 1000,
+      "raw_vector_bytes": 1228800000,
+      "reason": "configured shared-host memory bound"
+    },
+    {
+      "instances": 5,
+      "generations": 50,
+      "documents_per_generation": 1000,
+      "raw_vector_bytes": 3072000000,
+      "reason": "configured shared-host memory bound"
+    },
+    {
+      "instances": 20,
+      "generations": 20,
+      "documents_per_generation": 200,
+      "raw_vector_bytes": 983040000,
+      "reason": "configured shared-host memory bound"
+    },
+    {
+      "instances": 20,
+      "generations": 50,
+      "documents_per_generation": 200,
+      "raw_vector_bytes": 2457600000,
+      "reason": "configured shared-host memory bound"
+    },
+    {
+      "instances": 20,
+      "generations": 5,
+      "documents_per_generation": 1000,
+      "raw_vector_bytes": 1228800000,
+      "reason": "configured shared-host memory bound"
+    },
+    {
+      "instances": 20,
+      "generations": 20,
+      "documents_per_generation": 1000,
+      "raw_vector_bytes": 4915200000,
+      "reason": "configured shared-host memory bound"
+    },
+    {
+      "instances": 20,
+      "generations": 50,
+      "documents_per_generation": 1000,
+      "raw_vector_bytes": 12288000000,
+      "reason": "configured shared-host memory bound"
+    }
+  ]
+}
