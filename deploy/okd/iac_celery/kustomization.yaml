@@ -12,7 +12,6 @@ resources:
   - computation/celery-workers/worker
   - computation/celery-workers/training-worker
   - computation/celery-workers/test-worker
-  - computation/celery-workers/capacity-controller
   - computation/celery-workers/simulator-alert-worker
   - computation/celery-workers/scheduler
   - computation/celery-workers/agent-worker
