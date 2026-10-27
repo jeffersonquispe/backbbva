@@ -1,6 +1,5 @@
 import logging
 import os
-from typing import Literal
 
 import boto3
 from botocore.exceptions import ClientError
@@ -26,10 +25,6 @@ class Config(BaseSettings):
     DEFAULT_LOGGING_LEVEL: str = "INFO"
 
     GENAI_ENVIRONMENT: str
-
-    # Selects infrastructure-specific capacity behavior. Docker Compose uses
-    # operator-managed replicas; OKD delegates queue scaling to KEDA.
-    DEPLOYMENT_TYPE: Literal["docker", "okd"] = "docker"
 
     CORS_ALLOWED_ORIGINS: str = "*"
 
