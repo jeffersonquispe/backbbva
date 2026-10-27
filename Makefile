@@ -153,8 +153,8 @@ test-architecture:  ## Fast AST check of the CLAUDE.md layer/DI/env/observabilit
 	GENAI_ENVIRONMENT=test python -m pytest tests/test_architecture -q
 
 .PHONY: test-api-contracts
-test-api-contracts:  ## Compare all frontend API route/method calls with the backend's generated OpenAPI surface.
-	GENAI_ENVIRONMENT=test $(PYTHON) scripts/check_frontend_api_contracts.py
+test-api-contracts:  ## Compare all frontend API route/method calls with the backend's generated OpenAPI surface. Var: FRONTEND_DIR(../frontend_mockup)
+	GENAI_ENVIRONMENT=test $(PYTHON) scripts/check_frontend_api_contracts.py --frontend $(or $(FRONTEND_DIR),../frontend_mockup)
 
 
 .PHONY: test-integration-reservations

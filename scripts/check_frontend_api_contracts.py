@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
@@ -18,7 +19,14 @@ from src.infrastructure.entrypoint.api.fastapi_app import create_app
 
 def main() -> int:
     backend_root = Path(__file__).resolve().parents[1]
-    frontend_root = backend_root.parent / "frontend_mockup"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--frontend",
+        type=Path,
+        default=backend_root.parent / "frontend_mockup",
+        help="Frontend checkout (Jenkins clones it inside the backend workspace).",
+    )
+    frontend_root = parser.parse_args().frontend.resolve()
     checker = frontend_root / "scripts" / "check-api-contracts.mjs"
     if not checker.is_file():
         raise SystemExit(f"Frontend contract checker not found: {checker}")

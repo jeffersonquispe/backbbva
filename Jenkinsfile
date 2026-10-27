@@ -305,7 +305,9 @@ pipeline {
                         // AST fitness tests (tests/test_architecture/, see
                         // Makefile `test-architecture`). They import the API
                         // app and the worker factories, so the API project's
-                        // dependencies must be installed.
+                        // dependencies must be installed. The same env builds
+                        // the OpenAPI surface for `test-api-contracts`, which
+                        // reads the frontend cloned by the Project graph stage.
                         withEnvArtifactoryCredentials {
                             container('python-311') {
                                 sh '''
@@ -314,6 +316,7 @@ pipeline {
                                     . "$(poetry -C deploy/requirements env info --path)/bin/activate"
                                     pip install --quiet pytest
                                     make test-architecture
+                                    make test-api-contracts PYTHON=python FRONTEND_DIR=frontend_mockup
                                 '''
                             }
                         }
