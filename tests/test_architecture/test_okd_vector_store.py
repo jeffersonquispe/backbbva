@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 WORKERS = ROOT / "deploy/okd/iac_celery/computation/celery-workers"
 
 
