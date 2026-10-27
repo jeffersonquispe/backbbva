@@ -118,6 +118,8 @@ class WorkflowAgentPipelineScorer:
             name=f"optimizer-replay-{uuid4()}",
             dataset_name=f"snapshot:{snapshot.snapshot_id}:final",
             config=TestRunConfig(
+                # Same fallback as production; an enabled segment overrides it
+                # with its configured adversarial max_cycles, as it does there.
                 max_feedback_iterations=1,
                 configuration_ref=config_ref,
                 schema_version=schema_version,

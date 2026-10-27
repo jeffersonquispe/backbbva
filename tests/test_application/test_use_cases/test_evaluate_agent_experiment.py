@@ -666,6 +666,46 @@ def test_global_constraint_failure_is_rejected_without_persisting_raw_error():
     assert evaluated.error_code is None
 
 
+@pytest.mark.parametrize(
+    ("candidate_coverage", "expected_status"),
+    [
+        (80.0, AgentExperimentStatus.REJECTED_GLOBAL_CONSTRAINT),
+        (95.0, AgentExperimentStatus.SUCCEEDED),
+    ],
+)
+def test_candidate_must_not_decide_fewer_alerts_than_the_baseline(
+    candidate_coverage, expected_status
+):
+    result = _passing_evidence()
+    result["global"]["decision_coverage_pct"] = candidate_coverage
+    result["baseline_global"]["decision_coverage_pct"] = 90.0
+    experiments = InMemoryAgentExperiments()
+
+    evaluated = _use_case(experiments, RecordingEvaluator(result)).execute(
+        experiment_id="exp-1",
+        session_id="session-1",
+        kind=AgentExperimentKind.ISOLATED,
+        iteration_number=1,
+        components=(_reference(),),
+        baseline_components=_baseline((_reference(),)),
+        objective_id="fraud",
+        objective_version=4,
+    )
+
+    assert evaluated.status == expected_status
+    coverage = next(
+        item
+        for item in evaluated.global_evaluation["constraints"]
+        if item["constraint_id"] == "decision_coverage_non_regression"
+    )
+    assert coverage["status"] == (
+        "FAILED" if candidate_coverage < 90.0 else "PASSED"
+    )
+    assert evaluated.global_evaluation["global"]["decision_coverage_pct"] == (
+        candidate_coverage
+    )
+
+
 def test_undefined_precision_is_rejected_as_a_constraint_not_invalid_evidence():
     result = _passing_evidence()
     result["global"]["precision"] = None

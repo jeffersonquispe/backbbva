@@ -18545,6 +18545,7 @@
     "Duración máxima de sesión",
     "Renovaciones máximas",
     "Iteraciones sin mejora antes de parar",
+    "Reintentos ante fallos reintentables",
     "Objetivo y límites",
     "Valores por defecto y topes que se copian en cada sesión nueva.",
     "Piso de precisión",
@@ -18562,8 +18563,7 @@
     "Enfriamiento entre muestras",
     "Periodo de datos muestreado",
     "Volumen para disparar muestreo",
-    "Margen de error",
-    "Nivel de confianza"
+    "Margen de error"
    ],
    "kind": "component",
    "name": "AgentSettingsPanel"
@@ -21126,7 +21126,7 @@
   },
   {
    "attrs": {},
-   "description": "Ajusta reglas, umbrales y parámetros versionados del agente por segmento; cada cambio se prueba y requiere validación antes de desplegarse.",
+   "description": "Ajusta reglas, umbrales y parámetros versionados del agente por segmento, incluidos los ciclos de corrección con el revisor adversarial (agent.adversarial.max_cycles y agent.detector_adversarial.max_cycles); cada cambio se prueba y requiere validación antes de desplegarse.",
    "id": "concept:optimizer-lever-configuration",
    "keywords": [
     "configuration",

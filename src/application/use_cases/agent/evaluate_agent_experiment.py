@@ -399,6 +399,19 @@ def evaluate_global_constraints(
             objective.minimum_mature_alert_coverage_pct,
         )
     )
+    candidate_coverage = _finite_number(global_metrics.get("decision_coverage_pct"))
+    baseline_coverage = _finite_number(baseline_metrics.get("decision_coverage_pct"))
+    if candidate_coverage is not None and baseline_coverage is not None:
+        # Alerts without a decision go to an analyst in production; a
+        # candidate must not win by deciding fewer of them than the baseline.
+        constraints.append(
+            _constraint(
+                "decision_coverage_non_regression",
+                candidate_coverage >= baseline_coverage,
+                candidate_coverage if published else None,
+                baseline_coverage,
+            )
+        )
     constraints.append(
         _constraint(
             "global_precision_floor",
@@ -453,6 +466,7 @@ def evaluate_global_constraints(
         "precision": precision if published else None,
         "recall": _finite_number(global_metrics.get("recall")) if published else None,
         "mature_label_coverage_pct": coverage if published else None,
+        "decision_coverage_pct": candidate_coverage if published else None,
     }
     sample = raw["sample"]
     deltas = raw["delta"]
