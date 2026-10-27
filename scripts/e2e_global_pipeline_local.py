@@ -216,7 +216,9 @@ def _mapping_and_schema(token: str) -> tuple[dict, dict, dict]:
         mapping["target_field"],
         mapping["marking_date_field"],
     }
-    if not required <= fields.keys():
+    if not required <= fields.keys() or fields[mapping["initial_mark_field"]].get(
+        "is_mandatory", False
+    ):
         status, options = request(
             "GET", "/assistant-optimizer-settings/sampler/schema-configuration", token
         )
@@ -257,9 +259,15 @@ def _mapping_and_schema(token: str) -> tuple[dict, dict, dict]:
             ),
         )
         mapping = {
+            # Outcome fields are excluded from the snapshot, so a mandatory
+            # alert field (e.g. event_id) must never stand in as the mark.
             "initial_mark_field": next(
                 (name for name in option_fields["initial_mark_fields"] if name == "reviewstatus_first"),
-                option_fields["initial_mark_fields"][0],
+                next(
+                    name
+                    for name in option_fields["initial_mark_fields"]
+                    if not fields.get(name, {}).get("is_mandatory", False)
+                ),
             ),
             "initial_marking_date_field": initial_marking_date,
             "target_field": next(
