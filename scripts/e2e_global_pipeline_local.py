@@ -70,6 +70,18 @@ def cleanup_synthetic_alerts() -> None:
             scan["ExclusiveStartKey"] = last_key
 
 
+# Fraud signal the replay can see without external enrichment (it never calls
+# ARIC, so BioCatch flags stay unavailable): positives spend far above the
+# customer's habitual amounts and highest-amount fields, towards a beneficiary
+# absent from their history; negatives look like that history.
+HABITUAL_AMOUNTS = (Decimal("40"), Decimal("50"), Decimal("60"))
+HABITUAL_MAX_AMOUNT = Decimal("150")
+FRAUD_AMOUNT = Decimal("2400")
+LEGITIMATE_AMOUNT = Decimal("50")
+HABITUAL_COUNTERPARTY = "Supermercado del barrio"
+NEW_COUNTERPARTY = "Beneficiario nuevo"
+
+
 def _synthetic_field_timestamp(
     field_name: str, alert_timestamp: datetime, index: int
 ) -> datetime:
@@ -102,26 +114,6 @@ def _synthetic_history(
         for field in schema["fields"]
         if field.get("is_history") and not field.get("is_sensible") and not field.get("is_label")
     ]
-    amount_fields = [
-        field
-        for field in schema["fields"]
-        if field["type"] == "number"
-        and field.get("is_alert")
-        and any(token in field["field"].casefold() for token in ("amount", "monto"))
-        and "alto" not in field["field"].casefold()
-    ]
-    current_amount = next(
-        (
-            Decimal(str(current_input[field["field"]]))
-            for field in amount_fields
-            if field["field"] in current_input
-        ),
-        Decimal("80"),
-    )
-    history_amounts = tuple(
-        max(Decimal("1"), current_amount + offset)
-        for offset in (Decimal("-10"), Decimal("0"), Decimal("10"))
-    )
     history: list[dict] = []
     for history_index in range(3):
         entry: dict[str, object] = {}
@@ -132,9 +124,9 @@ def _synthetic_history(
             if field["type"] == "number":
                 if "amount" in normalized or "monto" in normalized:
                     value: object = (
-                        history_amounts[-1]
+                        HABITUAL_MAX_AMOUNT
                         if "alto" in normalized
-                        else history_amounts[history_index]
+                        else HABITUAL_AMOUNTS[history_index]
                     )
                 else:
                     value = current_input.get(name, Decimal(1))
@@ -146,6 +138,8 @@ def _synthetic_history(
                 )
             elif field["type"] == "bool":
                 value = False
+            elif "counterparty" in normalized:
+                value = HABITUAL_COUNTERPARTY
             elif name in current_input:
                 value = current_input[name]
             elif "geo" in normalized or "country" in normalized:
@@ -473,9 +467,9 @@ def seed_mature_alerts(
             positive = index % 2 == 0
             numeric_field_name = fields["numeric"].casefold()
             transaction_amount = (
-                Decimal("100")
+                FRAUD_AMOUNT
                 if positive and any(token in numeric_field_name for token in ("amount", "monto"))
-                else Decimal("50")
+                else LEGITIMATE_AMOUNT
                 if not positive and any(token in numeric_field_name for token in ("amount", "monto"))
                 else Decimal(80 + index % 10)
             )
@@ -492,6 +486,7 @@ def seed_mature_alerts(
                     field["type"] == "string"
                     and not field.get("is_mandatory", False)
                     and name != fields["strata"]
+                    and "counterparty" not in name.casefold()
                 ):
                     continue
                 if name == mapping["initial_mark_field"]:
@@ -502,13 +497,13 @@ def seed_mature_alerts(
                 }:
                     value = marked
                 elif name == fields["numeric"]:
-                    value = Decimal("100") if positive else Decimal("50")
+                    value = FRAUD_AMOUNT if positive else LEGITIMATE_AMOUNT
                 elif name == fields["strata"]:
                     value = segment_values[alert_id]
                 elif field["type"] == "number":
                     normalized_name = name.casefold()
                     if "monto" in normalized_name and "alto" in normalized_name:
-                        value = transaction_amount + Decimal("10")
+                        value = HABITUAL_MAX_AMOUNT
                     elif "monto" in normalized_name or "amount" in normalized_name:
                         value = transaction_amount
                     else:
@@ -528,6 +523,8 @@ def seed_mature_alerts(
                     value = "CO"
                 elif "channel" in name.casefold() or "canal" in name.casefold():
                     value = "APP"
+                elif "counterparty" in name.casefold():
+                    value = NEW_COUNTERPARTY if positive else HABITUAL_COUNTERPARTY
                 elif "type" in name.casefold() or "tipo" in name.casefold():
                     value = "payment"
                 elif "status" in name.casefold() or "estado" in name.casefold():
