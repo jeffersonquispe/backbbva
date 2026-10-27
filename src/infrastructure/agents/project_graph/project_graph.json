@@ -18383,18 +18383,6 @@
    "attrs": {
     "subtype": "doc"
    },
-   "description": "Documento backend: Relevo de sesión: pendiente #30 y Adversarial 1",
-   "id": "asset:docs/backend/HANDOFF_VECTOR_STORE_30.md",
-   "keywords": [
-    "Relevo de sesión: pendiente #30 y Adversarial 1"
-   ],
-   "kind": "asset",
-   "name": "HANDOFF_VECTOR_STORE_30.md"
-  },
-  {
-   "attrs": {
-    "subtype": "doc"
-   },
    "description": "Documento backend: Model serving and training workers",
    "id": "asset:docs/backend/MODEL_SERVING.md",
    "keywords": [
@@ -19627,6 +19615,7 @@
     "Máx. interacciones",
     "Análisis de historial",
     "Columnas",
+    "Máximo de transacciones",
     "Máx. rondas",
     "Planificador",
     "Planificador del análisis de historial",
