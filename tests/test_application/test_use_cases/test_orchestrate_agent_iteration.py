@@ -749,6 +749,35 @@ def test_retryable_failure_continues_until_the_retry_allowance_runs_out() -> Non
     assert repositories["sessions"].session.block["code"] == "CRITICAL_FAILURE"
 
 
+def test_retryable_failure_retries_the_same_hypothesis() -> None:
+    session = replace(_session("optimization"), scope={"areas": ["model"]})
+    hypotheses = InMemoryHypotheses()
+    use_case, repositories = _use_case(
+        session,
+        InMemorySettings(
+            AssistantOptimizerSettings(
+                optimizer_enabled=True, optimizer_max_retryable_failures=1
+            )
+        ),
+        subagent=FailedSpecialistSubagent(),
+        hypotheses=hypotheses,
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+    [hypothesis] = hypotheses.items.values()
+    assert hypothesis.status == AgentHypothesisStatus.ACTIVE
+
+    # The retry picks the same hypothesis up rather than blocking for context.
+    assert use_case.execute("s1") == "blocked_by_critical_failure"
+    retried = repositories["iterations"].items[2].decision
+    assert retried["hypothesis_id"] == hypothesis.hypothesis_id
+    assert retried["reason"] == "critical_failure"
+    assert (
+        hypotheses.items[hypothesis.hypothesis_id].status
+        == AgentHypothesisStatus.NONCONCLUSIVE
+    )
+
+
 def test_failure_that_needs_approval_blocks_with_its_own_code() -> None:
     class NeedsChangesSubagent(FailedSpecialistSubagent):
         def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
@@ -880,6 +909,47 @@ def test_next_specialist_is_selected_from_prior_experiment_result() -> None:
     assert repositories["iterations"].items[1].decision["specialist"] == "xgboost"
     assert repositories["iterations"].items[2].decision["specialist"] == "library"
     assert repositories["iterations"].items[2].decision["experiment_verified"] is False
+
+
+def test_unverified_experiment_does_not_route_outside_the_session_scope() -> None:
+    insights = InMemoryInsights(
+        [
+            AgentInsight(
+                session_id="s1",
+                insight_id=insight_id,
+                kind=AgentInsightKind.DIRECTIVE,
+                statement=statement,
+                scope={},
+                status=AgentInsightStatus.ACTIVE,
+                proposed_by="user",
+                author_id="u1",
+                source_message_id=None,
+                created_at=NOW,
+                updated_at=NOW,
+            )
+            for insight_id, statement in (
+                ("first", "Probar más árboles"),
+                ("second", "Probar mayor profundidad"),
+            )
+        ]
+    )
+    specialists = {
+        name: PendingNamedSubagent(name)
+        for name in ("configuration", "library", "vector_store", "xgboost")
+    }
+    use_case, repositories = _use_case(
+        replace(_session("optimization"), scope={"areas": ["model"]}),
+        InMemorySettings(AssistantOptimizerSettings(optimizer_enabled=True)),
+        hypotheses=InMemoryHypotheses(),
+        insights=insights,
+        specialists=specialists,
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+    assert use_case.execute("s1") == "iteration_completed"
+
+    assert repositories["iterations"].items[1].decision["experiment_verified"] is False
+    assert repositories["iterations"].items[2].decision["specialist"] == "xgboost"
 
 
 class UnverifiedProposalSubagent:

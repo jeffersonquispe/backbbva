@@ -998,12 +998,6 @@ class OrchestrateAgentIterationUseCase:
             occurred_at=finished,
         )
         experiment = self._run_experiment(tick, verified)
-        outcome = None
-        if hypothesis is not None and self._hypotheses is not None:
-            outcome = self._resolve_hypothesis(
-                tick, verified, verification_id, experiment
-            )
-        self._learn(tick, experiment, outcome)
         decision = _iteration_decision(
             mode=leased.mode,
             prior=[
@@ -1014,6 +1008,18 @@ class OrchestrateAgentIterationUseCase:
             error_code=output.error_code,
             settings=current_settings,
         )
+        outcome = None
+        # A retryable failure keeps its hypothesis active, so the next
+        # iteration retries it instead of finding nothing left to try.
+        if (
+            hypothesis is not None
+            and self._hypotheses is not None
+            and decision.get("reason") != "retrying_failure"
+        ):
+            outcome = self._resolve_hypothesis(
+                tick, verified, verification_id, experiment
+            )
+        self._learn(tick, experiment, outcome)
         if hypothesis is not None:
             decision["hypothesis"] = hypothesis.statement
             decision["hypothesis_id"] = hypothesis.hypothesis_id
@@ -1990,13 +1996,22 @@ class OrchestrateAgentIterationUseCase:
             specialist = "xgboost" if area == "model" else str(area)
             if specialist in self._specialists:
                 return self._specialists[specialist]
+        # A session scoped to some areas only routes to their specialists;
+        # its entity claim covers nothing else.
+        areas = {str(value) for value in session.scope.get("areas", [])}
+
+        def in_scope(specialist: str) -> bool:
+            return not areas or (
+                "model" if specialist == "xgboost" else specialist
+            ) in areas
+
         last = prior[-1].decision if prior else {}
-        if last.get("experiment_verified") is False:
+        if last.get("experiment_verified") is False and in_scope("library"):
             return self._specialists.get("library", self._subagent)
         lever = self._graph_optimizer_lever(session, hypothesis)
         if lever:
             specialist = "xgboost" if lever == "model" else lever
-            if specialist in self._specialists:
+            if specialist in self._specialists and in_scope(specialist):
                 return self._specialists[specialist]
         area = " ".join(
             str(value).lower()
