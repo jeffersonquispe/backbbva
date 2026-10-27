@@ -366,6 +366,30 @@ def _optional_history_text(value: Any) -> str | None:
     return str(value) if value is not None else None
 
 
+# Canonical schema field names of the BioCatch flags an alert carries itself.
+# Snapshot-only enrichment reads them from the schema-shaped input instead of
+# calling ARIC, so a replay sees the flags the alert had at decision time.
+_ALERT_ARIC_SIGNAL_FIELDS: dict[str, str] = {
+    "is_mobile_rat": "biocatch_isMobileRat",
+    "is_emulator_rat": "biocatch_isEmulator",
+    "is_rat": "biocatch_isRat",
+    "is_bot": "biocatch_isBot",
+    "ind_robo1": "biocatch_indrobo1",
+    "is_on_call_active": "biocatch_isOnCall",
+    "is_voip_on_call": "biocatch_isVoipOnCall",
+    "screen_broadcast": "biocatch_screenBroadcast",
+}
+
+
+def _alert_aric_signals(values: dict[str, Any]) -> AricAlertSignals:
+    return AricAlertSignals(
+        **{
+            name: _to_bool(values.get(field))
+            for name, field in _ALERT_ARIC_SIGNAL_FIELDS.items()
+        }
+    )
+
+
 def _merge_aric_signals(
     payload: dict[str, Any], fetched: AricAlertSignals
 ) -> AricAlertSignals:
@@ -508,7 +532,7 @@ class PreProcessAlertUseCase:
         if input.skip_external_enrichment:
             # Optimizer replay must not call customer, ARIC, or history
             # services using identities intentionally absent from snapshots.
-            aric_signals = AricAlertSignals()
+            aric_signals = _alert_aric_signals(aric_input)
             customer_profile = payload.get("customer_profile", {})
             mapped_replay = _optimizer_replay_history(schema, payload)
             if mapped_replay is None:
@@ -567,7 +591,8 @@ class PreProcessAlertUseCase:
         enrichment_note = (
             "used snapshot-only enrichment; external ARIC, customer-profile, "
             "and history lookups were not run, so missing values mean unavailable "
-            "rather than negative evidence; identity/date fields in the alert "
+            "rather than negative evidence; BioCatch flags come from the alert's "
+            "own fields; identity/date fields in the alert "
             "payload are not verified identity records; mapped snapshot history "
             "is the only history evidence when present; "
             if input.skip_external_enrichment

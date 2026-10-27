@@ -342,6 +342,46 @@ def test_optimizer_replay_maps_manager_configured_nested_history_fields() -> Non
     assert "unavailable rather than negative evidence" in output.pre_process_note
 
 
+def test_optimizer_replay_reads_biocatch_flags_from_alert_fields_not_aric() -> None:
+    base = _schema()
+    schema = AlertSchemaVersion(
+        base.version,
+        base.status,
+        [
+            *base.fields,
+            *(
+                AlertSchemaField(
+                    f"flag-{name}", AlertSchemaDataSource.ARIC, name, field_ds_loc=name
+                )
+                for name in ("biocatch_isRat", "biocatch_isOnCall", "biocatch_isBot")
+            ),
+        ],
+        base.field_roles,
+    )
+    use_case = _use_case()
+
+    output = use_case.execute(
+        PreProcessAlertInput(
+            alert_id=uuid.uuid4(),
+            payload={
+                **VALID_PAYLOAD,
+                "biocatch_isRat": "true",
+                "biocatch_isOnCall": "False",
+            },
+            schema=schema,
+            skip_external_enrichment=True,
+        )
+    )
+
+    signals = output.enrichment["aric_signals"]
+    assert use_case._aric.calls == 0
+    assert signals.is_rat is True
+    assert signals.is_on_call_active is False
+    # Absent from the alert means unavailable, never a clean flag.
+    assert signals.is_bot is None
+    assert signals.screen_broadcast is None
+
+
 # Real column names from Muestra_total_ARIA.csv - the reference dataset.
 # Not the CSV's raw string values (those come through as strings via
 # csv.DictReader in production), typed here since this test targets the
