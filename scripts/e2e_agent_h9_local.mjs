@@ -86,6 +86,91 @@ async function createUser(page, bootstrap, role) {
   }), 200, `login ${role}`).access_token;
 }
 
+// The Channel Manager guides an exhausted run from the UI. The real loop must
+// turn the clue into its top hypothesis and evaluate it in a new iteration.
+async function runGuidedIteration(page, sessionId, previousIteration) {
+  const blockedDeadline = Date.now() + 600_000;
+  let session = null;
+  while (Date.now() < blockedDeadline) {
+    session = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "esperar bloqueo sin contexto");
+    if (session.status === "WAITING_USER" && session.block?.code === "CONTEXT_MISSING") break;
+    if (["STOPPED", "FAILED", "CANCELLED", "COMPLETED"].includes(session.status)) break;
+    await page.waitForTimeout(1000);
+  }
+  if (session?.status !== "WAITING_USER" || session.block?.code !== "CONTEXT_MISSING") {
+    throw new Error(`la sesión no pidió contexto tras agotar sus hipótesis: ${JSON.stringify(session)}`);
+  }
+
+  const clue = `Prueba un modelo con más árboles y mayor profundidad para separar montos atípicos ${randomUUID().slice(0, 6)}`;
+  await page.evaluate((token) => {
+    localStorage.setItem("aria.auth.accessToken", token);
+    localStorage.removeItem("aria.optimizer.tab");
+  }, channelToken);
+  await page.goto(`${BASE_URL}/configuracion`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Optimizador", exact: true }).click();
+  await page.getByRole("tab", { name: new RegExp(`Optimizador ${sessionId} `) }).click();
+  const verdict = page.getByTestId("optimizer-verdict");
+  await verdict.waitFor({ state: "visible", timeout: 30_000 });
+  if (!(await verdict.innerText()).includes("Falta contexto")) {
+    throw new Error(`la UI no muestra el bloqueo por contexto: ${await verdict.innerText()}`);
+  }
+  await verdict.getByRole("button", { name: "Dar contexto" }).click();
+  const drawer = page.getByTestId("side-drawer");
+  await drawer.getByLabel("Contexto para el agente").fill(clue);
+  await drawer.getByRole("button", { name: "Aprobar y continuar" }).click();
+  await drawer.waitFor({ state: "hidden", timeout: 30_000 });
+
+  const insights = expect(await api(page, "GET", `/agent/sessions/${sessionId}/insights`, { token: channelToken }), 200, "leer directiva");
+  const directive = insights.find((item) => item.statement === clue);
+  if (!directive || directive.kind !== "directive" || directive.proposed_by !== "user") {
+    throw new Error(`la pista no quedó como directiva del usuario: ${JSON.stringify(insights)}`);
+  }
+
+  const iterationDeadline = Date.now() + 1_500_000;
+  let hypothesis;
+  let iteration;
+  let experiment;
+  while (Date.now() < iterationDeadline) {
+    const hypotheses = expect(await api(page, "GET", `/agent/sessions/${sessionId}/hypotheses`, { token: channelToken }), 200, "leer hipótesis guiada");
+    hypothesis = hypotheses.find((item) => item.source_insight_id === directive.insight_id);
+    const iterations = expect(await api(page, "GET", `/agent/sessions/${sessionId}/iterations`, { token: channelToken }), 200, "leer iteración guiada");
+    iteration = iterations.find((item) => item.number > previousIteration && item.hypothesis === clue);
+    const experiments = expect(await api(page, "GET", `/agent/sessions/${sessionId}/experiments`, { token: channelToken }), 200, "leer experimento guiado");
+    experiment = iteration && experiments.find((item) => item.iteration_number === iteration.number);
+    if (experiment && experiment.status !== "RUNNING" && hypothesis?.evidence_outcome) break;
+    session = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "leer sesión guiada");
+    if (["STOPPED", "FAILED", "CANCELLED", "COMPLETED"].includes(session.status)) break;
+    // A new block means the guided hypothesis will not reach an experiment.
+    if (session.status === "WAITING_USER" && session.block?.code) break;
+    await page.waitForTimeout(1000);
+  }
+  if (!hypothesis || hypothesis.priority !== 100 || hypothesis.statement !== clue) {
+    throw new Error(`la directiva no generó la hipótesis prioritaria: ${JSON.stringify(hypothesis)}`);
+  }
+  if (!iteration || iteration.specialist !== "xgboost") {
+    throw new Error(`el loop no ejecutó la hipótesis guiada: ${JSON.stringify({ session, iteration })}`);
+  }
+  if (!experiment || !["SUCCEEDED", "REJECTED_GLOBAL_CONSTRAINT", "FAILED"].includes(experiment.status)) {
+    throw new Error(`la iteración guiada no terminó su experimento: ${JSON.stringify(experiment)}`);
+  }
+  if (!["VALIDATED", "REFUTED", "NONCONCLUSIVE"].includes(hypothesis.evidence_outcome)) {
+    throw new Error(`la hipótesis guiada no conservó su resultado: ${JSON.stringify(hypothesis)}`);
+  }
+  const expectedInsightStatus = { VALIDATED: "APPLIED", REFUTED: "REFUTED" }[hypothesis.evidence_outcome];
+  if (expectedInsightStatus) {
+    const finalInsights = expect(await api(page, "GET", `/agent/sessions/${sessionId}/insights`, { token: channelToken }), 200, "leer directiva final");
+    const finalDirective = finalInsights.find((item) => item.insight_id === directive.insight_id);
+    if (finalDirective?.status !== expectedInsightStatus) {
+      throw new Error(`la directiva no reflejó el resultado de su hipótesis: ${JSON.stringify(finalDirective)}`);
+    }
+  }
+  return {
+    guided_iteration: iteration.number,
+    guided_hypothesis_outcome: hypothesis.evidence_outcome,
+    guided_experiment_status: experiment.status,
+  };
+}
+
 async function main() {
   const currentBootstrap = bootstrapToken();
   const bootstrap = currentBootstrap || randomUUID();
@@ -265,6 +350,10 @@ async function main() {
       throw new Error("la iteración no conservó la versión fijada del objetivo");
     }
 
+    const guided = process.env.E2E_AGENT_GUIDED === "1"
+      ? await runGuidedIteration(page, sessionId, iteration.number)
+      : {};
+
     let current = expect(await api(page, "GET", `/agent/sessions/${sessionId}`, { token: channelToken }), 200, "leer sesión");
     // A run that exhausts its hypotheses without a winner waits for the
     // Channel Manager (CONTEXT_MISSING); the smoke closes it like an active one.
@@ -378,6 +467,7 @@ async function main() {
       ui_timeline_kinds: ["iteration", "specialist", "verification", "experiment"],
       session_status: current.status,
       candidate_active: candidateModel.active,
+      ...guided,
     };
     console.log(JSON.stringify(evidence));
     if (process.env.H12_E2E_RESULT_PATH) {
