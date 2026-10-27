@@ -191,10 +191,11 @@ class OptimizerSpecialistSubagent:
                 execution.get("candidate_model_id"),
                 execution.get("candidate_model_tag"),
             ),
+            # A vector-store pin's version is its generation number.
             "vector_store": (
                 "vector_store",
                 execution.get("candidate_instance_id"),
-                execution.get("candidate_instance_version"),
+                execution.get("candidate_generation"),
             ),
         }.get(self.name, ("", None, None))
         if not component or entity_id is None or version is None:

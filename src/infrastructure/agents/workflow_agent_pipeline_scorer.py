@@ -107,7 +107,8 @@ class WorkflowAgentPipelineScorer:
             or instance.get("id") != vector_store.reference.entity_id
         ):
             raise ValueError("PIPELINE_REPLAY_VECTOR_STORE_PIN_INVALID")
-        if instance.get("version") != int(vector_store.reference.version):
+        # A vector-store pin's version is the generation it searches.
+        if vector_content.get("generation") != int(vector_store.reference.version):
             raise ValueError("PIPELINE_REPLAY_VECTOR_STORE_VERSION_INVALID")
 
         config_ref = ConfigurationRef(

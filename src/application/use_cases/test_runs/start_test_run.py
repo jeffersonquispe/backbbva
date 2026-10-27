@@ -33,6 +33,9 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
 )
 from src.application.use_cases.test_runs.dataset_sampling import sample_rows
+from src.application.use_cases.vector_store_instances.pin_configuration_vector_stores import (
+    PinConfigurationVectorStoresUseCase,
+)
 from src.domain.alerts.entities import (
     AlertOrigin,
 )
@@ -57,8 +60,12 @@ class StartTestRunUseCase:
         object_storage: ObjectStoragePort | None = None,
         clock: Clock | None = None,
         id_generator: IdGenerator | None = None,
+        vector_store_pins: PinConfigurationVectorStoresUseCase | None = None,
     ) -> None:
         self._configurations = configuration_repository
+        # A test must search the generation its version pins; one that is no
+        # longer READY fails here instead of running silently without RAG.
+        self._vector_store_pins = vector_store_pins
         self._schemas = schema_repository
         self._datasets = dataset_repository
         self._test_runs = test_run_repository
@@ -104,6 +111,8 @@ class StartTestRunUseCase:
             if config is None and ref is not None:
                 raise NotFoundError("Configuration version not found")
             if config is not None:
+                if self._vector_store_pins is not None:
+                    self._vector_store_pins.verify(config)
                 self._configurations.mark_tested(
                     config.configuration_id, config.version
                 )

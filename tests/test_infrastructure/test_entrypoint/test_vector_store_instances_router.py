@@ -251,6 +251,7 @@ def test_query_instance_uses_requested_pipeline_and_returns_active_generation(mo
         "acceso desde un móvil nuevo",
         {
             "pipeline": SearchPipeline.EMBEDDING_HEAVY,
+            "vector_store_generation": None,
             "vector_store_id": "vector-store-v1",
             "document_type": DocumentType.TAXONOMIA,
             "top_k": 7,
@@ -277,3 +278,186 @@ def test_query_instance_rejects_invalid_pipeline_and_limits(monkeypatch) -> None
 
     assert invalid_pipeline.status_code == 422
     assert excessive_top_k.status_code == 422
+
+
+# --- generations: build never publishes, list reports production usage -----
+
+
+def _generation(number: int, status: str = "ready", fingerprint: str = "fp"):
+    from src.domain.fraud_knowledge.vector_store_generations import (
+        VectorStoreGeneration,
+        VectorStoreGenerationStatus,
+    )
+
+    return VectorStoreGeneration(
+        instance_id="vector-store-v1",
+        generation=number,
+        status=VectorStoreGenerationStatus(status),
+        built_by="QA Analyst",
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        fingerprint=fingerprint,
+        document_count=4,
+    )
+
+
+class _ListUseCase:
+    def __init__(self, views) -> None:
+        self.views = views
+
+    def generations(self, instance_id: str):
+        assert instance_id == "vector-store-v1"
+        return self.views
+
+
+class _InstanceRepository:
+    def get(self, instance_id: str):
+        if instance_id != "vector-store-v1":
+            return None
+        return _UpdateInstance().execute()
+
+
+class _BuildUseCase:
+    def __init__(self, result=None, error: Exception | None = None, fingerprint="fp"):
+        self.result = result
+        self.error = error
+        self._fingerprint = fingerprint
+        self.calls: list[tuple[str, str]] = []
+
+    def execute(self, instance_id: str, *, actor: str):
+        self.calls.append((instance_id, actor))
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+    def fingerprint(self, instance_id: str) -> str:
+        return self._fingerprint
+
+
+def _generations_client(monkeypatch, role, views, build):
+    from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+        get_build_vector_store_generation_use_case,
+    )
+
+    client, app = _client(vector_store_instances_router.router, _user(role))
+    app.dependency_overrides[get_build_vector_store_generation_use_case] = lambda: build
+    monkeypatch.setattr(
+        vector_store_instances_router,
+        "get_list_vector_store_instances_use_case",
+        lambda: _ListUseCase(views),
+    )
+    monkeypatch.setattr(
+        vector_store_instances_router,
+        "get_vector_store_instance_repository",
+        lambda: _InstanceRepository(),
+    )
+    monkeypatch.setattr(
+        vector_store_instances_router,
+        "get_build_vector_store_generation_use_case",
+        lambda: build,
+    )
+    return client
+
+
+def test_build_generation_returns_it_without_publishing(monkeypatch) -> None:
+    from src.application.use_cases.vector_store_instances.build_vector_store_generation import (
+        BuildVectorStoreGenerationOutput,
+    )
+    from src.application.use_cases.vector_store_instances.list_vector_store_instances import (
+        VectorStoreGenerationView,
+    )
+
+    built = _generation(2)
+    build = _BuildUseCase(BuildVectorStoreGenerationOutput(built, built=True))
+    views = [
+        VectorStoreGenerationView(built, in_production=False),
+        VectorStoreGenerationView(_generation(1), in_production=True, pinned_by=("cfg@v3",)),
+    ]
+    client = _generations_client(monkeypatch, LocalRole.DATA_ANALYST, views, build)
+
+    response = client.post("/api/v0/vector-store-instances/vector-store-v1/generations")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["generation"], body["status"], body["built"]) == (2, "ready", True)
+    # Building is not publishing: the new generation is not what production uses.
+    assert body["in_production"] is False
+    assert build.calls == [("vector-store-v1", "QA Analyst")]
+
+
+def test_list_generations_reports_production_pins_and_manifest_drift(monkeypatch) -> None:
+    from src.application.use_cases.vector_store_instances.list_vector_store_instances import (
+        VectorStoreGenerationView,
+    )
+
+    views = [
+        VectorStoreGenerationView(_generation(2, fingerprint="old"), in_production=False),
+        VectorStoreGenerationView(
+            _generation(1, "retired", fingerprint="older"), in_production=False
+        ),
+    ]
+    client = _generations_client(
+        monkeypatch, LocalRole.MANAGER, views, _BuildUseCase(fingerprint="current")
+    )
+
+    response = client.get("/api/v0/vector-store-instances/vector-store-v1/generations")
+
+    assert response.status_code == 200
+    assert [(item["generation"], item["status"], item["matches_manifest"]) for item in response.json()] == [
+        (2, "ready", False),
+        (1, "retired", False),
+    ]
+    assert client.get("/api/v0/vector-store-instances/missing/generations").status_code == 404
+
+
+def test_build_generation_maps_errors_and_requires_writer(monkeypatch) -> None:
+    from src.application.errors import ConflictError
+    from src.application.use_cases.vector_store_instances.build_vector_store_generation import (
+        EmptyVectorStoreInstanceError,
+    )
+    from src.application.use_cases.vector_store_instances.manage_vector_store_instance import (
+        VectorStoreInstanceNotFoundError,
+    )
+
+    path = "/api/v0/vector-store-instances/vector-store-v1/generations"
+    build = _BuildUseCase()
+    client = _generations_client(monkeypatch, LocalRole.CHANNEL_MANAGER, [], build)
+    for error, expected in (
+        (EmptyVectorStoreInstanceError("empty"), 422),
+        (ConflictError("already building"), 409),
+        (VectorStoreInstanceNotFoundError("missing"), 404),
+    ):
+        build.error = error
+        assert client.post(path).status_code == expected
+
+    build = _BuildUseCase(error=AssertionError("must not build"))
+    forbidden = _generations_client(monkeypatch, LocalRole.FRAUD_ANALYST, [], build)
+    assert forbidden.post(path).status_code == 403
+    assert forbidden.get(path).status_code == 403
+    assert build.calls == []
+
+
+def test_promote_endpoint_no_longer_exists() -> None:
+    client, _ = _client(vector_store_instances_router.router, _user(LocalRole.MANAGER))
+    response = client.post("/api/v0/vector-store-instances/vector-store-v1/promote")
+    assert response.status_code in {404, 405}
+
+
+def test_query_unavailable_generation_is_a_conflict(monkeypatch) -> None:
+    from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
+        VectorStoreGenerationUnavailableError,
+    )
+
+    class _Retired:
+        def execute(self, query, **kwargs):
+            assert kwargs["vector_store_generation"] == 1
+            raise VectorStoreGenerationUnavailableError("generation 1 is retired")
+
+    client, _ = _client(vector_store_instances_router.router, _user())
+    monkeypatch.setattr(
+        vector_store_instances_router, "get_search_fraud_knowledge_use_case", _Retired
+    )
+    response = client.get(
+        "/api/v0/vector-store-instances/vector-store-v1/query",
+        params={"query": "phishing", "generation": 1},
+    )
+    assert response.status_code == 409

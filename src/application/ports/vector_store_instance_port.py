@@ -32,16 +32,9 @@ class VectorStoreInstance:
     created_by: str
     updated_at: datetime | None = None
     updated_by: str | None = None
-    # Promotion (OpenSearch) generation tracking, distinct from `version`
-    # above (the Dynamo-side asset-manifest version). None means this
-    # instance has never been promoted - still a draft, search must refuse
-    # it (see SearchFraudKnowledgeUseCase). Each promotion increments this
-    # and stamps every document it loads with the new value
-    # (vector_store_version on fraud_knowledge_port.py's documents), so a
-    # search always resolves to exactly the generation currently "up".
-    promoted_version: int | None = None
-    promoted_at: datetime | None = None
-    promoted_by: str | None = None
+    # OpenSearch loads of this manifest are tracked separately, one record
+    # per immutable generation (vector_store_generation_port.py). The
+    # generation number is stamped on every document as vector_store_version.
 
 
 @dataclass(frozen=True)
@@ -52,9 +45,9 @@ class VectorStoreInstanceAsset:
     asset_version: int
     # Copied from the source Library entry's cached embedding when attached
     # to an instance (see KnowledgeGraphService.attach) - recycled at
-    # promotion time instead of re-embedding. None only for an asset
+    # build time instead of re-embedding. None only for an asset
     # attached before its Library entry ever had one computed (stale data,
-    # not the expected path); PromoteVectorStoreInstanceUseCase re-embeds as
+    # not the expected path); BuildVectorStoreGenerationUseCase re-embeds as
     # a fallback for those.
     embedding: list[float] | None = None
     # Relation provenance makes cascading changes explainable and prevents a

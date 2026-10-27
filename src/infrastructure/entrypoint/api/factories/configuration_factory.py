@@ -46,12 +46,16 @@ def get_create_configuration_use_case() -> CreateConfigurationUseCase:
     from src.infrastructure.entrypoint.api.factories.alert_schema_factory import (
         get_alert_schema_repository,
     )
+    from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+        get_pin_configuration_vector_stores_use_case,
+    )
 
     return CreateConfigurationUseCase(
         get_configuration_repository(),
         clock=get_clock(),
         id_generator=get_id_generator(),
         schema_repository=get_alert_schema_repository(),
+        vector_store_pins=get_pin_configuration_vector_stores_use_case(),
     )
 
 
@@ -82,11 +86,15 @@ def get_activate_configuration_use_case() -> ActivateConfigurationUseCase:
     from src.infrastructure.entrypoint.api.factories.alert_factory import (
         get_workflow_execution_repository,
     )
+    from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+        get_pin_configuration_vector_stores_use_case,
+    )
 
     return ActivateConfigurationUseCase(
         get_configuration_repository(),
         get_test_run_repository(),
         get_workflow_execution_repository(),
+        vector_store_pins=get_pin_configuration_vector_stores_use_case(),
     )
 
 

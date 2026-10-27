@@ -53,7 +53,20 @@ class DynamoVectorStoreInstanceRepository(VectorStoreInstanceRepository):
         return _instance_from_item(item) if item else None
 
     def update(self, instance: VectorStoreInstance) -> VectorStoreInstance:
-        self._instances.put_item(Item=_instance_to_item(instance))
+        # SET only the mapped attributes: a pre-generations row keeps its
+        # legacy promoted_version until vector_store_generation_migration.py
+        # has turned it into a generation record.
+        item = _instance_to_item(instance)
+        item.pop("id")
+        names = {f"#a{index}": key for index, key in enumerate(item)}
+        values = {f":v{index}": value for index, value in enumerate(item.values())}
+        self._instances.update_item(
+            Key={"id": instance.id},
+            UpdateExpression="SET "
+            + ", ".join(f"#a{index} = :v{index}" for index in range(len(item))),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+        )
         return instance
 
     def list_assets(self, instance_id: str) -> list[VectorStoreInstanceAsset]:
@@ -87,11 +100,6 @@ def _instance_to_item(instance: VectorStoreInstance) -> dict[str, Any]:
         "created_by": instance.created_by,
         "updated_at": instance.updated_at.isoformat() if instance.updated_at else None,
         "updated_by": instance.updated_by,
-        "promoted_version": instance.promoted_version,
-        "promoted_at": instance.promoted_at.isoformat()
-        if instance.promoted_at
-        else None,
-        "promoted_by": instance.promoted_by,
     }
 
 
@@ -107,13 +115,6 @@ def _instance_from_item(item: dict[str, Any]) -> VectorStoreInstance:
         if item.get("updated_at")
         else None,
         updated_by=item.get("updated_by"),
-        promoted_version=int(item["promoted_version"])
-        if item.get("promoted_version") is not None
-        else None,
-        promoted_at=datetime.fromisoformat(item["promoted_at"])
-        if item.get("promoted_at")
-        else None,
-        promoted_by=item.get("promoted_by"),
     )
 
 

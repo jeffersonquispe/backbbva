@@ -20,10 +20,10 @@ class IngestTaxonomiaInput:
     vector_store_id: str
     vector_store_version: int
     # Recycled from the source TaxonomyLibraryEntry.embedding when the
-    # caller (PromoteVectorStoreInstanceUseCase) already has one cached for
+    # caller (BuildVectorStoreGenerationUseCase) already has one cached for
     # this exact text - skips the embedding call entirely. None forces a
     # fresh embed, only expected as a fallback for a stray asset that
-    # somehow reached promotion without a cached embedding.
+    # somehow reached a build without a cached embedding.
     text_embedded: list[float] | None = None
 
 

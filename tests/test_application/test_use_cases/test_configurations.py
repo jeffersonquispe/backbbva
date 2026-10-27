@@ -762,3 +762,150 @@ def test_configuration_graph_returns_parents_and_the_promotion_comment() -> None
         root.configuration_id, root.version
     )
     assert by_key[(branch.configuration_id, 1)].promotion_comment is None
+
+
+# --- vector-store generation pins: saving pins, publishing needs approval ---
+
+
+class InMemoryVectorStoreGenerationRepository:
+    def __init__(self, ready: dict[tuple[str, int], str]) -> None:
+        self.status = ready
+
+    def get(self, instance_id: str, generation: int):
+        from src.domain.fraud_knowledge.vector_store_generations import (
+            VectorStoreGeneration,
+            VectorStoreGenerationStatus,
+        )
+
+        status = self.status.get((instance_id, generation))
+        if status is None:
+            return None
+        return VectorStoreGeneration(
+            instance_id,
+            generation,
+            VectorStoreGenerationStatus(status),
+            "qa",
+            datetime.now(UTC),
+        )
+
+    def list(self, instance_id=None):
+        return [
+            self.get(key[0], key[1])
+            for key in sorted(self.status)
+            if instance_id in (None, key[0])
+        ]
+
+
+class RecordingVectorStoreBuild:
+    """Builds the next generation number each time the manifest is pinned."""
+
+    def __init__(self, generations: InMemoryVectorStoreGenerationRepository) -> None:
+        self.generations = generations
+        self.calls: list[str] = []
+
+    def execute(self, instance_id: str, *, actor: str):
+        from types import SimpleNamespace
+
+        self.calls.append(instance_id)
+        number = 1 + max(
+            (key[1] for key in self.generations.status if key[0] == instance_id),
+            default=0,
+        )
+        self.generations.status[(instance_id, number)] = "ready"
+        return SimpleNamespace(generation=self.generations.get(instance_id, number))
+
+
+def _vector_store_segments(generation: int | None = None) -> dict:
+    segments = default_segments()
+    research = segments["tarjetas"].agent.classification.delegated_research.vector_store
+    research.enabled = True
+    research.vector_store_instance_id = "vector-store-v1"
+    research.vector_store_generation = generation
+    return segments
+
+
+def _pinning(repo, test_runs, generations):
+    from src.application.use_cases.vector_store_instances.pin_configuration_vector_stores import (
+        PinConfigurationVectorStoresUseCase,
+    )
+
+    build = RecordingVectorStoreBuild(generations)
+    pins = PinConfigurationVectorStoresUseCase(build, generations)
+    create = CreateConfigurationUseCase(repo, vector_store_pins=pins)
+    activate = ActivateConfigurationUseCase(repo, test_runs, vector_store_pins=pins)
+    return create, activate, build
+
+
+def _pinned_generation(record: ConfigurationRecord) -> int | None:
+    return record.segments[
+        "tarjetas"
+    ].agent.classification.delegated_research.vector_store.vector_store_generation
+
+
+def test_saving_a_configuration_pins_the_vector_store_generation() -> None:
+    repo, test_runs = InMemoryConfigurationRepository(), InMemoryTestRunRepository()
+    generations = InMemoryVectorStoreGenerationRepository({})
+    create, _, build = _pinning(repo, test_runs, generations)
+
+    record = create.execute(
+        CreateConfigurationInput(name="Producción", segments=_vector_store_segments())
+    )
+
+    assert _pinned_generation(record) == 1
+    assert _pinned_generation(repo.get(record.configuration_id, 1)) == 1
+    assert build.calls == ["vector-store-v1"]
+
+
+def test_direct_activation_cannot_publish_a_new_generation() -> None:
+    from src.application.use_cases.configurations.activate_configuration import (
+        VectorStorePublicationRequiresApprovalError,
+    )
+
+    repo, test_runs = InMemoryConfigurationRepository(), InMemoryTestRunRepository()
+    generations = InMemoryVectorStoreGenerationRepository(
+        {("vector-store-v1", 1): "ready", ("vector-store-v1", 2): "ready"}
+    )
+    create, activate, _ = _pinning(repo, test_runs, generations)
+    v1 = create.execute(
+        CreateConfigurationInput(name="Producción", segments=_vector_store_segments(1))
+    )
+    v2 = create.execute(
+        CreateConfigurationInput(
+            name="Producción",
+            configuration_id=v1.configuration_id,
+            segments=_vector_store_segments(2),
+        )
+    )
+    test_runs.add_succeeded(v1.configuration_id, 1)
+    test_runs.add_succeeded(v1.configuration_id, 2)
+    activate.execute(v1.configuration_id, 1, approved_deploy_request=True)
+
+    with pytest.raises(VectorStorePublicationRequiresApprovalError):
+        activate.execute(v2.configuration_id, 2)
+    assert repo.get_active().version == 1
+
+    # The same version goes live once its deploy request is approved.
+    activate.execute(v2.configuration_id, 2, approved_deploy_request=True)
+    assert repo.get_active().version == 2
+    assert _pinned_generation(repo.get_active()) == 2
+
+
+def test_activation_rejects_a_retired_generation_pin() -> None:
+    from src.application.use_cases.configurations.activate_configuration import (
+        ConfigurationVectorStoreUnavailableError,
+    )
+
+    repo, test_runs = InMemoryConfigurationRepository(), InMemoryTestRunRepository()
+    generations = InMemoryVectorStoreGenerationRepository(
+        {("vector-store-v1", 1): "ready"}
+    )
+    create, activate, _ = _pinning(repo, test_runs, generations)
+    v1 = create.execute(
+        CreateConfigurationInput(name="Producción", segments=_vector_store_segments(1))
+    )
+    test_runs.add_succeeded(v1.configuration_id, 1)
+    generations.status[("vector-store-v1", 1)] = "retired"
+
+    with pytest.raises(ConfigurationVectorStoreUnavailableError, match="retired"):
+        activate.execute(v1.configuration_id, 1, approved_deploy_request=True)
+    assert repo.get_active() is None

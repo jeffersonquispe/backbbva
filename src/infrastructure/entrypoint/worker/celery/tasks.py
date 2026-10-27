@@ -49,6 +49,7 @@ from src.infrastructure.workflows.celery.task_factories import (
     get_archive_fraud_history_use_case,
     get_backup_catalog_repository,
     get_cleanup_test_runs_use_case,
+    get_cleanup_vector_store_generations_use_case,
     get_dataset_repository,
     get_delete_dataset_use_case,
     get_document_analyst_decision_use_case,
@@ -172,6 +173,27 @@ def cleanup_test_runs() -> dict[str, int]:
         "deleted_test_runs": output.deleted_test_runs,
         "deleted_cases": output.deleted_cases,
         "deferred_active_runs": output.deferred_active_runs,
+    }
+
+
+@app.task(name="vector_store.cleanup_generations")
+def cleanup_vector_store_generations(dry_run: bool = False) -> dict[str, Any]:
+    """Retire vector-store generations no configuration, test or release
+    can still search (see CleanupVectorStoreGenerationsUseCase)."""
+    if not genai_config.VECTOR_STORE_GENERATION_CLEANUP_ENABLED:
+        return {"enabled": False}
+    output = get_cleanup_vector_store_generations_use_case().execute(
+        retention_days=genai_config.VECTOR_STORE_GENERATION_RETENTION_DAYS,
+        rollback_configurations=genai_config.VECTOR_STORE_ROLLBACK_CONFIGURATIONS,
+        dry_run=dry_run,
+    )
+    return {
+        "enabled": True,
+        "dry_run": output.dry_run,
+        "retired": list(output.retired),
+        "protected": output.protected,
+        "failed_stale_builds": list(output.failed_stale_builds),
+        "deleted_documents": output.deleted_documents,
     }
 
 

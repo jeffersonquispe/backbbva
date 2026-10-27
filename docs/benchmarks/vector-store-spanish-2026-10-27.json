@@ -1,0 +1,776 @@
+{
+  "server_version": "2.19.1",
+  "corpus_documents": 14,
+  "queries": 30,
+  "dimensions": 3072,
+  "query_source": "curated queries against six real local Library categories, not production traffic",
+  "embedding_model": "asistentelupita-llm-work-emebed-3-large",
+  "analyzers": {
+    "spanish": {
+      "tokens": [
+        "transferenci",
+        "suplantacion",
+        "suplantacion",
+        "sim",
+        "swap",
+        "pse",
+        "nequi",
+        "rat",
+        "vishing"
+      ],
+      "bm25": {
+        "mrr_at_5": 0.966667,
+        "hit_at_5": 0.9666666666666667
+      },
+      "hybrid": {
+        "mrr_at_5": 1.0,
+        "hit_at_5": 1.0
+      },
+      "ranks": [
+        {
+          "query": "hurto de celular",
+          "expected_category": "Robo físico",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "hurto de celular",
+          "expected_category": "Robo físico",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "robo tarjeta coaccion",
+          "expected_category": "Robo físico",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "robo tarjeta coaccion",
+          "expected_category": "Robo físico",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "robo fisico",
+          "expected_category": "Robo físico",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "robo fisico",
+          "expected_category": "Robo físico",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "hurto tarjeta",
+          "expected_category": "Robo físico",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "hurto tarjeta",
+          "expected_category": "Robo físico",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "coacción cliente",
+          "expected_category": "Robo físico",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "coacción cliente",
+          "expected_category": "Robo físico",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "ingenieria social",
+          "expected_category": "Estafa",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "ingenieria social",
+          "expected_category": "Estafa",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "cliente engaño operación",
+          "expected_category": "Estafa",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "cliente engaño operación",
+          "expected_category": "Estafa",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "estafas transferencias",
+          "expected_category": "Estafa",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "estafas transferencias",
+          "expected_category": "Estafa",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "autorizar operación engaño",
+          "expected_category": "Estafa",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "autorizar operación engaño",
+          "expected_category": "Estafa",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "estafa canales digitales",
+          "expected_category": "Estafa",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "estafa canales digitales",
+          "expected_category": "Estafa",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "suplantacion identidad",
+          "expected_category": "Suplantación",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "suplantacion identidad",
+          "expected_category": "Suplantación",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "tercero identidad cliente",
+          "expected_category": "Suplantación",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "tercero identidad cliente",
+          "expected_category": "Suplantación",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "identidades suplantadas",
+          "expected_category": "Suplantación",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "identidades suplantadas",
+          "expected_category": "Suplantación",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "suplantación alertas",
+          "expected_category": "Suplantación",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "suplantación alertas",
+          "expected_category": "Suplantación",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "persona suplantada",
+          "expected_category": "Suplantación",
+          "kind": "bm25",
+          "rank": null
+        },
+        {
+          "query": "persona suplantada",
+          "expected_category": "Suplantación",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "malware rat",
+          "expected_category": "Malware",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "malware rat",
+          "expected_category": "Malware",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "acceso remoto celular",
+          "expected_category": "Malware",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "acceso remoto celular",
+          "expected_category": "Malware",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "control remoto dispositivo",
+          "expected_category": "Malware",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "control remoto dispositivo",
+          "expected_category": "Malware",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "RAT emulador",
+          "expected_category": "Malware",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "RAT emulador",
+          "expected_category": "Malware",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "malware bancario",
+          "expected_category": "Malware",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "malware bancario",
+          "expected_category": "Malware",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "cambiazo tarjetas",
+          "expected_category": "Cambiazo",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "cambiazo tarjetas",
+          "expected_category": "Cambiazo",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "cambio tarjeta cajero",
+          "expected_category": "Cambiazo",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "cambio tarjeta cajero",
+          "expected_category": "Cambiazo",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "tarjeta comercio cambio",
+          "expected_category": "Cambiazo",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "tarjeta comercio cambio",
+          "expected_category": "Cambiazo",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "tarjetas intercambiadas",
+          "expected_category": "Cambiazo",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "tarjetas intercambiadas",
+          "expected_category": "Cambiazo",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "cambiazo de tarjeta",
+          "expected_category": "Cambiazo",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "cambiazo de tarjeta",
+          "expected_category": "Cambiazo",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "pharming robo celular",
+          "expected_category": "Revisión",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "pharming robo celular",
+          "expected_category": "Revisión",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "alerta confianza baja",
+          "expected_category": "Revisión",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "alerta confianza baja",
+          "expected_category": "Revisión",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "adversarial objeta clasificación",
+          "expected_category": "Revisión",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "adversarial objeta clasificación",
+          "expected_category": "Revisión",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "revision fraude pipeline",
+          "expected_category": "Revisión",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "revision fraude pipeline",
+          "expected_category": "Revisión",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "revisión casos no automatizados",
+          "expected_category": "Revisión",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "revisión casos no automatizados",
+          "expected_category": "Revisión",
+          "kind": "hybrid",
+          "rank": 1
+        }
+      ]
+    },
+    "folded_protected_spanish": {
+      "tokens": [
+        "transferenci",
+        "suplantacion",
+        "suplantacion",
+        "sim",
+        "swap",
+        "pse",
+        "nequi",
+        "rat",
+        "vishing"
+      ],
+      "bm25": {
+        "mrr_at_5": 0.966667,
+        "hit_at_5": 0.9666666666666667
+      },
+      "hybrid": {
+        "mrr_at_5": 1.0,
+        "hit_at_5": 1.0
+      },
+      "ranks": [
+        {
+          "query": "hurto de celular",
+          "expected_category": "Robo físico",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "hurto de celular",
+          "expected_category": "Robo físico",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "robo tarjeta coaccion",
+          "expected_category": "Robo físico",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "robo tarjeta coaccion",
+          "expected_category": "Robo físico",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "robo fisico",
+          "expected_category": "Robo físico",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "robo fisico",
+          "expected_category": "Robo físico",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "hurto tarjeta",
+          "expected_category": "Robo físico",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "hurto tarjeta",
+          "expected_category": "Robo físico",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "coacción cliente",
+          "expected_category": "Robo físico",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "coacción cliente",
+          "expected_category": "Robo físico",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "ingenieria social",
+          "expected_category": "Estafa",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "ingenieria social",
+          "expected_category": "Estafa",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "cliente engaño operación",
+          "expected_category": "Estafa",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "cliente engaño operación",
+          "expected_category": "Estafa",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "estafas transferencias",
+          "expected_category": "Estafa",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "estafas transferencias",
+          "expected_category": "Estafa",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "autorizar operación engaño",
+          "expected_category": "Estafa",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "autorizar operación engaño",
+          "expected_category": "Estafa",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "estafa canales digitales",
+          "expected_category": "Estafa",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "estafa canales digitales",
+          "expected_category": "Estafa",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "suplantacion identidad",
+          "expected_category": "Suplantación",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "suplantacion identidad",
+          "expected_category": "Suplantación",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "tercero identidad cliente",
+          "expected_category": "Suplantación",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "tercero identidad cliente",
+          "expected_category": "Suplantación",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "identidades suplantadas",
+          "expected_category": "Suplantación",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "identidades suplantadas",
+          "expected_category": "Suplantación",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "suplantación alertas",
+          "expected_category": "Suplantación",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "suplantación alertas",
+          "expected_category": "Suplantación",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "persona suplantada",
+          "expected_category": "Suplantación",
+          "kind": "bm25",
+          "rank": null
+        },
+        {
+          "query": "persona suplantada",
+          "expected_category": "Suplantación",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "malware rat",
+          "expected_category": "Malware",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "malware rat",
+          "expected_category": "Malware",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "acceso remoto celular",
+          "expected_category": "Malware",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "acceso remoto celular",
+          "expected_category": "Malware",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "control remoto dispositivo",
+          "expected_category": "Malware",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "control remoto dispositivo",
+          "expected_category": "Malware",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "RAT emulador",
+          "expected_category": "Malware",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "RAT emulador",
+          "expected_category": "Malware",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "malware bancario",
+          "expected_category": "Malware",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "malware bancario",
+          "expected_category": "Malware",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "cambiazo tarjetas",
+          "expected_category": "Cambiazo",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "cambiazo tarjetas",
+          "expected_category": "Cambiazo",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "cambio tarjeta cajero",
+          "expected_category": "Cambiazo",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "cambio tarjeta cajero",
+          "expected_category": "Cambiazo",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "tarjeta comercio cambio",
+          "expected_category": "Cambiazo",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "tarjeta comercio cambio",
+          "expected_category": "Cambiazo",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "tarjetas intercambiadas",
+          "expected_category": "Cambiazo",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "tarjetas intercambiadas",
+          "expected_category": "Cambiazo",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "cambiazo de tarjeta",
+          "expected_category": "Cambiazo",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "cambiazo de tarjeta",
+          "expected_category": "Cambiazo",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "pharming robo celular",
+          "expected_category": "Revisión",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "pharming robo celular",
+          "expected_category": "Revisión",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "alerta confianza baja",
+          "expected_category": "Revisión",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "alerta confianza baja",
+          "expected_category": "Revisión",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "adversarial objeta clasificación",
+          "expected_category": "Revisión",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "adversarial objeta clasificación",
+          "expected_category": "Revisión",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "revision fraude pipeline",
+          "expected_category": "Revisión",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "revision fraude pipeline",
+          "expected_category": "Revisión",
+          "kind": "hybrid",
+          "rank": 1
+        },
+        {
+          "query": "revisión casos no automatizados",
+          "expected_category": "Revisión",
+          "kind": "bm25",
+          "rank": 1
+        },
+        {
+          "query": "revisión casos no automatizados",
+          "expected_category": "Revisión",
+          "kind": "hybrid",
+          "rank": 1
+        }
+      ]
+    }
+  }
+}

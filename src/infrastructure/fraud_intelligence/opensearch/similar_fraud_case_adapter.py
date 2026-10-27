@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from src.application.ports.fraud_knowledge_port import DocumentType, SearchPipeline
 from src.application.ports.fraud_similarity_port import (
     SimilarFraudCase,
@@ -7,8 +9,10 @@ from src.application.ports.fraud_similarity_port import (
 )
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
-    VectorStoreNotPromotedError,
+    VectorStoreGenerationUnavailableError,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OpenSearchSimilarFraudCaseAdapter(SimilarFraudCasePort):
@@ -23,10 +27,12 @@ class OpenSearchSimilarFraudCaseAdapter(SimilarFraudCasePort):
         search_use_case: SearchFraudKnowledgeUseCase,
         vector_store_instance_id: str,
         pipeline: SearchPipeline = SearchPipeline.BALANCED,
+        vector_store_generation: int | None = None,
     ) -> None:
         self._search_use_case = search_use_case
         self._vector_store_instance_id = vector_store_instance_id
         self._pipeline = pipeline
+        self._vector_store_generation = vector_store_generation
 
     def find_similar(self, query: str, top_k: int = 5) -> list[SimilarFraudCase]:
         try:
@@ -34,10 +40,12 @@ class OpenSearchSimilarFraudCaseAdapter(SimilarFraudCasePort):
                 query,
                 pipeline=self._pipeline,
                 vector_store_id=self._vector_store_instance_id,
+                vector_store_generation=self._vector_store_generation,
                 document_type=DocumentType.SIMILAR_CASE,
                 top_k=top_k,
             )
-        except VectorStoreNotPromotedError:
+        except VectorStoreGenerationUnavailableError as error:
+            logger.warning("Vector store search skipped: %s", error)
             return []
         return [
             SimilarFraudCase(

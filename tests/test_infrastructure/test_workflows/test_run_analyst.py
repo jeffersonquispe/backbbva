@@ -117,7 +117,7 @@ def test_run_analyst_passes_none_vector_store_when_classification_has_none(
 
     workflow_module._run_analyst(_context(segment))
 
-    assert calls[0]["vector_store_instance_id"] is None
+    assert calls[0].get("vector_store_instance_id") is None
 
 
 def test_run_analyst_omits_segment_kwargs_without_an_active_segment(

@@ -12,7 +12,7 @@ from src.application.ports.modus_operandi_library_port import (
 )
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
-    VectorStoreNotPromotedError,
+    VectorStoreGenerationUnavailableError,
 )
 from src.domain.fraud_knowledge.library_entities import ModusOperandiPlaybook
 
@@ -37,10 +37,11 @@ class ResolveAnalystPlaybookUseCase:
     Clasificación use), scoped to MODUS_OPERANDI documents, and joins each
     ranked hit back to its live Library entry via
     ModusOperandiDocument.library_id (the document's own id is a fresh
-    uuid4 per promotion). The playbook is read from the Library entry - not
-    from the promoted snapshot - so edits take effect without re-promoting.
+    uuid4 per generation). The playbook is read from the Library entry - not
+    from the generation snapshot - so edits take effect without a rebuild.
 
-    Returns None when no vector store is selected, it was never promoted,
+    Returns None when no vector store is selected, its generation is not
+    available,
     or none of the closest matches has a playbook: the caller then applies
     the no-playbook default (escalate to an analyst, block soft if none).
     """
@@ -59,6 +60,7 @@ class ResolveAnalystPlaybookUseCase:
         *,
         vector_store_instance_id: str | None,
         library_revision_pin: dict[str, str] | None = None,
+        vector_store_generation: int | None = None,
     ) -> ResolvedPlaybook | None:
         if not vector_store_instance_id:
             return None
@@ -67,10 +69,11 @@ class ResolveAnalystPlaybookUseCase:
                 query,
                 pipeline=SearchPipeline.BALANCED,
                 vector_store_id=vector_store_instance_id,
+                vector_store_generation=vector_store_generation,
                 document_type=DocumentType.MODUS_OPERANDI,
                 top_k=_TOP_K,
             )
-        except VectorStoreNotPromotedError:
+        except VectorStoreGenerationUnavailableError:
             return None
         for result in results:
             document = result.document

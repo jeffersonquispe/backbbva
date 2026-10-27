@@ -10,7 +10,10 @@ from src.application.ports.test_run_port import (
     TestRunRecord,
     TestRunStatus,
 )
-from src.application.use_cases.test_runs.get_test_run import GetTestRunUseCase
+from src.application.use_cases.test_runs.get_test_run import (
+    GetTestRunUseCase,
+    _final_classification_output,
+)
 from src.domain.workflows.entities import (
     WorkflowExecutionRecord,
     WorkflowStatus,
@@ -406,3 +409,37 @@ def test_get_test_run_returns_none_when_missing() -> None:
         step_repository=InMemoryWorkflowStepExecutionRepository([]),
     )
     assert use_case.execute(uuid.uuid4()) is None
+
+
+def test_test_metrics_use_first_adversarial_decision_and_latest_review():
+    from dataclasses import replace
+
+    workflow_id = uuid.uuid4()
+    classification = _classification_step(
+        workflow_id,
+        attempt=1,
+        is_fraud="fraud",
+        expected_classification="risk",
+        ground_truth_tipo="Fraude",
+    )
+    earlier = replace(
+        classification,
+        id=uuid.uuid4(),
+        step_name="detector_adversarial",
+        output={"decision": "handle_by_aria", "requires_classification_feedback": True},
+    )
+    for decision, expected in [
+        ("pass", "not_fraud"),
+        ("scale_to_analyst", "unknown"),
+        ("handle_by_aria", "fraud"),
+    ]:
+        final = replace(
+            earlier,
+            id=uuid.uuid4(),
+            attempt=2,
+            output={"decision": decision, "requires_classification_feedback": False},
+        )
+        assert (
+            _final_classification_output([classification, earlier, final])["is_fraud"]
+            == expected
+        )

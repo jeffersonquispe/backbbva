@@ -55,6 +55,9 @@ def get_start_test_run_use_case() -> StartTestRunUseCase:
     from src.infrastructure.entrypoint.api.factories.metrics_factory import (
         get_record_alert_metrics_event_use_case,
     )
+    from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+        get_pin_configuration_vector_stores_use_case,
+    )
 
     return StartTestRunUseCase(
         configuration_repository=get_configuration_repository(),
@@ -69,6 +72,7 @@ def get_start_test_run_use_case() -> StartTestRunUseCase:
         object_storage=get_object_storage(),
         clock=get_clock(),
         id_generator=get_id_generator(),
+        vector_store_pins=get_pin_configuration_vector_stores_use_case(),
     )
 
 

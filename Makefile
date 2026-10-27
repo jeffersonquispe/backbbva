@@ -212,6 +212,36 @@ metrics-backfill:  ## Rebuild metrics snapshots + rollups for alerts of FROM..TO
 		DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
 		python -m src.infrastructure.entrypoint.worker.metrics_backfill --from $(FROM) --to $(TO)
 
+# Vector-store generations: host-run against the local stack (worker
+# factories), like metrics-backfill. Dry run unless DRY_RUN=0.
+VECTOR_STORE_MAINT_ENV = GENAI_ENVIRONMENT=$${GENAI_ENVIRONMENT:-local} API_V0_STR=$${API_V0_STR:-/api/v0} \
+	DYNAMO_ENDPOINT=http://localhost:$${DYNAMO_PORT:-8002} DYNAMO_REGION_NAME=us-east-1 \
+	DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
+	OPENSEARCH_ENDPOINT=http://localhost:$${OPENSEARCH_PORT:-9200}
+
+.PHONY: vector-store-generations-migrate
+vector-store-generations-migrate:  ## Turn legacy promoted vector stores into generation records and pin saved configurations to them. Run make db-backup first. Vars: DRY_RUN(1), DYNAMO_PORT(8002), OPENSEARCH_PORT(9200)
+	$(VECTOR_STORE_MAINT_ENV) python -m src.infrastructure.entrypoint.worker.vector_store_generations migrate $(if $(filter 0,$(DRY_RUN)),--apply,)
+
+.PHONY: vector-store-generations-cleanup
+vector-store-generations-cleanup:  ## Run the nightly vector-store generation retention once. Vars: DRY_RUN(1), INSTANCE(all), RETENTION_DAYS(config), DYNAMO_PORT(8002), OPENSEARCH_PORT(9200)
+	$(VECTOR_STORE_MAINT_ENV) python -m src.infrastructure.entrypoint.worker.vector_store_generations cleanup $(if $(filter 0,$(DRY_RUN)),--apply,) $(if $(INSTANCE),--instance $(INSTANCE),) $(if $(RETENTION_DAYS),--retention-days $(RETENTION_DAYS),)
+
+.PHONY: test-integration-vector-store-generations
+test-integration-vector-store-generations:  ## Run vector-store generation repository/migration tests on a THROWAWAY DynamoDB Local (started and removed here). Vars: LOADTEST_DYNAMO_PORT(8012)
+	@$(MAKE) metrics-loadtest-up
+	@sleep 3
+	@$(LOADTEST_ENV) python -m pytest -q -m docker_integration tests/test_integration/test_vector_store; \
+		status=$$?; $(MAKE) metrics-loadtest-down; exit $$status
+
+.PHONY: vector-store-knn-bench
+vector-store-knn-bench:  ## Measure filtered hybrid kNN latency/recall vs. retained generations on a throwaway OpenSearch index. Vars: OPENSEARCH_PORT(9200), BENCH_ARGS
+	OPENSEARCH_URL=http://localhost:$${OPENSEARCH_PORT:-9200} python scripts/bench_vector_store_knn.py $(BENCH_ARGS)
+
+.PHONY: vector-store-spanish-bench
+vector-store-spanish-bench:  ## Compare Spanish analyzers on Library documents and 30 curated queries, with real query embeddings and disposable indices.
+	GENAI_ENVIRONMENT=$${GENAI_ENVIRONMENT:-local} OPENSEARCH_URL=http://localhost:$${OPENSEARCH_PORT:-9200} python scripts/bench_vector_store_spanish.py
+
 # Q3/A4 load test: a THROWAWAY DynamoDB Local on its own port (table names
 # have no prefix, so never point these at the stack's 8002).
 LOADTEST_DYNAMO_PORT ?= 8012
@@ -248,7 +278,10 @@ test-e2e-simulation:  ## Run the simulator lifecycle/tick/dispatch e2e test agai
 test-unit-vector-store:  ## Run isolated Vector Store use-case tests (no Docker required).
 	GENAI_ENVIRONMENT=test API_V0_STR=/api/v0 python -m pytest \
 		tests/test_application/test_use_cases/test_vector_store_instances.py \
-		tests/test_application/test_use_cases/test_vector_store_knowledge_graph.py
+		tests/test_application/test_use_cases/test_vector_store_knowledge_graph.py \
+		tests/test_application/test_use_cases/test_build_vector_store_generation.py \
+		tests/test_application/test_use_cases/test_pin_configuration_vector_stores.py \
+		tests/test_application/test_use_cases/test_cleanup_vector_store_generations.py
 
 .PHONY: test-api-vector-store
 test-api-vector-store:  ## Run Vector Store HTTP API contract tests (no Docker required).
@@ -758,9 +791,9 @@ e2e-datasets-entities-parallel:  ## Run dataset upload and advanced entity/vecto
 		E2E_FULL_SUITE=1 \
 		E2E_TEST_FILES='e2e/datasets-real.spec.ts e2e/entities-advanced-real.spec.ts' \
 		API_SERVER_WORKERS=$(or $(E2E_LOCAL_API_WORKERS),4) \
-		CELERY_TEST_WORKER_CONCURRENCY=3 \
+		CELERY_TEST_WORKER_CONCURRENCY=$(or $(E2E_CELERY_CONCURRENCY),3) \
 		$(MAKE) e2e-observability \
-			LOCAL_DOCKER_TEST_WORKERS=5 \
+			LOCAL_DOCKER_TEST_WORKERS=$(or $(E2E_TEST_WORKERS),5) \
 			E2E_SKIP_BUILD=$(E2E_SKIP_BUILD)
 
 .PHONY: e2e-configuration-parallel
@@ -776,11 +809,11 @@ e2e-configuration-parallel:  ## Run validated configuration concurrency and depl
 		E2E_TEST_FILES='e2e/configuration-concurrency-real.spec.ts e2e/configuration-deploy-real.spec.ts e2e/configuration-graph-real.spec.ts' \
 		API_SERVER_WORKERS=$(or $(E2E_LOCAL_API_WORKERS),4) \
 		$(MAKE) e2e-observability \
-			LOCAL_DOCKER_TEST_WORKERS=5 \
+			LOCAL_DOCKER_TEST_WORKERS=$(or $(E2E_TEST_WORKERS),5) \
 			E2E_SKIP_BUILD=$(E2E_SKIP_BUILD)
 
 .PHONY: e2e-selected-real
-e2e-selected-real:  ## Run selected real E2E spec files serially with full local credentials/data seed. Vars: E2E_TEST_FILES(required), E2E_LOCAL_API_WORKERS(default 4), E2E_SKIP_BUILD
+e2e-selected-real:  ## Run selected real E2E spec files serially with full local credentials/data seed. Vars: E2E_TEST_FILES(required), E2E_LOCAL_API_WORKERS(default 4), E2E_TEST_WORKERS(default 5), E2E_CELERY_CONCURRENCY(default 3), E2E_SKIP_BUILD
 	@test -n "$(E2E_TEST_FILES)" || (echo "Set E2E_TEST_FILES to one or more e2e/*.spec.ts files." >&2; exit 1)
 	@set -euo pipefail; \
 	lock=/tmp/aria-e2e.lock; \
@@ -790,9 +823,9 @@ e2e-selected-real:  ## Run selected real E2E spec files serially with full local
 		E2E_FULL_SUITE=1 \
 		E2E_TEST_FILES='$(E2E_TEST_FILES)' \
 		API_SERVER_WORKERS=$(or $(E2E_LOCAL_API_WORKERS),4) \
-		CELERY_TEST_WORKER_CONCURRENCY=3 \
+		CELERY_TEST_WORKER_CONCURRENCY=$(or $(E2E_CELERY_CONCURRENCY),3) \
 		$(MAKE) e2e-observability \
-			LOCAL_DOCKER_TEST_WORKERS=5 \
+			LOCAL_DOCKER_TEST_WORKERS=$(or $(E2E_TEST_WORKERS),5) \
 			E2E_SKIP_BUILD=$(E2E_SKIP_BUILD)
 
 .PHONY: e2e-agent-local

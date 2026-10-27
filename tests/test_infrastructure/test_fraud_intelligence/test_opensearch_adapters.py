@@ -15,7 +15,10 @@ from src.application.ports.fraud_knowledge_port import (
 from src.application.ports.fraud_similarity_port import SimilarFraudCase
 from src.application.ports.fraud_taxonomy_port import SimilarFraudTaxonomy
 from src.application.ports.modus_operandi_port import SimilarModusOperandi
-from src.application.ports.vector_store_instance_port import VectorStoreInstance
+from src.application.ports.vector_store_generation_port import (
+    VectorStoreGeneration,
+    VectorStoreGenerationStatus,
+)
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
 )
@@ -30,44 +33,20 @@ from src.infrastructure.fraud_intelligence.opensearch.similar_fraud_case_adapter
 )
 
 
-class InMemoryVectorStoreInstanceRepository:
-    def __init__(self, instances: list[VectorStoreInstance]) -> None:
-        self._instances = {instance.id: instance for instance in instances}
+class InMemoryVectorStoreGenerationRepository:
+    def __init__(self, generations):
+        self.items = {(g.instance_id, g.generation): g for g in generations}
 
-    def create(self, instance, assets):
-        raise NotImplementedError
+    def get(self, instance_id, generation):
+        return self.items.get((instance_id, generation))
 
-    def list(self):
-        return list(self._instances.values())
-
-    def get(self, instance_id: str) -> VectorStoreInstance | None:
-        return self._instances.get(instance_id)
-
-    def update(self, instance):
-        raise NotImplementedError
-
-    def list_assets(self, instance_id: str):
-        raise NotImplementedError
-
-    def add_asset(self, asset):
-        raise NotImplementedError
-
-    def remove_asset(self, instance_id, relation_id) -> None:
-        raise NotImplementedError
+    def list(self, instance_id=None):
+        return sorted([g for g in self.items.values() if instance_id is None or g.instance_id == instance_id], key=lambda g: g.generation)
 
 
-def _promoted_instance(
-    instance_id: str = "vs-1", version: int = 1
-) -> VectorStoreInstance:
-    return VectorStoreInstance(
-        id=instance_id,
-        version=1,
-        name="Instancia",
-        description="",
-        created_at=datetime.now(UTC),
-        created_by="tester",
-        promoted_version=version,
-    )
+def _ready_generation(instance_id: str = "vs-1", version: int = 1):
+    return VectorStoreGeneration(instance_id=instance_id, generation=version,
+        status=VectorStoreGenerationStatus.READY, built_by="tester", created_at=datetime.now(UTC))
 
 
 class RecordingFraudKnowledgeSearchPort(FraudKnowledgeSearchPort):
@@ -112,7 +91,7 @@ def test_fraud_taxonomy_adapter_maps_search_result_and_scopes_the_call() -> None
     )
     use_case = SearchFraudKnowledgeUseCase(
         search_port,
-        InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=2)]),
+        InMemoryVectorStoreGenerationRepository([_ready_generation("vs-1", version=2)]),
     )
     adapter = OpenSearchFraudTaxonomyAdapter(use_case, "vs-1")
 
@@ -152,7 +131,7 @@ def test_fraud_taxonomy_adapter_fails_open_when_vector_store_not_promoted() -> N
         )
     )
     use_case = SearchFraudKnowledgeUseCase(
-        search_port, InMemoryVectorStoreInstanceRepository([])
+        search_port, InMemoryVectorStoreGenerationRepository([])
     )
     adapter = OpenSearchFraudTaxonomyAdapter(use_case, "vs-missing")
 
@@ -178,7 +157,7 @@ def test_modus_operandi_adapter_maps_search_result() -> None:
     )
     use_case = SearchFraudKnowledgeUseCase(
         search_port,
-        InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=1)]),
+        InMemoryVectorStoreGenerationRepository([_ready_generation("vs-1", version=1)]),
     )
     adapter = OpenSearchModusOperandiAdapter(use_case, "vs-1")
 
@@ -211,7 +190,7 @@ def test_modus_operandi_adapter_fails_open_when_vector_store_not_promoted() -> N
         )
     )
     use_case = SearchFraudKnowledgeUseCase(
-        search_port, InMemoryVectorStoreInstanceRepository([])
+        search_port, InMemoryVectorStoreGenerationRepository([])
     )
     adapter = OpenSearchModusOperandiAdapter(use_case, "vs-missing")
 
@@ -235,7 +214,7 @@ def test_similar_fraud_case_adapter_maps_search_result_with_blank_outcome() -> N
     )
     use_case = SearchFraudKnowledgeUseCase(
         search_port,
-        InMemoryVectorStoreInstanceRepository([_promoted_instance("vs-1", version=1)]),
+        InMemoryVectorStoreGenerationRepository([_ready_generation("vs-1", version=1)]),
     )
     adapter = OpenSearchSimilarFraudCaseAdapter(use_case, "vs-1")
 
@@ -268,7 +247,7 @@ def test_similar_fraud_case_adapter_fails_open_when_vector_store_not_promoted() 
         )
     )
     use_case = SearchFraudKnowledgeUseCase(
-        search_port, InMemoryVectorStoreInstanceRepository([])
+        search_port, InMemoryVectorStoreGenerationRepository([])
     )
     adapter = OpenSearchSimilarFraudCaseAdapter(use_case, "vs-missing")
 

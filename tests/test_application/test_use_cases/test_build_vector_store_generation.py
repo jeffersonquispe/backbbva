@@ -6,6 +6,7 @@ from threading import Event, Thread
 
 import pytest
 
+from src.application.errors import ConflictError
 from src.application.ports.embedding_port import EmbeddingResult, EmbeddingUnitOfWork
 from src.application.ports.embedding_unit_of_work_factory_port import (
     EmbeddingUnitOfWorkFactory,
@@ -21,6 +22,9 @@ from src.application.ports.monitoring_port import MonitoringPort
 from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.ports.similar_case_library_port import SimilarCaseLibraryEntry
 from src.application.ports.taxonomy_library_port import TaxonomyLibraryEntry
+from src.application.ports.vector_store_generation_port import (
+    VectorStoreGenerationStatus,
+)
 from src.application.ports.vector_store_instance_port import (
     KnowledgeAssetType,
     VectorStoreInstance,
@@ -36,12 +40,12 @@ from src.application.use_cases.fraud_knowledge.ingest_similar_case import (
 from src.application.use_cases.fraud_knowledge.ingest_taxonomia import (
     IngestTaxonomiaUseCase,
 )
+from src.application.use_cases.vector_store_instances.build_vector_store_generation import (
+    BuildVectorStoreGenerationUseCase,
+    EmptyVectorStoreInstanceError,
+)
 from src.application.use_cases.vector_store_instances.manage_vector_store_instance import (
     VectorStoreInstanceNotFoundError,
-)
-from src.application.use_cases.vector_store_instances.promote_vector_store_instance import (
-    EmptyVectorStoreInstanceError,
-    PromoteVectorStoreInstanceUseCase,
 )
 from src.domain.configurations.entities import (
     FlagType,
@@ -73,6 +77,12 @@ class InMemoryFraudKnowledgeRepository:
     def update(self, document: FraudKnowledgeDocument) -> FraudKnowledgeDocument:
         self._documents[document.id] = document
         return document
+
+    def delete_generation(self, instance_id, generation):
+        ids = [d.id for d in self.list(vector_store_id=instance_id, vector_store_version=generation)]
+        for doc_id in ids:
+            self.delete(doc_id)
+        return len(ids)
 
     def delete(self, document_id: uuid.UUID) -> None:
         self._documents.pop(document_id, None)
@@ -126,12 +136,35 @@ class PauseOnNthCreateRepository(InMemoryFraudKnowledgeRepository):
         return super().create(document)
 
 
+class InMemoryVectorStoreGenerationRepository:
+    def __init__(self):
+        self.items = {}
+
+    def create(self, record):
+        key = (record.instance_id, record.generation)
+        if key in self.items:
+            raise ConflictError("generation already exists")
+        self.items[key] = record
+        return record
+
+    def update(self, record):
+        self.items[record.instance_id, record.generation] = record
+        return record
+
+    def get(self, instance_id, generation):
+        return self.items.get((instance_id, generation))
+
+    def list(self, instance_id=None):
+        return sorted([g for g in self.items.values() if instance_id is None or g.instance_id == instance_id], key=lambda g: g.generation)
+
+
 class InMemoryVectorStoreInstanceRepository:
     def __init__(
         self, instance: VectorStoreInstance, assets: list[VectorStoreInstanceAsset]
     ) -> None:
         self._instance = instance
         self._assets = assets
+        self.generations = InMemoryVectorStoreGenerationRepository()
 
     def create(self, instance, assets):
         raise NotImplementedError
@@ -211,7 +244,6 @@ def _instance(promoted_version: int | None = None) -> VectorStoreInstance:
         description="",
         created_at=datetime.now(UTC),
         created_by="tester",
-        promoted_version=promoted_version,
     )
 
 
@@ -226,7 +258,7 @@ def _full_tree_use_case(
     embedding_factory: CountingEmbeddingUnitOfWorkFactory,
     fraud_repo: InMemoryFraudKnowledgeRepository | None = None,
 ) -> tuple[
-    PromoteVectorStoreInstanceUseCase,
+    BuildVectorStoreGenerationUseCase,
     InMemoryFraudKnowledgeRepository,
     InMemoryVectorStoreInstanceRepository,
 ]:
@@ -238,8 +270,9 @@ def _full_tree_use_case(
         monitoring=NullMonitoringPort(),
         embedding_model="fake-deployment",
     )
-    use_case = PromoteVectorStoreInstanceUseCase(
+    use_case = BuildVectorStoreGenerationUseCase(
         instances=instances,
+        generations=instances.generations,
         taxonomies=InMemoryLibrary({taxonomy.id: taxonomy}),
         modus_operandi=InMemoryLibrary({modus_operandi.id: modus_operandi}),
         flags=InMemoryLibrary({flag.id: flag}),
@@ -340,9 +373,9 @@ def test_promote_loads_full_tree_and_recycles_every_embedding() -> None:
 
     promoted = use_case.execute("vector-store-v1", actor="manager")
 
-    assert promoted.promoted_version == 1
-    assert promoted.promoted_by == "manager"
-    assert promoted.promoted_at is not None
+    assert promoted.generation.generation == 1
+    assert promoted.generation.built_by == "manager"
+    assert promoted.generation.ready_at is not None
     # Every asset already had a cached embedding - promotion must never call
     # the embedding API.
     assert embedding_factory.calls[0] == 0
@@ -362,31 +395,35 @@ def test_promote_loads_full_tree_and_recycles_every_embedding() -> None:
     assert mo_doc.library_id == "mo-1"
 
 
-def test_repromoting_deletes_previous_generation_after_loading_the_new_one() -> None:
+def test_rebuilding_identical_content_reuses_ready_generation():
     now = datetime.now(UTC)
     taxonomy, mo, flag, case, assets = _seed_full_tree(now)
-    embedding_factory = CountingEmbeddingUnitOfWorkFactory()
-    use_case, fraud_repo, instances = _full_tree_use_case(
-        instance=_instance(),
-        assets=assets,
-        taxonomy=taxonomy,
-        modus_operandi=mo,
-        flag=flag,
-        case=case,
-        embedding_factory=embedding_factory,
-    )
-    use_case.execute("vector-store-v1", actor="manager")
+    use_case, fraud_repo, instances = _full_tree_use_case(instance=_instance(), assets=assets,
+        taxonomy=taxonomy, modus_operandi=mo, flag=flag, case=case,
+        embedding_factory=CountingEmbeddingUnitOfWorkFactory())
+    first = use_case.execute("vector-store-v1", actor="manager")
+    second = use_case.execute("vector-store-v1", actor="manager")
+    assert second.generation == first.generation
+    assert second.built is False
+    assert len(instances.generations.list()) == 1
+    assert len(fraud_repo.list()) == 4
 
-    promoted_again = use_case.execute("vector-store-v1", actor="manager")
 
-    assert promoted_again.promoted_version == 2
-    assert (
-        fraud_repo.list(vector_store_id="vector-store-v1", vector_store_version=1) == []
-    )
-    assert (
-        len(fraud_repo.list(vector_store_id="vector-store-v1", vector_store_version=2))
-        == 4
-    )
+def test_editing_library_content_builds_new_generation_without_retiring_previous():
+    from dataclasses import replace
+    now = datetime.now(UTC)
+    taxonomy, mo, flag, case, assets = _seed_full_tree(now)
+    use_case, fraud_repo, instances = _full_tree_use_case(instance=_instance(), assets=assets,
+        taxonomy=taxonomy, modus_operandi=mo, flag=flag, case=case,
+        embedding_factory=CountingEmbeddingUnitOfWorkFactory())
+    first = use_case.execute("vector-store-v1", actor="manager")
+    use_case._taxonomies.items[taxonomy.id] = replace(taxonomy, name="Nueva taxonomía")
+    second = use_case.execute("vector-store-v1", actor="manager")
+    assert second.generation.generation == 2
+    assert second.generation.fingerprint != first.generation.fingerprint
+    assert len(fraud_repo.list(vector_store_version=1)) == 4
+    assert len(fraud_repo.list(vector_store_version=2)) == 4
+    assert instances.generations.get("vector-store-v1", 1).status == VectorStoreGenerationStatus.READY
 
 
 def test_repromotion_write_failure_keeps_previous_generation_and_rolls_back_partial_new_generation() -> None:
@@ -411,11 +448,13 @@ def test_repromotion_write_failure_keeps_previous_generation_and_rolls_back_part
 
     # Fail on the third write of the second promotion. The first two new
     # documents have already been persisted at this point.
+    from dataclasses import replace
+    use_case._taxonomies.items[taxonomy.id] = replace(taxonomy, name="Changed")
     fraud_repo._fail_on_create = fraud_repo._create_count + 3
     with pytest.raises(RuntimeError, match="injected OpenSearch write failure"):
         use_case.execute("vector-store-v1", actor="manager")
 
-    assert instances.get("vector-store-v1").promoted_version == 1
+    assert instances.generations.get("vector-store-v1", 1).status == VectorStoreGenerationStatus.READY
     assert fraud_repo.list(
         vector_store_id="vector-store-v1", vector_store_version=1
     ) == previous
@@ -451,10 +490,12 @@ def test_previous_generation_remains_available_while_next_generation_is_loading(
         except Exception as exc:  # noqa: BLE001 - forward worker-thread failures
             error.append(exc)
 
+    from dataclasses import replace
+    use_case._taxonomies.items[taxonomy.id] = replace(taxonomy, name="Changed")
     thread = Thread(target=repromote)
     thread.start()
     assert fraud_repo.paused.wait(timeout=10)
-    assert instances.get("vector-store-v1").promoted_version == 1
+    assert instances.generations.get("vector-store-v1", 1).status == VectorStoreGenerationStatus.READY
     assert fraud_repo.list(
         vector_store_id="vector-store-v1", vector_store_version=1
     ) == previous
@@ -466,7 +507,7 @@ def test_previous_generation_remains_available_while_next_generation_is_loading(
     thread.join(timeout=10)
     assert not thread.is_alive()
     assert error == []
-    assert instances.get("vector-store-v1").promoted_version == 2
+    assert instances.generations.get("vector-store-v1", 2).status == VectorStoreGenerationStatus.READY
 
 
 def test_promote_unknown_instance_raises() -> None:

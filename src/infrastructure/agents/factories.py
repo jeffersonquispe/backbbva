@@ -125,6 +125,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.optimization_
     DynamoRunFindingRepository,
     DynamoRunHypothesisRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_generation_repository import (
+    DynamoVectorStoreGenerationRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import (
     DynamoVectorStoreInstanceRepository,
 )
@@ -144,6 +147,7 @@ def get_agent_experiment_component_resolver() -> AgentExperimentComponentResolve
         configurations=DynamoConfigurationRepository(),
         library=DynamoModusOperandiLibraryRepository(),
         vector_stores=DynamoVectorStoreInstanceRepository(),
+        vector_store_generations=DynamoVectorStoreGenerationRepository(),
     )
 
 

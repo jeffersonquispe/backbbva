@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from src.application.ports.fraud_knowledge_port import DocumentType, SearchPipeline
 from src.application.ports.fraud_taxonomy_port import (
     FraudTaxonomyPort,
@@ -7,8 +9,10 @@ from src.application.ports.fraud_taxonomy_port import (
 )
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
-    VectorStoreNotPromotedError,
+    VectorStoreGenerationUnavailableError,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OpenSearchFraudTaxonomyAdapter(FraudTaxonomyPort):
@@ -25,10 +29,12 @@ class OpenSearchFraudTaxonomyAdapter(FraudTaxonomyPort):
         search_use_case: SearchFraudKnowledgeUseCase,
         vector_store_instance_id: str,
         pipeline: SearchPipeline = SearchPipeline.BALANCED,
+        vector_store_generation: int | None = None,
     ) -> None:
         self._search_use_case = search_use_case
         self._vector_store_instance_id = vector_store_instance_id
         self._pipeline = pipeline
+        self._vector_store_generation = vector_store_generation
 
     def find_similar(self, query: str, top_k: int = 5) -> list[SimilarFraudTaxonomy]:
         try:
@@ -36,12 +42,14 @@ class OpenSearchFraudTaxonomyAdapter(FraudTaxonomyPort):
                 query,
                 pipeline=self._pipeline,
                 vector_store_id=self._vector_store_instance_id,
+                vector_store_generation=self._vector_store_generation,
                 document_type=DocumentType.TAXONOMIA,
                 top_k=top_k,
             )
-        except VectorStoreNotPromotedError:
-            # The segment's config points at a vector store that was never
-            # promoted (or was un-promoted) - fail open with no results
+        except VectorStoreGenerationUnavailableError as error:
+            logger.warning("Vector store search skipped: %s", error)
+            # The segment's pinned generation is not READY (retired, or the
+            # row predates generations and nothing was built) - fail open
             # rather than crashing the whole classification/detector step
             # over a knowledge-base configuration issue.
             return []

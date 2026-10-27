@@ -729,6 +729,21 @@ VECTOR_STORE_INSTANCE_ASSETS_TABLE = {
 }
 
 
+# One row per immutable OpenSearch generation of a vector-store instance.
+VECTOR_STORE_GENERATIONS_TABLE = {
+    "TableName": "vector_store_generations",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "instance_id", "KeyType": "HASH"},
+        {"AttributeName": "generation", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "instance_id", "AttributeType": "S"},
+        {"AttributeName": "generation", "AttributeType": "N"},
+    ],
+}
+
+
 RESOLUTION_METHOD_CATALOG_TABLE = {
     "TableName": "resolution_method_catalog",
     "BillingMode": "PAY_PER_REQUEST",

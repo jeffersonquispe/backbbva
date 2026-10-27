@@ -16,7 +16,7 @@ from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
 
 
 class WorkflowVectorStoreRetriever:
-    """Adapts promoted-store search to the delegated-research port."""
+    """Adapts pinned-generation search to the delegated-research port."""
 
     _DOCUMENT_TYPES = {
         "taxonomy": DocumentType.TAXONOMIA,
@@ -29,10 +29,14 @@ class WorkflowVectorStoreRetriever:
     }
 
     def __init__(
-        self, search: SearchFraudKnowledgeUseCase, vector_store_id: str
+        self,
+        search: SearchFraudKnowledgeUseCase,
+        vector_store_id: str,
+        vector_store_generation: int | None = None,
     ) -> None:
         self._search = search
         self._vector_store_id = vector_store_id
+        self._vector_store_generation = vector_store_generation
 
     def search(
         self, query: str, *, asset_type: str, top_k: int
@@ -44,6 +48,7 @@ class WorkflowVectorStoreRetriever:
             query,
             pipeline=SearchPipeline.BALANCED,
             vector_store_id=self._vector_store_id,
+            vector_store_generation=self._vector_store_generation,
             document_type=document_type,
             top_k=top_k,
         )

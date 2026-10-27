@@ -17,6 +17,7 @@ from src.application.use_cases.configurations.activate_configuration import (
     ConfigurationActivationConflictError,
     ConfigurationNotFoundError,
     ConfigurationNotTestedError,
+    ConfigurationVectorStoreUnavailableError,
 )
 from src.application.use_cases.configurations.test_configuration import (
     _diff,
@@ -189,12 +190,16 @@ def approve_deploy_request(
             deploy_request.target_configuration_id,
             deploy_request.target_version,
             expected_current=current_key,
+            approved_deploy_request=True,
         )
     except ConfigurationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ConfigurationNotTestedError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except ConfigurationActivationConflictError as exc:
+    except (
+        ConfigurationActivationConflictError,
+        ConfigurationVectorStoreUnavailableError,
+    ) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception:
         logger.exception("Unexpected error activating configuration for deployment")

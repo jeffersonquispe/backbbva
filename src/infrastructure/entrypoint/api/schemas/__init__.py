@@ -222,9 +222,11 @@ from src.infrastructure.entrypoint.api.schemas.simulation import (
 )
 from src.infrastructure.entrypoint.api.schemas.vector_stores import (
     AddVectorStoreDocumentRequest,
+    BuildVectorStoreGenerationResponse,
     CreateVectorStoreInstanceRequest,
     UpdateVectorStoreInstanceRequest,
     VectorStoreDocumentSchema,
+    VectorStoreGenerationSchema,
     VectorStoreInstanceSchema,
 )
 from src.infrastructure.entrypoint.api.schemas.watchlists import (
@@ -243,6 +245,7 @@ from src.infrastructure.entrypoint.api.schemas.watchlists import (
 
 __all__ = [
     "AddVectorStoreDocumentRequest",
+    "BuildVectorStoreGenerationResponse",
     "AddWatchlistElementsRequest",
     "AddWatchlistElementsResponse",
     "AdversarialConfigSchema",
@@ -435,6 +438,7 @@ __all__ = [
     "UploadFraudLabelReviewImportResponse",
     "VariableSchema",
     "VectorStoreDocumentSchema",
+    "VectorStoreGenerationSchema",
     "VectorStoreInstanceSchema",
     "VectorStoreResearchConfigSchema",
     "VersionEventResponse",

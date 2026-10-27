@@ -23,6 +23,10 @@ from src.domain.configurations.entities import (
     SegmentSettings,
     default_segments,
 )
+from src.domain.fraud_knowledge.vector_store_generations import (
+    VectorStorePin,
+    iter_vector_store_research,
+)
 from src.infrastructure.persistence.database.dynamodb.client import (
     get_dynamodb_resource,
 )
@@ -258,6 +262,28 @@ class DynamoConfigurationRepository(ConfigurationRepository):
                 break
             kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
         return [_from_item(item) for item in items]
+
+    def list_vector_store_pins(self) -> dict[tuple[str, int], set[VectorStorePin]]:
+        # One scan of the segments table instead of hydrating every version;
+        # the segment hydrator keeps legacy rows' vector-store selection.
+        pins: dict[tuple[str, int], set[VectorStorePin]] = defaultdict(set)
+        kwargs: dict[str, Any] = {}
+        while True:
+            response = self._segments.scan(**kwargs)
+            for item in response.get("Items", []):
+                configuration_id, _, version = item["config_key"].rpartition("#")
+                segment = _segment_settings_from_item(item)
+                key = (configuration_id, int(version))
+                pins[key] |= {
+                    VectorStorePin(
+                        research.vector_store_instance_id or "",
+                        research.vector_store_generation,
+                    )
+                    for _, _, research in iter_vector_store_research({"_": segment})
+                }
+            if "LastEvaluatedKey" not in response:
+                return dict(pins)
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
 
     def activate(
         self,

@@ -15,7 +15,10 @@ from src.application.ports.fraud_knowledge_relations_port import (
     FraudKnowledgeRelationsPort,
     RelatedDocumentsResult,
 )
-from src.application.ports.vector_store_instance_port import VectorStoreInstance
+from src.application.ports.vector_store_generation_port import (
+    VectorStoreGeneration,
+    VectorStoreGenerationStatus,
+)
 from src.application.use_cases.fraud_knowledge.get_related_fraud_knowledge import (
     GetRelatedFraudKnowledgeUseCase,
 )
@@ -24,7 +27,7 @@ from src.application.use_cases.fraud_knowledge.list_fraud_knowledge_documents im
 )
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
     SearchFraudKnowledgeUseCase,
-    VectorStoreNotPromotedError,
+    VectorStoreGenerationUnavailableError,
 )
 
 
@@ -59,44 +62,20 @@ class InMemoryFraudKnowledgeRepository:
         return results
 
 
-class InMemoryVectorStoreInstanceRepository:
-    def __init__(self, instances: list[VectorStoreInstance]) -> None:
-        self._instances = {instance.id: instance for instance in instances}
+class InMemoryVectorStoreGenerationRepository:
+    def __init__(self, generations):
+        self.items = {(g.instance_id, g.generation): g for g in generations}
 
-    def create(self, instance, assets):
-        raise NotImplementedError
+    def get(self, instance_id, generation):
+        return self.items.get((instance_id, generation))
 
-    def list(self):
-        return list(self._instances.values())
-
-    def get(self, instance_id: str) -> VectorStoreInstance | None:
-        return self._instances.get(instance_id)
-
-    def update(self, instance):
-        raise NotImplementedError
-
-    def list_assets(self, instance_id: str):
-        raise NotImplementedError
-
-    def add_asset(self, asset):
-        raise NotImplementedError
-
-    def remove_asset(self, instance_id, relation_id) -> None:
-        raise NotImplementedError
+    def list(self, instance_id=None):
+        return sorted([g for g in self.items.values() if instance_id is None or g.instance_id == instance_id], key=lambda g: g.generation)
 
 
-def _promoted_instance(
-    instance_id: str = "vs-1", version: int = 1
-) -> VectorStoreInstance:
-    return VectorStoreInstance(
-        id=instance_id,
-        version=1,
-        name="Instancia",
-        description="",
-        created_at=datetime.now(UTC),
-        created_by="tester",
-        promoted_version=version,
-    )
+def _ready_generation(instance_id: str = "vs-1", version: int = 1):
+    return VectorStoreGeneration(instance_id=instance_id, generation=version,
+        status=VectorStoreGenerationStatus.READY, built_by="tester", created_at=datetime.now(UTC))
 
 
 class RecordingFraudKnowledgeSearchPort(FraudKnowledgeSearchPort):
@@ -167,8 +146,8 @@ def test_search_fraud_knowledge_resolves_current_version_and_delegates_to_search
     search_port = RecordingFraudKnowledgeSearchPort(
         FraudKnowledgeSearchResult(document=taxonomia, score=0.87)
     )
-    instances = InMemoryVectorStoreInstanceRepository(
-        [_promoted_instance("vs-1", version=3)]
+    instances = InMemoryVectorStoreGenerationRepository(
+        [_ready_generation("vs-1", version=3)]
     )
 
     results = SearchFraudKnowledgeUseCase(search_port, instances).execute(
@@ -196,7 +175,7 @@ def test_search_fraud_knowledge_rejects_unpromoted_vector_store() -> None:
     search_port = RecordingFraudKnowledgeSearchPort(
         FraudKnowledgeSearchResult(document=_taxonomia(), score=0.5)
     )
-    instances = InMemoryVectorStoreInstanceRepository([])
+    instances = InMemoryVectorStoreGenerationRepository([])
 
     try:
         SearchFraudKnowledgeUseCase(search_port, instances).execute(
@@ -205,10 +184,10 @@ def test_search_fraud_knowledge_rejects_unpromoted_vector_store() -> None:
             vector_store_id="vs-missing",
             document_type=DocumentType.TAXONOMIA,
         )
-    except VectorStoreNotPromotedError:
+    except VectorStoreGenerationUnavailableError:
         pass
     else:
-        raise AssertionError("expected VectorStoreNotPromotedError")
+        raise AssertionError("expected VectorStoreGenerationUnavailableError")
     assert search_port.calls == []
 
 

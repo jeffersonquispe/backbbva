@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import uuid4
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
@@ -100,8 +101,8 @@ class BuildCandidateInstance:
     def __init__(self, candidate: VectorStoreInstance):
         self.candidate = candidate
 
-    def execute(self, instance_id: str, *, actor: str) -> VectorStoreInstance:
-        return self.candidate
+    def execute(self, instance_id: str, *, actor: str):
+        return SimpleNamespace(generation=SimpleNamespace(generation=1))
 
 
 class SearchCandidate:
@@ -111,6 +112,7 @@ class SearchCandidate:
         *,
         pipeline: SearchPipeline,
         vector_store_id: str,
+        vector_store_generation: int,
         document_type: DocumentType,
         top_k: int,
     ) -> list[str]:
@@ -219,10 +221,10 @@ def test_vector_store_evaluator_builds_isolated_candidate_and_searches_authorize
 ):
     now = datetime.now(UTC)
     source = VectorStoreInstance(
-        "source", 1, "source", "source", now, "test", promoted_version=1
+        "source", 1, "source", "source", now, "test"
     )
     candidate = VectorStoreInstance(
-        "candidate", 2, "candidate", "candidate", now, "agent", promoted_version=1
+        "candidate", 2, "candidate", "candidate", now, "agent"
     )
     asset = VectorStoreInstanceAsset(
         vector_store_instance_id="source",

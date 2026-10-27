@@ -5,6 +5,7 @@ from typing import Protocol
 from src.domain.configurations.entities import (
     ConfigurationRecord,
 )
+from src.domain.fraud_knowledge.vector_store_generations import VectorStorePin
 
 
 class ConfigurationRepository(Protocol):
@@ -31,6 +32,13 @@ class ConfigurationRepository(Protocol):
     # Summary rows: identity, name, flags, timestamps and parent_ref only.
     # general/infra/test/segments are defaults; use get() for the full record.
     def list_all_versions(self) -> list[ConfigurationRecord]: ...
+
+    # Vector-store pins of every saved version, keyed by (configuration_id,
+    # version) - list_all_versions() rows carry no segments, so they cannot
+    # answer which generations a version searches.
+    def list_vector_store_pins(
+        self,
+    ) -> dict[tuple[str, int], set[VectorStorePin]]: ...
 
     def activate(
         self,

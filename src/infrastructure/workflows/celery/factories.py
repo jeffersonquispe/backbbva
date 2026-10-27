@@ -18,7 +18,13 @@ from src.application.ports.assistant_optimizer_settings_port import (
     AssistantOptimizerSettingsPort,
 )
 from src.application.ports.async_operation_port import AsyncOperationRepository
+from src.application.ports.configuration_deploy_request_port import (
+    ConfigurationDeployRequestRepository,
+)
 from src.application.ports.configuration_port import ConfigurationRepository
+from src.application.ports.fraud_knowledge_repository_port import (
+    FraudKnowledgeRepository,
+)
 from src.application.ports.metrics_rollup_port import MetricsRollupRepository
 from src.application.ports.model_port import ModelRepository
 from src.application.ports.modus_operandi_library_port import (
@@ -32,6 +38,9 @@ from src.application.ports.resource_reservation_port import (
     ResourceReservationRepository,
 )
 from src.application.ports.test_run_port import TestRunRepository
+from src.application.ports.vector_store_generation_port import (
+    VectorStoreGenerationRepository,
+)
 from src.application.ports.vector_store_instance_port import (
     VectorStoreInstanceRepository,
 )
@@ -182,6 +191,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.assistant_opt
 from src.infrastructure.persistence.database.dynamodb.repositories.async_operation_repository import (
     DynamoAsyncOperationRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.configuration_deploy_request_repository import (
+    DynamoConfigurationDeployRequestRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
     DynamoConfigurationRepository,
 )
@@ -206,6 +218,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.resource_rese
 from src.infrastructure.persistence.database.dynamodb.repositories.test_run_repository import (
     DynamoTestRunRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_generation_repository import (
+    DynamoVectorStoreGenerationRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import (
     DynamoVectorStoreInstanceRepository,
 )
@@ -222,6 +237,9 @@ from src.infrastructure.persistence.object_storage.minio import (
 )
 from src.infrastructure.persistence.vector_store.opensearch.client import (
     get_opensearch_client,
+)
+from src.infrastructure.persistence.vector_store.opensearch.repository import (
+    OpenSearchFraudKnowledgeRepository,
 )
 from src.infrastructure.persistence.vector_store.opensearch.search import (
     OpenSearchFraudKnowledgeSearchAdapter,
@@ -389,6 +407,23 @@ def get_vector_store_instance_repository() -> VectorStoreInstanceRepository:
 
 
 @lru_cache
+def get_vector_store_generation_repository() -> VectorStoreGenerationRepository:
+    return DynamoVectorStoreGenerationRepository()
+
+
+@lru_cache
+def get_fraud_knowledge_repository() -> FraudKnowledgeRepository:
+    return OpenSearchFraudKnowledgeRepository(get_opensearch_client())
+
+
+@lru_cache
+def get_configuration_deploy_request_repository() -> (
+    ConfigurationDeployRequestRepository
+):
+    return DynamoConfigurationDeployRequestRepository()
+
+
+@lru_cache
 def get_agent_experiment_component_resolver():
     return StoredAgentExperimentComponentResolver(
         models=get_model_repository(),
@@ -396,6 +431,7 @@ def get_agent_experiment_component_resolver():
         configurations=get_configuration_repository(),
         library=get_modus_operandi_library_repository(),
         vector_stores=get_vector_store_instance_repository(),
+        vector_store_generations=get_vector_store_generation_repository(),
     )
 
 
@@ -412,7 +448,7 @@ def get_fraud_knowledge_search_port() -> OpenSearchFraudKnowledgeSearchAdapter:
 @lru_cache
 def get_search_fraud_knowledge_use_case() -> SearchFraudKnowledgeUseCase:
     return SearchFraudKnowledgeUseCase(
-        get_fraud_knowledge_search_port(), get_vector_store_instance_repository()
+        get_fraud_knowledge_search_port(), get_vector_store_generation_repository(), get_monitoring()
     )
 
 
@@ -434,33 +470,42 @@ def get_resolve_analyst_playbook_use_case() -> ResolveAnalystPlaybookUseCase:
 def get_similar_fraud_case_port(
     vector_store_instance_id: str | None = None,
     library_revision_pin: dict[str, str] | None = None,
+    vector_store_generation: int | None = None,
 ) -> MockSimilarFraudCaseAdapter | OpenSearchSimilarFraudCaseAdapter:
     if vector_store_instance_id is None:
         return MockSimilarFraudCaseAdapter()
     return OpenSearchSimilarFraudCaseAdapter(
-        get_search_fraud_knowledge_use_case(), vector_store_instance_id
+        get_search_fraud_knowledge_use_case(),
+        vector_store_instance_id,
+        vector_store_generation=vector_store_generation,
     )
 
 
 @lru_cache
 def get_fraud_taxonomy_port(
     vector_store_instance_id: str | None = None,
+    vector_store_generation: int | None = None,
 ) -> MockFraudTaxonomyAdapter | OpenSearchFraudTaxonomyAdapter:
     if vector_store_instance_id is None:
         return MockFraudTaxonomyAdapter()
     return OpenSearchFraudTaxonomyAdapter(
-        get_search_fraud_knowledge_use_case(), vector_store_instance_id
+        get_search_fraud_knowledge_use_case(),
+        vector_store_instance_id,
+        vector_store_generation=vector_store_generation,
     )
 
 
 @lru_cache
 def get_modus_operandi_port(
     vector_store_instance_id: str | None = None,
+    vector_store_generation: int | None = None,
 ) -> MockModusOperandiAdapter | OpenSearchModusOperandiAdapter:
     if vector_store_instance_id is None:
         return MockModusOperandiAdapter()
     return OpenSearchModusOperandiAdapter(
-        get_search_fraud_knowledge_use_case(), vector_store_instance_id
+        get_search_fraud_knowledge_use_case(),
+        vector_store_instance_id,
+        vector_store_generation=vector_store_generation,
     )
 
 
@@ -653,6 +698,7 @@ def get_analyst_review_alert_use_case(
     vector_store_instance_id: str | None = None,
     library_revision_pin: dict[str, str] | None = None,
     handling_prompt: str = "",
+    vector_store_generation: int | None = None,
 ) -> AnalystReviewAlertUseCase:
     return AnalystReviewAlertUseCase(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
@@ -665,6 +711,7 @@ def get_analyst_review_alert_use_case(
         workflow_execution_id=workflow_execution_id,
         step_id=step_id,
         vector_store_instance_id=vector_store_instance_id,
+        vector_store_generation=vector_store_generation,
         library_revision_pin=library_revision_pin,
         handling_prompt=handling_prompt,
     )

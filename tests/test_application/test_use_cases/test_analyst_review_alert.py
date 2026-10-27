@@ -102,7 +102,7 @@ class InMemoryOperationsCapacityPort(OperationsCapacityPort):
 class NullResolveAnalystPlaybookUseCase:
     """No modus operandi close to the alert has a playbook."""
 
-    def execute(self, query, *, vector_store_instance_id):
+    def execute(self, query, *, vector_store_instance_id, vector_store_generation=None):
         return None
 
 
@@ -111,7 +111,7 @@ class RecordingResolveAnalystPlaybookUseCase:
         self._resolved = resolved
         self.calls: list[dict] = []
 
-    def execute(self, query, *, vector_store_instance_id):
+    def execute(self, query, *, vector_store_instance_id, vector_store_generation=None):
         self.calls.append(
             {"query": query, "vector_store_instance_id": vector_store_instance_id}
         )

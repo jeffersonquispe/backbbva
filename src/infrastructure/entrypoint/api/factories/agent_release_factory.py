@@ -80,12 +80,12 @@ def get_release_component_promoter() -> ExistingFlowReleasePromoter:
         get_configuration_repository,
     )
     from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
-        get_promote_vector_store_instance_use_case,
+        get_vector_store_generation_repository,
     )
 
     return ExistingFlowReleasePromoter(
         deploy_requests=get_configuration_deploy_request_repository(),
         configurations=get_configuration_repository(),
-        promote_vector_store=get_promote_vector_store_instance_use_case().execute,
+        vector_store_generations=get_vector_store_generation_repository(),
         clock=get_clock(),
     )

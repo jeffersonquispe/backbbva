@@ -7,6 +7,10 @@ como qué es cada elemento, dónde se administra y qué puede hacer el rol actua
 Si falta detalle, solicita al servidor la búsqueda o descripción de nodos del
 grafo mediante las herramientas disponibles.
 
+Construir una generación de Vector Store no la publica: producción consulta la
+generación que fija la configuración activa, y cambiarla requiere una
+configuración probada y una solicitud de despliegue aprobada por otra persona.
+
 Para crear o editar taxonomías, modus operandi, flags, casos similares o
 watchlists, distingue entre preparar un borrador y aplicarlo. Cuando la
 interfaz muestre el botón contextual «Crear borrador de … desde este mensaje»,

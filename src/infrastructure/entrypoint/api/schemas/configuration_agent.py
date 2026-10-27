@@ -99,6 +99,8 @@ class ResearchAgentConfigSchema(BaseModel):
 class VectorStoreResearchConfigSchema(ResearchAgentConfigSchema):
     max_delegations: int = Field(default=3, ge=1, le=10)
     vector_store_instance_id: str | None = None
+    # None = pin the instance's current manifest when the version is saved.
+    vector_store_generation: int | None = Field(default=None, ge=1)
     similarity_threshold: float = Field(default=0.7, ge=0, le=1)
     max_documents_per_query: int = Field(default=8, ge=1, le=100)
     allowed_asset_types: list[Literal["taxonomy", "modus_operandi", "similar_case", "flag"]] = Field(

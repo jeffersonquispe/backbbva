@@ -136,6 +136,29 @@ class OpenSearchFraudKnowledgeRepository:
         else:
             record_audit("opensearch.delete", FRAUD_KNOWLEDGE_INDEX, str(document_id))
 
+    def delete_generation(self, vector_store_id: str, vector_store_version: int) -> int:
+        response = self._client.delete_by_query(
+            index=FRAUD_KNOWLEDGE_INDEX,
+            body={
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {"term": {"vector_store_id": vector_store_id}},
+                            {"term": {"vector_store_version": vector_store_version}},
+                        ]
+                    }
+                }
+            },
+            params={"refresh": "true", "conflicts": "proceed"},
+        )
+        deleted = int(response.get("deleted", 0))
+        record_audit(
+            "opensearch.delete_generation",
+            FRAUD_KNOWLEDGE_INDEX,
+            f"{vector_store_id}@{vector_store_version}",
+        )
+        return deleted
+
     def list(
         self,
         document_type: DocumentType | None = None,

@@ -54,15 +54,20 @@ class DynamoAgentSessionRepository:
         return [_from_item(item) for item in result.get("Items", [])]
 
     def list_by_status(
-        self, status: AgentSessionStatus, limit: int = 50
+        self, status: AgentSessionStatus, limit: int | None = 50
     ) -> list[AgentSession]:
-        result = self._table.query(
-            IndexName="StatusIdx",
-            KeyConditionExpression=Key("status").eq(status.value),
-            ScanIndexForward=True,
-            Limit=limit,
-        )
-        return [_from_item(item) for item in result.get("Items", [])]
+        items = []
+        kwargs = {"IndexName": "StatusIdx", "KeyConditionExpression": Key("status").eq(status.value), "ScanIndexForward": True}
+        while True:
+            if limit is not None:
+                kwargs["Limit"] = max(1, limit - len(items))
+            response = self._table.query(**kwargs)
+            items.extend(response.get("Items", []))
+            cursor = response.get("LastEvaluatedKey")
+            if not cursor or (limit is not None and len(items) >= limit):
+                break
+            kwargs["ExclusiveStartKey"] = cursor
+        return [_from_item(item) for item in items]
 
     def update(self, session: AgentSession, expected_rev: int) -> AgentSession:
         item = _to_item(session)

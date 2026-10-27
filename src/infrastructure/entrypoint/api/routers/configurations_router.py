@@ -4,11 +4,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from src.application.errors import ConflictError, NotFoundError, ValidationError
 from src.application.use_cases.configurations.activate_configuration import (
     ActivateConfigurationUseCase,
     ConfigurationActivationConflictError,
     ConfigurationNotFoundError,
     ConfigurationNotTestedError,
+    ConfigurationVectorStoreUnavailableError,
+    VectorStorePublicationRequiresApprovalError,
 )
 from src.application.use_cases.configurations.create_configuration import (
     ConfigurationVersionConflictError,
@@ -103,6 +106,18 @@ def create_configuration(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(exc)
         ) from exc
+    except ConflictError as exc:
+        # A selected vector store is building right now, or an explicit
+        # generation pin is no longer READY (failed or retired).
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+    except (ValidationError, NotFoundError) as exc:
+        # The selected vector store has no buildable manifest, or the
+        # pinned generation is not READY.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     return to_detail_response(record)
 
 
@@ -189,6 +204,11 @@ def activate_configuration(
         )
     except ConfigurationNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except (ConfigurationNotTestedError, ConfigurationActivationConflictError) as exc:
+    except (
+        ConfigurationNotTestedError,
+        ConfigurationActivationConflictError,
+        ConfigurationVectorStoreUnavailableError,
+        VectorStorePublicationRequiresApprovalError,
+    ) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return to_detail_response(record)

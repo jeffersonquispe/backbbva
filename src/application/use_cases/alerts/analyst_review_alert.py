@@ -131,6 +131,7 @@ class AnalystReviewAlertUseCase:
         # from the active segment, not stable adapter state.
         vector_store_instance_id: str | None = None,
         library_revision_pin: dict[str, str] | None = None,
+        vector_store_generation: int | None = None,
         handling_prompt: str = "",
     ) -> None:
         self._llm_factory = llm_unit_of_work_factory
@@ -143,6 +144,7 @@ class AnalystReviewAlertUseCase:
         self._workflow_execution_id = workflow_execution_id
         self._step_id = step_id
         self._vector_store_instance_id = vector_store_instance_id
+        self._vector_store_generation = vector_store_generation
         self._library_revision_pin = library_revision_pin
         self._handling_prompt = handling_prompt
 
@@ -163,6 +165,7 @@ class AnalystReviewAlertUseCase:
         self._report_progress("resolving_modus_operandi_playbook")
         playbook_kwargs: dict[str, Any] = {
             "vector_store_instance_id": self._vector_store_instance_id,
+            "vector_store_generation": self._vector_store_generation,
         }
         if self._library_revision_pin is not None:
             playbook_kwargs["library_revision_pin"] = self._library_revision_pin

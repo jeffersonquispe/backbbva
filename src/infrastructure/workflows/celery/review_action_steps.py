@@ -38,6 +38,7 @@ from src.infrastructure.workflows.celery.factories import (
     get_route_alert_resolution_use_case,
 )
 from src.infrastructure.workflows.celery.step_context import (
+    _optimizer_vector_store_pin,
     _step_overrides,
     _step_reporting_ids,
 )
@@ -55,11 +56,13 @@ def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
         classification_vector_store = (
             segment.agent.classification.delegated_research.vector_store
         )
-        segment_kwargs["vector_store_instance_id"] = (
-            classification_vector_store.vector_store_instance_id
-            if classification_vector_store.enabled
-            else None
-        )
+        if classification_vector_store.enabled:
+            segment_kwargs["vector_store_instance_id"] = (
+                classification_vector_store.vector_store_instance_id
+            )
+            segment_kwargs["vector_store_generation"] = (
+                classification_vector_store.vector_store_generation
+            )
     workflow_input = context.get("input") or {}
     component_pins = workflow_input.get("optimizer_component_pins") or {}
     if workflow_input.get("origin") == AlertOrigin.OPTIMIZER_EVALUATION.value:
@@ -69,9 +72,10 @@ def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
             raise ValueError("OPTIMIZER_KNOWLEDGE_PINS_REQUIRED")
         segment_kwargs["library_revision_pin"] = library_pin
         if segment is not None and classification_vector_store.enabled:
-            segment_kwargs["vector_store_instance_id"] = vector_store_pin.get(
-                "entity_id"
-            )
+            (
+                segment_kwargs["vector_store_instance_id"],
+                segment_kwargs["vector_store_generation"],
+            ) = _optimizer_vector_store_pin(vector_store_pin)
     use_case = get_analyst_review_alert_use_case(
         status_reporter=context.get("status_reporter"),
         workflow_execution_id=workflow_execution_id,

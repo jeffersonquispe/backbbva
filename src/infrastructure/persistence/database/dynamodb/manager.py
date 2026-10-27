@@ -126,6 +126,7 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     TEST_RUNS_TABLE,
     USERS_TABLE,
     VARIABLE_CATALOG_TABLE,
+    VECTOR_STORE_GENERATIONS_TABLE,
     VECTOR_STORE_INSTANCE_ASSETS_TABLE,
     VECTOR_STORE_INSTANCES_TABLE,
     WATCHLIST_ELEMENTS_TABLE,
@@ -452,6 +453,7 @@ def ensure_all_tables() -> None:
     create_table(LIBRARY_SIMILAR_CASES_TABLE)
     create_table(VECTOR_STORE_INSTANCES_TABLE)
     create_table(VECTOR_STORE_INSTANCE_ASSETS_TABLE)
+    create_table(VECTOR_STORE_GENERATIONS_TABLE)
     create_table(WATCHLIST_TABLE)
     create_table(WATCHLIST_ELEMENTS_TABLE)
 

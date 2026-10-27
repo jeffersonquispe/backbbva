@@ -25,6 +25,7 @@ from src.application.use_cases.test_runs.duration_stats import (
     workflow_duration,
 )
 from src.application.use_cases.test_runs.token_usage import sum_step_tokens
+from src.domain.alerts.entities import AdversarialDecision
 from src.domain.test_runs.entities import TestRunStatus
 from src.domain.workflows.entities import (
     WorkflowStatus,
@@ -154,6 +155,15 @@ class GetTestRunUseCase:
 def _final_classification_output(
     steps: list[WorkflowStepExecutionRecord],
 ) -> dict | None:
+    reviews = [s for s in steps if s.step_name == "detector_adversarial" and s.output]
+    if reviews:
+        review = max(reviews, key=lambda s: (s.attempt, s.created_at)).output or {}
+        if not review.get("requires_classification_feedback"):
+            decision = review.get("decision")
+            if decision == AdversarialDecision.PASS:
+                return {"is_fraud": "not_fraud"}
+            if decision == AdversarialDecision.SCALE_TO_ANALYST:
+                return {"is_fraud": "unknown"}
     # A case may retry "classification" several times (adversarial
     # feedback loop, see AlertReviewWorkflowRunner._run_adversarial_review)
     # - each attempt is its own step record with the same step_name. Only

@@ -15,6 +15,9 @@ from src.application.runtime_defaults import (
     DEFAULT_ID_GENERATOR,
     resolve_clock,
 )
+from src.application.use_cases.vector_store_instances.pin_configuration_vector_stores import (
+    PinConfigurationVectorStoresUseCase,
+)
 from src.domain.configurations.entities import (
     ConfigurationRecord,
     ConfigurationRef,
@@ -139,11 +142,13 @@ class CreateConfigurationUseCase:
         clock: Clock | None = None,
         id_generator: IdGenerator | None = None,
         schema_repository: AlertSchemaRepository | None = None,
+        vector_store_pins: PinConfigurationVectorStoresUseCase | None = None,
     ) -> None:
         self._configurations = configuration_repository
         self._clock = resolve_clock(clock)
         self._id_generator = id_generator or DEFAULT_ID_GENERATOR
         self._schemas = schema_repository
+        self._vector_store_pins = vector_store_pins
 
     def execute(self, input: CreateConfigurationInput) -> ConfigurationRecord:
         now = self._clock.now()
@@ -181,6 +186,13 @@ class CreateConfigurationUseCase:
                         "Parent configuration version does not exist"
                     )
 
+        segments = (
+            self._vector_store_pins.execute(
+                input.segments, actor=input.created_by or "Sistema"
+            )
+            if self._vector_store_pins is not None
+            else input.segments
+        )
         record = ConfigurationRecord(
             configuration_id=configuration_id,
             version=version,
@@ -200,7 +212,7 @@ class CreateConfigurationUseCase:
                 else None
             ),
             parent_ref=parent_ref,
-            segments=input.segments,
+            segments=segments,
         )
         try:
             return self._configurations.create(record)

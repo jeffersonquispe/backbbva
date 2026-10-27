@@ -32,6 +32,7 @@ from src.infrastructure.workflows.celery.history_research import _history_rounds
 from src.infrastructure.workflows.celery.step_context import (
     _alert_payload,
     _evaluation_labels,
+    _optimizer_vector_store_pin,
     _rubric_prompt_context,
     _step_overrides,
     _step_reporting_ids,
@@ -63,11 +64,13 @@ def _segment_tool_kwargs(cfg: AgentToolsConfig, context: dict[str, Any]) -> dict
     vector_store = cfg.delegated_research.vector_store
     workflow_input = context.get("input") or {}
     if workflow_input.get("origin") == AlertOrigin.OPTIMIZER_EVALUATION.value:
-        pin = (workflow_input.get("optimizer_component_pins") or {}).get("vector_store")
-        if not isinstance(pin, dict) or not isinstance(pin.get("entity_id"), str):
-            raise ValueError("OPTIMIZER_VECTOR_STORE_PIN_REQUIRED")
+        instance_id, generation = _optimizer_vector_store_pin(
+            (workflow_input.get("optimizer_component_pins") or {}).get("vector_store")
+        )
         vector_store = dataclasses.replace(
-            vector_store, vector_store_instance_id=pin["entity_id"]
+            vector_store,
+            vector_store_instance_id=instance_id,
+            vector_store_generation=generation,
         )
     if vector_store.enabled and vector_store.vector_store_instance_id:
         from src.infrastructure.workflows.celery.task_factories import (

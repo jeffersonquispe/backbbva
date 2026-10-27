@@ -72,6 +72,9 @@ from src.application.use_cases.test_runs.cleanup_test_runs import CleanupTestRun
 from src.application.use_cases.test_runs.delete_test_runs import DeleteTestRunsUseCase
 from src.application.use_cases.test_runs.list_test_runs import ListTestRunsUseCase
 from src.application.use_cases.test_runs.start_test_run import StartTestRunUseCase
+from src.application.use_cases.vector_store_instances.cleanup_vector_store_generations import (
+    CleanupVectorStoreGenerationsUseCase,
+)
 from src.domain.configurations.entities import (
     HistoryPandasResearchConfig,
     VectorStoreResearchConfig,
@@ -124,6 +127,7 @@ from src.infrastructure.persistence.object_storage.minio import (
 from src.infrastructure.queues.celery.inspector import CeleryAsyncExecutionInspector
 from src.infrastructure.workflows.celery.executor import CeleryWorkflowExecutor
 from src.infrastructure.workflows.celery.factories import (
+    get_agent_session_repository,
     get_alert_object_storage,
     get_alert_repository,
     get_alert_schema_repository,
@@ -132,15 +136,19 @@ from src.infrastructure.workflows.celery.factories import (
     get_aric_alert_port,
     get_assistant_optimizer_settings_repository,
     get_async_operation_repository,
+    get_configuration_deploy_request_repository,
     get_configuration_repository,
     get_discard_alert_use_case,
+    get_fraud_knowledge_repository,
     get_model_repository,
     get_operational_settings_repository,
+    get_optimization_run_repository,
     get_reasoning_evaluation_dispatcher,
     get_record_alert_metrics_event_use_case,
     get_record_workflow_step_metrics_use_case,
     get_search_fraud_knowledge_use_case,
     get_test_run_repository,
+    get_vector_store_generation_repository,
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
     llm_step_models,
@@ -314,6 +322,22 @@ def get_archive_fraud_history_use_case() -> ArchiveFraudHistory:
     )
 
 
+def get_cleanup_vector_store_generations_use_case() -> (
+    CleanupVectorStoreGenerationsUseCase
+):
+    return CleanupVectorStoreGenerationsUseCase(
+        generations=get_vector_store_generation_repository(),
+        configurations=get_configuration_repository(),
+        deploy_requests=get_configuration_deploy_request_repository(),
+        test_runs=get_test_run_repository(),
+        releases=get_agent_release_repository(),
+        sessions=get_agent_session_repository(),
+        optimization_runs=get_optimization_run_repository(),
+        fraud_knowledge_repository=get_fraud_knowledge_repository(),
+        clock=get_clock(),
+    )
+
+
 def get_cleanup_test_runs_use_case() -> CleanupTestRunsUseCase:
     workflows = get_workflow_execution_repository()
     return CleanupTestRunsUseCase(
@@ -469,6 +493,7 @@ def get_vector_store_research_tool(
                 WorkflowVectorStoreRetriever(
                     get_search_fraud_knowledge_use_case(),
                     config.vector_store_instance_id,
+                    config.vector_store_generation,
                 ),
                 config,
             ),

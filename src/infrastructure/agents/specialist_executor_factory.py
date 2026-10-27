@@ -45,8 +45,9 @@ def get_optimizer_specialist_executors() -> dict[str, AgentSpecialistExecutor]:
         get_taxonomy_library_repository,
     )
     from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+        get_build_vector_store_generation_use_case,
         get_create_vector_store_instance_use_case,
-        get_promote_vector_store_instance_use_case,
+        get_vector_store_generation_repository,
         get_vector_store_instance_repository,
     )
     from src.infrastructure.entrypoint.api.factories.watchlist_factory import (
@@ -72,9 +73,10 @@ def get_optimizer_specialist_executors() -> dict[str, AgentSpecialistExecutor]:
         "vector_store": VectorStoreSpecialistExecutor(
             instances=vector_instances,
             create=get_create_vector_store_instance_use_case(),
-            build=get_promote_vector_store_instance_use_case(),
+            build=get_build_vector_store_generation_use_case(),
             search=SearchFraudKnowledgeUseCase(
-                get_fraud_knowledge_search_port(), vector_instances
+                get_fraud_knowledge_search_port(),
+                get_vector_store_generation_repository(),
             ),
         ),
         "xgboost": XGBoostSpecialistExecutor(

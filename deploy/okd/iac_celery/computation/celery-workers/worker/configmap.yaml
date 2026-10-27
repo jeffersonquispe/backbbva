@@ -50,6 +50,9 @@ data:
   OPENSEARCH_ENDPOINT: https://opensearch:9200
   OPENSEARCH_AUTH_MODE: basic
   OPENSEARCH_INDEX: fraud_knowledge
+  VECTOR_STORE_GENERATION_CLEANUP_ENABLED: "true"
+  VECTOR_STORE_GENERATION_RETENTION_DAYS: "14"
+  VECTOR_STORE_ROLLBACK_CONFIGURATIONS: "2"
   OPENSEARCH_VERIFY_CERTS: "false"
   LLM_BACKEND: azure
   OPENAI_ENDPOINT: https://genai-lupitaasistente-work-llm-openai.openai.azure.com/

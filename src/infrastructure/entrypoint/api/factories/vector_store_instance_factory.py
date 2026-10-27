@@ -1,7 +1,13 @@
 from functools import lru_cache
 
+from src.application.ports.vector_store_generation_port import (
+    VectorStoreGenerationRepository,
+)
 from src.application.ports.vector_store_instance_port import (
     VectorStoreInstanceRepository,
+)
+from src.application.use_cases.vector_store_instances.build_vector_store_generation import (
+    BuildVectorStoreGenerationUseCase,
 )
 from src.application.use_cases.vector_store_instances.create_vector_store_instance import (
     CreateVectorStoreInstanceUseCase,
@@ -14,8 +20,8 @@ from src.application.use_cases.vector_store_instances.manage_vector_store_instan
     RemoveVectorStoreDocumentUseCase,
     UpdateVectorStoreInstanceUseCase,
 )
-from src.application.use_cases.vector_store_instances.promote_vector_store_instance import (
-    PromoteVectorStoreInstanceUseCase,
+from src.application.use_cases.vector_store_instances.pin_configuration_vector_stores import (
+    PinConfigurationVectorStoresUseCase,
 )
 from src.infrastructure.core.runtime.system_clock import get_clock
 from src.infrastructure.entrypoint.api.factories.fraud_knowledge_factory import (
@@ -24,6 +30,9 @@ from src.infrastructure.entrypoint.api.factories.fraud_knowledge_factory import 
     get_ingest_modus_operandi_use_case,
     get_ingest_similar_case_use_case,
     get_ingest_taxonomia_use_case,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_generation_repository import (
+    DynamoVectorStoreGenerationRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.vector_store_instance_repository import (
     DynamoVectorStoreInstanceRepository,
@@ -61,6 +70,11 @@ def get_vector_store_instance_repository() -> VectorStoreInstanceRepository:
     return DynamoVectorStoreInstanceRepository()
 
 
+@lru_cache
+def get_vector_store_generation_repository() -> VectorStoreGenerationRepository:
+    return DynamoVectorStoreGenerationRepository()
+
+
 def get_create_vector_store_instance_use_case() -> CreateVectorStoreInstanceUseCase:
     return CreateVectorStoreInstanceUseCase(
         get_vector_store_instance_repository(), clock=get_clock()
@@ -68,7 +82,15 @@ def get_create_vector_store_instance_use_case() -> CreateVectorStoreInstanceUseC
 
 
 def get_list_vector_store_instances_use_case() -> ListVectorStoreInstancesUseCase:
-    return ListVectorStoreInstancesUseCase(get_vector_store_instance_repository())
+    from src.infrastructure.entrypoint.api.factories.configuration_factory import (
+        get_configuration_repository,
+    )
+
+    return ListVectorStoreInstancesUseCase(
+        get_vector_store_instance_repository(),
+        get_vector_store_generation_repository(),
+        get_configuration_repository(),
+    )
 
 
 def get_update_vector_store_instance_use_case() -> UpdateVectorStoreInstanceUseCase:
@@ -89,7 +111,7 @@ def get_remove_vector_store_document_use_case() -> RemoveVectorStoreDocumentUseC
     )
 
 
-def get_promote_vector_store_instance_use_case() -> PromoteVectorStoreInstanceUseCase:
+def get_build_vector_store_generation_use_case() -> BuildVectorStoreGenerationUseCase:
     from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
         get_flag_library_repository,
     )
@@ -103,8 +125,9 @@ def get_promote_vector_store_instance_use_case() -> PromoteVectorStoreInstanceUs
         get_taxonomy_library_repository,
     )
 
-    return PromoteVectorStoreInstanceUseCase(
+    return BuildVectorStoreGenerationUseCase(
         instances=get_vector_store_instance_repository(),
+        generations=get_vector_store_generation_repository(),
         taxonomies=get_taxonomy_library_repository(),
         modus_operandi=get_modus_operandi_library_repository(),
         flags=get_flag_library_repository(),
@@ -115,4 +138,11 @@ def get_promote_vector_store_instance_use_case() -> PromoteVectorStoreInstanceUs
         ingest_flag=get_ingest_flag_use_case(),
         ingest_similar_case=get_ingest_similar_case_use_case(),
         clock=get_clock(),
+    )
+
+
+def get_pin_configuration_vector_stores_use_case() -> PinConfigurationVectorStoresUseCase:
+    return PinConfigurationVectorStoresUseCase(
+        get_build_vector_store_generation_use_case(),
+        get_vector_store_generation_repository(),
     )

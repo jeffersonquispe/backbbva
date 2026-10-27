@@ -203,6 +203,7 @@ def _components():
         "library": {"entry": "library"},
         "vector_store": {
             "instance": {"id": "vector_store-1", "version": 1},
+            "generation": 1,
             "assets": [{"id": "asset-1"}],
         },
     }

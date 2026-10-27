@@ -260,7 +260,7 @@ class KnowledgeGraphService:
     ) -> list[float] | None:
         # Recycles whatever the Library entry already has cached (computed
         # on its own create/update) instead of embedding again here -
-        # PromoteVectorStoreInstanceUseCase reads this straight off the
+        # BuildVectorStoreGenerationUseCase reads this straight off the
         # relation row.
         if asset_type == KnowledgeAssetType.TAXONOMY:
             entry = self._taxonomies.get(asset_id)

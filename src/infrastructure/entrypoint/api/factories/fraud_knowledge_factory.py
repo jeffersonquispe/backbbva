@@ -154,14 +154,14 @@ def get_list_fraud_knowledge_documents_use_case() -> ListFraudKnowledgeDocuments
 
 def get_search_fraud_knowledge_use_case() -> SearchFraudKnowledgeUseCase:
     # Local import: vector_store_instance_factory imports this module at
-    # top level (for the ingest use cases PromoteVectorStoreInstanceUseCase
+    # top level (for the ingest use cases BuildVectorStoreGenerationUseCase
     # needs) - importing it back at module level here would cycle.
     from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
-        get_vector_store_instance_repository,
+        get_vector_store_generation_repository,
     )
 
     return SearchFraudKnowledgeUseCase(
-        get_fraud_knowledge_search_port(), get_vector_store_instance_repository()
+        get_fraud_knowledge_search_port(), get_vector_store_generation_repository(), get_monitoring()
     )
 
 

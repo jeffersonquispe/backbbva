@@ -159,6 +159,12 @@ class Config(BaseSettings):
     OPENSEARCH_PASSWORD: str = "dummy"
     OPENSEARCH_VERIFY_CERTS: bool = False
     OPENSEARCH_INDEX: str = "fraud_knowledge"
+    # Retention of vector-store generations (vector_store.cleanup_generations,
+    # nightly): unpinned READY generations older than this are retired; the
+    # active configuration and the N versions active before it keep theirs.
+    VECTOR_STORE_GENERATION_CLEANUP_ENABLED: bool = True
+    VECTOR_STORE_GENERATION_RETENTION_DAYS: int = Field(default=14, ge=1)
+    VECTOR_STORE_ROLLBACK_CONFIGURATIONS: int = Field(default=2, ge=0)
 
     EMBEDDING_MODEL: str = ""
     EMBEDDING_DIMENSIONS: int = 1536

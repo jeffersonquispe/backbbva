@@ -29,3 +29,8 @@ class FraudKnowledgeRepository(Protocol):
         vector_store_id: str | None = None,
         vector_store_version: int | None = None,
     ) -> list[FraudKnowledgeDocument]: ...
+
+    def delete_generation(self, vector_store_id: str, vector_store_version: int) -> int:
+        """Deletes every document of one vector-store generation; returns how
+        many were deleted."""
+        ...

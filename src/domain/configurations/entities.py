@@ -334,6 +334,10 @@ class VectorStoreResearchConfig(ResearchAgentConfig):
     # get_similar_* tools ("Base de conocimiento").
     max_delegations: int = 3
     vector_store_instance_id: str | None = None
+    # The exact OpenSearch generation this version searches (see
+    # vector_store_generations.py). Filled in when the version is saved, so
+    # a test and the deploy request that follows it use the same documents.
+    vector_store_generation: int | None = None
     similarity_threshold: float = 0.7
     max_documents_per_query: int = 8
     allowed_asset_types: list[str] = field(

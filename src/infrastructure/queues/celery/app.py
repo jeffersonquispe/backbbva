@@ -59,6 +59,12 @@ def periodic_schedule(
             "schedule": crontab(hour=3, minute=30),
             "options": {"expires": 24 * 60 * 60},
         },
+        # Vector-store generation retention: 04:30 Bogota, quiet hours.
+        "cleanup-vector-store-generations": {
+            "task": "vector_store.cleanup_generations",
+            "schedule": crontab(hour=4, minute=30),
+            "options": {"expires": 24 * 60 * 60},
+        },
         "analyze-alert-schema-presence": {
             "task": "alert_schema.analyze_presence",
             "schedule": crontab(hour=2, minute=30),

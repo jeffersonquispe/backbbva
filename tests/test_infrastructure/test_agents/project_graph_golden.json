@@ -305,5 +305,29 @@
     "expect": [
       "concept:aprendizaje-optimizador"
     ]
+  },
+  {
+    "query": "¿cómo publico un vector store?",
+    "page": "/biblioteca",
+    "role": "channel_manager",
+    "expect": [
+      "task:publicar-vector-store"
+    ]
+  },
+  {
+    "query": "¿qué pasa si construyo una generación del vector store?",
+    "page": "/biblioteca",
+    "role": "data_analyst",
+    "expect": [
+      "concept:vector-store"
+    ]
+  },
+  {
+    "query": "¿qué decide el primer revisor adversarial?",
+    "page": "/configuracion",
+    "role": "channel_manager",
+    "expect": [
+      "concept:primer-revisor-adversarial"
+    ]
   }
 ]

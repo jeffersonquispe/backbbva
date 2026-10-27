@@ -524,7 +524,14 @@ class ScriptedResolveAnalystPlaybookUseCase:
     def __init__(self, resolved: ResolvedPlaybook | None) -> None:
         self._resolved = resolved
 
-    def execute(self, query, *, vector_store_instance_id, library_revision_pin=None):
+    def execute(
+        self,
+        query,
+        *,
+        vector_store_instance_id,
+        vector_store_generation=None,
+        library_revision_pin=None,
+    ):
         return self._resolved
 
 

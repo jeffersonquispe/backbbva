@@ -15,15 +15,13 @@ class DocumentType(StrEnum):
 
 
 # Every document lives in one shared OpenSearch index, scoped by
-# `vector_store_id` (the promoted VectorStoreInstance.id it belongs to, see
+# `vector_store_id` (the VectorStoreInstance.id it belongs to, see
 # vector_store_instance_port.py) rather than by channel/segmento - a vector
 # store is channel-agnostic by design, several segments' agent configs can
-# point at the same one. `vector_store_version` is the promotion generation
-# of that vector store (VectorStoreInstance.promoted_version at the time of
-# promotion): PromoteVectorStoreInstanceUseCase loads the new generation
-# before deleting the previous one, so both may briefly coexist in the index
-# under the same vector_store_id - the version is what disambiguates which
-# generation is actually "up" during that window.
+# point at the same one. `vector_store_version` is the immutable generation
+# (vector_store_generation_port.py) the document was loaded into: many
+# generations of one vector store coexist in the index, and every search
+# filters on the one its configuration pins.
 
 
 @dataclass(frozen=True)
@@ -110,9 +108,9 @@ class FraudKnowledgeSearchPort(ABC):
     """Hybrid (embedding + keyword) search over the fraud knowledge base.
 
     `vector_store_id` + `vector_store_version` are the mandatory exact-match
-    filter - every search is scoped to exactly one vector store's current
-    promoted generation, never the whole shared index. Resolving "current"
-    (VectorStoreInstance.promoted_version) is the caller's job (see
+    filter - every search is scoped to exactly one generation of one vector
+    store, never the whole shared index. Resolving which generation is the
+    caller's job (see
     SearchFraudKnowledgeUseCase) - this port just filters on the values it's
     given. Query embedding happens inside the adapter, not the caller.
     """

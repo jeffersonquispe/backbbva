@@ -99,3 +99,15 @@ def _evaluation_labels(context: dict[str, Any]) -> dict[str, Any]:
     # is_label fields. It is already the canonical, schema-shaped evaluation
     # view; never recover labels from the raw workflow payload here.
     return dict(pre_process.labels)
+
+
+def _optimizer_vector_store_pin(pin: Any) -> tuple[str, int]:
+    """(instance id, generation) of an optimizer evaluation's vector-store
+    pin - its version is the generation number (see the component
+    resolver)."""
+    if not isinstance(pin, dict) or not isinstance(pin.get("entity_id"), str):
+        raise ValueError("OPTIMIZER_VECTOR_STORE_PIN_REQUIRED")
+    try:
+        return pin["entity_id"], int(pin["version"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("OPTIMIZER_VECTOR_STORE_PIN_REQUIRED") from error

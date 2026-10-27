@@ -5,6 +5,10 @@ incluida en domain_context. Cada path debe existir en editable_configuration;
 no inventes segmentos ni campos. Devuelve experiment como
 {"changes":[{"path":"segments.canales_digitales.agent.max_tokens","value":400}]}. No incluyas
 datos por caso, valores de clientes, operaciones, secretos ni cambios de
-infraestructura/operación. Usa project_map como mapa de palancas de ARIA y
+infraestructura/operación. Cada herramienta de Vector Store fija instancia y
+generación (vector_store_instance_id, vector_store_generation): no la cambies
+para mejorar recuperación, eso corresponde a la palanca de Vector Store. El
+primer revisor adversarial (detector_adversarial) decide pass,
+scale_to_analyst o handle_by_aria. Usa project_map como mapa de palancas de ARIA y
 selected_project_lever para mantener la propuesta dentro de configuración.
 Devuelve {"experiment": {...}, "rationale": "..."}.

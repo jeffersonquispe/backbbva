@@ -97,6 +97,11 @@
   },
   {
    "relation": "requests",
+   "source": "api:agent.getOptimizerLaunchLimits",
+   "target": "endpoint:GET /api/v0/agent/optimizer-launch-limits"
+  },
+  {
+   "relation": "requests",
    "source": "api:agent.getOptimizerStatus",
    "target": "endpoint:GET /api/v0/agent/optimizer-status"
   },
@@ -842,6 +847,11 @@
   },
   {
    "relation": "requests",
+   "source": "api:vectorStoreInstances.buildVectorStoreGeneration",
+   "target": "endpoint:POST /api/v0/vector-store-instances/{instance_id}/generations"
+  },
+  {
+   "relation": "requests",
    "source": "api:vectorStoreInstances.createVectorStoreInstance",
    "target": "endpoint:POST /api/v0/vector-store-instances"
   },
@@ -852,6 +862,11 @@
   },
   {
    "relation": "requests",
+   "source": "api:vectorStoreInstances.listVectorStoreGenerations",
+   "target": "endpoint:GET /api/v0/vector-store-instances/{instance_id}/generations"
+  },
+  {
+   "relation": "requests",
    "source": "api:vectorStoreInstances.listVectorStoreInstances",
    "target": "endpoint:GET /api/v0/vector-store-instances"
   },
@@ -859,11 +874,6 @@
    "relation": "requests",
    "source": "api:vectorStoreInstances.previewVectorStoreDocument",
    "target": "endpoint:POST /api/v0/vector-store-instances/{instance_id}/documents/preflight"
-  },
-  {
-   "relation": "requests",
-   "source": "api:vectorStoreInstances.promoteVectorStoreInstance",
-   "target": "endpoint:POST /api/v0/vector-store-instances/{instance_id}/promote"
   },
   {
    "relation": "requests",
@@ -2548,6 +2558,11 @@
   {
    "relation": "renders",
    "source": "component:datasets/DatasetSplitDrawer",
+   "target": "component:datasets/DatasetSplitContext"
+  },
+  {
+   "relation": "renders",
+   "source": "component:datasets/DatasetSplitDrawer",
    "target": "component:ui/side-drawer"
   },
   {
@@ -2574,6 +2589,11 @@
    "relation": "renders",
    "source": "component:datasets/DatasetSummaryTab",
    "target": "component:async/AsyncOperationProgressCard"
+  },
+  {
+   "relation": "renders",
+   "source": "component:datasets/DatasetSummaryTab",
+   "target": "component:datasets/DatasetSplitContext"
   },
   {
    "relation": "offers",
@@ -3214,6 +3234,16 @@
    "relation": "calls",
    "source": "component:optimizer/OptimizerLaunchDrawer",
    "target": "api:agent.getActiveAgentObjective"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerLaunchDrawer",
+   "target": "api:agent.getOptimizerLaunchLimits"
+  },
+  {
+   "relation": "calls",
+   "source": "component:optimizer/OptimizerLaunchDrawer",
+   "target": "api:agent.listAgentSessions"
   },
   {
    "relation": "calls",
@@ -3927,6 +3957,11 @@
   },
   {
    "relation": "manifested_in",
+   "source": "concept:primer-revisor-adversarial",
+   "target": "component:configuracion/SegmentAdversarialSection"
+  },
+  {
+   "relation": "manifested_in",
    "source": "concept:pruebas-agente",
    "target": "component:testing/NewTestRunModal"
   },
@@ -3959,6 +3994,11 @@
    "relation": "manifested_in",
    "source": "concept:rol-permisos",
    "target": "role:manager"
+  },
+  {
+   "relation": "manifested_in",
+   "source": "concept:vector-store",
+   "target": "component:biblioteca/VectorStoreGenerationsPanel"
   },
   {
    "relation": "manifested_in",
@@ -4263,6 +4303,16 @@
   {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/agent/optimization-runs/{session_id}",
+   "target": "resource:agent"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/agent/optimizer-launch-limits",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/optimizer-launch-limits",
    "target": "resource:agent"
   },
   {
@@ -5199,6 +5249,21 @@
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/vector-store-instances/{instance_id}/documents",
    "target": "resource:vector-store-instances"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/vector-store-instances/{instance_id}/generations",
+   "target": "resource:vector-store-instances"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:GET /api/v0/vector-store-instances/{instance_id}/generations",
+   "target": "use_case:BuildVectorStoreGenerationUseCase"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:GET /api/v0/vector-store-instances/{instance_id}/generations",
+   "target": "use_case:ListVectorStoreInstancesUseCase"
   },
   {
    "relation": "belongs_to",
@@ -6332,13 +6397,18 @@
   },
   {
    "relation": "belongs_to",
-   "source": "endpoint:POST /api/v0/vector-store-instances/{instance_id}/promote",
+   "source": "endpoint:POST /api/v0/vector-store-instances/{instance_id}/generations",
    "target": "resource:vector-store-instances"
   },
   {
    "relation": "handled_by",
-   "source": "endpoint:POST /api/v0/vector-store-instances/{instance_id}/promote",
-   "target": "use_case:PromoteVectorStoreInstanceUseCase"
+   "source": "endpoint:POST /api/v0/vector-store-instances/{instance_id}/generations",
+   "target": "use_case:BuildVectorStoreGenerationUseCase"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:POST /api/v0/vector-store-instances/{instance_id}/generations",
+   "target": "use_case:ListVectorStoreInstancesUseCase"
   },
   {
    "relation": "belongs_to",
@@ -6747,6 +6817,11 @@
   },
   {
    "relation": "implemented_by",
+   "source": "port:EmbeddingUnitOfWorkFactory",
+   "target": "adapter:MeteredEmbeddingUnitOfWorkFactory"
+  },
+  {
+   "relation": "implemented_by",
    "source": "port:FeatureTemplateRepository",
    "target": "adapter:DynamoFeatureTemplateRepository"
   },
@@ -6907,6 +6982,11 @@
   },
   {
    "relation": "implemented_by",
+   "source": "port:VectorStoreGenerationRepository",
+   "target": "adapter:DynamoVectorStoreGenerationRepository"
+  },
+  {
+   "relation": "implemented_by",
    "source": "port:VectorStoreInstanceRepository",
    "target": "adapter:DynamoVectorStoreInstanceRepository"
   },
@@ -6949,11 +7029,6 @@
    "relation": "grants",
    "source": "role:channel_manager",
    "target": "permission:fraud_history"
-  },
-  {
-   "relation": "grants",
-   "source": "role:channel_manager",
-   "target": "permission:fraud_review"
   },
   {
    "relation": "grants",
@@ -7079,6 +7154,21 @@
    "relation": "can_open",
    "source": "role:fraud_analyst",
    "target": "view:/cola"
+  },
+  {
+   "relation": "grants",
+   "source": "role:fraud_reviewer",
+   "target": "permission:fraud_history"
+  },
+  {
+   "relation": "grants",
+   "source": "role:fraud_reviewer",
+   "target": "permission:fraud_review"
+  },
+  {
+   "relation": "can_open",
+   "source": "role:fraud_reviewer",
+   "target": "view:/historico-fraude"
   },
   {
    "relation": "grants",
@@ -7588,6 +7678,53 @@
    "target": "view:/configuracion"
   },
   {
+   "position": 4,
+   "relation": "involves",
+   "source": "task:publicar-vector-store",
+   "target": "action:aprobar-y-desplegar@view-configuracion"
+  },
+  {
+   "position": 2,
+   "relation": "involves",
+   "source": "task:publicar-vector-store",
+   "target": "action:probar-configuracion@view-configuracion"
+  },
+  {
+   "position": 3,
+   "relation": "involves",
+   "source": "task:publicar-vector-store",
+   "target": "action:solicitar-despliegue@view-configuracion"
+  },
+  {
+   "position": 6,
+   "relation": "involves",
+   "source": "task:publicar-vector-store",
+   "target": "api:configurations.approveConfigurationDeployRequest"
+  },
+  {
+   "position": 5,
+   "relation": "involves",
+   "source": "task:publicar-vector-store",
+   "target": "api:configurations.createConfigurationDeployRequest"
+  },
+  {
+   "position": 0,
+   "relation": "involves",
+   "source": "task:publicar-vector-store",
+   "target": "api:vectorStoreInstances.buildVectorStoreGeneration"
+  },
+  {
+   "position": 1,
+   "relation": "involves",
+   "source": "task:publicar-vector-store",
+   "target": "component:biblioteca/VectorStoreGenerationsPanel"
+  },
+  {
+   "relation": "starts_at",
+   "source": "task:publicar-vector-store",
+   "target": "view:/biblioteca"
+  },
+  {
    "position": 0,
    "relation": "involves",
    "source": "task:revisar-desempeno-agente",
@@ -7813,6 +7950,46 @@
    "relation": "uses_port",
    "source": "use_case:AuthenticateLocalUserUseCase",
    "target": "port:LocalUserRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:BuildVectorStoreGenerationUseCase",
+   "target": "port:Clock"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:BuildVectorStoreGenerationUseCase",
+   "target": "port:FlagLibraryRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:BuildVectorStoreGenerationUseCase",
+   "target": "port:FraudKnowledgeRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:BuildVectorStoreGenerationUseCase",
+   "target": "port:ModusOperandiLibraryRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:BuildVectorStoreGenerationUseCase",
+   "target": "port:SimilarCaseLibraryRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:BuildVectorStoreGenerationUseCase",
+   "target": "port:TaxonomyLibraryRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:BuildVectorStoreGenerationUseCase",
+   "target": "port:VectorStoreGenerationRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:BuildVectorStoreGenerationUseCase",
+   "target": "port:VectorStoreInstanceRepository"
   },
   {
    "relation": "uses_port",
@@ -9407,6 +9584,16 @@
   {
    "relation": "uses_port",
    "source": "use_case:ListVectorStoreInstancesUseCase",
+   "target": "port:ConfigurationRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ListVectorStoreInstancesUseCase",
+   "target": "port:VectorStoreGenerationRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ListVectorStoreInstancesUseCase",
    "target": "port:VectorStoreInstanceRepository"
   },
   {
@@ -9467,12 +9654,27 @@
   {
    "relation": "uses_port",
    "source": "use_case:PrepareDatasetSplitUseCase",
+   "target": "port:AlertFieldMappingRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:PrepareDatasetSplitUseCase",
+   "target": "port:AlertSchemaRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:PrepareDatasetSplitUseCase",
    "target": "port:Clock"
   },
   {
    "relation": "uses_port",
    "source": "use_case:PrepareDatasetSplitUseCase",
    "target": "port:DatasetRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:PrepareDatasetSplitUseCase",
+   "target": "port:DatasetSnapshotRepository"
   },
   {
    "relation": "uses_port",
@@ -9523,41 +9725,6 @@
    "relation": "uses_port",
    "source": "use_case:PreviewMatureSampleUseCase",
    "target": "port:OperationalSettingsRepository"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:PromoteVectorStoreInstanceUseCase",
-   "target": "port:Clock"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:PromoteVectorStoreInstanceUseCase",
-   "target": "port:FlagLibraryRepository"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:PromoteVectorStoreInstanceUseCase",
-   "target": "port:FraudKnowledgeRepository"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:PromoteVectorStoreInstanceUseCase",
-   "target": "port:ModusOperandiLibraryRepository"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:PromoteVectorStoreInstanceUseCase",
-   "target": "port:SimilarCaseLibraryRepository"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:PromoteVectorStoreInstanceUseCase",
-   "target": "port:TaxonomyLibraryRepository"
-  },
-  {
-   "relation": "uses_port",
-   "source": "use_case:PromoteVectorStoreInstanceUseCase",
-   "target": "port:VectorStoreInstanceRepository"
   },
   {
    "relation": "uses_port",
@@ -9742,7 +9909,12 @@
   {
    "relation": "uses_port",
    "source": "use_case:SearchFraudKnowledgeUseCase",
-   "target": "port:VectorStoreInstanceRepository"
+   "target": "port:MonitoringPort"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:SearchFraudKnowledgeUseCase",
+   "target": "port:VectorStoreGenerationRepository"
   },
   {
    "relation": "uses_port",
@@ -10317,6 +10489,11 @@
   {
    "relation": "offers",
    "source": "view:/biblioteca",
+   "target": "action:construir-generacion@view-biblioteca"
+  },
+  {
+   "relation": "offers",
+   "source": "view:/biblioteca",
    "target": "action:crear-version@view-biblioteca"
   },
   {
@@ -10358,11 +10535,6 @@
    "relation": "offers",
    "source": "view:/biblioteca",
    "target": "action:playbook@view-biblioteca"
-  },
-  {
-   "relation": "offers",
-   "source": "view:/biblioteca",
-   "target": "action:promover@view-biblioteca"
   },
   {
    "relation": "calls",
@@ -10488,6 +10660,11 @@
    "relation": "renders",
    "source": "view:/biblioteca",
    "target": "component:biblioteca/ModusOperandiPlaybookModal"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/biblioteca",
+   "target": "component:biblioteca/VectorStoreGenerationsPanel"
   },
   {
    "relation": "renders",
@@ -10853,6 +11030,11 @@
    "relation": "renders",
    "source": "view:/configuracion",
    "target": "component:ui/section-tabs"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/configuracion",
+   "target": "component:ui/side-drawer"
   },
   {
    "relation": "navigates_to",
@@ -12363,6 +12545,18 @@
   },
   {
    "attrs": {
+    "owner": "view:/biblioteca"
+   },
+   "description": "Acción «Construir generación» en /biblioteca.",
+   "id": "action:construir-generacion@view-biblioteca",
+   "keywords": [
+    "Construir generación"
+   ],
+   "kind": "action",
+   "name": "Construir generación"
+  },
+  {
+   "attrs": {
     "owner": "component:fraude/FraudReview"
    },
    "description": "Acción «Continuar» en FraudReview.",
@@ -13596,18 +13790,6 @@
    ],
    "kind": "action",
    "name": "Probar otro evento"
-  },
-  {
-   "attrs": {
-    "owner": "view:/biblioteca"
-   },
-   "description": "Acción «Promover» en /biblioteca.",
-   "id": "action:promover@view-biblioteca",
-   "keywords": [
-    "Promover"
-   ],
-   "kind": "action",
-   "name": "Promover"
   },
   {
    "attrs": {
@@ -15207,6 +15389,18 @@
   },
   {
    "attrs": {
+    "file": "src/infrastructure/persistence/database/dynamodb/repositories/vector_store_generation_repository.py"
+   },
+   "description": "",
+   "id": "adapter:DynamoVectorStoreGenerationRepository",
+   "keywords": [
+    "Dynamo Vector Store Generation Repository"
+   ],
+   "kind": "adapter",
+   "name": "DynamoVectorStoreGenerationRepository"
+  },
+  {
+   "attrs": {
     "file": "src/infrastructure/persistence/database/dynamodb/repositories/vector_store_instance_repository.py"
    },
    "description": "",
@@ -15257,7 +15451,7 @@
    "attrs": {
     "file": "src/infrastructure/agents/release_component_promoter.py"
    },
-   "description": "Configuration -> deploy request (approved by manager/release manager); vector store -> its promotion; library -> manual review in Biblioteca, because library entries are not versioned for automatic activation.",
+   "description": "Configuration -> deploy request (approved by manager/release manager); library -> manual review in Biblioteca, because library entries are not versioned for automatic activation. A vector-store generation is never publis",
    "id": "adapter:ExistingFlowReleasePromoter",
    "keywords": [
     "Existing Flow Release Promoter"
@@ -15372,6 +15566,18 @@
    ],
    "kind": "adapter",
    "name": "LocalDatasetReaderGateway"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/embedding/usage_meter.py"
+   },
+   "description": "Decorates any embedding backend; counting only happens inside ``measure_embedding_usage``, so other callers pay nothing extra.",
+   "id": "adapter:MeteredEmbeddingUnitOfWorkFactory",
+   "keywords": [
+    "Metered Embedding Unit Of Work Factory"
+   ],
+   "kind": "adapter",
+   "name": "MeteredEmbeddingUnitOfWorkFactory"
   },
   {
    "attrs": {
@@ -15770,6 +15976,20 @@
    ],
    "kind": "api_call",
    "name": "getOptimizationRun"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/agent/optimizer-launch-limits"
+   },
+   "description": "GET /api/v0/agent/optimizer-launch-limits",
+   "id": "api:agent.getOptimizerLaunchLimits",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getOptimizerLaunchLimits"
   },
   {
    "attrs": {
@@ -17889,6 +18109,20 @@
    "attrs": {
     "file": "lib/api/vectorStoreInstances.functions.ts",
     "http_method": "POST",
+    "url": "/api/v0/vector-store-instances/${encodeURIComponent(instanceId)}/generations"
+   },
+   "description": "POST /api/v0/vector-store-instances/{id}/generations",
+   "id": "api:vectorStoreInstances.buildVectorStoreGeneration",
+   "keywords": [
+    "crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "buildVectorStoreGeneration"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/vectorStoreInstances.functions.ts",
+    "http_method": "POST",
     "url": "/api/v0/vector-store-instances"
    },
    "description": "POST /api/v0/vector-store-instances",
@@ -17917,6 +18151,20 @@
    "attrs": {
     "file": "lib/api/vectorStoreInstances.functions.ts",
     "http_method": "GET",
+    "url": "/api/v0/vector-store-instances/${encodeURIComponent(instanceId)}/generations"
+   },
+   "description": "GET /api/v0/vector-store-instances/{id}/generations",
+   "id": "api:vectorStoreInstances.listVectorStoreGenerations",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listVectorStoreGenerations"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/vectorStoreInstances.functions.ts",
+    "http_method": "GET",
     "url": "/api/v0/vector-store-instances"
    },
    "description": "GET /api/v0/vector-store-instances",
@@ -17940,20 +18188,6 @@
    ],
    "kind": "api_call",
    "name": "previewVectorStoreDocument"
-  },
-  {
-   "attrs": {
-    "file": "lib/api/vectorStoreInstances.functions.ts",
-    "http_method": "POST",
-    "url": "/api/v0/vector-store-instances/${encodeURIComponent(instanceId)}/promote"
-   },
-   "description": "POST /api/v0/vector-store-instances/{id}/promote",
-   "id": "api:vectorStoreInstances.promoteVectorStoreInstance",
-   "keywords": [
-    "promover crear crea agregar enviar"
-   ],
-   "kind": "api_call",
-   "name": "promoteVectorStoreInstance"
   },
   {
    "attrs": {
@@ -18113,6 +18347,18 @@
    "attrs": {
     "subtype": "doc"
    },
+   "description": "Documento backend: Tres salidas del primer adversarial",
+   "id": "asset:docs/backend/ADVERSARIAL_ROUTING.md",
+   "keywords": [
+    "Tres salidas del primer adversarial"
+   ],
+   "kind": "asset",
+   "name": "ADVERSARIAL_ROUTING.md"
+  },
+  {
+   "attrs": {
+    "subtype": "doc"
+   },
    "description": "Documento backend: Backlog: agente orquestador de ARIA (loop del channel manager)",
    "id": "asset:docs/backend/AGENT_EXPERIMENTATION_BACKLOG.md",
    "keywords": [
@@ -18132,6 +18378,18 @@
    ],
    "kind": "asset",
    "name": "EVENT_API.md"
+  },
+  {
+   "attrs": {
+    "subtype": "doc"
+   },
+   "description": "Documento backend: Relevo de sesión: pendiente #30 y Adversarial 1",
+   "id": "asset:docs/backend/HANDOFF_VECTOR_STORE_30.md",
+   "keywords": [
+    "Relevo de sesión: pendiente #30 y Adversarial 1"
+   ],
+   "kind": "asset",
+   "name": "HANDOFF_VECTOR_STORE_30.md"
   },
   {
    "attrs": {
@@ -18630,9 +18888,32 @@
   },
   {
    "attrs": {
+    "file": "components/biblioteca/VectorStoreGenerationsPanel.tsx"
+   },
+   "description": "Lista las generaciones de una instancia de Vector store con su estado, documentos, autor, si producción la consulta y qué configuraciones la fijan; avisa cuando los documentos cambiaron desde la última generación lista.",
+   "id": "component:biblioteca/VectorStoreGenerationsPanel",
+   "keywords": [
+    "Generaciones de Vector Store",
+    "Generaciones",
+    "Los documentos cambiaron desde la generación",
+    "No se pudieron cargar las generaciones.",
+    "Todavía no hay generaciones construidas.",
+    "Generación",
+    "documentos",
+    "En producción",
+    "Fijada por",
+    "configuraciones",
+    "No se completó la construcción:",
+    "Configuraciones que la fijan"
+   ],
+   "kind": "component",
+   "name": "VectorStoreGenerationsPanel"
+  },
+  {
+   "attrs": {
     "file": "components/biblioteca/VectorStoreSearchPanel.tsx"
    },
-   "description": "Probar la búsqueda semántica sobre una instancia de Vector store: elegir tipo (modus operandi, taxonomía, caso similar, red/yellow flag) y modo (balanceado) y consultar.",
+   "description": "Probar la búsqueda semántica sobre una generación lista de una instancia de Vector store: elegir generación, tipo (modus operandi, taxonomía, caso similar, red/yellow flag) y modo (balanceado) y consultar.",
    "id": "component:biblioteca/VectorStoreSearchPanel",
    "keywords": [
     "Modus operandi",
@@ -18644,9 +18925,10 @@
     "Semántico",
     "Palabras clave",
     "Probar búsqueda",
-    "Consulta la generación activa de",
-    "Generación v",
-    "Promueve esta instancia para probar consultas sobre sus documentos.",
+    "Consulta la generación seleccionada de",
+    "Generación",
+    "Generación a consultar",
+    "Construye esta instancia para probar consultas sobre sus documentos.",
     "Consulta",
     "Describe qué conocimiento quieres recuperar",
     "Tipo de documento",
@@ -19329,11 +19611,16 @@
     "Incluye en la salida del modelo las variables que más pesaron en la predicción.",
     "Investigación delegada",
     "Búsqueda en Vector Store",
+    "Elige una instancia de Vector Store o desactiva la búsqueda para poder guardar.",
     "Máx. interacciones",
     "Análisis de historial",
     "Columnas",
     "Máximo de transacciones",
-    "Máx. rondas"
+    "Máx. rondas",
+    "Planificador",
+    "Planificador del análisis de historial",
+    "LLM",
+    "Fijo"
    ],
    "kind": "component",
    "name": "AgentToolsSection"
@@ -19359,6 +19646,9 @@
     "Sin instancia asignada",
     "Selecciona un vector store para poder guardar la búsqueda activa.",
     "Sin instancias disponibles - créalas en Biblioteca → Repositorio de Conocimiento.",
+    "Generación de Vector Store",
+    "Construir al guardar",
+    "Generación",
     "Listas negras y blancas",
     "Listas",
     "Sin listas disponibles - créalas en Biblioteca → Listas negras y blancas.",
@@ -19478,6 +19768,28 @@
    ],
    "kind": "component",
    "name": "DatasetRowsTab"
+  },
+  {
+   "attrs": {
+    "file": "components/datasets/DatasetSplitContext.tsx"
+   },
+   "description": "Componente informativo que muestra el contexto de una partición de dataset: origen (cargado, catálogo o muestra madura) y detalles asociados cuando aplica. También presenta versiones de esquema validadas/activas, avisos de compatibilidad y una tabla con la distribución por estrato para entrenamiento/validación/calibración/prueba.",
+   "id": "component:datasets/DatasetSplitContext",
+   "keywords": [
+    "Origen de la partición",
+    "Origen:",
+    "Periodo",
+    "días",
+    "Partición final excluida: reservada para la evaluación final",
+    "Muestra madura:",
+    "Derivado de:",
+    "Esquema validado:",
+    "Avisos de compatibilidad",
+    "Distribución por estrato",
+    "Estrato"
+   ],
+   "kind": "component",
+   "name": "DatasetSplitContext"
   },
   {
    "attrs": {
@@ -20075,11 +20387,16 @@
    "keywords": [
     "Lanzar optimizador",
     "Volver",
-    "Alcance de la investigación",
-    "Notas iniciales",
-    "El optimizador propone experimentos y borradores. No activa cambios ni publica modelos.",
-    "Objetivo activo v",
-    "Revisión previa · objetivo v"
+    "Meta de la investigación",
+    "Meta de esta investigación",
+    "Objetivo v",
+    "Otra sesión ya está investigando parte de este alcance.",
+    "Puedes lanzar igual, pero las dos sesiones pueden proponer cambios sobre lo mismo.",
+    "Costo máximo de la sesión",
+    "Son topes, no una estimación: si se agotan, el agente se detiene y te pide aprobar más.",
+    "Qué va a investigar",
+    "Meta · objetivo v",
+    "Presupuesto asignado"
    ],
    "kind": "component",
    "name": "OptimizerLaunchDrawer"
@@ -20101,6 +20418,9 @@
     "Presupuesto agregado",
     "Experimentos por resultado",
     "Aún no hay experimentos en las sesiones en curso.",
+    "Uso de embeddings",
+    "Las sesiones en curso aún no han generado embeddings.",
+    "uso. Sin tope: se informa aparte del presupuesto.",
     "Muestras maduras en uso",
     "Ningún experimento en curso usa todavía una muestra madura.",
     "Periodo",
@@ -20249,11 +20569,11 @@
    "description": "Listado de intentos del clasificador y su revisión adversarial dentro de las ejecuciones del caso. Resume para cada paso el resultado (predicción/aprobación/retorno) y la duración.",
    "id": "component:testing/CaseClassificationLoop",
    "keywords": [
-    "Intentos del clasificador",
-    "El adversarial revisa cada clasificación y puede devolverla",
+    "Detección, revisión y clasificación",
+    "El primer adversarial decide si dejar pasar, escalar a una persona o gestionar como ARIA",
     "Falló:",
     "Sin resultado",
-    "Devuelve al clasificador",
+    "Devuelve al",
     "Aprueba la clasificación",
     "Predijo"
    ],
@@ -20312,6 +20632,7 @@
     "text-text-secondary",
     "text-warning",
     "Variable evaluada:",
+    "Prueba: la acción propuesta se simula, sin intervención operativa.",
     "Completado",
     "Esperado según el analista:"
    ],
@@ -21311,7 +21632,7 @@
   },
   {
    "attrs": {},
-   "description": "Ajusta reglas, umbrales y parámetros versionados del agente por segmento, incluidos los ciclos de corrección con el revisor adversarial (agent.adversarial.max_cycles y agent.detector_adversarial.max_cycles); cada cambio se prueba y requiere validación antes de desplegarse.",
+   "description": "Ajusta reglas, umbrales y parámetros versionados del agente por segmento, incluidos los ciclos de corrección con el revisor adversarial (agent.adversarial.max_cycles y agent.detector_adversarial.max_cycles); cada cambio se prueba y requiere validación antes de desplegarse. Incluye la herramienta de Vector Store de cada paso: instancia y generación fijada (vector_store_instance_id, vector_store_generation); cambiar la generación solo se publica con despliegue aprobado. El primer revisor adversarial (detector_adversarial) decide pass, scale_to_analyst o handle_by_aria.",
    "id": "concept:optimizer-lever-configuration",
    "keywords": [
     "configuration",
@@ -21367,7 +21688,7 @@
   },
   {
    "attrs": {},
-   "description": "Construye y verifica una versión del índice semántico que consulta la biblioteca de fraude; permite ajustar recuperación sin alterar el modelo de clasificación.",
+   "description": "Construye y verifica una generación candidata del índice semántico en una instancia aislada; no publica nada. Para llegar a producción, una configuración debe fijar esa generación, pasar su prueba y desplegarse con solicitud aprobada.",
    "id": "concept:optimizer-lever-vector-store",
    "keywords": [
     "vector store",
@@ -21382,6 +21703,24 @@
    ],
    "kind": "concept",
    "name": "Palanca de optimización: vector store"
+  },
+  {
+   "attrs": {},
+   "description": "detector_adversarial revisa toda conclusión del Detector y decide: pass (deja pasar y cierra la alerta sin acción externa, omitiendo Clasificación, segundo adversarial y Analista agente), scale_to_analyst (envía a la cola humana por incertidumbre, aunque no haya capacidad inmediata) o handle_by_aria (continúa con Clasificación, segundo adversarial y Analista agente). Datos ausentes no justifican pass. En pruebas y replay del optimizador no hay acciones reales: pass cuenta como not_fraud y la escalada como sin decisión.",
+   "id": "concept:primer-revisor-adversarial",
+   "keywords": [
+    "adversarial 1",
+    "primer adversarial",
+    "revisor del detector",
+    "dejar pasar",
+    "escalar al analista",
+    "gestionar como ARIA",
+    "pass",
+    "scale_to_analyst",
+    "handle_by_aria"
+   ],
+   "kind": "concept",
+   "name": "Primer revisor adversarial: tres salidas"
   },
   {
    "attrs": {},
@@ -21437,12 +21776,16 @@
   },
   {
    "attrs": {},
-   "description": "Índice de búsqueda semántica con versiones auditables sobre el conocimiento de la Biblioteca; agregar o retirar un documento solo modifica su relación con la instancia.",
+   "description": "Índice de búsqueda semántica sobre el conocimiento de la Biblioteca. Cada instancia guarda una lista de documentos editable y generaciones inmutables (construyendo, lista, falló, retirada). Construir una generación no cambia producción: cada configuración fija la generación que consulta y solo una configuración probada, desplegada con solicitud aprobada, la publica. Las generaciones sin uso se retiran a los 14 días; se protegen producción, las dos configuraciones anteriores para rollback y las pruebas, solicitudes y optimizaciones abiertas.",
    "id": "concept:vector-store",
    "keywords": [
     "búsqueda semántica",
+    "construir generación",
     "embeddings",
-    "instancia de vector store"
+    "generación de vector store",
+    "instancia de vector store",
+    "promover vector store",
+    "publicar vector store"
    ],
    "kind": "concept",
    "name": "Vector store"
@@ -21837,6 +22180,20 @@
    ],
    "kind": "endpoint",
    "name": "GET /api/v0/agent/optimization-runs/{session_id}"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/agent/optimizer-launch-limits"
+   },
+   "description": "Enablement, concurrency and per-session budget ceiling shown before launching.",
+   "id": "endpoint:GET /api/v0/agent/optimizer-launch-limits",
+   "keywords": [
+    "get optimizer launch limits",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/optimizer-launch-limits"
   },
   {
    "attrs": {
@@ -23227,9 +23584,23 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/vector-store-instances/{instance_id}/generations"
+   },
+   "description": "Every generation of this instance, newest first, with whether the active configuration searches it and which saved versions pin it.",
+   "id": "endpoint:GET /api/v0/vector-store-instances/{instance_id}/generations",
+   "keywords": [
+    "list instance generations",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/vector-store-instances/{instance_id}/generations"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/vector-store-instances/{instance_id}/query"
    },
-   "description": "Runs a production retrieval query against an instance's active generation.",
+   "description": "Runs a retrieval query against one generation of an instance (its newest READY one when ``generation`` is omitted).",
    "id": "endpoint:GET /api/v0/vector-store-instances/{instance_id}/query",
    "keywords": [
     "query vector store instance",
@@ -24711,16 +25082,16 @@
   {
    "attrs": {
     "http_method": "POST",
-    "route": "/api/v0/vector-store-instances/{instance_id}/promote"
+    "route": "/api/v0/vector-store-instances/{instance_id}/generations"
    },
-   "description": "Loads this instance's current asset manifest into OpenSearch as a new generation, then deletes the previous one. There is no partial/in-place update in production - re-promoting always replaces what's live.",
-   "id": "endpoint:POST /api/v0/vector-store-instances/{instance_id}/promote",
+   "description": "Loads this instance's current manifest into OpenSearch as a new immutable generation (or returns the READY one with the same content). Production is not affected: it searches the generation the active configuration pins,",
+   "id": "endpoint:POST /api/v0/vector-store-instances/{instance_id}/generations",
    "keywords": [
-    "promote instance",
-    "promover crear crea agregar enviar"
+    "build instance generation",
+    "crear crea agregar enviar"
    ],
    "kind": "endpoint",
-   "name": "POST /api/v0/vector-store-instances/{instance_id}/promote"
+   "name": "POST /api/v0/vector-store-instances/{instance_id}/generations"
   },
   {
    "attrs": {
@@ -25781,6 +26152,16 @@
   {
    "attrs": {},
    "description": "",
+   "id": "port:VectorStoreGenerationRepository",
+   "keywords": [
+    "Vector Store Generation Repository"
+   ],
+   "kind": "port",
+   "name": "VectorStoreGenerationRepository"
+  },
+  {
+   "attrs": {},
+   "description": "",
    "id": "port:VectorStoreInstanceRepository",
    "keywords": [
     "Vector Store Instance Repository"
@@ -26307,6 +26688,17 @@
   },
   {
    "attrs": {},
+   "description": "Rol «fraud_reviewer».",
+   "id": "role:fraud_reviewer",
+   "keywords": [
+    "fraud reviewer",
+    "Fraud Reviewer"
+   ],
+   "kind": "role",
+   "name": "fraud_reviewer"
+  },
+  {
+   "attrs": {},
    "description": "Rol «manager».",
    "id": "role:manager",
    "keywords": [
@@ -26532,6 +26924,21 @@
   },
   {
    "attrs": {},
+   "description": "En Biblioteca → Vector store elige la instancia y pulsa «Construir generación» (no cambia producción). En Configuración selecciona esa instancia y generación en la Búsqueda en Vector Store y guarda: la versión fija la generación. Pruébala en Testing y solicita el despliegue; otra persona lo aprueba. Para revertir, despliega la configuración anterior.",
+   "id": "task:publicar-vector-store",
+   "keywords": [
+    "promover vector store",
+    "publicar vector store",
+    "construir generación",
+    "poner en producción el vector store",
+    "activar vector store",
+    "nueva generación de vector store"
+   ],
+   "kind": "task",
+   "name": "Publicar una generación de Vector store"
+  },
+  {
+   "attrs": {},
    "description": "En Monitor del Agente revisa los indicadores de ARIA, analistas y voicebot (falsos positivos, fraude no detectado, pasos fallidos) y exporta el reporte.",
    "id": "task:revisar-desempeno-agente",
    "keywords": [
@@ -26693,6 +27100,16 @@
    ],
    "kind": "use_case",
    "name": "AuthenticateLocalUserUseCase"
+  },
+  {
+   "attrs": {},
+   "description": "Loads an instance's current manifest into OpenSearch as a new, immutable generation.",
+   "id": "use_case:BuildVectorStoreGenerationUseCase",
+   "keywords": [
+    "Build Vector Store Generation"
+   ],
+   "kind": "use_case",
+   "name": "BuildVectorStoreGenerationUseCase"
   },
   {
    "attrs": {},
@@ -27919,17 +28336,6 @@
   },
   {
    "attrs": {},
-   "description": "Builds this instance's production generation in OpenSearch from its DynamoDB asset manifest, then retires the previous one.",
-   "id": "use_case:PromoteVectorStoreInstanceUseCase",
-   "keywords": [
-    "Promote Vector Store Instance",
-    "promover"
-   ],
-   "kind": "use_case",
-   "name": "PromoteVectorStoreInstanceUseCase"
-  },
-  {
-   "attrs": {},
    "description": "",
    "id": "use_case:ProposeAlertSchemaUseCase",
    "keywords": [
@@ -28060,7 +28466,7 @@
   },
   {
    "attrs": {},
-   "description": "Resolves the vector store's current promoted generation and searches only that generation - never a stale one left behind mid-promotion, and never across every generation ever loaded for this vector_store_id.",
+   "description": "Searches exactly one generation of one vector store - never across every generation loaded for this vector_store_id.",
    "id": "use_case:SearchFraudKnowledgeUseCase",
    "keywords": [
     "Search Fraud Knowledge",
@@ -28498,12 +28904,12 @@
     "Creado por:",
     "Crear versión",
     "documentos",
-    "Sin promover",
-    "Promover",
+    "Sin construir",
+    "Construye una generación sin modificar producción ni retirar las anteriores.",
+    "Construir generación",
     "Creado:",
     "Editado:",
     "Editado por:",
-    "Promovida:",
     "catálogos",
     "base de conocimiento",
     "listas negras",
@@ -28582,6 +28988,7 @@
     "Cambios sin guardar en",
     "está guardada y solo lectura. Los cambios se guardan en una versión nueva.",
     "No se puede guardar:",
+    "No se puede guardar: Búsqueda en Vector Store activa sin instancia en",
     "Restaurar cambios",
     "Probar configuración",
     "Solicitar despliegue",
@@ -28607,7 +29014,6 @@
     "Falsos positivos:",
     "Tiempo ahorrado:",
     "Latencia:",
-    "Grafo de versiones",
     "ajustes",
     "versiones de configuración",
     "desplegar configuración"

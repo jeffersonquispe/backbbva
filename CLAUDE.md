@@ -329,6 +329,23 @@ performance, and business decisions are tracked in `PENDIENTES.md` §6.
   flows. They intentionally have no dedicated public router or API surface;
   do not register one without an architecture decision.
 
+## Vector Store generations — building never publishes
+
+Design: `docs/VECTOR_STORE_GENERATIONS.md` (#30). An instance has an editable
+manifest and immutable OpenSearch generations
+(`vector_store_generations`: building/ready/failed/retired).
+`BuildVectorStoreGenerationUseCase` loads a new generation (or reuses the READY
+one with the same fingerprint) and never touches older ones. Every saved
+configuration pins `vector_store_instance_id` + `vector_store_generation`
+(`PinConfigurationVectorStoresUseCase`); tests and production search exactly
+that pin. Changing which generation production searches **only** goes through
+an approved configuration deploy request — direct activation with different
+pins is a 409. Don't add another publish path, don't search "latest" from the
+workflow, and don't delete generation documents outside
+`CleanupVectorStoreGenerationsUseCase` (nightly, protects active/rollback/
+pending/open work). Optimizer and H12 vector-store pins use the generation
+number as their version.
+
 ## Project graph — graph-RAG context for the chat agent
 
 `src/infrastructure/agents/project_graph/project_graph.json` is a generated

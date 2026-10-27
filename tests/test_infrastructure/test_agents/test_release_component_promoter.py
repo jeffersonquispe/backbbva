@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -35,6 +37,9 @@ class Active:
 
 
 class Configurations:
+    def get(self, configuration_id, version):
+        return None
+
     def get_active(self):
         return Active()
 
@@ -56,13 +61,18 @@ def _release():
     )
 
 
-def _promoter(promote=lambda instance_id, actor: None):
+class InMemoryGenerations:
+    def get(self, instance, generation):
+        return SimpleNamespace(status="ready") if generation == 3 else None
+
+
+def _promoter():
     deploy = DeployRequests()
     return (
         ExistingFlowReleasePromoter(
             deploy_requests=deploy,
             configurations=Configurations(),
-            promote_vector_store=promote,
+            vector_store_generations=InMemoryGenerations(),
             clock=FixedClock(),
         ),
         deploy,
@@ -93,23 +103,13 @@ def test_configuration_becomes_a_pending_deploy_request_against_the_active_one()
     )
 
 
-def test_vector_store_uses_its_promotion_and_failures_are_safe():
-    promoted = []
-    promoter, _ = _promoter(lambda instance_id, actor: promoted.append(instance_id))
+def test_vector_store_requires_a_configuration_pin_instead_of_publishing_itself():
+    promoter, _ = _promoter()
     pin = ComponentVersionReference("vector_store", "vs-2", "3", "b" * 64)
-
-    assert (
-        promoter.hand_off(_release(), pin, actor="m", actor_id="m-1").status
-        == "promoted"
-    )
-    assert promoted == ["vs-2"]
-
-    def broken(instance_id, actor):
-        raise RuntimeError("opensearch down")
-
-    failing, _ = _promoter(broken)
+    result = promoter.hand_off(_release(), pin, actor="m", actor_id="m-1")
+    assert (result.flow, result.status) == ("configuration_pin_required", "manual")
     with pytest.raises(ComponentHandoffError):
-        failing.hand_off(_release(), pin, actor="m", actor_id="m-1")
+        promoter.hand_off(_release(), replace(pin, version="999"), actor="m", actor_id="m-1")
 
 
 def test_library_is_left_for_manual_review():
@@ -123,4 +123,49 @@ def test_library_is_left_for_manual_review():
     )
 
     assert (handoff.flow, handoff.status) == ("library_review", "manual")
+    assert deploy.created == []
+
+
+class PinningConfigurations(Configurations):
+    """cfg-new v7 searches vs-2 generation 3."""
+
+    def get(self, configuration_id, version):
+        from src.domain.configurations.entities import default_segments
+
+        if (configuration_id, version) != ("cfg-new", 7):
+            return None
+        segments = default_segments()
+        research = segments["tarjetas"].agent.classification.delegated_research.vector_store
+        research.enabled = True
+        research.vector_store_instance_id = "vs-2"
+        research.vector_store_generation = 3
+        return SimpleNamespace(segments=segments)
+
+
+def test_vector_store_goes_live_through_the_configuration_that_pins_it():
+    deploy = DeployRequests()
+    promoter = ExistingFlowReleasePromoter(
+        deploy_requests=deploy,
+        configurations=PinningConfigurations(),
+        vector_store_generations=InMemoryGenerations(),
+        clock=FixedClock(),
+    )
+    release = replace(
+        _release(),
+        candidate_component_pins=(
+            ComponentVersionReference("configuration", "cfg-new", "7", "a" * 64),
+            ComponentVersionReference("vector_store", "vs-2", "3", "b" * 64),
+        ),
+    )
+
+    result = promoter.hand_off(
+        release, release.candidate_component_pins[1], actor="m", actor_id="m-1"
+    )
+
+    assert (result.flow, result.reference, result.status) == (
+        "configuration_deploy_request",
+        "vs-2@g3",
+        "pending",
+    )
+    # The vector store opens no deploy request of its own.
     assert deploy.created == []

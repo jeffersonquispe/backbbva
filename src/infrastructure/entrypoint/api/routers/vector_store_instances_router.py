@@ -6,7 +6,7 @@ from typing import Annotated
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.application.errors import NotFoundError, ValidationError
+from src.application.errors import ConflictError, NotFoundError, ValidationError
 from src.application.ports.fraud_knowledge_port import DocumentType, SearchPipeline
 from src.application.ports.local_auth_port import LocalRole, LocalUser
 from src.application.ports.vector_store_instance_port import (
@@ -15,7 +15,11 @@ from src.application.ports.vector_store_instance_port import (
     VectorStoreInstanceAsset,
 )
 from src.application.use_cases.fraud_knowledge.search_fraud_knowledge import (
-    VectorStoreNotPromotedError,
+    VectorStoreGenerationUnavailableError,
+)
+from src.application.use_cases.vector_store_instances.build_vector_store_generation import (
+    BuildVectorStoreGenerationUseCase,
+    EmptyVectorStoreInstanceError,
 )
 from src.application.use_cases.vector_store_instances.create_vector_store_instance import (
     CreateVectorStoreInstanceUseCase,
@@ -24,12 +28,12 @@ from src.application.use_cases.vector_store_instances.create_vector_store_instan
 from src.application.use_cases.vector_store_instances.knowledge_graph import (
     KnowledgeGraphService,
 )
+from src.application.use_cases.vector_store_instances.list_vector_store_instances import (
+    VectorStoreGenerationView,
+    VectorStoreInstanceSummary,
+)
 from src.application.use_cases.vector_store_instances.manage_vector_store_instance import (
     VectorStoreInstanceNotFoundError,
-)
-from src.application.use_cases.vector_store_instances.promote_vector_store_instance import (
-    EmptyVectorStoreInstanceError,
-    PromoteVectorStoreInstanceUseCase,
 )
 from src.infrastructure.entrypoint.api.factories.flag_library_factory import (
     get_flag_library_repository,
@@ -47,10 +51,10 @@ from src.infrastructure.entrypoint.api.factories.taxonomy_library_factory import
     get_taxonomy_library_repository,
 )
 from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory import (
+    get_build_vector_store_generation_use_case,
     get_create_vector_store_instance_use_case,
     get_knowledge_graph_service,
     get_list_vector_store_instances_use_case,
-    get_promote_vector_store_instance_use_case,
     get_remove_vector_store_document_use_case,
     get_update_vector_store_instance_use_case,
     get_vector_store_instance_repository,
@@ -58,9 +62,11 @@ from src.infrastructure.entrypoint.api.factories.vector_store_instance_factory i
 from src.infrastructure.entrypoint.api.routers.auth_router import get_current_user
 from src.infrastructure.entrypoint.api.schemas import (
     AddVectorStoreDocumentRequest,
+    BuildVectorStoreGenerationResponse,
     CreateVectorStoreInstanceRequest,
     UpdateVectorStoreInstanceRequest,
     VectorStoreDocumentSchema,
+    VectorStoreGenerationSchema,
     VectorStoreInstanceSchema,
 )
 
@@ -77,7 +83,37 @@ def _require_writer(user: LocalUser) -> None:
 
 
 def _instance_schema(instance: VectorStoreInstance) -> VectorStoreInstanceSchema:
-    return VectorStoreInstanceSchema(**instance.__dict__)
+    return _summary_schema(
+        get_list_vector_store_instances_use_case().summarize(instance)
+    )
+
+
+def _summary_schema(summary: VectorStoreInstanceSummary) -> VectorStoreInstanceSchema:
+    return VectorStoreInstanceSchema(
+        **summary.instance.__dict__,
+        latest_generation=summary.latest_ready_generation,
+        production_generations=list(summary.production_generations),
+    )
+
+
+def _generation_schema(view: VectorStoreGenerationView, fingerprint: str | None = None) -> VectorStoreGenerationSchema:
+    generation = view.generation
+    return VectorStoreGenerationSchema(
+        instance_id=generation.instance_id,
+        generation=generation.generation,
+        status=generation.status.value,
+        built_by=generation.built_by,
+        created_at=generation.created_at,
+        ready_at=generation.ready_at,
+        retired_at=generation.retired_at,
+        fingerprint=generation.fingerprint,
+        document_count=generation.document_count,
+        error=generation.error,
+        migrated=generation.migrated,
+        in_production=view.in_production,
+        pinned_by=list(view.pinned_by),
+        matches_manifest=(generation.fingerprint == fingerprint if fingerprint is not None else None),
+    )
 
 
 def _document_schema(asset: VectorStoreInstanceAsset) -> VectorStoreDocumentSchema:
@@ -101,18 +137,21 @@ def query_vector_store_instance(
     document_type: DocumentType = DocumentType.MODUS_OPERANDI,
     pipeline: SearchPipeline = SearchPipeline.BALANCED,
     top_k: int = Query(default=5, ge=1, le=50),
+    generation: int | None = Query(default=None, ge=1),
 ):
-    """Runs a production retrieval query against an instance's active generation."""
+    """Runs a retrieval query against one generation of an instance (its
+    newest READY one when ``generation`` is omitted)."""
     _require_writer(user)
     try:
         hits = get_search_fraud_knowledge_use_case().execute(
             query,
             pipeline=pipeline,
             vector_store_id=instance_id,
+            vector_store_generation=generation,
             document_type=document_type,
             top_k=top_k,
         )
-    except VectorStoreNotPromotedError as exc:
+    except VectorStoreGenerationUnavailableError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return [
         {
@@ -131,7 +170,7 @@ def query_vector_store_instance(
 def list_instances(user: Annotated[LocalUser, Depends(get_current_user)]):
     _require_writer(user)
     return [
-        _instance_schema(item)
+        _summary_schema(item)
         for item in get_list_vector_store_instances_use_case().execute()
     ]
 
@@ -157,7 +196,7 @@ def create_instance(
         )
     except DuplicateVectorStoreInstanceNameError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return _instance_schema(instance)
+    return _summary_schema(VectorStoreInstanceSummary(instance, None))
 
 
 @router.patch("/{instance_id}", response_model=VectorStoreInstanceSchema)
@@ -180,31 +219,62 @@ def update_instance(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.post("/{instance_id}/promote", response_model=VectorStoreInstanceSchema)
-def promote_instance(
+@router.get(
+    "/{instance_id}/generations", response_model=list[VectorStoreGenerationSchema]
+)
+def list_instance_generations(
+    instance_id: str, user: Annotated[LocalUser, Depends(get_current_user)]
+):
+    """Every generation of this instance, newest first, with whether the
+    active configuration searches it and which saved versions pin it."""
+    _require_writer(user)
+    if get_vector_store_instance_repository().get(instance_id) is None:
+        raise HTTPException(status_code=404, detail="Vector store instance not found")
+    try:
+        fingerprint = get_build_vector_store_generation_use_case().fingerprint(instance_id)
+    except (NotFoundError, ValidationError):
+        fingerprint = "invalid"
+    return [
+        _generation_schema(view, fingerprint)
+        for view in get_list_vector_store_instances_use_case().generations(
+            instance_id
+        )
+    ]
+
+
+@router.post(
+    "/{instance_id}/generations", response_model=BuildVectorStoreGenerationResponse
+)
+def build_instance_generation(
     instance_id: str,
     user: Annotated[LocalUser, Depends(get_current_user)],
     use_case: Annotated[
-        PromoteVectorStoreInstanceUseCase,
-        Depends(get_promote_vector_store_instance_use_case),
+        BuildVectorStoreGenerationUseCase,
+        Depends(get_build_vector_store_generation_use_case),
     ],
 ):
-    """Loads this instance's current asset manifest into OpenSearch as a new
-    generation, then deletes the previous one. There is no partial/in-place
-    update in production - re-promoting always replaces what's live."""
+    """Loads this instance's current manifest into OpenSearch as a new
+    immutable generation (or returns the READY one with the same content).
+    Production is not affected: it searches the generation the active
+    configuration pins, which changes only through an approved deploy
+    request."""
     _require_writer(user)
     try:
-        return _instance_schema(use_case.execute(instance_id, actor=user.name))
-    except VectorStoreInstanceNotFoundError as exc:
+        result = use_case.execute(instance_id, actor=user.name)
+    except (VectorStoreInstanceNotFoundError, NotFoundError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except EmptyVectorStoreInstanceError as exc:
+    except (EmptyVectorStoreInstanceError, ValidationError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    view = next(
+        item
+        for item in get_list_vector_store_instances_use_case().generations(instance_id)
+        if item.generation.generation == result.generation.generation
+    )
+    return BuildVectorStoreGenerationResponse(
+        **_generation_schema(view).model_dump(), built=result.built
+    )
 
 
 @router.get("/{instance_id}/documents", response_model=list[VectorStoreDocumentSchema])

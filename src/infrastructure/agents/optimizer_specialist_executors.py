@@ -8,6 +8,7 @@ from typing import Any
 
 from src.application.dtos.configuration_dtos import CreateConfigurationInput
 from src.application.dtos.model_dtos import CreateModelInput
+from src.application.errors import DomainException
 from src.application.ports.agent_specialist_executor_port import (
     AgentSpecialistExecution,
     AgentSpecialistExecutor,
@@ -48,11 +49,11 @@ from src.application.use_cases.models.create_model import CreateModelUseCase
 from src.application.use_cases.models.start_model_training import (
     StartModelTrainingUseCase,
 )
+from src.application.use_cases.vector_store_instances.build_vector_store_generation import (
+    BuildVectorStoreGenerationUseCase,
+)
 from src.application.use_cases.vector_store_instances.create_vector_store_instance import (
     CreateVectorStoreInstanceUseCase,
-)
-from src.application.use_cases.vector_store_instances.promote_vector_store_instance import (
-    PromoteVectorStoreInstanceUseCase,
 )
 from src.domain.configurations.entities import (
     ResolutionTag,
@@ -271,7 +272,7 @@ class VectorStoreSpecialistExecutor(AgentSpecialistExecutor):
         *,
         instances: VectorStoreInstanceRepository,
         create: CreateVectorStoreInstanceUseCase,
-        build: PromoteVectorStoreInstanceUseCase,
+        build: BuildVectorStoreGenerationUseCase,
         search: SearchFraudKnowledgeUseCase,
     ) -> None:
         self._instances = instances
@@ -327,26 +328,28 @@ class VectorStoreSpecialistExecutor(AgentSpecialistExecutor):
                     created_by="agent",
                     assets=assets,
                 )
-            candidate = self._build.execute(candidate.id, actor="agent")
+            # Builds a candidate generation only; nothing is published.
+            generation = self._build.execute(candidate.id, actor="agent").generation
             hits = len(
                 self._search.execute(
                     request.hypothesis,
                     pipeline=SearchPipeline.BALANCED,
                     vector_store_id=candidate.id,
+                    vector_store_generation=generation.generation,
                     document_type=DocumentType.MODUS_OPERANDI,
                     top_k=5,
                 )
             )
-        except (RuntimeError, ValueError, TypeError):
+        except (RuntimeError, ValueError, TypeError, DomainException):
             return _rejected("VECTOR_CANDIDATE_BUILD_FAILED")
-        if candidate.promoted_version is None or hits == 0:
+        if hits == 0:
             return _rejected("VECTOR_CANDIDATE_VERIFICATION_FAILED")
         return AgentSpecialistExecution(
             status="PASSED",
             contribution={
                 "candidate_instance_id": candidate.id,
                 "candidate_instance_version": candidate.version,
-                "candidate_generation": candidate.promoted_version,
+                "candidate_generation": generation.generation,
                 "source_manifest_version": source.version,
             },
             safe_metrics={

@@ -19,6 +19,11 @@ def test_periodic_schedule_reconciles_async_operations() -> None:
 
     reconcile_rollups = schedule.pop("reconcile-alert-rollups")
     schedule.pop("record-operational-state")
+    vector_cleanup = schedule.pop("cleanup-vector-store-generations")
+    assert vector_cleanup["task"] == "vector_store.cleanup_generations"
+    assert vector_cleanup["schedule"].hour == {4}
+    assert vector_cleanup["schedule"].minute == {30}
+    assert vector_cleanup["options"] == {"expires": 86400}
     sampler = schedule.pop("sample-mature-datasets")
     assert sampler["task"] == "datasets.sample_mature"
     assert sampler["schedule"].hour == {4} and sampler["schedule"].minute == {15}
