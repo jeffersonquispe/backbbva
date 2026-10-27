@@ -95,6 +95,12 @@ BIOCATCH_FLAG_FIELDS = frozenset(
     }
 )
 FRAUD_BIOCATCH_FLAGS = frozenset({"biocatch_isRat", "biocatch_isOnCall"})
+# Amount deviation plus a new counterparty alone is a common legitimate
+# pattern (a first rent payment), so the detector rightly asks for a
+# confirming signal. Positives also carry the triggered rule for a
+# blacklisted device, alert data the replay sees like the BioCatch flags
+# above. Negatives trigger no rule.
+CONFIRMING_RULE = "CUSTOMER - Lista_Negra_DeviceID"
 
 
 def _synthetic_field_timestamp(
@@ -527,6 +533,7 @@ def seed_mature_alerts(
                     and name != fields["strata"]
                     and "counterparty" not in name.casefold()
                     and name not in BIOCATCH_FLAG_FIELDS
+                    and not ("triggered" in name.casefold() and positive)
                 ):
                     continue
                 if name == mapping["initial_mark_field"]:
@@ -568,6 +575,8 @@ def seed_mature_alerts(
                     value = "APP"
                 elif "counterparty" in name.casefold():
                     value = NEW_COUNTERPARTY if positive else HABITUAL_COUNTERPARTY
+                elif "triggered" in name.casefold():
+                    value = CONFIRMING_RULE
                 elif "type" in name.casefold() or "tipo" in name.casefold():
                     value = "payment"
                 elif "status" in name.casefold() or "estado" in name.casefold():
