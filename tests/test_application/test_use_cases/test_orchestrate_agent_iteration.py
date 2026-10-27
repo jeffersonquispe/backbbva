@@ -675,6 +675,7 @@ def test_critical_specialist_failure_is_visible_as_a_safe_failure_code() -> None
             AssistantOptimizerSettings(
                 optimizer_enabled=True,
                 optimizer_stop_on_critical_failure=True,
+                optimizer_max_retryable_failures=0,
             )
         ),
         subagent=FailedSpecialistSubagent(),
@@ -707,7 +708,11 @@ def test_unknown_specialist_error_is_not_exposed_verbatim() -> None:
     session = replace(_session("optimization"), scope={"areas": ["model"]})
     use_case, repositories = _use_case(
         session,
-        InMemorySettings(AssistantOptimizerSettings(optimizer_enabled=True)),
+        InMemorySettings(
+            AssistantOptimizerSettings(
+                optimizer_enabled=True, optimizer_max_retryable_failures=0
+            )
+        ),
         subagent=UnsafeErrorSubagent(),
     )
 
@@ -716,6 +721,55 @@ def test_unknown_specialist_error_is_not_exposed_verbatim() -> None:
         repositories["iterations"].items[1].decision["failure_code"]
         == "SPECIALIST_FAILED"
     )
+
+
+def test_retryable_failure_continues_until_the_retry_allowance_runs_out() -> None:
+    session = replace(_session("optimization"), scope={"areas": ["model"]})
+    use_case, repositories = _use_case(
+        session,
+        InMemorySettings(
+            AssistantOptimizerSettings(
+                optimizer_enabled=True, optimizer_max_retryable_failures=1
+            )
+        ),
+        subagent=FailedSpecialistSubagent(),
+    )
+
+    assert use_case.execute("s1") == "iteration_completed"
+    first = repositories["iterations"].items[1].decision
+    assert first["action"] == "continue"
+    assert first["reason"] == "retrying_failure"
+    assert first["retryable_failures"] == 1
+    assert repositories["sessions"].session.status == AgentSessionStatus.ACTIVE
+
+    assert use_case.execute("s1") == "blocked_by_critical_failure"
+    second = repositories["iterations"].items[2].decision
+    assert second["reason"] == "critical_failure"
+    assert second["retryable_failures"] == 2
+    assert repositories["sessions"].session.block["code"] == "CRITICAL_FAILURE"
+
+
+def test_failure_that_needs_approval_blocks_with_its_own_code() -> None:
+    class NeedsChangesSubagent(FailedSpecialistSubagent):
+        def execute(self, request: AgentSubagentInput) -> AgentSubagentOutput:
+            return AgentSubagentOutput(
+                subagent=self.name,
+                verification_status="NOT_VERIFIED",
+                error_code="CONFIGURATION_CHANGES_REQUIRED",
+            )
+
+    session = replace(_session("optimization"), scope={"areas": ["model"]})
+    use_case, repositories = _use_case(
+        session,
+        InMemorySettings(AssistantOptimizerSettings(optimizer_enabled=True)),
+        subagent=NeedsChangesSubagent(),
+    )
+
+    assert use_case.execute("s1") == "blocked_by_approval"
+    blocked = repositories["sessions"].session
+    assert blocked.status == AgentSessionStatus.WAITING_USER
+    assert blocked.block["code"] == "CONFIGURATION_CHANGES_REQUIRED"
+    assert repositories["iterations"].items[1].decision["reason"] == "approval_required"
 
 
 class NamedStubSubagent(InMemoryStubSubagent):
@@ -1216,7 +1270,7 @@ def test_specialist_failure_event_uses_catalogue_copy_without_raw_text() -> None
     session = replace(_session("optimization"), scope={"areas": ["model"]})
     use_case, _ = _use_case(
         session,
-        _optimizer_settings(),
+        _optimizer_settings(optimizer_max_retryable_failures=0),
         subagent=FailedSpecialistSubagent(),
         timeline=_timeline(events),
     )

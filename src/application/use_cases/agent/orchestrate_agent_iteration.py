@@ -81,6 +81,7 @@ from src.application.use_cases.agent.evaluate_agent_experiment import (
 from src.application.use_cases.agent.optimizer_memory import OptimizerMemory
 from src.domain.agents.event import AgentEventKind, AgentEventOutcome
 from src.domain.agents.experiment import AgentExperimentKind
+from src.domain.agents.failure_catalog import describe_failure
 from src.domain.agents.optimization_run import (
     COMBINATION_AREA,
     OptimizationRun,
@@ -1040,7 +1041,10 @@ class OrchestrateAgentIterationUseCase:
             "critical_failure": "CRITICAL_FAILURE",
             "stagnation": "STAGNATION",
             "cost_anomaly": "COST_ANOMALY",
+            "approval_required": decision.get("block_code"),
         }.get(str(stop_reason))
+        if block_code is not None:
+            block_code = str(block_code)
         if owns_lease:
             if current_session.mode == "assistant":
                 terminal_status = AgentSessionStatus.PAUSED
@@ -1131,6 +1135,8 @@ class OrchestrateAgentIterationUseCase:
             return "blocked_by_stagnation"
         if block_code == "COST_ANOMALY":
             return "blocked_by_cost_anomaly"
+        if block_code is not None:
+            return "blocked_by_approval"
         return "iteration_completed"
 
     def _persist_package(self, tick: _Tick) -> str | None:
@@ -2148,7 +2154,7 @@ def _iteration_decision(
     if mode != "optimization":
         return decision
     if error_code and settings.optimizer_stop_on_critical_failure:
-        return {**decision, "action": "stop", "reason": "critical_failure"}
+        return _failure_decision(decision, prior, error_code, settings)
     recall = metrics.get("recall")
     precision = metrics.get("precision")
     if not isinstance(recall, (int, float)) or not isinstance(precision, (int, float)):
@@ -2241,6 +2247,48 @@ def _safe_specialist_error_code(error_code: str | None) -> str | None:
     if error_code in _SAFE_AUDIT_REASONS:
         return error_code
     return "SPECIALIST_FAILED"
+
+
+def _failure_decision(
+    decision: dict[str, object],
+    prior: list[AgentIteration],
+    error_code: str,
+    settings,
+) -> dict[str, object]:
+    """Follow the failure catalogue: ask for approval, retry, or stop."""
+    failure = describe_failure(_safe_specialist_error_code(error_code))
+    if failure.approval is not None:
+        return {
+            **decision,
+            "action": "stop",
+            "reason": "approval_required",
+            "block_code": failure.code,
+        }
+    if failure.retryable:
+        failures = _consecutive_retryable_failures(prior) + 1
+        if failures <= settings.optimizer_max_retryable_failures:
+            # The next iteration is the retry; it spends budget like any other.
+            return {
+                **decision,
+                "reason": "retrying_failure",
+                "retryable_failures": failures,
+            }
+        return {
+            **decision,
+            "action": "stop",
+            "reason": "critical_failure",
+            "retryable_failures": failures,
+        }
+    return {**decision, "action": "stop", "reason": "critical_failure"}
+
+
+def _consecutive_retryable_failures(prior: list[AgentIteration]) -> int:
+    count = 0
+    for item in sorted(prior, key=lambda iteration: iteration.number, reverse=True):
+        if item.decision.get("reason") != "retrying_failure":
+            break
+        count += 1
+    return count
 
 
 def _stale_iteration_count(prior: list[AgentIteration]) -> int:

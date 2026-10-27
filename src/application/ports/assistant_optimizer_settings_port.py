@@ -30,6 +30,9 @@ class AssistantOptimizerSettings:
     optimizer_max_budget_renewals: int = 0
     optimizer_iterations_without_improvement: int = 3
     optimizer_stop_on_critical_failure: bool = True
+    # Consecutive retryable failures (per the failure catalogue) tolerated
+    # before the session stops and waits for the Channel Manager.
+    optimizer_max_retryable_failures: int = 2
 
     # Objective and hard limits
     objective_precision_floor: float = 0.9

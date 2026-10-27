@@ -131,6 +131,7 @@ def _validate(settings: AssistantOptimizerSettings) -> None:
         "optimizer_session_budget_ceiling_seconds": (1, 604_800),
         "optimizer_max_budget_renewals": (0, 100),
         "optimizer_iterations_without_improvement": (1, 100),
+        "optimizer_max_retryable_failures": (0, 10),
         "objective_minimum_support_per_segment": (1, 10_000_000),
         "objective_minimum_count_to_publish_aggregates": (1, 1_000_000),
         "sampler_period_trigger_interval_days": (1, 365),
