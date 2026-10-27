@@ -58,6 +58,20 @@ def test_masks_card_number_even_when_checksum_is_invalid() -> None:
     assert result.counts["TARJETA"] == 1
 
 
+def test_preserves_uuid_references_and_masks_personal_data_next_to_them() -> None:
+    masker = RuleBasedPersonalDataMasker()
+    reference = "5909a2d1-a66f-4c26-b123-456789012345"
+    text = f"{reference} 4111 1111 1111 1111, teléfono 3001234567"
+
+    result = masker.mask(text)
+
+    assert reference in result.text
+    assert "4111 1111 1111 1111" not in result.text
+    assert "3001234567" not in result.text
+    assert result.counts == {"TARJETA": 1, "TEL": 1}
+    assert masker.unmask(result.text, result.replacements) == text
+
+
 def test_restores_only_values_from_the_same_masking_request() -> None:
     masker = RuleBasedPersonalDataMasker()
     result = masker.mask("Añade CC 123456789 y correo ana@example.com")

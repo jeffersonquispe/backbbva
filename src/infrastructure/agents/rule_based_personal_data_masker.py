@@ -59,18 +59,33 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str], str | None], ...] = (
     ),
 )
 
+_UUID = re.compile(
+    r"(?<![0-9a-fA-F])[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?![0-9a-fA-F])"
+)
+
 
 class RuleBasedPersonalDataMasker(PersonalDataMasker):
     """Request-local reversible masking of common Colombian identifiers."""
 
     def mask(self, text: str) -> MaskedPersonalData:
         candidates: list[tuple[int, int, str]] = []
+        # Internal UUID references can contain long numeric runs. Scan each
+        # surrounding span separately so a UUID is preserved without hiding
+        # a real card or other personal data immediately beside it.
+        spans = []
+        cursor = 0
+        for match in _UUID.finditer(text):
+            spans.append((cursor, match.start()))
+            cursor = match.end()
+        spans.append((cursor, len(text)))
         for label, pattern, group in _PATTERNS:
-            for match in pattern.finditer(text):
-                start, end = match.span(group) if group else match.span()
-                if label == "IP" and not _valid_ipv4(match.group()):
-                    continue
-                candidates.append((start, end, label))
+            for span_start, span_end in spans:
+                for match in pattern.finditer(text[span_start:span_end]):
+                    start, end = match.span(group) if group else match.span()
+                    if label == "IP" and not _valid_ipv4(match.group()):
+                        continue
+                    candidates.append((span_start + start, span_start + end, label))
 
         candidates.sort(key=lambda item: (item[0], -(item[1] - item[0])))
         selected: list[tuple[int, int, str]] = []
