@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -64,11 +63,6 @@ def main() -> int:
     if args.bm25_only:
         return 0
 
-    model = os.environ.get("EMBEDDING_MODEL", "")
-    if not model:
-        print("Embeddings unavailable: set EMBEDDING_MODEL to run the comparison.", file=sys.stderr)
-        return 2
-
     from src.infrastructure.agents.factories import genai_config  # noqa: PLC0415
     from src.infrastructure.embedding.langchain import (  # noqa: PLC0415
         get_embedding_unit_of_work_factory,
@@ -78,6 +72,12 @@ def main() -> int:
     )
 
     model = genai_config.EMBEDDING_MODEL
+    if not model:
+        print(
+            "Embeddings unavailable: set EMBEDDING_MODEL (env or config) to run the comparison.",
+            file=sys.stderr,
+        )
+        return 2
     semantic = EmbeddingProjectGraphSemanticSearch(
         graph=repository,
         embeddings=get_embedding_unit_of_work_factory(),
