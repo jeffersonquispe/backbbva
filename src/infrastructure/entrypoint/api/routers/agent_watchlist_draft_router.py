@@ -32,8 +32,9 @@ router = APIRouter(
 
 class GenerateWatchlistDraftRequest(BaseModel):
     client_message_id: str = Field(min_length=1, max_length=128)
-    operation: str = Field(pattern="^(create|update)$")
+    operation: str = Field(pattern="^(create|update|add_elements)$")
     target_id: str | None = None
+    source_message_content: str | None = Field(default=None, max_length=20_000)
 
 
 class ConfirmWatchlistDraftRequest(BaseModel):
@@ -54,6 +55,7 @@ def generate_watchlist_draft(
                 client_message_id=request.client_message_id,
                 operation=request.operation,
                 target_id=request.target_id,
+                source_message_content=request.source_message_content,
             )
         )
     except WatchlistDraftNotFoundError as error:

@@ -5,7 +5,11 @@ from src.application.ports.personal_data_masker_port import (
     PersonalDataMasker,
 )
 from src.application.ports.watchlist_port import Watchlist, WatchlistType
-from src.application.use_cases.agent.draft_watchlist import _diff, _provenance, _verify
+from src.application.use_cases.agent.draft_watchlist import (
+    _diff,
+    _provenance,
+    _verify,
+)
 
 
 class _Masker(PersonalDataMasker):
@@ -19,6 +23,9 @@ class _Entries:
 
     def list(self, **kwargs) -> list[Watchlist]:
         return self.rows
+
+    def get(self, watchlist_id: str) -> Watchlist | None:
+        return next((row for row in self.rows if row.id == watchlist_id), None)
 
 
 def _entry(identifier: str, name: str) -> Watchlist:
@@ -75,4 +82,25 @@ def test_watchlist_diff_and_provenance_are_field_specific_and_grounded() -> None
             {"name": {"source_quote": "invented"}}, "Please make it New", "message-1"
         )["name"]["source"]
         == "inferred"
+    )
+
+
+def test_watchlist_element_verifier_requires_a_real_list_and_bounded_values() -> None:
+    entries = _Entries([_entry("wl-1", "Sanctions")])
+    assert _verify(
+        {"watchlist_id": "wl-1", "values": ["123456789"]},
+        target_id="wl-1",
+        entries=entries,
+        leaked=0,
+        operation="add_elements",
+    ) == [("watchlist_exists", "PASS", None), ("element_values", "PASS", None)]
+    assert (
+        _verify(
+            {"watchlist_id": "missing", "values": []},
+            target_id="missing",
+            entries=entries,
+            leaked=0,
+            operation="add_elements",
+        )[0][1]
+        == "FAIL"
     )

@@ -76,6 +76,42 @@ _LIBRARY_DRAFT_ACTIONS = (
         fields=("name", "description", "list_type"),
         context=("watchlist_schema", "list_type_enum", "existing_watchlists"),
     ),
+    AgentDraftAction(
+        action_id="watchlist_element",
+        label="Elementos de watchlist",
+        endpoint_kind="watchlist",
+        operations=("add_elements",),
+        required_permissions=("configuration", "library"),
+        fields=("values",),
+        context=("available_watchlists", "element_count"),
+    ),
+    AgentDraftAction(
+        action_id="channel",
+        label="Canal",
+        endpoint_kind="resource-draft",
+        operations=("create",),
+        required_permissions=("configuration", "library"),
+        fields=("code", "name", "description"),
+        context=("existing_channels",),
+    ),
+    AgentDraftAction(
+        action_id="catalog_entry",
+        label="Catálogo de configuración",
+        endpoint_kind="resource-draft",
+        operations=("create",),
+        required_permissions=("configuration", "library"),
+        fields=("category", "value"),
+        context=("categories", "existing_entries"),
+    ),
+    AgentDraftAction(
+        action_id="dataset_empty",
+        label="Dataset vacío",
+        endpoint_kind="resource-draft",
+        operations=("create",),
+        required_permissions=("configuration", "library"),
+        fields=("name", "fields"),
+        context=("existing_datasets", "dataset_kind"),
+    ),
 )
 
 

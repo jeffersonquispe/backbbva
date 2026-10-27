@@ -11,6 +11,7 @@ from src.infrastructure.entrypoint.api.routers import (
     agent_draft_actions_router,
     agent_flag_draft_router,
     agent_modus_operandi_draft_router,
+    agent_resource_draft_router,
     agent_similar_case_draft_router,
     agent_taxonomy_draft_router,
     agent_watchlist_draft_router,
@@ -49,6 +50,10 @@ def test_draft_actions_are_filtered_by_authenticated_role() -> None:
         "flag",
         "similar_case",
         "watchlist",
+        "watchlist_element",
+        "channel",
+        "catalog_entry",
+        "dataset_empty",
     }
     assert channel_manager == manager
     assert all(
@@ -84,6 +89,14 @@ def test_action_contract_declares_read_context_and_validated_fields() -> None:
     ]
     assert by_id["watchlist"]["fields"] == ["name", "description", "list_type"]
     assert by_id["watchlist"]["operations"] == ["create", "update"]
+    assert by_id["watchlist_element"]["operations"] == ["add_elements"]
+    assert by_id["watchlist_element"]["context"] == [
+        "available_watchlists",
+        "element_count",
+    ]
+    assert by_id["channel"]["context"] == ["existing_channels"]
+    assert by_id["catalog_entry"]["context"] == ["categories", "existing_entries"]
+    assert by_id["dataset_empty"]["context"] == ["existing_datasets", "dataset_kind"]
 
 
 def test_unlisted_roles_cannot_call_any_draft_generation_endpoint() -> None:
@@ -93,6 +106,7 @@ def test_unlisted_roles_cannot_call_any_draft_generation_endpoint() -> None:
         (agent_flag_draft_router.router, "flag-drafts"),
         (agent_similar_case_draft_router.router, "similar-case-drafts"),
         (agent_watchlist_draft_router.router, "watchlist-drafts"),
+        (agent_resource_draft_router.router, "resource-drafts"),
     )
     for role in (LocalRole.RELEASE_MANAGER, LocalRole.DATA_ANALYST):
         app = FastAPI()

@@ -301,11 +301,23 @@ class RetrieveProjectContextUseCase:
             key=lambda item: item[1],
             reverse=True,
         )
-        blocked = any(
-            node_id in hidden
-            and graph.nodes[node_id].kind
-            in {NodeKind.VIEW, NodeKind.TASK, NodeKind.ACTION}
-            for node_id, _score in ranked[:BLOCKED_PROBE]
+        # A hidden node can match incidental words (for example, an "E2E"
+        # test endpoint) while a directly relevant action is available to the
+        # role. Only claim the request is blocked when its strongest hidden
+        # view/task/action outranks every visible view/task/action match.
+        relevant_kinds = {NodeKind.VIEW, NodeKind.TASK, NodeKind.ACTION}
+        hidden_relevant = [
+            score
+            for node_id, score in ranked[:BLOCKED_PROBE]
+            if node_id in hidden and graph.nodes[node_id].kind in relevant_kinds
+        ]
+        visible_relevant = [
+            score
+            for node_id, score in ranked
+            if node_id not in hidden and graph.nodes[node_id].kind in relevant_kinds
+        ]
+        blocked = bool(hidden_relevant) and max(hidden_relevant) > max(
+            visible_relevant, default=0.0
         )
         top = [item for item in ranked if item[0] not in hidden][:SEED_COUNT]
         if not top:

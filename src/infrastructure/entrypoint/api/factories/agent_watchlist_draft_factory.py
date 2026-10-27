@@ -22,6 +22,7 @@ from src.infrastructure.entrypoint.api.factories.assistant_optimizer_settings_fa
     get_assistant_optimizer_settings_repository,
 )
 from src.infrastructure.entrypoint.api.factories.watchlist_factory import (
+    get_add_watchlist_elements_use_case,
     get_create_watchlist_use_case,
     get_update_watchlist_use_case,
 )
@@ -68,6 +69,7 @@ def get_confirm_watchlist_draft_use_case() -> ConfirmWatchlistDraftUseCase:
         entries=DynamoWatchlistRepository(),
         create_entry=get_create_watchlist_use_case(),
         update_entry=get_update_watchlist_use_case(),
+        add_elements=get_add_watchlist_elements_use_case(),
         audit=get_audit_repository(),
         timeline=get_agent_timeline(),
         clock=get_clock(),

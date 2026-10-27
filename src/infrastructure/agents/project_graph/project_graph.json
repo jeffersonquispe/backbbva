@@ -17,6 +17,11 @@
   },
   {
    "relation": "requests",
+   "source": "api:agent.confirmResourceDraft",
+   "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/resource-drafts/{package_id}/confirm"
+  },
+  {
+   "relation": "requests",
    "source": "api:agent.confirmSimilarCaseDraft",
    "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/similar-case-drafts/{package_id}/confirm"
   },
@@ -54,6 +59,11 @@
    "relation": "requests",
    "source": "api:agent.generateModusOperandiDraft",
    "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/modus-operandi-drafts"
+  },
+  {
+   "relation": "requests",
+   "source": "api:agent.generateResourceDraft",
+   "target": "endpoint:POST /api/v0/agent/sessions/{session_id}/resource-drafts"
   },
   {
    "relation": "requests",
@@ -1148,6 +1158,11 @@
   {
    "relation": "calls",
    "source": "component:agent/AgentPanel",
+   "target": "api:agent.confirmResourceDraft"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
    "target": "api:agent.confirmSimilarCaseDraft"
   },
   {
@@ -1174,6 +1189,11 @@
    "relation": "calls",
    "source": "component:agent/AgentPanel",
    "target": "api:agent.generateModusOperandiDraft"
+  },
+  {
+   "relation": "calls",
+   "source": "component:agent/AgentPanel",
+   "target": "api:agent.generateResourceDraft"
   },
   {
    "relation": "calls",
@@ -4461,6 +4481,11 @@
    "target": "resource:agent"
   },
   {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/resource-drafts/{package_id}",
+   "target": "resource:agent-resource-drafts"
+  },
+  {
    "relation": "requires",
    "source": "endpoint:GET /api/v0/agent/sessions/{session_id}/runs/{run_id}/tool-calls",
    "target": "permission:configuration"
@@ -5571,6 +5596,26 @@
    "target": "resource:agent"
   },
   {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/resource-drafts",
+   "target": "resource:agent-resource-drafts"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/resource-drafts",
+   "target": "use_case:GenerateResourceDraftUseCase"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/resource-drafts/{package_id}/confirm",
+   "target": "resource:agent-resource-drafts"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/resource-drafts/{package_id}/confirm",
+   "target": "use_case:ConfirmResourceDraftUseCase"
+  },
+  {
    "relation": "requires",
    "source": "endpoint:POST /api/v0/agent/sessions/{session_id}/resume",
    "target": "permission:configuration"
@@ -6449,6 +6494,11 @@
    "relation": "implemented_by",
    "source": "port:AgentConfirmationRepository",
    "target": "adapter:DynamoAgentConfirmationRepository"
+  },
+  {
+   "relation": "implemented_by",
+   "source": "port:AgentDraftResourcePort",
+   "target": "adapter:AgentDraftResourceAdapter"
   },
   {
    "relation": "implemented_by",
@@ -7941,6 +7991,46 @@
   },
   {
    "relation": "uses_port",
+   "source": "use_case:ConfirmResourceDraftUseCase",
+   "target": "port:AgentConfirmationRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ConfirmResourceDraftUseCase",
+   "target": "port:AgentDraftResourcePort"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ConfirmResourceDraftUseCase",
+   "target": "port:AgentPackageRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ConfirmResourceDraftUseCase",
+   "target": "port:AgentSessionRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ConfirmResourceDraftUseCase",
+   "target": "port:AgentVerificationRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ConfirmResourceDraftUseCase",
+   "target": "port:AuditPort"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ConfirmResourceDraftUseCase",
+   "target": "port:Clock"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:ConfirmResourceDraftUseCase",
+   "target": "port:IdGenerator"
+  },
+  {
+   "relation": "uses_port",
    "source": "use_case:ConfirmSimilarCaseDraftUseCase",
    "target": "port:AgentConfirmationRepository"
   },
@@ -8763,6 +8853,61 @@
    "relation": "uses_port",
    "source": "use_case:GenerateModusOperandiDraftUseCase",
    "target": "port:TaxonomyLibraryRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:AgentDraftResourcePort"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:AgentMessageRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:AgentPackageRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:AgentPromptRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:AgentSessionRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:AgentStructuredGenerator"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:AgentVerificationRepository"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:AssistantOptimizerSettingsPort"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:Clock"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:IdGenerator"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:GenerateResourceDraftUseCase",
+   "target": "port:PersonalDataMasker"
   },
   {
    "relation": "uses_port",
@@ -14270,6 +14415,18 @@
   },
   {
    "attrs": {
+    "file": "src/infrastructure/agents/agent_draft_resource_adapter.py"
+   },
+   "description": "Infrastructure bridge to existing library/catalog/dataset use cases.",
+   "id": "adapter:AgentDraftResourceAdapter",
+   "keywords": [
+    "Agent Draft Resource Adapter"
+   ],
+   "kind": "adapter",
+   "name": "AgentDraftResourceAdapter"
+  },
+  {
+   "attrs": {
     "file": "src/infrastructure/queues/celery/alert_action_dispatcher.py"
    },
    "description": "",
@@ -15280,7 +15437,7 @@
    "attrs": {
     "file": "src/infrastructure/agents/rule_based_personal_data_masker.py"
    },
-   "description": "Irreversible masking of common Colombian personal identifiers.",
+   "description": "Request-local reversible masking of common Colombian identifiers.",
    "id": "adapter:RuleBasedPersonalDataMasker",
    "keywords": [
     "Rule Based Personal Data Masker"
@@ -15394,6 +15551,20 @@
    "attrs": {
     "file": "lib/api/agent.functions.ts",
     "http_method": "POST",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/resource-drafts/${encodeURIComponent(packageId)}/confirm"
+   },
+   "description": "POST /api/v0/agent/sessions/{id}/resource-drafts/{id}/confirm",
+   "id": "api:agent.confirmResourceDraft",
+   "keywords": [
+    "confirmar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "confirmResourceDraft"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "POST",
     "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/similar-case-drafts/${encodeURIComponent(packageId)}/confirm"
    },
    "description": "POST /api/v0/agent/sessions/{id}/similar-case-drafts/{id}/confirm",
@@ -15501,6 +15672,20 @@
    ],
    "kind": "api_call",
    "name": "generateModusOperandiDraft"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/agent.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/agent/sessions/${encodeURIComponent(sessionId)}/resource-drafts"
+   },
+   "description": "POST /api/v0/agent/sessions/{id}/resource-drafts",
+   "id": "api:agent.generateResourceDraft",
+   "keywords": [
+    "generar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "generateResourceDraft"
   },
   {
    "attrs": {
@@ -21992,6 +22177,20 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/agent/sessions/{session_id}/resource-drafts/{package_id}"
+   },
+   "description": "",
+   "id": "endpoint:GET /api/v0/agent/sessions/{session_id}/resource-drafts/{package_id}",
+   "keywords": [
+    "get resource draft",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/agent/sessions/{session_id}/resource-drafts/{package_id}"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/agent/sessions/{session_id}/runs/{run_id}/tool-calls"
    },
    "description": "Measured calls of one specialist run (duration, cost, safe result only).",
@@ -23546,6 +23745,34 @@
   {
    "attrs": {
     "http_method": "POST",
+    "route": "/api/v0/agent/sessions/{session_id}/resource-drafts"
+   },
+   "description": "",
+   "id": "endpoint:POST /api/v0/agent/sessions/{session_id}/resource-drafts",
+   "keywords": [
+    "generate resource draft",
+    "generar crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/agent/sessions/{session_id}/resource-drafts"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
+    "route": "/api/v0/agent/sessions/{session_id}/resource-drafts/{package_id}/confirm"
+   },
+   "description": "",
+   "id": "endpoint:POST /api/v0/agent/sessions/{session_id}/resource-drafts/{package_id}/confirm",
+   "keywords": [
+    "confirm resource draft",
+    "confirmar crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/agent/sessions/{session_id}/resource-drafts/{package_id}/confirm"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
     "route": "/api/v0/agent/sessions/{session_id}/resume"
    },
    "description": "",
@@ -24793,6 +25020,16 @@
   },
   {
    "attrs": {},
+   "description": "Read and apply the small set of resources drafted by the assistant.",
+   "id": "port:AgentDraftResourcePort",
+   "keywords": [
+    "Agent Draft Resource Port"
+   ],
+   "kind": "port",
+   "name": "AgentDraftResourcePort"
+  },
+  {
+   "attrs": {},
    "description": "",
    "id": "port:AgentEntityClaimRepository",
    "keywords": [
@@ -25665,6 +25902,18 @@
   },
   {
    "attrs": {
+    "file": "src/infrastructure/entrypoint/api/routers/agent_resource_draft_router.py"
+   },
+   "description": "Recurso de API «agent-resource-drafts».",
+   "id": "resource:agent-resource-drafts",
+   "keywords": [
+    "agent resource drafts"
+   ],
+   "kind": "resource",
+   "name": "agent-resource-drafts"
+  },
+  {
+   "attrs": {
     "file": "src/infrastructure/entrypoint/api/routers/agent_similar_case_draft_router.py"
    },
    "description": "Recurso de API «agent-similar-case-drafts».",
@@ -26521,6 +26770,17 @@
   {
    "attrs": {},
    "description": "",
+   "id": "use_case:ConfirmResourceDraftUseCase",
+   "keywords": [
+    "Confirm Resource Draft",
+    "confirmar"
+   ],
+   "kind": "use_case",
+   "name": "ConfirmResourceDraftUseCase"
+  },
+  {
+   "attrs": {},
+   "description": "",
    "id": "use_case:ConfirmSimilarCaseDraftUseCase",
    "keywords": [
     "Confirm Similar Case Draft",
@@ -26999,6 +27259,17 @@
    ],
    "kind": "use_case",
    "name": "GenerateModusOperandiDraftUseCase"
+  },
+  {
+   "attrs": {},
+   "description": "",
+   "id": "use_case:GenerateResourceDraftUseCase",
+   "keywords": [
+    "Generate Resource Draft",
+    "generar"
+   ],
+   "kind": "use_case",
+   "name": "GenerateResourceDraftUseCase"
   },
   {
    "attrs": {},

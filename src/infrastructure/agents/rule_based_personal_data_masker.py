@@ -61,7 +61,7 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str], str | None], ...] = (
 
 
 class RuleBasedPersonalDataMasker(PersonalDataMasker):
-    """Irreversible masking of common Colombian personal identifiers."""
+    """Request-local reversible masking of common Colombian identifiers."""
 
     def mask(self, text: str) -> MaskedPersonalData:
         candidates: list[tuple[int, int, str]] = []
@@ -81,15 +81,24 @@ class RuleBasedPersonalDataMasker(PersonalDataMasker):
                 cursor = candidate[1]
 
         counts: dict[str, int] = {}
+        replacements: dict[str, str] = {}
         chunks: list[str] = []
         cursor = 0
         for start, end, label in selected:
             chunks.append(text[cursor:start])
             counts[label] = counts.get(label, 0) + 1
-            chunks.append(f"[{label}_{counts[label]}]")
+            token = f"[{label}_{counts[label]}]"
+            chunks.append(token)
+            replacements[token] = text[start:end]
             cursor = end
         chunks.append(text[cursor:])
-        return MaskedPersonalData("".join(chunks), counts)
+        return MaskedPersonalData("".join(chunks), counts, replacements)
+
+    def unmask(self, text: str, replacements: dict[str, str]) -> str:
+        """Restore only the placeholders produced for this request."""
+        for token, value in replacements.items():
+            text = text.replace(token, value)
+        return text
 
 
 def _valid_ipv4(value: str) -> bool:

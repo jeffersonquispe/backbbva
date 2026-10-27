@@ -1,3 +1,7 @@
+from src.application.use_cases.agent.draft_watchlist import (
+    WatchlistDraftPolicyError,
+    _restore_element_values,
+)
 from src.infrastructure.agents.rule_based_personal_data_masker import (
     RuleBasedPersonalDataMasker,
 )
@@ -52,3 +56,30 @@ def test_masks_card_number_even_when_checksum_is_invalid() -> None:
 
     assert "4111 1111 1111 1112" not in result.text
     assert result.counts["TARJETA"] == 1
+
+
+def test_restores_only_values_from_the_same_masking_request() -> None:
+    masker = RuleBasedPersonalDataMasker()
+    result = masker.mask("Añade CC 123456789 y correo ana@example.com")
+
+    assert result.text == "Añade CC [CC_1] y correo [EMAIL_1]"
+    assert masker.unmask("[CC_1] / [EMAIL_1]", result.replacements) == (
+        "123456789 / ana@example.com"
+    )
+    assert masker.unmask("[CC_2]", result.replacements) == "[CC_2]"
+
+
+def test_watchlist_element_values_restore_only_request_placeholders() -> None:
+    masker = RuleBasedPersonalDataMasker()
+    source = "Agrega la cédula 123456789 y ana@example.com"
+    masked = masker.mask(source)
+
+    assert _restore_element_values(
+        ["[CC_1]", "[EMAIL_1]"], masked.replacements, masker, source
+    ) == ["123456789", "ana@example.com"]
+    try:
+        _restore_element_values(["[CC_2]"], masked.replacements, masker, source)
+    except WatchlistDraftPolicyError as error:
+        assert "placeholder" in str(error)
+    else:
+        raise AssertionError("unknown placeholder must not be restored")

@@ -144,3 +144,21 @@ def test_role_gating_matches_the_navigation_of_each_role(
     assert "endpoint:POST /api/v0/models/{model_id}/train" in graph.hidden_for(
         "fraud_analyst"
     )
+
+
+def test_incidental_hidden_e2e_matches_do_not_block_a_visible_library_action(
+    use_case: RetrieveProjectContextUseCase,
+) -> None:
+    result = use_case.execute(
+        RetrieveProjectContextInput(
+            query=(
+                "Crea un canal de negocio nuevo con code exacto E2E-1234, "
+                "name exacto ARIA E2E canal y description de pruebas."
+            ),
+            page_path="/biblioteca",
+            role="manager",
+        )
+    )
+
+    assert "action:nuevo-canal@view-biblioteca" in result.node_ids
+    assert "su rol no tiene acceso" not in result.text
