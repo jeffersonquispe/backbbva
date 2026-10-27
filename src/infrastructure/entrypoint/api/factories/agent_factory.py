@@ -8,6 +8,9 @@ from src.application.use_cases.agent.create_agent_session import (
 from src.application.use_cases.agent.get_agent_session_overview import (
     GetAgentSessionOverviewUseCase,
 )
+from src.application.use_cases.agent.get_optimizer_launch_limits import (
+    GetOptimizerLaunchLimitsUseCase,
+)
 from src.application.use_cases.agent.get_optimizer_status import (
     GetOptimizerStatusUseCase,
 )
@@ -158,6 +161,12 @@ def get_resolve_agent_block_use_case() -> ResolveAgentBlockUseCase:
         timeline=get_agent_timeline(),
         clock=get_clock(),
         ids=get_id_generator(),
+    )
+
+
+def get_optimizer_launch_limits_use_case() -> GetOptimizerLaunchLimitsUseCase:
+    return GetOptimizerLaunchLimitsUseCase(
+        settings=get_assistant_optimizer_settings_repository()
     )
 
 

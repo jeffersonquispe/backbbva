@@ -475,6 +475,16 @@ class OptimizerSampleUseResponse(BaseModel):
     experiments: int
 
 
+class OptimizerLaunchLimitsResponse(BaseModel):
+    """Limits a Channel Manager sees before launching an optimizer session."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    enabled: bool
+    max_concurrent_sessions: int
+    budget_ceiling: dict[str, int]
+
+
 class OptimizerStatusResponse(BaseModel):
     """Aggregate optimizer load for the Monitor (no session identifiers)."""
 

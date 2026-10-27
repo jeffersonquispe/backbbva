@@ -67,6 +67,7 @@ from src.infrastructure.entrypoint.api.factories.agent_factory import (
     get_create_agent_session_use_case,
     get_manage_agent_insight_use_case,
     get_manage_agent_session_use_case,
+    get_optimizer_launch_limits_use_case,
     get_optimizer_status_use_case,
     get_renew_agent_budget_use_case,
     get_resolve_agent_block_use_case,
@@ -91,6 +92,7 @@ from src.infrastructure.entrypoint.api.schemas.agent import (
     CreateAgentSessionRequest,
     OptimizationRunResponse,
     OptimizerInsightResponse,
+    OptimizerLaunchLimitsResponse,
     OptimizerStatusResponse,
     RenewAgentBudgetRequest,
     ResolveAgentBlockRequest,
@@ -316,6 +318,14 @@ def list_run_tool_calls(
         }
         for call in get_agent_tool_call_repository().list_for_run(run_id)
     ]
+
+
+@router.get("/optimizer-launch-limits", response_model=OptimizerLaunchLimitsResponse)
+def get_optimizer_launch_limits(
+    _: LocalUser = _CONFIGURATION_ACCESS,
+):
+    """Enablement, concurrency and per-session budget ceiling shown before launching."""
+    return get_optimizer_launch_limits_use_case().execute()
 
 
 @router.get(

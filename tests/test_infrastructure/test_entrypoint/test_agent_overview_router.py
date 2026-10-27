@@ -408,3 +408,30 @@ def test_optimizer_status_is_a_monitor_aggregate(monkeypatch) -> None:
     assert allowed.status_code == 200
     assert allowed.json()["running_candidates"] == 3
     assert denied.status_code == 403
+
+
+def test_optimizer_launch_limits_are_readable_by_the_launching_role(monkeypatch) -> None:
+    from src.application.use_cases.agent.get_optimizer_launch_limits import (
+        OptimizerLaunchLimits,
+    )
+
+    class UseCase:
+        def execute(self):
+            return OptimizerLaunchLimits(
+                enabled=True,
+                max_concurrent_sessions=2,
+                budget_ceiling={"tokens": 100, "usd_micros": 5_000_000, "seconds": 60},
+            )
+
+    monkeypatch.setattr(agent_router, "get_optimizer_launch_limits_use_case", UseCase)
+
+    response = _client(monkeypatch, LocalRole.CHANNEL_MANAGER).get(
+        "/agent/optimizer-launch-limits"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "enabled": True,
+        "max_concurrent_sessions": 2,
+        "budget_ceiling": {"tokens": 100, "usd_micros": 5_000_000, "seconds": 60},
+    }
