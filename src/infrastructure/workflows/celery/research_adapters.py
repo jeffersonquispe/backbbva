@@ -61,6 +61,8 @@ class HeuristicHistoryResearchPlanner:
     executor or its data boundary.
     """
 
+    kind = "heuristic"
+
     def __init__(self, current_amount: Any = None) -> None:
         self._current_amount = current_amount
 
@@ -104,6 +106,8 @@ class LLMHistoryResearchPlanner:
         "columnas útiles, devuelve operations vacío. Máximo 4 operaciones."
     )
 
+    kind = "llm"
+
     def __init__(
         self,
         llm_factory: LLMUnitOfWorkFactory,
@@ -120,6 +124,8 @@ class LLMHistoryResearchPlanner:
         self._columns = columns
         self._allowed_operations = set(allowed_operations)
         self._max_operations = min(max_operations, 4)
+        # Token usage of the latest plan, for the planner comparison trace.
+        self.usage: dict[str, int | None] = {}
 
     def plan(self, request: ResearchRequest) -> list[HistoryOperation]:
         payload = {
@@ -144,6 +150,10 @@ class LLMHistoryResearchPlanner:
                 LLMMessage(LLMMessageRole.USER, json.dumps(payload, ensure_ascii=False)),
             ]
         )
+        self.usage = {
+            "input_tokens": response.input_tokens,
+            "output_tokens": response.output_tokens,
+        }
         parsed = json.loads(response.content)
         if not isinstance(parsed, dict) or not isinstance(parsed.get("operations"), list):
             raise ValueError("invalid history plan response")

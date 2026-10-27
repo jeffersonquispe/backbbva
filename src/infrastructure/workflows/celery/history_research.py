@@ -42,7 +42,7 @@ def _history_research(
     )
     from src.infrastructure.workflows.celery import task_factories
 
-    if genai_config.REPORT_LLM_MODEL:
+    if settings.planner == "llm" and genai_config.REPORT_LLM_MODEL:
         planner = LLMHistoryResearchPlanner(
             get_llm_unit_of_work_factory(),
             model=genai_config.REPORT_LLM_MODEL,

@@ -4,6 +4,7 @@ from src.application.dtos.research_dtos import (
     ResearchSource,
     ResearchStatus,
 )
+from src.application.ports.llm_unit_of_work_port import LLMInvocationResult
 from src.domain.configurations.entities import (
     HistoryPandasResearchConfig,
 )
@@ -11,6 +12,7 @@ from src.infrastructure.workflows.celery.history_pandas_research import (
     HistoryPandasResearchAgent,
 )
 from src.infrastructure.workflows.celery.research_adapters import (
+    HeuristicHistoryResearchPlanner,
     LLMHistoryResearchPlanner,
 )
 
@@ -22,7 +24,9 @@ class _LLM:
 
     def invoke(self, messages):
         self.messages = messages
-        return type("Invocation", (), {"content": self.content})()
+        return LLMInvocationResult(
+            content=self.content, model="cheap-model", input_tokens=120, output_tokens=30
+        )
 
 
 class _LLMFactory:
@@ -70,6 +74,35 @@ def test_llm_history_planner_uses_closed_schema_and_rejects_unavailable_columns(
     assert factory.options["model"] == "cheap-model"
     assert factory.options["temperature"] == 0.0
     assert "available_columns" in llm.messages[1].content
+    assert planner.usage == {"input_tokens": 120, "output_tokens": 30}
+
+
+def test_history_trace_records_planner_kind_latency_and_tokens():
+    config = HistoryPandasResearchConfig(enabled=True, allowed_columns=["amount"])
+    rows = [{"amount": 100}, {"amount": 200}, {"amount": 900}]
+    llm_planner = LLMHistoryResearchPlanner(
+        _LLMFactory(
+            _LLM('{"operations":[{"name":"comparison","column":"amount","current_value":900}]}')
+        ),
+        model="cheap-model",
+        monitoring=object(),
+        columns=["amount"],
+        allowed_operations=["comparison"],
+        max_operations=4,
+    )
+
+    llm_trace = HistoryPandasResearchAgent(llm_planner, config).research(
+        _history_request(), rows
+    ).trace[0]
+    fixed_trace = HistoryPandasResearchAgent(
+        HeuristicHistoryResearchPlanner(900), config
+    ).research(_history_request(), rows).trace[0]
+
+    assert llm_trace["planner"] == "llm"
+    assert (llm_trace["planner_input_tokens"], llm_trace["planner_output_tokens"]) == (120, 30)
+    assert fixed_trace["planner"] == "heuristic"
+    assert "planner_input_tokens" not in fixed_trace
+    assert llm_trace["planning_ms"] >= 0 and fixed_trace["planning_ms"] >= 0
 
 
 def test_history_agent_executes_only_declared_operations_and_returns_audit_trace():

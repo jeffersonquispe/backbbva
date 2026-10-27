@@ -337,7 +337,25 @@ def test_history_analysis_analyzes_only_the_selected_slice() -> None:
 
     assert result["status"] == "executed"
     # e-old (June) falls outside the 30-day window before the alert.
-    assert result["trace"][0] == {"rows_considered": 1}
+    assert result["trace"][0]["rows_considered"] == 1
+
+
+def test_heuristic_planner_setting_pins_the_fixed_plan(monkeypatch) -> None:
+    monkeypatch.setattr(
+        history_research_module.genai_config, "REPORT_LLM_MODEL", "cheap-model"
+    )
+    monkeypatch.setattr(
+        history_research_module,
+        "LLMHistoryResearchPlanner",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("LLM planner")),
+    )
+    segment = SegmentSettings(enabled=True, agent=AgentSettings())
+
+    [result] = history_research_module._history_research(
+        _context(segment), _history_cfg(planner="heuristic"), "inconclusa"
+    )
+
+    assert result["trace"][0]["planner"] == "heuristic"
 
 
 def test_history_analysis_disabled_does_nothing() -> None:

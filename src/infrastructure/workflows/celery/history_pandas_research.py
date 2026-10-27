@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, is_dataclass
 from typing import Any
@@ -66,12 +67,23 @@ class HistoryPandasResearchAgent:
                     c for c in self._config.allowed_columns if c in frame.columns
                 ]
                 frame = frame.loc[:, permitted]
+            started = time.perf_counter()
             operations = self._planner.plan(request)
+            planning = {
+                "planner": getattr(self._planner, "kind", "custom"),
+                "planning_ms": round((time.perf_counter() - started) * 1000),
+                **{
+                    f"planner_{key}": value
+                    for key, value in getattr(self._planner, "usage", {}).items()
+                },
+            }
             if len(operations) > self._config.max_analysis_operations:
                 raise ValueError("history analysis operation budget exceeded")
 
             findings: list[ResearchFinding] = []
-            trace: list[dict[str, Any]] = [{"rows_considered": len(frame)}]
+            trace: list[dict[str, Any]] = [
+                {"rows_considered": len(frame), **planning}
+            ]
             working = frame.copy(deep=True)
             for operation in operations:
                 if operation.name not in self._config.allowed_operations:

@@ -354,6 +354,9 @@ class HistoryPandasResearchConfig(ResearchAgentConfig):
     max_history_rows: int = 50
     window_days: int = 30
     max_analysis_operations: int = 4
+    # "llm" plans with REPORT_LLM_MODEL (heuristic when it is not set);
+    # "heuristic" pins the fixed plan, so both can be compared on one batch.
+    planner: str = "llm"
     allowed_columns: list[str] = field(default_factory=list)
     allowed_operations: list[str] = field(
         default_factory=lambda: [
