@@ -169,6 +169,11 @@ def test_runner_applies_all_four_exact_pins_to_same_final_rows_and_bootstraps_pa
     ]
     assert evidence["global"]["recall"] == 1.0
     assert evidence["baseline_global"]["recall"] == 0.0
+    # The baseline flagged nothing: precision is undefined, not 0.
+    assert evidence["baseline_global"]["predicted_positive"] == 0
+    assert evidence["baseline_global"]["precision"] is None
+    assert evidence["baseline_global"]["f1"] is None
+    assert evidence["delta"]["precision"]["estimate"] is None
     assert evidence["delta"]["recall"] == {
         "estimate": 1.0,
         "ci95_lower": 1.0,

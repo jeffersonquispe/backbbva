@@ -666,6 +666,55 @@ def test_global_constraint_failure_is_rejected_without_persisting_raw_error():
     assert evaluated.error_code is None
 
 
+def test_undefined_precision_is_rejected_as_a_constraint_not_invalid_evidence():
+    result = _passing_evidence()
+    result["global"]["precision"] = None
+    result["baseline_global"]["precision"] = None
+    segment = result["segments"]["channel_digital"]
+    segment["precision"] = None
+    segment["delta_precision"]["estimate"] = None
+    experiments = InMemoryAgentExperiments()
+
+    evaluated = _use_case(experiments, RecordingEvaluator(result)).execute(
+        experiment_id="exp-1",
+        session_id="session-1",
+        kind=AgentExperimentKind.ISOLATED,
+        iteration_number=1,
+        components=(_reference(),),
+        baseline_components=_baseline((_reference(),)),
+        objective_id="fraud",
+        objective_version=4,
+    )
+
+    assert evaluated.status == AgentExperimentStatus.REJECTED_GLOBAL_CONSTRAINT
+    assert evaluated.error_code is None
+    assert evaluated.global_evaluation["global"]["precision"] is None
+    assert any(
+        item["constraint_id"] == "global_precision_floor" and item["status"] == "FAILED"
+        for item in evaluated.global_evaluation["constraints"]
+    )
+
+
+def test_undefined_precision_with_a_point_estimate_is_invalid_evidence():
+    result = _passing_evidence()
+    segment = result["segments"]["channel_digital"]
+    segment["precision"] = None
+    experiments = InMemoryAgentExperiments()
+
+    evaluated = _use_case(experiments, RecordingEvaluator(result)).execute(
+        experiment_id="exp-1",
+        session_id="session-1",
+        kind=AgentExperimentKind.ISOLATED,
+        iteration_number=1,
+        components=(_reference(),),
+        baseline_components=_baseline((_reference(),)),
+        objective_id="fraud",
+        objective_version=4,
+    )
+
+    assert evaluated.error_code == "SEGMENT_EVIDENCE_INVALID"
+
+
 def test_combination_is_rejected_when_primary_global_metric_regresses():
     result = _passing_evidence()
     result["global"]["recall"] = 0.79

@@ -156,8 +156,8 @@ class PairedAgentExperimentRunner(AgentExperimentEvaluator):
             ),
             "delta": {
                 name: {
-                    "estimate": round(
-                        candidate_metrics[name] - baseline_metrics[name], 8
+                    "estimate": _difference(
+                        candidate_metrics[name], baseline_metrics[name]
                     ),
                     "ci95_lower": interval[0],
                     "ci95_upper": interval[1],
@@ -212,18 +212,41 @@ class PairedAgentExperimentRunner(AgentExperimentEvaluator):
         return tuple(resolved)
 
 
-def _metrics(truth: list[bool], predicted: list[bool]) -> dict[str, float | int]:
+def _metrics(
+    truth: list[bool], predicted: list[bool]
+) -> dict[str, float | int | None]:
     tp = sum(actual and guess for actual, guess in zip(truth, predicted))
     fp = sum((not actual) and guess for actual, guess in zip(truth, predicted))
     fn = sum(actual and (not guess) for actual, guess in zip(truth, predicted))
-    precision = tp / max(1, tp + fp)
     recall = tp / max(1, tp + fn)
+    # Precision is undefined, not 0, when nothing was predicted positive; a
+    # 0 would read as "every flag was wrong" and hide that none was raised.
+    precision = tp / (tp + fp) if tp + fp else None
+    f1 = (
+        None
+        if precision is None
+        else 2 * precision * recall / max(1e-12, precision + recall)
+    )
     return {
-        "precision": round(precision, 8),
+        "precision": None if precision is None else round(precision, 8),
         "recall": round(recall, 8),
-        "f1": round(2 * precision * recall / max(1e-12, precision + recall), 8),
+        "f1": None if f1 is None else round(f1, 8),
         "support": len(truth),
+        "predicted_positive": tp + fp,
     }
+
+
+def _difference(candidate: Any, baseline: Any) -> float | None:
+    if candidate is None or baseline is None:
+        return None
+    return round(float(candidate) - float(baseline), 8)
+
+
+def _resample_value(truth: list[bool], predicted: list[bool], metric: str) -> float:
+    # Inside the bootstrap an undefined precision counts as 0 so every
+    # resample contributes; the reported point estimate stays undefined.
+    value = _metrics(truth, predicted)[metric]
+    return 0.0 if value is None else float(value)
 
 
 def _scorer_result(
@@ -268,8 +291,8 @@ def _paired_bootstrap_delta(
         candidate_sample = [candidate[index] for index in indices]
         baseline_sample = [baseline[index] for index in indices]
         deltas.append(
-            float(_metrics(actual, candidate_sample)[metric])
-            - float(_metrics(actual, baseline_sample)[metric])
+            _resample_value(actual, candidate_sample, metric)
+            - _resample_value(actual, baseline_sample, metric)
         )
     deltas.sort()
     return round(deltas[24], 8), round(deltas[974], 8)
@@ -330,19 +353,15 @@ def _protected_segments(
                 "baseline_precision": baseline_metrics["precision"],
                 "baseline_recall": baseline_metrics["recall"],
                 "delta_precision": {
-                    "estimate": round(
-                        float(candidate_metrics["precision"])
-                        - float(baseline_metrics["precision"]),
-                        8,
+                    "estimate": _difference(
+                        candidate_metrics["precision"], baseline_metrics["precision"]
                     ),
                     "ci95_lower": segment_delta["precision"][0],
                     "ci95_upper": segment_delta["precision"][1],
                 },
                 "delta_recall": {
-                    "estimate": round(
-                        float(candidate_metrics["recall"])
-                        - float(baseline_metrics["recall"]),
-                        8,
+                    "estimate": _difference(
+                        candidate_metrics["recall"], baseline_metrics["recall"]
                     ),
                     "ci95_lower": segment_delta["recall"][0],
                     "ci95_upper": segment_delta["recall"][1],

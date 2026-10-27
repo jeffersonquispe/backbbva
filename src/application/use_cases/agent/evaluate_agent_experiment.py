@@ -566,18 +566,11 @@ def _validate_runner_evidence(
         baseline_value = _finite_number(baseline.get(metric_name))
         if not isinstance(interval, dict):
             raise AgentExperimentPolicyError("GLOBAL_EVIDENCE_INVALID")
-        estimate = _finite_number(interval.get("estimate"))
-        lower = _finite_number(interval.get("ci95_lower"))
-        upper = _finite_number(interval.get("ci95_upper"))
-        if (
-            candidate_value is None
-            or baseline_value is None
-            or estimate is None
-            or lower is None
-            or upper is None
-            or lower > estimate
-            or estimate > upper
-            or abs(estimate - (candidate_value - baseline_value)) > 1e-6
+        if not _consistent_interval(
+            interval,
+            candidate_value,
+            baseline_value,
+            undefined=_undefined_metric(candidate, baseline, metric_name),
         ):
             raise AgentExperimentPolicyError("GLOBAL_EVIDENCE_INVALID")
     segment_evidence = raw.get("segments")
@@ -600,20 +593,49 @@ def _validate_runner_evidence(
             interval = metrics.get(f"delta_{metric_name}")
             if not isinstance(interval, dict):
                 raise AgentExperimentPolicyError("SEGMENT_EVIDENCE_INVALID")
-            estimate = _finite_number(interval.get("estimate"))
-            lower = _finite_number(interval.get("ci95_lower"))
-            upper = _finite_number(interval.get("ci95_upper"))
-            if (
-                candidate_value is None
-                or baseline_value is None
-                or estimate is None
-                or lower is None
-                or upper is None
-                or lower > estimate
-                or estimate > upper
-                or abs(estimate - (candidate_value - baseline_value)) > 1e-6
+            undefined = metric_name == "precision" and (
+                metrics.get(metric_name) is None
+                or metrics.get(f"baseline_{metric_name}") is None
+            )
+            if not _consistent_interval(
+                interval, candidate_value, baseline_value, undefined=undefined
             ):
                 raise AgentExperimentPolicyError("SEGMENT_EVIDENCE_INVALID")
+
+
+def _undefined_metric(
+    candidate: dict[str, Any], baseline: dict[str, Any], metric_name: str
+) -> bool:
+    # Only precision may be undefined: it has no value when nothing was
+    # predicted positive. Recall and the others must always be numbers.
+    return metric_name in {"precision", "f1"} and (
+        candidate.get(metric_name) is None or baseline.get(metric_name) is None
+    )
+
+
+def _consistent_interval(
+    interval: dict[str, Any],
+    candidate_value: float | None,
+    baseline_value: float | None,
+    *,
+    undefined: bool,
+) -> bool:
+    lower = _finite_number(interval.get("ci95_lower"))
+    upper = _finite_number(interval.get("ci95_upper"))
+    if lower is None or upper is None or lower > upper:
+        return False
+    if undefined:
+        # An undefined side leaves no point estimate; the constraint that
+        # reads it fails on its own, so the evidence is still consistent.
+        return interval.get("estimate") is None
+    estimate = _finite_number(interval.get("estimate"))
+    return (
+        candidate_value is not None
+        and baseline_value is not None
+        and estimate is not None
+        and lower <= estimate <= upper
+        and abs(estimate - (candidate_value - baseline_value)) <= 1e-6
+    )
 
 
 def _reference_payload(
