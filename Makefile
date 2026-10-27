@@ -392,7 +392,7 @@ LOCAL_IMAGE_TAG ?= local
 LOCAL_DOCKER_TEST_WORKERS ?= 1
 # Test workers for the replay-heavy agent E2E (H9/H11). Each candidate replays
 # its sample twice (baseline + candidate); a backlog older than
-# CELERY_STUCK_TASK_TIMEOUT_SECONDS fails the replay. Size it from measured
+# CELERY_STUCK_QUEUE_TIMEOUT_SECONDS fails the replay. Size it from measured
 # host memory, keeping 20% headroom.
 E2E_AGENT_TEST_WORKERS ?= 3
 

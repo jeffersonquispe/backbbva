@@ -33,6 +33,7 @@ class ReconcileAsyncOperationsUseCase:
         workflow_repository: WorkflowExecutionRepository | None = None,
         alert_repository: AlertRepository | None = None,
         stuck_timeout_seconds: int = 900,
+        queue_timeout_seconds: int = 3600,
         clock: Clock | None = None,
     ) -> None:
         self._repository = repository
@@ -40,6 +41,7 @@ class ReconcileAsyncOperationsUseCase:
         self._workflows = workflow_repository
         self._alerts = alert_repository
         self._stuck_timeout = timedelta(seconds=stuck_timeout_seconds)
+        self._queue_timeout = timedelta(seconds=queue_timeout_seconds)
         self._clock = resolve_clock(clock)
 
     def execute(
@@ -52,11 +54,12 @@ class ReconcileAsyncOperationsUseCase:
         for operation in operations:
             previous_status = operation.status
             snapshot = self._inspector.inspect(operation)
-            if self._is_stuck(operation, snapshot):
-                updated = self._fail_stuck_operation(operation)
+            stuck_error = self._stuck_error(operation, snapshot)
+            if stuck_error is not None:
+                updated = self._fail_stuck_operation(operation, stuck_error)
                 snapshot = type(snapshot)(
                     state=AsyncExecutionState.FAILED,
-                    detail="Execution exceeded the configured stuck-task timeout",
+                    detail=stuck_error,
                 )
             else:
                 updated = self._apply_snapshot(operation, snapshot)
@@ -80,16 +83,36 @@ class ReconcileAsyncOperationsUseCase:
             operations=reconciled,
         )
 
-    def _is_stuck(self, operation, snapshot) -> bool:
+    def _stuck_error(self, operation, snapshot) -> str | None:
+        # Waiting in the queue and running are timed separately: a long
+        # backlog is not a hung task, and a running workflow is only stuck
+        # once it stops reporting step progress.
+        now = self._clock.now()
         dispatched_at = operation.dispatched_at or operation.created_at
-        age = self._clock.now() - dispatched_at
-        return (
-            snapshot.state in {AsyncExecutionState.QUEUED, AsyncExecutionState.RUNNING}
-            and age >= self._stuck_timeout
-        )
+        if snapshot.state == AsyncExecutionState.QUEUED:
+            if now - dispatched_at >= self._queue_timeout:
+                return "Execution exceeded the configured queue-wait timeout"
+            return None
+        if snapshot.state == AsyncExecutionState.RUNNING:
+            if now - self._last_progress(operation, dispatched_at) >= (
+                self._stuck_timeout
+            ):
+                return "Execution exceeded the configured stuck-task timeout"
+        return None
 
-    def _fail_stuck_operation(self, operation: AsyncOperationRecord):
-        error = "Execution exceeded the configured stuck-task timeout"
+    def _last_progress(self, operation, fallback):
+        workflow_id = operation.payload.get("workflow_execution_id")
+        if self._workflows is None or not workflow_id:
+            return fallback
+        try:
+            workflow = self._workflows.get(UUID(str(workflow_id)))
+        except ValueError:
+            return fallback
+        if workflow is None:
+            return fallback
+        return max(workflow.updated_at, fallback)
+
+    def _fail_stuck_operation(self, operation: AsyncOperationRecord, error: str):
         updated = self._repository.update(
             operation.id, status=AsyncOperationStatus.FAILED, error=error
         )

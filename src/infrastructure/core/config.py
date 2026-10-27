@@ -169,7 +169,10 @@ class Config(BaseSettings):
     # retention and cleanup jobs use the same scheduler.
     CELERY_RECONCILE_INTERVAL_SECONDS: int = Field(default=60, ge=10)
     CELERY_RECONCILE_LIMIT: int = Field(default=100, ge=1, le=1000)
+    # A running task is stuck after this long without workflow step progress;
+    # time spent waiting in the queue has its own, longer, limit.
     CELERY_STUCK_TASK_TIMEOUT_SECONDS: int = Field(default=900, ge=60)
+    CELERY_STUCK_QUEUE_TIMEOUT_SECONDS: int = Field(default=3600, ge=60)
     CELERY_TEST_RUN_CLEANUP_INTERVAL_SECONDS: int = Field(default=3600, ge=60)
 
     # TEST RUNS - CSV datasets dropped on disk, listed via plain fs scan

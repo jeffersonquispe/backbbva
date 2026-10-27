@@ -266,6 +266,7 @@ def get_reconcile_async_operations_use_case() -> ReconcileAsyncOperationsUseCase
         workflow_repository=get_workflow_execution_repository(),
         alert_repository=get_alert_repository(),
         stuck_timeout_seconds=genai_config.CELERY_STUCK_TASK_TIMEOUT_SECONDS,
+        queue_timeout_seconds=genai_config.CELERY_STUCK_QUEUE_TIMEOUT_SECONDS,
         clock=get_clock(),
     )
 

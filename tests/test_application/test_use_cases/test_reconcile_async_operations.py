@@ -95,6 +95,29 @@ class StaticInspector(AsyncExecutionInspector):
         return self._snapshot
 
 
+class InMemoryWorkflowRepository:
+    def __init__(self, last_progress: datetime | None = None) -> None:
+        self.last_progress = last_progress
+        self.updated: dict | None = None
+
+    def get(self, _workflow_id):
+        if self.last_progress is None:
+            return None
+        return SimpleNamespace(updated_at=self.last_progress)
+
+    def update(self, _workflow_id, **changes):
+        self.updated = {"id": _workflow_id, **changes}
+        return SimpleNamespace(status=changes["status"])
+
+
+class RecordingAlertRepository:
+    def __init__(self) -> None:
+        self.updated: tuple | None = None
+
+    def update(self, _alert_id, **changes):
+        self.updated = (_alert_id, changes)
+
+
 def _operation(status: AsyncOperationStatus) -> AsyncOperationRecord:
     now = datetime.now(UTC)
     return AsyncOperationRecord(
@@ -184,21 +207,10 @@ def test_reconcile_fails_stuck_operation_workflow_and_alert() -> None:
     operation.dispatched_at = datetime.now(UTC) - timedelta(minutes=20)
     repository = InMemoryAsyncOperationRepository([operation])
 
-    class WorkflowRepository:
-        updated: dict | None = None
-
-        def update(self, _workflow_id, **changes):
-            self.updated = {"id": _workflow_id, **changes}
-            return SimpleNamespace(status=changes["status"])
-
-    class AlertRepository:
-        updated: tuple | None = None
-
-        def update(self, _alert_id, **changes):
-            self.updated = (_alert_id, changes)
-
-    workflows = WorkflowRepository()
-    alerts = AlertRepository()
+    workflows = InMemoryWorkflowRepository(
+        last_progress=datetime.now(UTC) - timedelta(minutes=20)
+    )
+    alerts = RecordingAlertRepository()
     use_case = ReconcileAsyncOperationsUseCase(
         repository,
         StaticInspector(AsyncExecutionSnapshot(state=AsyncExecutionState.RUNNING)),
@@ -215,3 +227,81 @@ def test_reconcile_fails_stuck_operation_workflow_and_alert() -> None:
     assert alerts.updated == (alert_id, {"status": AlertStatus.FAILED})
     assert output.operations[0].execution_state == AsyncExecutionState.FAILED
     assert "stuck-task timeout" in output.operations[0].detail
+
+
+def _workflow_operation(
+    status: AsyncOperationStatus, dispatched_minutes_ago: int
+) -> AsyncOperationRecord:
+    operation = _operation(status)
+    operation.payload = {
+        "workflow_execution_id": str(uuid4()),
+        "alert_id": str(uuid4()),
+    }
+    operation.dispatched_at = datetime.now(UTC) - timedelta(
+        minutes=dispatched_minutes_ago
+    )
+    return operation
+
+
+def test_reconcile_keeps_running_workflow_with_recent_step_progress() -> None:
+    operation = _workflow_operation(
+        AsyncOperationStatus.RUNNING, dispatched_minutes_ago=40
+    )
+    repository = InMemoryAsyncOperationRepository([operation])
+    workflows = InMemoryWorkflowRepository(
+        last_progress=datetime.now(UTC) - timedelta(minutes=1)
+    )
+    use_case = ReconcileAsyncOperationsUseCase(
+        repository,
+        StaticInspector(AsyncExecutionSnapshot(state=AsyncExecutionState.RUNNING)),
+        workflow_repository=workflows,
+        alert_repository=RecordingAlertRepository(),
+        stuck_timeout_seconds=300,
+    )
+
+    use_case.execute(ReconcileAsyncOperationsInput(limit=10))
+
+    assert repository.get(operation.id).status == AsyncOperationStatus.RUNNING
+    assert workflows.updated is None
+
+
+def test_reconcile_does_not_count_queue_wait_as_stuck_execution() -> None:
+    operation = _workflow_operation(
+        AsyncOperationStatus.DISPATCHED, dispatched_minutes_ago=40
+    )
+    repository = InMemoryAsyncOperationRepository([operation])
+    workflows = InMemoryWorkflowRepository()
+    use_case = ReconcileAsyncOperationsUseCase(
+        repository,
+        StaticInspector(AsyncExecutionSnapshot(state=AsyncExecutionState.QUEUED)),
+        workflow_repository=workflows,
+        alert_repository=RecordingAlertRepository(),
+        stuck_timeout_seconds=300,
+        queue_timeout_seconds=3600,
+    )
+
+    use_case.execute(ReconcileAsyncOperationsInput(limit=10))
+
+    assert repository.get(operation.id).status == AsyncOperationStatus.DISPATCHED
+    assert workflows.updated is None
+
+
+def test_reconcile_fails_operation_queued_past_queue_timeout() -> None:
+    operation = _workflow_operation(
+        AsyncOperationStatus.DISPATCHED, dispatched_minutes_ago=90
+    )
+    repository = InMemoryAsyncOperationRepository([operation])
+    workflows = InMemoryWorkflowRepository()
+    use_case = ReconcileAsyncOperationsUseCase(
+        repository,
+        StaticInspector(AsyncExecutionSnapshot(state=AsyncExecutionState.QUEUED)),
+        workflow_repository=workflows,
+        alert_repository=RecordingAlertRepository(),
+        queue_timeout_seconds=3600,
+    )
+
+    output = use_case.execute(ReconcileAsyncOperationsInput(limit=10))
+
+    assert repository.get(operation.id).status == AsyncOperationStatus.FAILED
+    assert workflows.updated["status"] == WorkflowStatus.FAILED
+    assert "queue-wait timeout" in output.operations[0].detail
