@@ -1,0 +1,75 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: aria-build-stage-image-v1
+  namespace: aria-genai-dev
+spec:
+  params:
+    - name: service
+      type: string
+    - name: image-target
+      type: string
+    - name: source-commit
+      type: string
+    - name: dockerfile
+      type: string
+    - name: context-dir
+      type: string
+      default: .
+  workspaces:
+    - name: source
+    - name: staging
+    - name: registry-auth
+  tasks:
+    - name: build-and-stage
+      timeout: 45m
+      taskRef:
+        name: aria-build-staged-image-v1
+      params:
+        - name: service
+          value: $(params.service)
+        - name: image-target
+          value: $(params.image-target)
+        - name: source-commit
+          value: $(params.source-commit)
+        - name: dockerfile
+          value: $(params.dockerfile)
+        - name: context-dir
+          value: $(params.context-dir)
+      workspaces:
+        - name: source
+          workspace: source
+        - name: staging
+          workspace: staging
+        - name: registry-auth
+          workspace: registry-auth
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: aria-publish-staged-image-v1
+  namespace: aria-genai-dev
+spec:
+  params:
+    - name: service
+      type: string
+    - name: source-commit
+      type: string
+  workspaces:
+    - name: staging
+    - name: registry-auth
+  tasks:
+    - name: publish-and-verify
+      timeout: 15m
+      taskRef:
+        name: aria-publish-staged-image-v1
+      params:
+        - name: service
+          value: $(params.service)
+        - name: source-commit
+          value: $(params.source-commit)
+      workspaces:
+        - name: staging
+          workspace: staging
+        - name: registry-auth
+          workspace: registry-auth

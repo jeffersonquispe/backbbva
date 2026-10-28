@@ -1,0 +1,478 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: aria-clone-ghe-sources-v1
+  namespace: aria-genai-dev
+spec:
+  params:
+    - name: backend-repository
+      type: string
+      default: https://bbva.ghe.com/free/aria-agente-prevencion-fraude-backend.git
+    - name: frontend-repository
+      type: string
+      default: https://bbva.ghe.com/free/aria-agente-prevencion-fraude-frontend.git
+    - name: backend-branch
+      type: string
+      default: main
+    - name: frontend-branch
+      type: string
+      default: main
+    - name: github-user
+      type: string
+      default: ''
+    - name: github-token
+      type: string
+      default: ''
+  results:
+    - name: backend-commit
+      type: string
+    - name: frontend-commit
+      type: string
+    - name: run-dir
+      type: string
+  workspaces:
+    - name: staging
+  steps:
+    - name: clone-with-form-credentials
+      image: alpine/git:v2.47.2
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      env:
+        - name: BACKEND_REPOSITORY
+          value: $(params.backend-repository)
+        - name: FRONTEND_REPOSITORY
+          value: $(params.frontend-repository)
+        - name: BACKEND_BRANCH
+          value: $(params.backend-branch)
+        - name: FRONTEND_BRANCH
+          value: $(params.frontend-branch)
+        - name: GITHUB_USER
+          value: $(params.github-user)
+        - name: GITHUB_TOKEN
+          value: $(params.github-token)
+        - name: RUN_ID
+          value: $(context.taskRun.uid)
+      script: |
+        #!/bin/sh
+        set -eu
+        export GIT_TERMINAL_PROMPT=0
+        if [ -z "$GITHUB_USER" ] || [ -z "$GITHUB_TOKEN" ]; then
+          echo 'Completa los campos GitHub user y GitHub classic token del Pipeline.'
+          exit 2
+        fi
+        askpass=$(mktemp /tmp/aria-git-askpass.XXXXXX)
+        cat > "$askpass" <<'ASKPASS'
+        #!/bin/sh
+        case "$1" in
+          *sername*) printf '%s\n' "$GITHUB_USER" ;;
+          *) printf '%s\n' "$GITHUB_TOKEN" ;;
+        esac
+        ASKPASS
+        chmod 700 "$askpass"
+        trap 'rm -f "$askpass"; unset GITHUB_TOKEN' EXIT
+        export GIT_ASKPASS="$askpass"
+        case "$BACKEND_REPOSITORY $FRONTEND_REPOSITORY" in
+          *'@'*|*'?'*|*'#'*) echo 'Git URLs must not contain credentials or query data'; exit 2 ;;
+        esac
+        case "$BACKEND_REPOSITORY" in https://bbva.ghe.com/*) ;; *) echo 'backend source must use the configured GitHub Enterprise host'; exit 2 ;; esac
+        case "$FRONTEND_REPOSITORY" in https://bbva.ghe.com/*) ;; *) echo 'frontend source must use the configured GitHub Enterprise host'; exit 2 ;; esac
+        git check-ref-format --branch "$BACKEND_BRANCH" >/dev/null
+        git check-ref-format --branch "$FRONTEND_BRANCH" >/dev/null
+        root='$(workspaces.staging.path)'
+        run_dir="sources/$RUN_ID"
+        mkdir -p "$root/$run_dir/diffs"
+        clone_or_update() {
+          remote="$1"; branch="$2"; destination="$3"
+          if [ -d "$destination/.git" ]; then
+            git -C "$destination" fetch --quiet --prune origin "$branch"
+            git -C "$destination" checkout --quiet --detach FETCH_HEAD
+          else
+            temporary=$(mktemp -d "$root/sources/.clone.XXXXXX")
+            git clone --quiet --single-branch --branch "$branch" "$remote" "$temporary/repo"
+            mkdir -p "$(dirname "$destination")"
+            mv "$temporary/repo" "$destination"
+            rmdir "$temporary"
+          fi
+        }
+        clone_or_update "$BACKEND_REPOSITORY" "$BACKEND_BRANCH" "$root/$run_dir/backend"
+        clone_or_update "$FRONTEND_REPOSITORY" "$FRONTEND_BRANCH" "$root/$run_dir/frontend"
+        backend_commit=$(git -C "$root/$run_dir/backend" rev-parse HEAD)
+        frontend_commit=$(git -C "$root/$run_dir/frontend" rev-parse HEAD)
+        mkdir -p "$root/state/published"
+        for baseline in "$root"/state/published/*.commit; do
+          [ -f "$baseline" ] || continue
+          service=$(basename "$baseline" .commit)
+          repo="$root/$run_dir/backend"
+          [ "$service" = frontend ] && repo="$root/$run_dir/frontend"
+          previous=$(cat "$baseline")
+          if git -C "$repo" cat-file -e "$previous^{commit}" 2>/dev/null; then
+            git -C "$repo" diff --name-only "$previous" HEAD > "$root/$run_dir/diffs/$service.txt" || printf '*\n' > "$root/$run_dir/diffs/$service.txt"
+          else
+            printf '*\n' > "$root/$run_dir/diffs/$service.txt"
+          fi
+        done
+        printf '%s' "$backend_commit" > '$(results.backend-commit.path)'
+        printf '%s' "$frontend_commit" > '$(results.frontend-commit.path)'
+        printf '%s' "$run_dir" > '$(results.run-dir.path)'
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: aria-detect-ghe-changes-v1
+  namespace: aria-genai-dev
+spec:
+  params:
+    - name: mode
+      type: string
+    - name: services
+      type: string
+      default: ''
+    - name: run-dir
+      type: string
+    - name: backend-commit
+      type: string
+    - name: frontend-commit
+      type: string
+  results:
+    - {name: build-api, type: string}
+    - {name: build-event-api, type: string}
+    - {name: build-mcp, type: string}
+    - {name: build-worker, type: string}
+    - {name: build-training-worker, type: string}
+    - {name: build-simulator-worker, type: string}
+    - {name: build-frontend, type: string}
+  workspaces:
+    - name: staging
+  steps:
+    - name: compare-with-last-published-per-service
+      image: python:3.12-slim
+      env:
+        - name: MODE
+          value: $(params.mode)
+        - name: SERVICES
+          value: $(params.services)
+        - name: RUN_DIR
+          value: $(params.run-dir)
+        - name: BACKEND_COMMIT
+          value: $(params.backend-commit)
+        - name: FRONTEND_COMMIT
+          value: $(params.frontend-commit)
+        - name: RESULT_BUILD_API
+          value: $(results.build-api.path)
+        - name: RESULT_BUILD_EVENT_API
+          value: $(results.build-event-api.path)
+        - name: RESULT_BUILD_MCP
+          value: $(results.build-mcp.path)
+        - name: RESULT_BUILD_WORKER
+          value: $(results.build-worker.path)
+        - name: RESULT_BUILD_TRAINING_WORKER
+          value: $(results.build-training-worker.path)
+        - name: RESULT_BUILD_SIMULATOR_WORKER
+          value: $(results.build-simulator-worker.path)
+        - name: RESULT_BUILD_FRONTEND
+          value: $(results.build-frontend.path)
+      script: |
+        #!/usr/local/bin/python3
+        import json, os, re
+        from pathlib import Path
+
+        root = Path('$(workspaces.staging.path)')
+        run_dir = root / os.environ['RUN_DIR']
+        backend = run_dir / 'backend'
+        frontend = run_dir / 'frontend'
+        config = json.loads((backend / 'deploy/okd/automation/services.json').read_text())
+        mode = os.environ['MODE']
+        requested = {item.strip() for item in os.environ['SERVICES'].split(',') if item.strip()}
+        services = config['services']
+        if mode not in {'changed', 'all', 'services'}:
+            raise SystemExit('mode must be changed, all, or services')
+        unknown = requested - services.keys()
+        if mode == 'services' and (not requested or unknown):
+            raise SystemExit('services mode requires valid comma-separated service names')
+
+        def copy_inputs(dockerfile):
+            inputs = {dockerfile, dockerfile + '.dockerignore'}
+            for line in (backend / dockerfile).read_text().splitlines():
+                match = re.match(r'^\s*COPY\s+(.*)$', line)
+                if not match:
+                    continue
+                parts = match.group(1).split()
+                for source in parts[:-1]:
+                    if source.startswith('--'):
+                        continue
+                    if source == '.':
+                        inputs.add('.')
+                    else:
+                        source = source.lstrip('./')
+                        inputs.update((source, source.rstrip('/') + '/'))
+            return inputs
+
+        def matches(path, inputs):
+            return any(item == '.' or path == item or (item.endswith('/') and path.startswith(item))
+                       for item in inputs)
+
+        needs = set(requested if mode == 'services' else ())
+        for name, service in services.items():
+            repo = frontend if service['repository'] == 'frontend' else backend
+            diff_file = run_dir / 'diffs' / f'{name}.txt'
+            baseline = root / 'state/published' / f'{name}.commit'
+            if not baseline.exists() or not diff_file.exists():
+                if mode == 'all' or mode == 'changed' or mode == 'services' and service['repository'] in {
+                    services[item]['repository'] for item in requested
+                }:
+                    needs.add(name)
+                continue
+            paths = diff_file.read_text().splitlines()
+            if '*' in paths:
+                needs.add(name)
+                continue
+            if mode == 'all' or mode == 'changed' and any(matches(path, copy_inputs(service['dockerfile'])) for path in paths):
+                needs.add(name)
+
+        if mode == 'services':
+            # Selecting one backend service still includes peers that consume changed shared COPY inputs.
+            selected_repos = {services[name]['repository'] for name in requested}
+            for requested_name in requested:
+                requested_service = services[requested_name]
+                requested_diff = run_dir / 'diffs' / f'{requested_name}.txt'
+                if not requested_diff.exists() or '*' in requested_diff.read_text().splitlines():
+                    needs.update(name for name, service in services.items()
+                                 if service['repository'] == requested_service['repository'])
+                    continue
+                paths = requested_diff.read_text().splitlines()
+                for name, service in services.items():
+                    if service['repository'] in selected_repos and any(
+                        matches(path, copy_inputs(service['dockerfile'])) for path in paths
+                    ):
+                        needs.add(name)
+
+        result_paths = {
+            'api': 'RESULT_BUILD_API',
+            'event-api': 'RESULT_BUILD_EVENT_API',
+            'mcp': 'RESULT_BUILD_MCP',
+            'worker': 'RESULT_BUILD_WORKER',
+            'training-worker': 'RESULT_BUILD_TRAINING_WORKER',
+            'simulator-worker': 'RESULT_BUILD_SIMULATOR_WORKER',
+            'frontend': 'RESULT_BUILD_FRONTEND',
+        }
+        for name, env_name in result_paths.items():
+            Path(os.environ[env_name]).write_text('true' if name in needs else 'false')
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: aria-build-staged-image-v2
+  namespace: aria-genai-dev
+spec:
+  params:
+    - {name: service, type: string}
+    - {name: should-build, type: string, default: 'true'}
+    - {name: image-repository, type: string}
+    - {name: image-tag, type: string, default: ''}
+    - {name: source-commit, type: string}
+    - {name: source-dir, type: string}
+    - {name: dockerfile, type: string}
+    - {name: context-dir, type: string}
+    - {name: source-branch, type: string}
+  workspaces:
+    - name: staging
+    - name: registry-auth
+  steps:
+    - name: build-and-save-without-push
+      image: quay.io/buildah/stable:v1.39.3
+      computeResources:
+        requests: {cpu: '1', memory: 2Gi}
+        limits: {cpu: '2', memory: 4Gi}
+      env:
+        - {name: SERVICE, value: $(params.service)}
+        - {name: SHOULD_BUILD, value: $(params.should-build)}
+        - {name: IMAGE_REPOSITORY, value: $(params.image-repository)}
+        - {name: IMAGE_TAG, value: $(params.image-tag)}
+        - {name: SOURCE_COMMIT, value: $(params.source-commit)}
+        - {name: SOURCE_DIR, value: $(params.source-dir)}
+        - {name: DOCKERFILE, value: $(params.dockerfile)}
+        - {name: CONTEXT_DIR, value: $(params.context-dir)}
+        - {name: SOURCE_BRANCH, value: $(params.source-branch)}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        if [[ "$SHOULD_BUILD" != true ]]; then
+          echo "No source changes require a build for $SERVICE"; exit 0
+        fi
+        root='$(workspaces.staging.path)'
+        service="$SERVICE"; commit="$SOURCE_COMMIT"; tag="${IMAGE_TAG:-$SOURCE_COMMIT}"
+        [[ "$service" =~ ^[a-z0-9][a-z0-9-]*$ && "$commit" =~ ^[0-9a-f]{40,64}$ ]] || { echo 'invalid service or commit'; exit 2; }
+        [[ "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo 'invalid image tag'; exit 2; }
+        [[ "$IMAGE_REPOSITORY" =~ ^artifactory\.globaldevtools\.bbva\.com:443/co-genai-public-cloud-docker-local/aria-genai/[A-Za-z0-9._/-]+$ ]] || { echo 'invalid image repository'; exit 2; }
+        target="${IMAGE_REPOSITORY}:${tag}"
+        context="$root/$SOURCE_DIR/$CONTEXT_DIR"
+        dockerfile="$root/$SOURCE_DIR/$DOCKERFILE"
+        [[ -d "$context" && -f "$dockerfile" ]] || { echo 'cloned context or Dockerfile is missing'; exit 2; }
+        auth='$(workspaces.registry-auth.path)/.dockerconfigjson'
+        [[ -r "$auth" ]] || { echo 'registry auth config is missing'; exit 2; }
+        user=$(grep -m1 -o '"username"[[:space:]]*:[[:space:]]*"[^"]*"' "$auth" | sed -E 's/.*"([^"]*)"$/\1/' || true)
+        password=$(grep -m1 -o '"password"[[:space:]]*:[[:space:]]*"[^"]*"' "$auth" | sed -E 's/.*"([^"]*)"$/\1/' || true)
+        if [[ -z "$user" || -z "$password" ]]; then
+          encoded=$(grep -m1 -o '"auth"[[:space:]]*:[[:space:]]*"[^"]*"' "$auth" | sed -E 's/.*"([^"]*)"$/\1/' || true)
+          decoded=$(printf '%s' "$encoded" | base64 -d 2>/dev/null || true)
+          user="${decoded%%:*}"; password="${decoded#*:}"
+        fi
+        [[ -n "$user" && -n "$password" ]] || { echo 'artifactory-auth must contain docker credentials'; exit 2; }
+        umask 077
+        secret_dir=$(mktemp -d /tmp/aria-build-auth.XXXXXX)
+        trap 'rm -rf "$secret_dir"' EXIT
+        printf '%s' "$user" > "$secret_dir/user"; printf '%s' "$password" > "$secret_dir/password"
+        export HOME="$(mktemp -d /tmp/aria-build-home.XXXXXX)"
+        export BUILDAH_ISOLATION=chroot
+        export CONTAINERS_STORAGE_CONF="$HOME/storage.conf"
+        mkdir -p "$HOME/storage" "$HOME/runroot"
+        printf '[storage]\ndriver = "vfs"\nrunroot = "%s/runroot"\ngraphroot = "%s/storage"\n' \
+          "$HOME" "$HOME" > "$CONTAINERS_STORAGE_CONF"
+        artifact_dir="$root/images"; mkdir -p "$artifact_dir"
+        artifact="$artifact_dir/${service}-${commit}.oci"
+        marker="$artifact.meta"
+        if [[ -s "$artifact" && -s "$artifact.sha256" && -s "$marker" ]]; then
+          (cd "$artifact_dir" && sha256sum -c "${service}-${commit}.oci.sha256")
+          IFS=$'\t' read -r old_service old_commit old_target old_status old_digest old_dir old_branch < "$marker"
+          [[ "$old_service" = "$service" && "$old_commit" = "$commit" && "$old_target" = "$target" ]] || { echo 'immutable staged tag metadata conflicts'; exit 3; }
+          echo 'verified staged artifact already exists; build skipped'; exit 0
+        fi
+        tempdir=$(mktemp -d "$artifact_dir/.${service}-${commit}.XXXXXX")
+        image="localhost/aria-stage-${service}:${commit}"
+        buildah bud --tls-verify=true --authfile "$auth" --secret "id=artifactory_user,src=$secret_dir/user" \
+          --secret "id=artifactory_password,src=$secret_dir/password" --build-arg GENAI_ENVIRONMENT=dev \
+          --format oci -f "$dockerfile" -t "$image" "$context"
+        buildah push --tls-verify=true --authfile "$auth" --format oci "$image" "oci-archive:$tempdir/image.oci"
+        checksum=$(sha256sum "$tempdir/image.oci" | awk '{print $1}')
+        mv "$tempdir/image.oci" "$artifact"; rmdir "$tempdir"
+        printf '%s  %s\n' "$checksum" "${service}-${commit}.oci" > "$artifact.sha256.tmp"
+        mv "$artifact.sha256.tmp" "$artifact.sha256"
+        printf '%s\t%s\t%s\tpending\t-\t%s\t%s\n' "$service" "$commit" "$target" "$SOURCE_DIR" "$SOURCE_BRANCH" > "$marker.tmp"
+        mv "$marker.tmp" "$marker"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: aria-publish-pending-image-v2
+  namespace: aria-genai-dev
+spec:
+  params:
+    - {name: service, type: string}
+  workspaces:
+    - name: staging
+    - name: registry-auth
+  steps:
+    - name: retry-publish-and-verify
+      image: quay.io/skopeo/stable:v1.18.0
+      computeResources:
+        requests: {cpu: 100m, memory: 256Mi}
+        limits: {cpu: 500m, memory: 512Mi}
+      env:
+        - {name: SERVICE, value: $(params.service)}
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        root='$(workspaces.staging.path)'; service="$SERVICE"
+        [[ "$service" =~ ^[a-z0-9][a-z0-9-]*$ ]] || exit 2
+        auth='$(workspaces.registry-auth.path)/.dockerconfigjson'
+        [[ -r "$auth" ]] || { echo 'registry auth config is missing'; exit 2; }
+        found=false
+        for marker in "$root"/images/"${service}-"*.oci.meta; do
+          [[ -f "$marker" ]] || continue
+          IFS=$'\t' read -r stored_service commit target status digest source_dir source_branch < "$marker"
+          [[ "$status" = pending ]] || continue
+          found=true
+          artifact="${marker%.meta}"
+          (cd "$root/images" && sha256sum -c "$(basename "$artifact").sha256")
+          [[ "$stored_service" = "$service" && "$commit" =~ ^[0-9a-f]{40,64}$ ]] || { echo 'invalid artifact metadata'; exit 2; }
+          [[ "$target" =~ ^artifactory\.globaldevtools\.bbva\.com:443/co-genai-public-cloud-docker-local/aria-genai/[A-Za-z0-9._/-]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo 'destination outside managed registry path'; exit 2; }
+          source="oci-archive:$artifact"
+          manifest=$(skopeo inspect --raw "$source")
+          expected="sha256:$(printf '%s' "$manifest" | sha256sum | awk '{print $1}')"
+          remote=$(skopeo inspect --tls-verify=true --authfile "$auth" --format '{{.Digest}}' "docker://$target" 2>/tmp/inspect.err || true)
+          if [[ -n "$remote" ]]; then
+            [[ "$remote" = "$expected" ]] || { echo 'immutable tag already exists with different content'; exit 3; }
+          else
+            attempt=1
+            while ! skopeo copy --tls-verify=true --authfile "$auth" --retry-times 0 --format oci "$source" "docker://$target" 2>/tmp/copy.err; do
+              if grep -Eiq 'unauthorized|denied|forbidden|authentication|invalid username' /tmp/copy.err; then
+                echo 'permanent registry authentication/permission error'; exit 4
+              fi
+              if [[ "$attempt" -ge 3 ]]; then tail -c 500 /tmp/copy.err; exit 1; fi
+              sleep "$((attempt == 1 ? 10 : 30))"; attempt=$((attempt + 1))
+            done
+            remote=$(skopeo inspect --tls-verify=true --authfile "$auth" --format '{{.Digest}}' "docker://$target")
+            [[ "$remote" = "$expected" ]] || { echo 'registry digest differs from staged manifest'; exit 3; }
+          fi
+          printf '%s\t%s\t%s\tpublished\t%s\t%s\t%s\n' "$service" "$commit" "$target" "$expected" "$source_dir" "$source_branch" > "$marker.tmp"
+          mv "$marker.tmp" "$marker"
+          mkdir -p "$root/state/published"
+          printf '%s' "$commit" > "$root/state/published/${service}.commit.tmp"
+          mv "$root/state/published/${service}.commit.tmp" "$root/state/published/${service}.commit"
+          echo "published and verified $target $expected"
+        done
+        [[ "$found" = true ]] || echo "no pending artifacts for $service"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: aria-prepare-deployment-manifests-v1
+  namespace: aria-genai-dev
+spec:
+  workspaces:
+    - name: staging
+  steps:
+    - name: update-only-verified-images-and-write-patch
+      image: python:3.12-slim
+      script: |
+        #!/usr/local/bin/python3
+        import difflib, json, re
+        from pathlib import Path
+
+        root = Path('$(workspaces.staging.path)')
+        config_path = next(root.glob('sources/*/backend/deploy/okd/automation/services.json'), None)
+        if config_path is None:
+            print('no source checkout available; manifest patch not prepared')
+            raise SystemExit(0)
+        config = json.loads(config_path.read_text())
+        latest = {}
+        for marker in (root / 'images').glob('*.oci.meta'):
+            fields = marker.read_text().rstrip('\n').split('\t')
+            if len(fields) < 5 or fields[3] != 'published':
+                continue
+            service, commit, target = fields[:3]
+            if service not in config['services']:
+                continue
+            if service not in latest or marker.stat().st_mtime > latest[service][0]:
+                latest[service] = (marker.stat().st_mtime, fields)
+        changes = []
+        for name, (_, fields) in latest.items():
+            _, commit, target, _, digest, source_dir, _branch = fields
+            repo = root / source_dir / 'backend'
+            path = repo / config['services'][name]['deployment']
+            if not path.is_file():
+                raise SystemExit(f'manifest missing for {name}: {path}')
+            before = path.read_text()
+            container = config['services'][name]['container']
+            block = re.compile(r'(?ms)(^        - name: ' + re.escape(container) + r'\s*\n.*?^\s+image:)\s*[^\s#]+')
+            after, count = block.subn(lambda match: match.group(1) + ' ' + target, before, count=1)
+            if count != 1:
+                raise SystemExit(f'cannot target only container {container} in {path}')
+            if after != before:
+                path.write_text(after)
+                changes.extend(difflib.unified_diff(before.splitlines(True), after.splitlines(True),
+                               fromfile=f'a/{config["services"][name]["deployment"]}',
+                               tofile=f'b/{config["services"][name]["deployment"]}'))
+        patch = ''.join(changes)
+        output = root / 'deployment-manifests.patch'
+        output.write_text(patch)
+        if patch:
+            print(f'prepared manifest patch after verified publication: {output}')
+        else:
+            print('no manifest changes required')

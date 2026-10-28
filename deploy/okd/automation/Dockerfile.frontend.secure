@@ -1,0 +1,27 @@
+# Secure builder for the existing ../frontend_mockup Dockerfile.okd context.
+# Credentials are mounted only during dependency installation and never passed
+# as build args or copied from the frontend checkout.
+ARG NODE_IMAGE=artifactory.globaldevtools.bbva.com:443/public.ecr.aws-remote/docker/library/node:22-alpine
+ARG NGINX_IMAGE=artifactory.globaldevtools.bbva.com:443/public.ecr.aws-remote/nginx/nginx-unprivileged:1.27-alpine
+
+FROM ${NODE_IMAGE} AS builder
+ARG NPM_REGISTRY=https://artifactory.globaldevtools.bbva.com/artifactory/api/npm/npmjs.com-remote/
+ARG BUN_VERSION=1
+WORKDIR /app
+COPY package.json bun.lock bunfig.toml ./
+RUN --mount=type=secret,id=artifactory_user,required=true --mount=type=secret,id=artifactory_password,required=true \
+    set -eu; \
+    user="$(cat /run/secrets/artifactory_user)"; \
+    password="$(cat /run/secrets/artifactory_password)"; \
+    printf 'registry=%s\n//%s:_auth=%s\n' "$NPM_REGISTRY" "${NPM_REGISTRY#*://}" \
+      "$(printf '%s:%s' "$user" "$password" | base64 | tr -d '\n')" > .npmrc; \
+    npm install -g --userconfig .npmrc --no-audit --no-fund "bun@${BUN_VERSION}"; \
+    bun install --frozen-lockfile; \
+    rm -f .npmrc
+COPY . .
+RUN STATIC=1 STATIC_BASE=/ bun run build:static
+
+FROM ${NGINX_IMAGE} AS runtime
+COPY --from=builder /app/dist/client /usr/share/nginx/html
+COPY nginx.okd.conf /etc/nginx/conf.d/default.conf
+EXPOSE 8080

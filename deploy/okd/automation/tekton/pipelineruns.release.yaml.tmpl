@@ -1,0 +1,49 @@
+# Template only. Resolve the actual PVC and existing Tekton ServiceAccount first.
+# For the console form, enter github-user and github-token on aria-build-images-v1.
+# Tekton stores these values in PipelineRun/TaskRun; restrict read access accordingly.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: aria-build-images-
+  namespace: aria-genai-dev
+spec:
+  pipelineRef:
+    name: aria-build-images-v1
+  serviceAccountName: ${ARIA_TEKTON_SERVICE_ACCOUNT}
+  timeouts:
+    pipeline: 50m
+    tasks: 45m
+  params:
+    - {name: mode, value: changed}
+    - {name: services, value: ""}
+    - {name: image-tag, value: ""}
+    - {name: backend-branch, value: main}
+    - {name: frontend-branch, value: main}
+  workspaces:
+    - name: staging
+      persistentVolumeClaim:
+        claimName: ${ARIA_STAGING_PVC}
+    - name: registry-auth
+      secret:
+        secretName: artifactory-auth
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: aria-publish-images-
+  namespace: aria-genai-dev
+spec:
+  pipelineRef:
+    name: aria-publish-images-v1
+  serviceAccountName: ${ARIA_TEKTON_SERVICE_ACCOUNT}
+  timeouts:
+    pipeline: 50m
+    tasks: 45m
+    finally: 3m
+  workspaces:
+    - name: staging
+      persistentVolumeClaim:
+        claimName: ${ARIA_STAGING_PVC}
+    - name: registry-auth
+      secret:
+        secretName: artifactory-auth

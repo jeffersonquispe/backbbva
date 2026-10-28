@@ -1,0 +1,215 @@
+{
+  "apiVersion": "tekton.dev/v1",
+  "kind": "Pipeline",
+  "metadata": {
+    "name": "aria-publish-images-v1",
+    "namespace": "aria-genai-dev"
+  },
+  "spec": {
+    "workspaces": [
+      {
+        "name": "staging"
+      },
+      {
+        "name": "registry-auth"
+      }
+    ],
+    "tasks": [
+      {
+        "name": "publish-api",
+        "runAfter": [],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "api"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-event-api",
+        "runAfter": [
+          "publish-api"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "event-api"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-mcp",
+        "runAfter": [
+          "publish-event-api"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "mcp"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-worker",
+        "runAfter": [
+          "publish-mcp"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "worker"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-training-worker",
+        "runAfter": [
+          "publish-worker"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "training-worker"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-simulator-worker",
+        "runAfter": [
+          "publish-training-worker"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "simulator-worker"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-frontend",
+        "runAfter": [
+          "publish-simulator-worker"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "frontend"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      }
+    ],
+    "finally": [
+      {
+        "name": "prepare-manifest-patch",
+        "timeout": "3m",
+        "taskRef": {
+          "name": "aria-prepare-deployment-manifests-v1"
+        },
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          }
+        ]
+      }
+    ]
+  }
+}

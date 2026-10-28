@@ -1,0 +1,142 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: aria-detect-ghe-changes-v1
+  namespace: aria-genai-dev
+spec:
+  params:
+    - name: mode
+      type: string
+    - name: services
+      type: string
+      default: ''
+    - name: run-dir
+      type: string
+    - name: backend-commit
+      type: string
+    - name: frontend-commit
+      type: string
+  results:
+    - {name: build-api, type: string}
+    - {name: build-event-api, type: string}
+    - {name: build-mcp, type: string}
+    - {name: build-worker, type: string}
+    - {name: build-training-worker, type: string}
+    - {name: build-simulator-worker, type: string}
+    - {name: build-frontend, type: string}
+  workspaces:
+    - name: staging
+  steps:
+    - name: compare-with-last-published-per-service
+      image: python:3.12-slim
+      env:
+        - name: MODE
+          value: $(params.mode)
+        - name: SERVICES
+          value: $(params.services)
+        - name: RUN_DIR
+          value: $(params.run-dir)
+        - name: BACKEND_COMMIT
+          value: $(params.backend-commit)
+        - name: FRONTEND_COMMIT
+          value: $(params.frontend-commit)
+        - name: RESULT_BUILD_API
+          value: $(results.build-api.path)
+        - name: RESULT_BUILD_EVENT_API
+          value: $(results.build-event-api.path)
+        - name: RESULT_BUILD_MCP
+          value: $(results.build-mcp.path)
+        - name: RESULT_BUILD_WORKER
+          value: $(results.build-worker.path)
+        - name: RESULT_BUILD_TRAINING_WORKER
+          value: $(results.build-training-worker.path)
+        - name: RESULT_BUILD_SIMULATOR_WORKER
+          value: $(results.build-simulator-worker.path)
+        - name: RESULT_BUILD_FRONTEND
+          value: $(results.build-frontend.path)
+      script: |
+        #!/usr/local/bin/python3
+        import json, os, re
+        from pathlib import Path
+
+        root = Path('$(workspaces.staging.path)')
+        run_dir = root / os.environ['RUN_DIR']
+        backend = run_dir / 'backend'
+        frontend = run_dir / 'frontend'
+        config = json.loads((backend / 'deploy/okd/automation/services.json').read_text())
+        mode = os.environ['MODE']
+        requested = {item.strip() for item in os.environ['SERVICES'].split(',') if item.strip()}
+        services = config['services']
+        if mode not in {'changed', 'all', 'services'}:
+            raise SystemExit('mode must be changed, all, or services')
+        unknown = requested - services.keys()
+        if mode == 'services' and (not requested or unknown):
+            raise SystemExit('services mode requires valid comma-separated service names')
+
+        def copy_inputs(dockerfile):
+            inputs = {dockerfile, dockerfile + '.dockerignore'}
+            for line in (backend / dockerfile).read_text().splitlines():
+                match = re.match(r'^\s*COPY\s+(.*)$', line)
+                if not match:
+                    continue
+                parts = match.group(1).split()
+                for source in parts[:-1]:
+                    if source.startswith('--'):
+                        continue
+                    if source == '.':
+                        inputs.add('.')
+                    else:
+                        source = source.lstrip('./')
+                        inputs.update((source, source.rstrip('/') + '/'))
+            return inputs
+
+        def matches(path, inputs):
+            return any(item == '.' or path == item or (item.endswith('/') and path.startswith(item))
+                       for item in inputs)
+
+        needs = set(requested if mode == 'services' else ())
+        for name, service in services.items():
+            repo = frontend if service['repository'] == 'frontend' else backend
+            diff_file = run_dir / 'diffs' / f'{name}.txt'
+            baseline = root / 'state/published' / f'{name}.commit'
+            if not baseline.exists() or not diff_file.exists():
+                if mode == 'all' or mode == 'changed' or mode == 'services' and service['repository'] in {
+                    services[item]['repository'] for item in requested
+                }:
+                    needs.add(name)
+                continue
+            paths = diff_file.read_text().splitlines()
+            if '*' in paths:
+                needs.add(name)
+                continue
+            if mode == 'all' or mode == 'changed' and any(matches(path, copy_inputs(service['dockerfile'])) for path in paths):
+                needs.add(name)
+
+        if mode == 'services':
+            # Selecting one backend service still includes peers that consume changed shared COPY inputs.
+            selected_repos = {services[name]['repository'] for name in requested}
+            for requested_name in requested:
+                requested_service = services[requested_name]
+                requested_diff = run_dir / 'diffs' / f'{requested_name}.txt'
+                if not requested_diff.exists() or '*' in requested_diff.read_text().splitlines():
+                    needs.update(name for name, service in services.items()
+                                 if service['repository'] == requested_service['repository'])
+                    continue
+                paths = requested_diff.read_text().splitlines()
+                for name, service in services.items():
+                    if service['repository'] in selected_repos and any(
+                        matches(path, copy_inputs(service['dockerfile'])) for path in paths
+                    ):
+                        needs.add(name)
+
+        result_paths = {
+            'api': 'RESULT_BUILD_API',
+            'event-api': 'RESULT_BUILD_EVENT_API',
+            'mcp': 'RESULT_BUILD_MCP',
+            'worker': 'RESULT_BUILD_WORKER',
+            'training-worker': 'RESULT_BUILD_TRAINING_WORKER',
+            'simulator-worker': 'RESULT_BUILD_SIMULATOR_WORKER',
+            'frontend': 'RESULT_BUILD_FRONTEND',
+        }
+        for name, env_name in result_paths.items():
+            Path(os.environ[env_name]).write_text('true' if name in needs else 'false')

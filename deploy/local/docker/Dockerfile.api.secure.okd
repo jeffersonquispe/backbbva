@@ -1,0 +1,57 @@
+FROM artifactory.globaldevtools.bbva.com:443/public.ecr.aws-remote/docker/library/python:3.11-slim AS builder
+
+ARG GENAI_ENVIRONMENT
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    TZ=America/Bogota \
+    GENAI_ENVIRONMENT=${GENAI_ENVIRONMENT} \
+    VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:$PATH \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_VERSION=2.2.1 \
+    POETRY_NO_INTERACTION=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /build
+
+# Poetry, Artifactory credentials, and its download cache stay in this
+# disposable stage and are never copied into the production image.
+RUN --mount=type=secret,id=artifactory_user,required=true --mount=type=secret,id=artifactory_password,required=true \
+    export ARTIFACTORY_USER="$(cat /run/secrets/artifactory_user)" ARTIFACTORY_PASSWORD="$(cat /run/secrets/artifactory_password)" \
+    && python -m venv ${VIRTUAL_ENV} \
+    && pip install --no-cache-dir \
+        --index-url "https://${ARTIFACTORY_USER}:${ARTIFACTORY_PASSWORD}@artifactory.globaldevtools.bbva.com/artifactory/api/pypi/gl-ai-genai-python-virtual/simple" \
+        poetry==${POETRY_VERSION}
+COPY deploy/requirements/pyproject.toml ./pyproject.toml
+RUN --mount=type=secret,id=artifactory_user,required=true --mount=type=secret,id=artifactory_password,required=true \
+    poetry config http-basic.BBVARepo "$(cat /run/secrets/artifactory_user)" "$(cat /run/secrets/artifactory_password)" \
+    && poetry install --only main --no-root
+
+FROM artifactory.globaldevtools.bbva.com:443/public.ecr.aws-remote/docker/library/python:3.11-slim AS runtime
+
+ARG GENAI_ENVIRONMENT
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    TZ=America/Bogota \
+    GENAI_ENVIRONMENT=${GENAI_ENVIRONMENT} \
+    APP_DIR=/code \
+    PYTHONPATH=/code \
+    VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:$PATH \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR ${APP_DIR}
+
+COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+COPY --chown=www-data:www-data src ./src
+# Keep the generated project graph explicitly present in the API image.
+COPY --chown=www-data:www-data src/infrastructure/agents/project_graph/project_graph.json ./src/infrastructure/agents/project_graph/project_graph.json
+USER www-data
+
+EXPOSE 8000
+
+CMD ["uvicorn", "src.infrastructure.entrypoint.api.fastapi_app:app", "--host", "0.0.0.0", "--port", "8000"]

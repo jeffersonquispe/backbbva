@@ -1,0 +1,57 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: aria-prepare-deployment-manifests-v1
+  namespace: aria-genai-dev
+spec:
+  workspaces:
+    - name: staging
+  steps:
+    - name: update-only-verified-images-and-write-patch
+      image: python:3.12-slim
+      script: |
+        #!/usr/local/bin/python3
+        import difflib, json, re
+        from pathlib import Path
+
+        root = Path('$(workspaces.staging.path)')
+        config_path = next(root.glob('sources/*/backend/deploy/okd/automation/services.json'), None)
+        if config_path is None:
+            print('no source checkout available; manifest patch not prepared')
+            raise SystemExit(0)
+        config = json.loads(config_path.read_text())
+        latest = {}
+        for marker in (root / 'images').glob('*.oci.meta'):
+            fields = marker.read_text().rstrip('\n').split('\t')
+            if len(fields) < 5 or fields[3] != 'published':
+                continue
+            service, commit, target = fields[:3]
+            if service not in config['services']:
+                continue
+            if service not in latest or marker.stat().st_mtime > latest[service][0]:
+                latest[service] = (marker.stat().st_mtime, fields)
+        changes = []
+        for name, (_, fields) in latest.items():
+            _, commit, target, _, digest, source_dir, _branch = fields
+            repo = root / source_dir / 'backend'
+            path = repo / config['services'][name]['deployment']
+            if not path.is_file():
+                raise SystemExit(f'manifest missing for {name}: {path}')
+            before = path.read_text()
+            container = config['services'][name]['container']
+            block = re.compile(r'(?ms)(^        - name: ' + re.escape(container) + r'\s*\n.*?^\s+image:)\s*[^\s#]+')
+            after, count = block.subn(lambda match: match.group(1) + ' ' + target, before, count=1)
+            if count != 1:
+                raise SystemExit(f'cannot target only container {container} in {path}')
+            if after != before:
+                path.write_text(after)
+                changes.extend(difflib.unified_diff(before.splitlines(True), after.splitlines(True),
+                               fromfile=f'a/{config["services"][name]["deployment"]}',
+                               tofile=f'b/{config["services"][name]["deployment"]}'))
+        patch = ''.join(changes)
+        output = root / 'deployment-manifests.patch'
+        output.write_text(patch)
+        if patch:
+            print(f'prepared manifest patch after verified publication: {output}')
+        else:
+            print('no manifest changes required')

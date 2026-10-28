@@ -1,0 +1,766 @@
+---
+{
+  "apiVersion": "tekton.dev/v1",
+  "kind": "Pipeline",
+  "metadata": {
+    "name": "aria-build-images-v1",
+    "namespace": "aria-genai-dev"
+  },
+  "spec": {
+    "params": [
+      {
+        "name": "mode",
+        "type": "string",
+        "default": "changed",
+        "description": "changed, all o services"
+      },
+      {
+        "name": "services",
+        "type": "string",
+        "default": "",
+        "description": "Servicios separados por coma para mode=services"
+      },
+      {
+        "name": "image-tag",
+        "type": "string",
+        "default": "",
+        "description": "Tag com\u00fan opcional; vac\u00edo usa el SHA de cada repo"
+      },
+      {
+        "name": "backend-branch",
+        "type": "string",
+        "default": "main"
+      },
+      {
+        "name": "frontend-branch",
+        "type": "string",
+        "default": "main"
+      },
+      {
+        "name": "github-user",
+        "type": "string",
+        "default": "",
+        "description": "Usuario de GitHub Enterprise"
+      },
+      {
+        "name": "github-token",
+        "type": "string",
+        "default": "",
+        "description": "GitHub classic token; Tekton lo guarda en PipelineRun/TaskRun"
+      }
+    ],
+    "workspaces": [
+      {
+        "name": "staging"
+      },
+      {
+        "name": "registry-auth"
+      }
+    ],
+    "tasks": [
+      {
+        "name": "clone-sources",
+        "timeout": "10m",
+        "taskRef": {
+          "name": "aria-clone-ghe-sources-v1"
+        },
+        "params": [
+          {
+            "name": "backend-branch",
+            "value": "$(params.backend-branch)"
+          },
+          {
+            "name": "frontend-branch",
+            "value": "$(params.frontend-branch)"
+          },
+          {
+            "name": "github-user",
+            "value": "$(params.github-user)"
+          },
+          {
+            "name": "github-token",
+            "value": "$(params.github-token)"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          }
+        ]
+      },
+      {
+        "name": "detect-changes",
+        "runAfter": [
+          "clone-sources"
+        ],
+        "timeout": "5m",
+        "taskRef": {
+          "name": "aria-detect-ghe-changes-v1"
+        },
+        "params": [
+          {
+            "name": "mode",
+            "value": "$(params.mode)"
+          },
+          {
+            "name": "services",
+            "value": "$(params.services)"
+          },
+          {
+            "name": "run-dir",
+            "value": "$(tasks.clone-sources.results.run-dir)"
+          },
+          {
+            "name": "backend-commit",
+            "value": "$(tasks.clone-sources.results.backend-commit)"
+          },
+          {
+            "name": "frontend-commit",
+            "value": "$(tasks.clone-sources.results.frontend-commit)"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          }
+        ]
+      },
+      {
+        "name": "build-api",
+        "runAfter": [
+          "detect-changes"
+        ],
+        "timeout": "40m",
+        "taskRef": {
+          "name": "aria-build-staged-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "api"
+          },
+          {
+            "name": "should-build",
+            "value": "$(tasks.detect-changes.results.build-api)"
+          },
+          {
+            "name": "image-repository",
+            "value": "artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-api"
+          },
+          {
+            "name": "image-tag",
+            "value": "$(params.image-tag)"
+          },
+          {
+            "name": "source-commit",
+            "value": "$(tasks.clone-sources.results.backend-commit)"
+          },
+          {
+            "name": "source-dir",
+            "value": "$(tasks.clone-sources.results.run-dir)"
+          },
+          {
+            "name": "dockerfile",
+            "value": "backend/deploy/local/docker/Dockerfile.api.secure.okd"
+          },
+          {
+            "name": "context-dir",
+            "value": "backend"
+          },
+          {
+            "name": "source-branch",
+            "value": "$(params.backend-branch)"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "build-event-api",
+        "runAfter": [
+          "detect-changes"
+        ],
+        "timeout": "40m",
+        "taskRef": {
+          "name": "aria-build-staged-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "event-api"
+          },
+          {
+            "name": "should-build",
+            "value": "$(tasks.detect-changes.results.build-event-api)"
+          },
+          {
+            "name": "image-repository",
+            "value": "artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-event-api"
+          },
+          {
+            "name": "image-tag",
+            "value": "$(params.image-tag)"
+          },
+          {
+            "name": "source-commit",
+            "value": "$(tasks.clone-sources.results.backend-commit)"
+          },
+          {
+            "name": "source-dir",
+            "value": "$(tasks.clone-sources.results.run-dir)"
+          },
+          {
+            "name": "dockerfile",
+            "value": "backend/deploy/local/docker/Dockerfile.eventapi.secure.okd"
+          },
+          {
+            "name": "context-dir",
+            "value": "backend"
+          },
+          {
+            "name": "source-branch",
+            "value": "$(params.backend-branch)"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "build-mcp",
+        "runAfter": [
+          "detect-changes"
+        ],
+        "timeout": "40m",
+        "taskRef": {
+          "name": "aria-build-staged-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "mcp"
+          },
+          {
+            "name": "should-build",
+            "value": "$(tasks.detect-changes.results.build-mcp)"
+          },
+          {
+            "name": "image-repository",
+            "value": "artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-mcp"
+          },
+          {
+            "name": "image-tag",
+            "value": "$(params.image-tag)"
+          },
+          {
+            "name": "source-commit",
+            "value": "$(tasks.clone-sources.results.backend-commit)"
+          },
+          {
+            "name": "source-dir",
+            "value": "$(tasks.clone-sources.results.run-dir)"
+          },
+          {
+            "name": "dockerfile",
+            "value": "backend/deploy/local/docker/Dockerfile.mcp.secure.okd"
+          },
+          {
+            "name": "context-dir",
+            "value": "backend"
+          },
+          {
+            "name": "source-branch",
+            "value": "$(params.backend-branch)"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "build-worker",
+        "runAfter": [
+          "detect-changes",
+          "build-api",
+          "build-event-api",
+          "build-mcp"
+        ],
+        "timeout": "40m",
+        "taskRef": {
+          "name": "aria-build-staged-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "worker"
+          },
+          {
+            "name": "should-build",
+            "value": "$(tasks.detect-changes.results.build-worker)"
+          },
+          {
+            "name": "image-repository",
+            "value": "artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker"
+          },
+          {
+            "name": "image-tag",
+            "value": "$(params.image-tag)"
+          },
+          {
+            "name": "source-commit",
+            "value": "$(tasks.clone-sources.results.backend-commit)"
+          },
+          {
+            "name": "source-dir",
+            "value": "$(tasks.clone-sources.results.run-dir)"
+          },
+          {
+            "name": "dockerfile",
+            "value": "backend/deploy/local/docker/Dockerfile.worker.secure.okd"
+          },
+          {
+            "name": "context-dir",
+            "value": "backend"
+          },
+          {
+            "name": "source-branch",
+            "value": "$(params.backend-branch)"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "build-training-worker",
+        "runAfter": [
+          "detect-changes",
+          "build-api",
+          "build-event-api",
+          "build-mcp"
+        ],
+        "timeout": "40m",
+        "taskRef": {
+          "name": "aria-build-staged-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "training-worker"
+          },
+          {
+            "name": "should-build",
+            "value": "$(tasks.detect-changes.results.build-training-worker)"
+          },
+          {
+            "name": "image-repository",
+            "value": "artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-training-worker"
+          },
+          {
+            "name": "image-tag",
+            "value": "$(params.image-tag)"
+          },
+          {
+            "name": "source-commit",
+            "value": "$(tasks.clone-sources.results.backend-commit)"
+          },
+          {
+            "name": "source-dir",
+            "value": "$(tasks.clone-sources.results.run-dir)"
+          },
+          {
+            "name": "dockerfile",
+            "value": "backend/deploy/local/docker/Dockerfile.training.worker.secure.okd"
+          },
+          {
+            "name": "context-dir",
+            "value": "backend"
+          },
+          {
+            "name": "source-branch",
+            "value": "$(params.backend-branch)"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "build-simulator-worker",
+        "runAfter": [
+          "detect-changes",
+          "build-api",
+          "build-event-api",
+          "build-mcp"
+        ],
+        "timeout": "40m",
+        "taskRef": {
+          "name": "aria-build-staged-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "simulator-worker"
+          },
+          {
+            "name": "should-build",
+            "value": "$(tasks.detect-changes.results.build-simulator-worker)"
+          },
+          {
+            "name": "image-repository",
+            "value": "artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-event-simulator-worker"
+          },
+          {
+            "name": "image-tag",
+            "value": "$(params.image-tag)"
+          },
+          {
+            "name": "source-commit",
+            "value": "$(tasks.clone-sources.results.backend-commit)"
+          },
+          {
+            "name": "source-dir",
+            "value": "$(tasks.clone-sources.results.run-dir)"
+          },
+          {
+            "name": "dockerfile",
+            "value": "backend/deploy/local/docker/Dockerfile.simulator.worker.secure.okd"
+          },
+          {
+            "name": "context-dir",
+            "value": "backend"
+          },
+          {
+            "name": "source-branch",
+            "value": "$(params.backend-branch)"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "build-frontend",
+        "runAfter": [
+          "detect-changes",
+          "build-worker",
+          "build-training-worker",
+          "build-simulator-worker"
+        ],
+        "timeout": "40m",
+        "taskRef": {
+          "name": "aria-build-staged-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "frontend"
+          },
+          {
+            "name": "should-build",
+            "value": "$(tasks.detect-changes.results.build-frontend)"
+          },
+          {
+            "name": "image-repository",
+            "value": "artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-frontend-app-aria-frontend"
+          },
+          {
+            "name": "image-tag",
+            "value": "$(params.image-tag)"
+          },
+          {
+            "name": "source-commit",
+            "value": "$(tasks.clone-sources.results.frontend-commit)"
+          },
+          {
+            "name": "source-dir",
+            "value": "$(tasks.clone-sources.results.run-dir)"
+          },
+          {
+            "name": "dockerfile",
+            "value": "backend/deploy/okd/automation/Dockerfile.frontend.secure"
+          },
+          {
+            "name": "context-dir",
+            "value": "frontend"
+          },
+          {
+            "name": "source-branch",
+            "value": "$(params.frontend-branch)"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      }
+    ]
+  }
+}
+---
+{
+  "apiVersion": "tekton.dev/v1",
+  "kind": "Pipeline",
+  "metadata": {
+    "name": "aria-publish-images-v1",
+    "namespace": "aria-genai-dev"
+  },
+  "spec": {
+    "workspaces": [
+      {
+        "name": "staging"
+      },
+      {
+        "name": "registry-auth"
+      }
+    ],
+    "tasks": [
+      {
+        "name": "publish-api",
+        "runAfter": [],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "api"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-event-api",
+        "runAfter": [
+          "publish-api"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "event-api"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-mcp",
+        "runAfter": [
+          "publish-event-api"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "mcp"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-worker",
+        "runAfter": [
+          "publish-mcp"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "worker"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-training-worker",
+        "runAfter": [
+          "publish-worker"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "training-worker"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-simulator-worker",
+        "runAfter": [
+          "publish-training-worker"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "simulator-worker"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      },
+      {
+        "name": "publish-frontend",
+        "runAfter": [
+          "publish-simulator-worker"
+        ],
+        "timeout": "8m",
+        "taskRef": {
+          "name": "aria-publish-pending-image-v2"
+        },
+        "params": [
+          {
+            "name": "service",
+            "value": "frontend"
+          }
+        ],
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          },
+          {
+            "name": "registry-auth",
+            "workspace": "registry-auth"
+          }
+        ]
+      }
+    ],
+    "finally": [
+      {
+        "name": "prepare-manifest-patch",
+        "timeout": "3m",
+        "taskRef": {
+          "name": "aria-prepare-deployment-manifests-v1"
+        },
+        "workspaces": [
+          {
+            "name": "staging",
+            "workspace": "staging"
+          }
+        ]
+      }
+    ]
+  }
+}

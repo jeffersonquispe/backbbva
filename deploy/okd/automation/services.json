@@ -1,0 +1,17 @@
+{
+  "registry_prefix": "artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/",
+  "repositories": {
+    "backend": {"url": "https://bbva.ghe.com/free/aria-agente-prevencion-fraude-backend.git", "default_branch": "main", "local_checkout": "."},
+    "frontend": {"url": "https://bbva.ghe.com/free/aria-agente-prevencion-fraude-frontend.git", "default_branch": "main", "local_checkout": "../frontend_mockup"}
+  },
+  "services": {
+    "api": {"repository": "backend", "deployment": "deploy/okd/iac_celery/computation/api/deployment.yaml", "container": "api", "dockerfile": "deploy/local/docker/Dockerfile.api.secure.okd", "group": "backend"},
+    "event-api": {"repository": "backend", "deployment": "deploy/okd/iac_celery/computation/event-api/deployment.yaml", "container": "event-api", "dockerfile": "deploy/local/docker/Dockerfile.eventapi.secure.okd", "group": "event-api"},
+    "mcp": {"repository": "backend", "deployment": "deploy/okd/iac_celery/computation/mcp/deployment.yaml", "container": "mcp", "dockerfile": "deploy/local/docker/Dockerfile.mcp.secure.okd", "group": "backend"},
+    "worker": {"repository": "backend", "deployment": "deploy/okd/iac_celery/computation/celery-workers/worker/deployment.yaml", "container": "aria-worker-main", "dockerfile": "deploy/local/docker/Dockerfile.worker.secure.okd", "group": "backend"},
+    "training-worker": {"repository": "backend", "deployment": "deploy/okd/iac_celery/computation/celery-workers/training-worker/deployment.yaml", "container": "aria-worker-training", "dockerfile": "deploy/local/docker/Dockerfile.training.worker.secure.okd", "group": "backend"},
+    "simulator-worker": {"repository": "backend", "deployment": "deploy/okd/iac_celery/computation/celery-workers/simulator-worker/deployment.yaml", "container": "aria-worker-simulator", "dockerfile": "deploy/local/docker/Dockerfile.simulator.worker.secure.okd", "group": "backend"},
+    "frontend": {"repository": "frontend", "deployment": "deploy/okd/iac_celery/frontend/app/deployment.yaml", "container": "frontend", "dockerfile": "deploy/okd/automation/Dockerfile.frontend.secure", "build_definition_repository": "backend", "group": "frontend"}
+  },
+  "defaults": {"build_concurrency": 3, "push_concurrency": 1, "pipeline_timeout": "50m"}
+}

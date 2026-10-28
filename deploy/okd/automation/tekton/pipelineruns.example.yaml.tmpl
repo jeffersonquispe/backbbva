@@ -1,0 +1,59 @@
+# Template only. Verify PVC and Secret names/accessModes before envsubst/apply.
+# Source PVC must already contain the matching commit under the bound subPath.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: aria-build-api-
+  namespace: aria-genai-dev
+spec:
+  pipelineRef:
+    name: aria-build-stage-image-v1
+  timeouts:
+    pipeline: 50m
+    tasks: 45m
+  params:
+    - name: service
+      value: api
+    - name: image-target
+      value: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-api:${SOURCE_COMMIT}
+    - name: source-commit
+      value: ${SOURCE_COMMIT}
+    - name: dockerfile
+      value: deploy/local/docker/Dockerfile.api.secure.okd
+    - name: context-dir
+      value: .
+  workspaces:
+    - name: source
+      persistentVolumeClaim:
+        claimName: ${ARIA_SOURCE_PVC}
+      subPath: ${ARIA_SOURCE_SUBPATH}
+    - name: staging
+      persistentVolumeClaim:
+        claimName: ${ARIA_STAGING_PVC}
+    - name: registry-auth
+      secret:
+        secretName: ${ARIA_BUILD_AUTH_SECRET}
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: aria-publish-api-
+  namespace: aria-genai-dev
+spec:
+  pipelineRef:
+    name: aria-publish-staged-image-v1
+  timeouts:
+    pipeline: 20m
+    tasks: 15m
+  params:
+    - name: service
+      value: api
+    - name: source-commit
+      value: ${SOURCE_COMMIT}
+  workspaces:
+    - name: staging
+      persistentVolumeClaim:
+        claimName: ${ARIA_STAGING_PVC}
+    - name: registry-auth
+      secret:
+        secretName: ${ARIA_BUILD_AUTH_SECRET}

@@ -1,0 +1,165 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: aria-build-staged-image-v1
+  namespace: aria-genai-dev
+spec:
+  params:
+    - name: service
+      type: string
+    - name: image-target
+      type: string
+    - name: source-commit
+      type: string
+    - name: dockerfile
+      type: string
+    - name: context-dir
+      type: string
+      default: .
+  workspaces:
+    - name: source
+    - name: staging
+    - name: registry-auth
+  steps:
+    - name: build-to-persistent-oci-archive
+      image: quay.io/buildah/stable:v1.39.3
+      workingDir: $(workspaces.source.path)
+      computeResources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+      env:
+        - name: SERVICE
+          value: $(params.service)
+        - name: IMAGE_TARGET
+          value: $(params.image-target)
+        - name: SOURCE_COMMIT
+          value: $(params.source-commit)
+        - name: DOCKERFILE
+          value: $(params.dockerfile)
+        - name: CONTEXT_DIR
+          value: $(params.context-dir)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        service="$SERVICE"
+        commit="$SOURCE_COMMIT"
+        target="$IMAGE_TARGET"
+        context="$CONTEXT_DIR"
+        dockerfile="$DOCKERFILE"
+        [[ "$service" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo 'invalid service name'; exit 2; }
+        [[ "$commit" =~ ^[0-9a-f]{7,64}$ ]] || { echo 'invalid source commit'; exit 2; }
+        [[ "$target" =~ ^artifactory\.globaldevtools\.bbva\.com:443/co-genai-public-cloud-docker-local/aria-genai/[A-Za-z0-9._/-]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo 'invalid image target'; exit 2; }
+        [[ -d "$context" && -f "$dockerfile" ]] || { echo 'source context or Dockerfile missing'; exit 2; }
+        auth='$(workspaces.registry-auth.path)/.dockerconfigjson'
+        user_file='$(workspaces.registry-auth.path)/artifactory_user'
+        password_file='$(workspaces.registry-auth.path)/artifactory_password'
+        [[ -r "$auth" && -r "$user_file" && -r "$password_file" ]] || {
+          echo 'registry-auth workspace must provide .dockerconfigjson, artifactory_user, artifactory_password'; exit 2;
+        }
+        mkdir -p '$(workspaces.staging.path)'
+        artifact='$(workspaces.staging.path)/'"${service}-${commit}.oci"
+        if [[ -s "$artifact" && -s "${artifact}.sha256" && -s "${artifact}.meta" ]]; then
+          (cd '$(workspaces.staging.path)' && sha256sum -c "${service}-${commit}.oci.sha256")
+          IFS=$'\t' read -r existing_service existing_commit existing_target existing_status < "${artifact}.meta"
+          [[ "$existing_service" = "$service" && "$existing_commit" = "$commit" && "$existing_target" = "$target" ]] || {
+            echo 'a staged artifact already exists for this service/commit with different target metadata'; exit 3;
+          }
+          echo 'matching staged artifact already exists; build skipped'
+          exit 0
+        fi
+        temporary_dir=$(mktemp -d '$(workspaces.staging.path)/.'"${service}-${commit}.XXXXXX")
+        temporary="$temporary_dir/image.oci"
+        image="localhost/aria-stage-${service}:${commit}"
+        buildah bud --tls-verify=true --authfile "$auth" --secret "id=artifactory_user,src=$user_file" \
+          --secret "id=artifactory_password,src=$password_file" --build-arg GENAI_ENVIRONMENT=dev \
+          --format oci -f "$dockerfile" -t "$image" "$context"
+        buildah push --tls-verify=true --authfile "$auth" --format oci "$image" "oci-archive:$temporary"
+        checksum=$(sha256sum "$temporary" | awk '{print $1}')
+        mv "$temporary" "$artifact"
+        rmdir "$temporary_dir"
+        printf '%s  %s\n' "$checksum" "${service}-${commit}.oci" > "${artifact}.sha256.tmp"
+        mv "${artifact}.sha256.tmp" "${artifact}.sha256"
+        printf '%s\t%s\t%s\tpending\t\n' "$service" "$commit" "$target" > "${artifact}.meta.tmp"
+        mv "${artifact}.meta.tmp" "${artifact}.meta"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: aria-publish-staged-image-v1
+  namespace: aria-genai-dev
+spec:
+  params:
+    - name: service
+      type: string
+    - name: source-commit
+      type: string
+  workspaces:
+    - name: staging
+    - name: registry-auth
+  steps:
+    - name: publish-verified-artifact
+      image: quay.io/skopeo/stable:v1.18.0
+      computeResources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      env:
+        - name: SERVICE
+          value: $(params.service)
+        - name: SOURCE_COMMIT
+          value: $(params.source-commit)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        service="$SERVICE"
+        commit="$SOURCE_COMMIT"
+        [[ "$service" =~ ^[a-z0-9][a-z0-9-]*$ && "$commit" =~ ^[0-9a-f]{7,64}$ ]] || exit 2
+        root='$(workspaces.staging.path)'
+        artifact="$root/${service}-${commit}.oci"
+        metadata="$artifact.meta"
+        checksum_file="$artifact.sha256"
+        auth='$(workspaces.registry-auth.path)/.dockerconfigjson'
+        [[ -s "$artifact" && -s "$metadata" && -s "$checksum_file" && -r "$auth" ]] || {
+          echo 'staged artifact or registry authentication is missing'; exit 2;
+        }
+        (cd "$root" && sha256sum -c "${service}-${commit}.oci.sha256")
+        IFS=$'\t' read -r stored_service stored_commit target status stored_digest < "$metadata"
+        [[ "$stored_service" = "$service" && "$stored_commit" = "$commit" && "$status" = pending ]] || {
+          echo 'staging metadata does not match requested image or is not pending'; exit 2;
+        }
+        [[ "$target" =~ ^artifactory\.globaldevtools\.bbva\.com:443/co-genai-public-cloud-docker-local/aria-genai/[A-Za-z0-9._/-]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || {
+          echo 'staged registry target is outside the configured application repository'; exit 2;
+        }
+        source="oci-archive:$artifact"
+        local_manifest=$(skopeo inspect --raw "$source")
+        expected="sha256:$(printf '%s' "$local_manifest" | sha256sum | awk '{print $1}')"
+        registry='docker://'
+        for attempt in 1 2 3; do
+          remote=$(skopeo inspect --tls-verify=true --authfile "$auth" --format '{{.Digest}}' "${registry}${target}" 2> /tmp/inspect.err || true)
+          if [[ -n "$remote" ]]; then
+            actual="$remote"
+            [[ "$actual" = "$expected" ]] || { echo 'immutable image tag exists with a different digest'; exit 3; }
+            status=published
+            break
+          fi
+          if skopeo copy --tls-verify=true --authfile "$auth" --retry-times 0 "$source" "${registry}${target}" 2> /tmp/copy.err; then
+            actual=$(skopeo inspect --tls-verify=true --authfile "$auth" --format '{{.Digest}}' "${registry}${target}")
+            [[ "$actual" = "$expected" ]] || { echo 'published digest does not match staged image'; exit 3; }
+            status=published
+            break
+          fi
+          if grep -Eiq 'unauthorized|denied|forbidden|authentication|invalid username' /tmp/copy.err; then
+            echo 'permanent registry authentication/permission error'; exit 4
+          fi
+          [[ "$attempt" -eq 3 ]] && { tail -c 500 /tmp/copy.err; exit 1; }
+          sleep "$((attempt * 20))"
+        done
+        printf '%s\t%s\t%s\t%s\t%s\n' "$service" "$commit" "$target" "$status" "$expected" > "${metadata}.tmp"
+        mv "${metadata}.tmp" "$metadata"
