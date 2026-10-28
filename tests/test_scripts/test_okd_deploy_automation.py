@@ -125,6 +125,16 @@ class OkdDeployAutomationTests(unittest.TestCase):
         for task_file in task_files:
             self.assertEqual(1, task_file.read_text().count("apiVersion: tekton.dev/v1"))
 
+    def test_okd_build_task_uses_unprivileged_kaniko_and_stages_without_pushing(self):
+        build = (SCRIPT.parent / "tekton/tasks/build-staged-image.yaml").read_text()
+        self.assertIn("ghcr.io/osscontainertools/kaniko:v1.28.5-debug", build)
+        self.assertIn("--no-push --no-push-cache", build)
+        self.assertIn("--secret=\"id=artifactory_user", build)
+        self.assertIn("--tar-path=", build)
+        self.assertNotIn("buildah bud", build)
+        publish = (SCRIPT.parent / "tekton/tasks/publish-pending-image.yaml").read_text()
+        self.assertIn("docker-archive:$artifact", publish)
+
 
 if __name__ == "__main__":
     unittest.main()

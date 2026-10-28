@@ -69,7 +69,8 @@ combinado con push. Además pasa usuario/password como build args y genera
 La solución nueva no hereda esos patrones. Los Dockerfiles `*.secure.okd`
 reciben credenciales mediante `RUN --mount=type=secret`; los Dockerfiles OKD
 históricos siguen intactos para mantener compatibilidad con el Kaniko anterior.
-Los Tasks release nuevos usan Buildah/Skopeo con TLS verificado y están en
+Los Tasks release nuevos usan Kaniko/Skopeo sin privilegios ni user namespaces,
+con TLS verificado, y están en
 `tekton/tasks/`, un archivo por Task. El bundle `tekton/tasks.release.yaml`
 permite instalarlas todas juntas. Las Pipelines generadas están en
 `tekton/pipeline-build.release.yaml` y `tekton/pipeline-publish.release.yaml`
@@ -141,8 +142,8 @@ Para cargar desde la consola, importa cada uno de los cinco archivos dentro de
 `tekton/pipeline-build.release.yaml` y `tekton/pipeline-publish.release.yaml`.
 Para instalar con CLI, un administrador autorizado puede aplicar
 `tekton/tasks.release.yaml` y `tekton/pipelines.release.yaml` en `aria-genai-dev`, una vez
-verificados que los builders `quay.io/buildah/stable:v1.39.3` y
-`quay.io/skopeo/stable:v1.18.0` son permitidos en el cluster. No se incluye un
+verificados que las imágenes `ghcr.io/osscontainertools/kaniko:v1.28.5-debug` y
+`quay.io/skopeo/stable:v1.18.0` son permitidas en el cluster. No se incluye un
 PipelineRun aplicado ni se ha conectado al cluster. La publicación se serializa
 para no saturar Artifactory. El parche de manifiestos queda en staging; crear un
 commit, PR o aplicar al cluster es un paso deliberado y separado.

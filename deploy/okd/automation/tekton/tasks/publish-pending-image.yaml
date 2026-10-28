@@ -25,7 +25,7 @@ spec:
         auth='$(workspaces.registry-auth.path)/.dockerconfigjson'
         [[ -r "$auth" ]] || { echo 'registry auth config is missing'; exit 2; }
         found=false
-        for marker in "$root"/images/"${service}-"*.oci.meta; do
+        for marker in "$root"/images/"${service}-"*.tar.meta; do
           [[ -f "$marker" ]] || continue
           IFS=$'\t' read -r stored_service commit target status digest source_dir source_branch < "$marker"
           [[ "$status" = pending ]] || continue
@@ -34,7 +34,7 @@ spec:
           (cd "$root/images" && sha256sum -c "$(basename "$artifact").sha256")
           [[ "$stored_service" = "$service" && "$commit" =~ ^[0-9a-f]{40,64}$ ]] || { echo 'invalid artifact metadata'; exit 2; }
           [[ "$target" =~ ^artifactory\.globaldevtools\.bbva\.com:443/co-genai-public-cloud-docker-local/aria-genai/[A-Za-z0-9._/-]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo 'destination outside managed registry path'; exit 2; }
-          source="oci-archive:$artifact"
+          source="docker-archive:$artifact"
           manifest=$(skopeo inspect --raw "$source")
           expected="sha256:$(printf '%s' "$manifest" | sha256sum | awk '{print $1}')"
           remote=$(skopeo inspect --tls-verify=true --authfile "$auth" --format '{{.Digest}}' "docker://$target" 2>/tmp/inspect.err || true)
@@ -42,7 +42,7 @@ spec:
             [[ "$remote" = "$expected" ]] || { echo 'immutable tag already exists with different content'; exit 3; }
           else
             attempt=1
-            while ! skopeo copy --tls-verify=true --authfile "$auth" --retry-times 0 --format oci "$source" "docker://$target" 2>/tmp/copy.err; do
+            while ! skopeo copy --tls-verify=true --authfile "$auth" --retry-times 0 --preserve-digests "$source" "docker://$target" 2>/tmp/copy.err; do
               if grep -Eiq 'unauthorized|denied|forbidden|authentication|invalid username' /tmp/copy.err; then
                 echo 'permanent registry authentication/permission error'; exit 4
               fi

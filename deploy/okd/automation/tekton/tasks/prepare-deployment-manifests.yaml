@@ -21,7 +21,7 @@ spec:
             raise SystemExit(0)
         config = json.loads(config_path.read_text())
         latest = {}
-        for marker in (root / 'images').glob('*.oci.meta'):
+        for marker in (root / 'images').glob('*.tar.meta'):
             fields = marker.read_text().rstrip('\n').split('\t')
             if len(fields) < 5 or fields[3] != 'published':
                 continue
