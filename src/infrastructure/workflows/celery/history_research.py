@@ -31,13 +31,13 @@ def _history_research(
     history = pre_process.enrichment.get("transaction_history") or []
     if not settings.enabled or settings.max_delegations <= 0 or not history:
         return []
-    # Selector: time window before the alert + most recent N rows. Column
-    # restriction (allowed_columns) is enforced by the agent itself.
+    # Selector: time window before the alert, no row cap. Column restriction
+    # (allowed_columns) is enforced by the agent itself.
     selected = select_transaction_history(
         history,
         columns=[],
         window_days=settings.window_days,
-        max_transactions=settings.max_history_rows,
+        max_transactions=0,
         reference_time=parse_event_time(pre_process.roles.get("event_time")),
     )
     from src.infrastructure.workflows.celery import task_factories

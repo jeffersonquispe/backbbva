@@ -109,7 +109,6 @@ class VectorStoreResearchConfigSchema(ResearchAgentConfigSchema):
 
 
 class HistoryPandasResearchConfigSchema(ResearchAgentConfigSchema):
-    max_history_rows: int = Field(default=50, ge=1, le=100_000)
     window_days: int = Field(default=30, ge=0)
     max_analysis_operations: int = Field(default=4, ge=1, le=20)
     planner: Literal["llm", "heuristic"] = "llm"

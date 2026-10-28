@@ -255,7 +255,6 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
                     history_pandas=HistoryPandasResearchConfig(
                         enabled=True,
                         allowed_columns=["amount", "channel"],
-                        max_history_rows=250,
                         window_days=15,
                     ),
                 ),
@@ -358,10 +357,6 @@ def test_segment_round_trips_through_its_own_table_item() -> None:
     assert (
         restored.agent.classification.delegated_research.history_pandas.allowed_columns
         == ["amount", "channel"]
-    )
-    assert (
-        restored.agent.classification.delegated_research.history_pandas.max_history_rows
-        == 250
     )
     assert (
         restored.agent.classification.delegated_research.history_pandas.window_days

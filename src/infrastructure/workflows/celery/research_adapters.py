@@ -108,7 +108,13 @@ class LLMHistoryResearchPlanner:
         "(column), group_by (group_by, opcional column y aggregate), comparison "
         "(column, current_value), outlier (column, current_value), trend "
         "(column de fecha, group_by frecuencia). No infieras hechos; si no hay "
-        "columnas útiles, devuelve operations vacío. Máximo 4 operaciones."
+        "columnas útiles, devuelve operations vacío. Máximo 4 operaciones. "
+        "El historial puede ser muy grande: no lo recorras completo. Empieza con "
+        "filter para acotar a lo relacionado con la alerta (misma contraparte, "
+        "dispositivo, canal, tipo de evento o montos cercanos) y solo después "
+        "agrega, distribuye o agrupa sobre ese subconjunto. Evita distribution, "
+        "group_by o aggregate sobre todo el historial si no responden a una "
+        "pregunta concreta de la alerta."
     )
 
     kind = "llm"

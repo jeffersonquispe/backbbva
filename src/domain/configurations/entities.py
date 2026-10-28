@@ -352,10 +352,11 @@ class HistoryPandasResearchConfig(ResearchAgentConfig):
     # (capped at 5): analysis, then the step again with its findings, while
     # the step stays open and each round brings new findings. The selector below scopes the
     # history it analyzes: allowed_columns (empty = all), window_days
-    # before the alert (0 = no limit), max_history_rows most recent rows.
+    # before the alert (0 = no limit). There is no row cap: the whole
+    # selected history is analyzed, and the planner is steered to narrow it
+    # with filters instead of scanning everything.
     # Includes one bounded planner call to the configured low-cost model.
     timeout_seconds: int = 25
-    max_history_rows: int = 50
     window_days: int = 30
     max_analysis_operations: int = 4
     # "llm" plans with REPORT_LLM_MODEL (heuristic when it is not set);

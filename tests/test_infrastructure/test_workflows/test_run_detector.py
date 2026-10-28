@@ -329,7 +329,7 @@ def _history_cfg(**overrides) -> DetectorConfig:
 
 def test_history_analysis_analyzes_only_the_selected_slice() -> None:
     segment = SegmentSettings(enabled=True, agent=AgentSettings())
-    cfg = _history_cfg(window_days=30, max_history_rows=10, allowed_columns=["amount"])
+    cfg = _history_cfg(window_days=30, allowed_columns=["amount"])
 
     [result] = history_research_module._history_research(
         _context(segment), cfg, "inconclusa"

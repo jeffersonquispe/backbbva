@@ -57,16 +57,21 @@ class HistoryPandasResearchAgent:
                 if self._history_provider is None:
                     raise ValueError("history data was not supplied")
                 history = self._history_provider(request)
-            rows = [
-                asdict(row) if is_dataclass(row) else row
-                for row in list(history)[: self._config.max_history_rows]
-            ]
-            frame = pd.DataFrame(rows)
-            if self._config.allowed_columns:
-                permitted = [
-                    c for c in self._config.allowed_columns if c in frame.columns
+            permitted = set(self._config.allowed_columns)
+            # Project to the allowed columns while building the rows so a large
+            # history never materialises columns the analysis may not read.
+            frame = pd.DataFrame(
+                [
+                    {
+                        key: value
+                        for key, value in (
+                            asdict(row) if is_dataclass(row) else row
+                        ).items()
+                        if not permitted or key in permitted
+                    }
+                    for row in history
                 ]
-                frame = frame.loc[:, permitted]
+            )
             started = time.perf_counter()
             operations = self._planner.plan(request)
             planning = {
@@ -84,7 +89,7 @@ class HistoryPandasResearchAgent:
             trace: list[dict[str, Any]] = [
                 {"rows_considered": len(frame), **planning}
             ]
-            working = frame.copy(deep=True)
+            working = frame
             for operation in operations:
                 if operation.name not in self._config.allowed_operations:
                     raise ValueError(f"operation is not allowed: {operation.name}")

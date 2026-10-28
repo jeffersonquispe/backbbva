@@ -174,3 +174,34 @@ def test_history_agent_rejects_operation_budget():
         agent.research(_history_request(), [{"amount": 3}]).status
         == ResearchStatus.FAILED
     )
+
+
+def test_history_analysis_has_no_row_cap():
+    rows = [{"amount": float(i), "channel": "web"} for i in range(5_000)]
+    agent = HistoryPandasResearchAgent(
+        _Planner([HistoryOperation(name="aggregate", column="amount", aggregate="count")]),
+        HistoryPandasResearchConfig(enabled=True),
+        history_provider=lambda _request: rows,
+    )
+
+    result = agent.research(_history_request())
+
+    assert result.status == ResearchStatus.EXECUTED
+    assert result.trace[0]["rows_considered"] == 5_000
+    assert result.findings[0].value == 5_000
+
+
+def test_llm_history_planner_prompt_steers_away_from_full_scans():
+    llm = _LLM('{"operations":[]}')
+    planner = LLMHistoryResearchPlanner(
+        _LLMFactory(llm),
+        model="cheap-model",
+        monitoring=None,
+        columns=["amount"],
+        allowed_operations=["filter", "aggregate"],
+        max_operations=4,
+    )
+
+    planner.plan(_history_request())
+
+    assert "no lo recorras completo" in llm.messages[0].content
