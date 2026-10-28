@@ -42,6 +42,34 @@ def test_variants_differ_only_in_planner_and_enable_history_where_it_runs() -> N
     assert "planner" not in str(base)
 
 
+def test_window_days_override_applies_to_every_history_config_without_touching_base() -> None:
+    base = _base()
+
+    variant = compare.planner_variant(base, "llm", "llm", window_days=0)
+
+    agent = variant["segments"]["TC"]["agent"]
+    assert all(
+        agent[step]["delegated_research"]["history_pandas"]["window_days"] == 0
+        for step in agent
+    )
+    assert "window_days" not in str(base)
+    # Without the override the base value is kept (no key added).
+    plain = compare.planner_variant(base, "llm", "llm")
+    assert "window_days" not in plain["segments"]["TC"]["agent"]["detector"][
+        "delegated_research"
+    ]["history_pandas"]
+
+
+def test_variants_enable_every_segment_so_tool_settings_apply() -> None:
+    base = _base()
+    base["segments"]["TC"]["enabled"] = False
+
+    variant = compare.planner_variant(base, "llm", "llm")
+
+    assert variant["segments"]["TC"]["enabled"] is True
+    assert base["segments"]["TC"]["enabled"] is False
+
+
 class RecordingApi:
     def __init__(self) -> None:
         self.paths: list[str] = []

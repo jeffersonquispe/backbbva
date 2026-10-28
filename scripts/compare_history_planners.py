@@ -9,7 +9,7 @@ own trace (planning latency and tokens). Every row of the dataset is
 dispatched in both runs, so the two planners see exactly the same alerts.
 
     python scripts/compare_history_planners.py --dataset-name <uploaded CSV> \
-        [--configuration-id <id> --version <n>] [--output report.json]
+        [--configuration-id <id> --version <n>] [--window-days <n>] [--output report.json]
 
 Credentials come from E2E_MANAGER_EMAIL / E2E_MANAGER_PASSWORD (or flags).
 Only aggregates are printed; no alert rows or prompts are read back.
@@ -55,9 +55,13 @@ class Api:
         return json.loads(raw) if raw else None
 
 
-def planner_variant(base: dict[str, Any], planner: str, name: str) -> dict[str, Any]:
+def planner_variant(
+    base: dict[str, Any], planner: str, name: str, window_days: int | None = None
+) -> dict[str, Any]:
     segments = copy.deepcopy(base["segments"])
     for segment in segments.values():
+        # Tool settings only apply to an enabled segment (active_segment()).
+        segment["enabled"] = True
         agent = segment.get("agent") or {}
         for step in TOOL_STEPS:
             tools = agent.get(step)
@@ -67,6 +71,8 @@ def planner_variant(base: dict[str, Any], planner: str, name: str) -> dict[str, 
                 "history_pandas", {}
             )
             history["planner"] = planner
+            if window_days is not None:
+                history["window_days"] = window_days
             if step in HISTORY_STEPS:
                 history["enabled"] = True
     return {
@@ -172,6 +178,11 @@ def main() -> int:
     parser.add_argument("--dataset-name", required=True)
     parser.add_argument("--configuration-id", help="Base lineage (default: active).")
     parser.add_argument("--version", type=int, help="Base version (default: latest).")
+    parser.add_argument(
+        "--window-days",
+        type=int,
+        help="Override history_pandas.window_days in both variants (0 = no limit).",
+    )
     parser.add_argument("--timeout", type=int, default=3600, help="Seconds for both runs.")
     parser.add_argument("--output", help="Write the JSON report here as well.")
     args = parser.parse_args()
@@ -197,7 +208,9 @@ def main() -> int:
         created = api.call(
             "POST",
             "/configurations",
-            planner_variant(base, planner, f"Planner historial {planner} {stamp}"),
+            planner_variant(
+                base, planner, f"Planner historial {planner} {stamp}", args.window_days
+            ),
         )
         configurations[planner] = {
             "configuration_id": created["configuration_id"],
