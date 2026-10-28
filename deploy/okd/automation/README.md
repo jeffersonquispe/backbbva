@@ -9,7 +9,8 @@ Deployments existentes.
 
 ## Uso local
 
-Requiere Python 3, Podman (preferido) o Docker, y `skopeo` para publicación.
+Requiere Python 3, Podman (preferido) o Docker para build. La publicación usa
+Skopeo cuando está instalado o Podman como alternativa.
 El staging persistente por defecto está en `~/.cache/aria-okd/images`; puede
 cambiarse con `ARIA_IMAGE_STAGING`. Se guardan artefactos OCI y metadatos con
 SHA-256. Los artefactos se escriben en temporal y se confirman mediante rename.
@@ -17,10 +18,14 @@ SHA-256. Los artefactos se escriben en temporal y se confirman mediante rename.
 ```sh
 ./deploy.sh                         # cambios desde el último publish conocido
 ./deploy.sh all                     # construir todas las imágenes configuradas
+./deploy.sh all --auth-file "$HOME/.config/aria/artifactory-auth.json"
+./deploy.sh all --engine podman --skip-auth --build-only  # usa podman login existente; no publica
 ./deploy.sh services --services api,mcp
 ./deploy.sh changed --backend-branch feature/V0_0_7 --frontend-branch main
+./deploy.sh services --services frontend --use-local-frontend --build-only
 ./deploy.sh publish                 # publicar artifacts pendientes, no build
 ./deploy.sh resume                  # alias operativo de publish/reintento
+./publish-okd-images.sh             # publica desde staging con ../credsartippub.json
 ./deploy.sh deploy                  # muestra cambios de manifiestos verificados
 ./deploy.sh deploy --allow-manifest-write  # edita manifiestos locales solamente
 ./deploy.sh dry-run
@@ -32,13 +37,65 @@ reutiliza una sesión existente de Podman/Docker para Artifactory si está
 disponible; si no, pide usuario y contraseña/token de forma oculta. También
 acepta `ARTIFACTORY_USER` y `ARTIFACTORY_PASSWORD` desde el gestor de secretos
 del shell/CI. No se admiten como argumentos.
+`--use-local-frontend` usa el checkout local configurado para el frontend y
+requiere que esté limpio y en la rama seleccionada; sirve para validar commits
+locales aún no enviados al remoto. `LOCAL_FRONTEND=1` expone esta opción en Make.
+Los builds locales fijan `linux/amd64`, igual que OKD, y verifican la arquitectura
+real antes de guardar el artefacto. En Apple Silicon esto puede requerir
+emulación AMD64 de Podman; el sistema falla en cerrado si el engine no la ofrece.
+Si las credenciales están en un archivo Docker/Podman `auth.json`, pásalo con
+`--auth-file /ruta/privada/auth.json` o define `ARTIFACTORY_AUTH_FILE`. El
+archivo puede tener el formato Docker/Podman (`auths` con una entrada para
+`artifactory.globaldevtools.bbva.com:443`) o un objeto con ese registry como
+clave raíz; el CLI lo lee tanto para el build como para la publicación, sin
+copiarlo al repositorio ni imprimir su contenido.
+Protege el archivo localmente (por ejemplo, permisos `0600`).
+Si Python no confía en la CA corporativa que firma Artifactory, define
+`ARTIFACTORY_CA_BUNDLE=/ruta/privada/ca-corporativa.pem` al ejecutar la
+publicación. Usa una CA obtenida y validada por el canal corporativo; no confíes
+en el certificado del servidor descargado de una conexión fallida. TLS sigue
+verificado.
+Como último recurso se puede desactivar la validación TLS solo para una
+ejecución con `ARTIFACTORY_TLS_VERIFY=false`; queda `true` por defecto. Esta
+opción también afecta la autenticación y el push al registry.
 La autenticación temporal de Skopeo usa un archivo modo 0600 eliminado al salir.
 Git usa `GIT_ASKPASS` temporal y no construye URLs con tokens.
+`--skip-auth` omite el login explícito y reutiliza la sesión local de Podman en
+`~/.config/containers/auth.json`; es incompatible con `--auth-file`. Si el
+Dockerfile necesita credenciales para dependencias privadas, deben estar en esa
+sesión para que el CLI también las entregue a los mounts de secretos del build.
+La publicación normal procesa solo el artefacto actual señalado en `state.json`
+por servicio; staging conserva builds anteriores. Use `ALL_STAGED=1` únicamente
+para intentar publicar también ese historial.
+`--build-only` conserva los artifacts verificados en staging y termina sin
+publicarlos. En `make`: `make okd-images MODE=all SKIP_AUTH=1 BUILD_ONLY=1`.
+El helper `publish-okd-images.sh` publica desde el staging persistente usando
+por defecto `../credsartippub.json`, con un push concurrente y tres intentos;
+acepta una ruta alternativa como primer argumento. Requiere `skopeo` disponible
+o Podman en `PATH` y no reconstruye imágenes. Sin Skopeo, Podman carga el
+archivo OCI en su almacén local y publica la imagen cargada; el cliente consulta
+el manifest remoto con TLS verificado para impedir sobrescribir tags y luego
+confirma el digest. Si el registry cambia la compresión y por eso cambia el
+digest del manifest, también compara el digest de configuración y las capas;
+solo acepta equivalencia cuando coinciden la configuración y el número de capas.
+Comprueba y omite artefactos sin metadata AMD64, como los staging antiguos de
+arquitectura desconocida.
 
 Los tags por defecto son el SHA fuente completo. Un tag personalizado se
 valida; no se fuerza el overwrite. Si un destino existe, la publicación falla
 de forma cerrada salvo que haya un digest previamente registrado que coincida.
 Para ejecutar un flujo de extremo a extremo se necesita que el tag sea nuevo.
+Si un tag de commit ya existe con otra imagen, el artefacto pendiente se puede
+publicar bajo un tag nuevo sin reconstruirlo:
+
+```bash
+ARTIFACTORY_TLS_VERIFY=false make okd-images-publish \
+  AUTH_FILE=../credsartippub.json SERVICES=frontend TAG=52573804-rebuild-2
+```
+
+Al elegir `TAG` se exige `SERVICES` explícito para evitar retaggear
+accidentalmente las demás imágenes pendientes. La referencia del deployment se
+actualiza después con el flujo habitual de `deploy`.
 No se hace push Git ni `oc apply`; `deploy --allow-manifest-write` solo modifica
 los manifiestos del checkout local después de publicar y verificar.
 
@@ -97,6 +154,9 @@ La ejecución tiene dos PipelineRuns independientes:
    `services`; `image-tag` es opcional. Los servicios no seleccionados terminan
    como no-op exitoso para que no bloqueen los grupos siguientes. El frontend
    usa su propio commit y el Dockerfile seguro que viaja en el checkout backend.
+   Los Tasks de build se fijan a nodos `kubernetes.io/arch=amd64`, y verifican
+   `uname -m` antes de construir; AMD64 queda fijado en `services.json`, no es
+   un campo que se pueda cambiar accidentalmente en el formulario.
 2. `aria-publish-images-v1` recorre las imágenes pendientes en serie, verifica
    el destino/digest, aplica retries y finalmente deja
    `deployment-manifests.patch` en staging con los cambios de imagen publicados.

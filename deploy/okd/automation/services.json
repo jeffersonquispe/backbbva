@@ -1,5 +1,6 @@
 {
   "registry_prefix": "artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/",
+  "target_platform": "linux/amd64",
   "repositories": {
     "backend": {"url": "https://bbva.ghe.com/free/aria-agente-prevencion-fraude-backend.git", "default_branch": "main", "local_checkout": "."},
     "frontend": {"url": "https://bbva.ghe.com/free/aria-agente-prevencion-fraude-frontend.git", "default_branch": "main", "local_checkout": "../frontend_mockup"}

@@ -172,6 +172,10 @@
           {
             "name": "source-branch",
             "value": "$(params.backend-branch)"
+          },
+          {
+            "name": "target-platform",
+            "value": "linux/amd64"
           }
         ],
         "workspaces": [
@@ -230,6 +234,10 @@
           {
             "name": "source-branch",
             "value": "$(params.backend-branch)"
+          },
+          {
+            "name": "target-platform",
+            "value": "linux/amd64"
           }
         ],
         "workspaces": [
@@ -288,6 +296,10 @@
           {
             "name": "source-branch",
             "value": "$(params.backend-branch)"
+          },
+          {
+            "name": "target-platform",
+            "value": "linux/amd64"
           }
         ],
         "workspaces": [
@@ -349,6 +361,10 @@
           {
             "name": "source-branch",
             "value": "$(params.backend-branch)"
+          },
+          {
+            "name": "target-platform",
+            "value": "linux/amd64"
           }
         ],
         "workspaces": [
@@ -410,6 +426,10 @@
           {
             "name": "source-branch",
             "value": "$(params.backend-branch)"
+          },
+          {
+            "name": "target-platform",
+            "value": "linux/amd64"
           }
         ],
         "workspaces": [
@@ -471,6 +491,10 @@
           {
             "name": "source-branch",
             "value": "$(params.backend-branch)"
+          },
+          {
+            "name": "target-platform",
+            "value": "linux/amd64"
           }
         ],
         "workspaces": [
@@ -532,6 +556,10 @@
           {
             "name": "source-branch",
             "value": "$(params.frontend-branch)"
+          },
+          {
+            "name": "target-platform",
+            "value": "linux/amd64"
           }
         ],
         "workspaces": [

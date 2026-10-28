@@ -1182,6 +1182,19 @@ help:  ## Show this help.
 	@echo ""
 	@echo "Targets available:"
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+.PHONY: okd-images
+okd-images:  ## Build/publish OKD images; use AUTH_FILE=/path/auth.json or SKIP_AUTH=1 (MODE=changed|all|services).
+	@if [ "$(MODE)" != "dry-run" ] && [ -z "$(AUTH_FILE)" ] && [ "$(SKIP_AUTH)" != "1" ]; then \
+		echo "Set AUTH_FILE to a protected Docker/Podman auth.json file (credentials are never accepted inline)." >&2; exit 2; \
+	fi
+	@if [ -n "$(AUTH_FILE)" ] && [ ! -r "$(AUTH_FILE)" ]; then echo "AUTH_FILE is not readable." >&2; exit 2; fi
+	./deploy.sh $(if $(MODE),$(MODE),changed) $(if $(AUTH_FILE),--auth-file "$(AUTH_FILE)",) $(if $(filter 1,$(SKIP_AUTH)),--skip-auth,) $(if $(filter 1,$(BUILD_ONLY)),--build-only,) $(if $(filter 1,$(LOCAL_FRONTEND)),--use-local-frontend,) $(if $(BUILD_CONCURRENCY),--build-concurrency "$(BUILD_CONCURRENCY)",) $(if $(PUSH_CONCURRENCY),--push-concurrency "$(PUSH_CONCURRENCY)",) $(if $(TAG),--tag "$(TAG)",) $(if $(SERVICES),--services "$(SERVICES)",) $(if $(BACKEND_BRANCH),--backend-branch "$(BACKEND_BRANCH)",) $(if $(FRONTEND_BRANCH),--frontend-branch "$(FRONTEND_BRANCH)",)
+
+.PHONY: okd-images-publish
+okd-images-publish:  ## Publish/retry staged OKD images; use AUTH_FILE=/path/auth.json or SKIP_AUTH=1.
+	@if { [ -z "$(AUTH_FILE)" ] || [ ! -r "$(AUTH_FILE)" ]; } && [ "$(SKIP_AUTH)" != "1" ]; then echo "Set AUTH_FILE or SKIP_AUTH=1 to reuse the Podman session." >&2; exit 2; fi
+	./deploy.sh publish $(if $(AUTH_FILE),--auth-file "$(AUTH_FILE)",) $(if $(filter 1,$(SKIP_AUTH)),--skip-auth,) $(if $(filter 1,$(ALL_STAGED)),--all-staged,) $(if $(TAG),--tag "$(TAG)",) $(if $(SERVICES),--services "$(SERVICES)",)
+
 .PHONY: run-ruff
 run-ruff: run-ruff-lint run-ruff-format  ## Run ruff to delete unused imports.
 

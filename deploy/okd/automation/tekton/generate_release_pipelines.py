@@ -24,6 +24,8 @@ def pipeline_metadata(name: str) -> dict:
 
 def main() -> None:
     config = json.loads(CONFIG.read_text())
+    if config.get("target_platform") != "linux/amd64":
+        raise SystemExit("release build Task is pinned to AMD64; services.json target_platform must be linux/amd64")
     services = config["services"]
     build = pipeline_metadata("aria-build-images-v1")
     build["spec"] = {
@@ -107,6 +109,7 @@ def main() -> None:
                     {"name": "dockerfile", "value": "backend/" + dockerfile},
                     {"name": "context-dir", "value": context},
                     {"name": "source-branch", "value": "$(params." + repo_name + "-branch)"},
+                    {"name": "target-platform", "value": config["target_platform"]},
                 ],
                 "workspaces": [
                     {"name": "staging", "workspace": "staging"},

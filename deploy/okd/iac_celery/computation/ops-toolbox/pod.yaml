@@ -21,7 +21,7 @@ spec:
     - name: artifactory-auth
   containers:
     - name: toolbox
-      image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:14a263531ebcb2d03a531cfcafde3254af3a1589
+      image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-worker:5571f9f5641747ac86223d8723c8b14923a3d4c5
       command: [sleep, "3600"]
       securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
       resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 200m, memory: 128Mi}}

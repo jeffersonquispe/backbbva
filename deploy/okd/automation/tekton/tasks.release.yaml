@@ -270,6 +270,9 @@ metadata:
   name: aria-build-staged-image-v2
   namespace: aria-genai-dev
 spec:
+  podTemplate:
+    nodeSelector:
+      kubernetes.io/arch: amd64
   params:
     - {name: service, type: string}
     - {name: should-build, type: string, default: 'true'}
@@ -280,6 +283,7 @@ spec:
     - {name: dockerfile, type: string}
     - {name: context-dir, type: string}
     - {name: source-branch, type: string}
+    - {name: target-platform, type: string, default: linux/amd64}
   workspaces:
     - name: staging
     - name: registry-auth
@@ -299,12 +303,16 @@ spec:
         - {name: DOCKERFILE, value: $(params.dockerfile)}
         - {name: CONTEXT_DIR, value: $(params.context-dir)}
         - {name: SOURCE_BRANCH, value: $(params.source-branch)}
+        - {name: TARGET_PLATFORM, value: $(params.target-platform)}
       script: |
         #!/busybox/sh
         set -eu
         if [ "$SHOULD_BUILD" != true ]; then
           echo "No source changes require a build for $SERVICE"; exit 0
         fi
+        [ "$TARGET_PLATFORM" = linux/amd64 ] && [ "$(uname -m)" = x86_64 ] || {
+          echo "build node architecture $(uname -m) does not match required linux/amd64"; exit 2;
+        }
         root='$(workspaces.staging.path)'
         service="$SERVICE"; commit="$SOURCE_COMMIT"; tag="${IMAGE_TAG:-$SOURCE_COMMIT}"
         printf '%s\n' "$service" | grep -Eq '^[a-z0-9][a-z0-9-]*$' || { echo 'invalid service'; exit 2; }
@@ -335,12 +343,13 @@ spec:
         chmod 600 "$DOCKER_CONFIG/config.json"
         printf '%s' "$user" > "$secret_dir/user"; printf '%s' "$password" > "$secret_dir/password"
         artifact_dir="$root/images"; mkdir -p "$artifact_dir"
-        artifact="$artifact_dir/${service}-${commit}.tar"
+        platform_slug="${TARGET_PLATFORM#linux/}"
+        artifact="$artifact_dir/${service}-${commit}-${platform_slug}.tar"
         marker="$artifact.meta"
         if [ -s "$artifact" ] && [ -s "$artifact.sha256" ] && [ -s "$marker" ]; then
-          (cd "$artifact_dir" && sha256sum -c "${service}-${commit}.tar.sha256")
-          IFS="$(printf '\t')" read -r old_service old_commit old_target old_status old_digest old_dir old_branch < "$marker"
-          [ "$old_service" = "$service" ] && [ "$old_commit" = "$commit" ] && [ "$old_target" = "$target" ] || { echo 'immutable staged tag metadata conflicts'; exit 3; }
+          (cd "$artifact_dir" && sha256sum -c "${service}-${commit}-${platform_slug}.tar.sha256")
+          IFS="$(printf '\t')" read -r old_service old_commit old_target old_status old_digest old_dir old_branch old_platform < "$marker"
+          [ "$old_service" = "$service" ] && [ "$old_commit" = "$commit" ] && [ "$old_target" = "$target" ] && [ "$old_platform" = "$TARGET_PLATFORM" ] || { echo 'immutable staged metadata conflicts'; exit 3; }
           echo 'verified staged artifact already exists; build skipped'; exit 0
         fi
         run_id='$(context.taskRun.uid)'
@@ -361,9 +370,9 @@ spec:
         [ -s "$tempdir/image.tar" ] || { echo 'builder did not produce an image archive'; exit 1; }
         checksum=$(sha256sum "$tempdir/image.tar" | awk '{print $1}')
         mv "$tempdir/image.tar" "$artifact"; rmdir "$tempdir"
-        printf '%s  %s\n' "$checksum" "${service}-${commit}.tar" > "$artifact.sha256.tmp"
+        printf '%s  %s\n' "$checksum" "${service}-${commit}-${platform_slug}.tar" > "$artifact.sha256.tmp"
         mv "$artifact.sha256.tmp" "$artifact.sha256"
-        printf '%s\t%s\t%s\tpending\t-\t%s\t%s\n' "$service" "$commit" "$target" "$SOURCE_DIR" "$SOURCE_BRANCH" > "$marker.tmp"
+        printf '%s\t%s\t%s\tpending\t-\t%s\t%s\t%s\n' "$service" "$commit" "$target" "$SOURCE_DIR" "$SOURCE_BRANCH" "$TARGET_PLATFORM" > "$marker.tmp"
         mv "$marker.tmp" "$marker"
 ---
 apiVersion: tekton.dev/v1
@@ -395,14 +404,17 @@ spec:
         found=false
         for marker in "$root"/images/"${service}-"*.tar.meta; do
           [[ -f "$marker" ]] || continue
-          IFS=$'\t' read -r stored_service commit target status digest source_dir source_branch < "$marker"
+          IFS=$'\t' read -r stored_service commit target status digest source_dir source_branch target_platform < "$marker"
           [[ "$status" = pending ]] || continue
           found=true
           artifact="${marker%.meta}"
           (cd "$root/images" && sha256sum -c "$(basename "$artifact").sha256")
           [[ "$stored_service" = "$service" && "$commit" =~ ^[0-9a-f]{40,64}$ ]] || { echo 'invalid artifact metadata'; exit 2; }
+          [[ "$target_platform" = linux/amd64 ]] || { echo 'staged artifact has missing or unsupported platform metadata; refusing publish'; exit 3; }
           [[ "$target" =~ ^artifactory\.globaldevtools\.bbva\.com:443/co-genai-public-cloud-docker-local/aria-genai/[A-Za-z0-9._/-]+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo 'destination outside managed registry path'; exit 2; }
           source="docker-archive:$artifact"
+          actual_platform=$(skopeo inspect --format '{{.Os}}/{{.Architecture}}' "$source")
+          [[ "$actual_platform" = "$target_platform" ]] || { echo "artifact platform $actual_platform does not match required $target_platform"; exit 3; }
           manifest=$(skopeo inspect --raw "$source")
           expected="sha256:$(printf '%s' "$manifest" | sha256sum | awk '{print $1}')"
           remote=$(skopeo inspect --tls-verify=true --authfile "$auth" --format '{{.Digest}}' "docker://$target" 2>/tmp/inspect.err || true)
@@ -420,7 +432,9 @@ spec:
             remote=$(skopeo inspect --tls-verify=true --authfile "$auth" --format '{{.Digest}}' "docker://$target")
             [[ "$remote" = "$expected" ]] || { echo 'registry digest differs from staged manifest'; exit 3; }
           fi
-          printf '%s\t%s\t%s\tpublished\t%s\t%s\t%s\n' "$service" "$commit" "$target" "$expected" "$source_dir" "$source_branch" > "$marker.tmp"
+          remote_platform=$(skopeo inspect --tls-verify=true --authfile "$auth" --format '{{.Os}}/{{.Architecture}}' "docker://$target")
+          [[ "$remote_platform" = "$target_platform" ]] || { echo "published platform $remote_platform does not match required $target_platform"; exit 3; }
+          printf '%s\t%s\t%s\tpublished\t%s\t%s\t%s\t%s\n' "$service" "$commit" "$target" "$expected" "$source_dir" "$source_branch" "$target_platform" > "$marker.tmp"
           mv "$marker.tmp" "$marker"
           mkdir -p "$root/state/published"
           printf '%s' "$commit" > "$root/state/published/${service}.commit.tmp"
