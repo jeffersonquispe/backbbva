@@ -22,7 +22,7 @@ spec:
           args: [server, /data]
           ports: [{name: http, containerPort: 9000}]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
-          resources: {requests: {cpu: 250m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
+          resources: {requests: {cpu: 250m, memory: 4Gi}, limits: {cpu: "1", memory: 4Gi}}
           envFrom: [{configMapRef: {name: aria-minio-config}}]
           env:
             - name: MINIO_ROOT_USER

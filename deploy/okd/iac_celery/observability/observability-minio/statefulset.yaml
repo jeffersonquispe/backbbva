@@ -23,7 +23,7 @@ spec:
           args: [server, /data]
           ports: [{name: http, containerPort: 9000}]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
-          resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: 500m, memory: 512Mi}}
+          resources: {requests: {cpu: 100m, memory: 4Gi}, limits: {cpu: 500m, memory: 4Gi}}
           env:
             - {name: MINIO_BROWSER, value: "off"}
             - name: MINIO_ROOT_USER
