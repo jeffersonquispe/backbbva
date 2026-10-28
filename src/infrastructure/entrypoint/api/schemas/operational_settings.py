@@ -61,7 +61,7 @@ class OperationalSettingsSchema(BaseModel):
     # Share (0..1) of finished alerts sent to the reasoning LLM-judge;
     # 0 disables it.
     reasoning_evaluation_sample_rate: float = Field(default=0.05, ge=0, le=1)
-    maturing_days: int = Field(default=4, ge=0, le=365)
+    maturing_days: int = Field(default=20, ge=0, le=365)
     expected_coverage_pct: float = Field(default=98.0, gt=0, le=100)
     stable_months: int = Field(default=6, ge=0, le=120)
 

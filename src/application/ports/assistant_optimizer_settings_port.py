@@ -42,7 +42,7 @@ class AssistantOptimizerSettings:
 
     # Maturity window (owned by OperationalSettings; exposed here for the
     # unified settings contract and must not be persisted by this port).
-    maturing_days: int = 4
+    maturing_days: int = 20
     expected_coverage_pct: float = 98.0
     stable_months: int = 6
 

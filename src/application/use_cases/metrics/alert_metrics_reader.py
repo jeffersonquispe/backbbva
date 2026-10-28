@@ -99,7 +99,7 @@ def read_alert_rollups(
         to,
         now,
         timezone_name,
-        maturing_days=settings.maturing_days if settings else 4,
+        maturing_days=settings.maturing_days if settings else 20,
         stable_months=settings.stable_months if settings else 6,
     )
     by_level: dict[str, dict[str, PlannedRead]] = {}

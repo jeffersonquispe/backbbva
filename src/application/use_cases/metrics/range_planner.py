@@ -90,7 +90,7 @@ def plan(
     to: datetime,
     now: datetime,
     tz: tzinfo | str,
-    maturing_days: int = 4,
+    maturing_days: int = 20,
     stable_months: int = 6,
 ) -> list[PlannedRead]:
     """Return the rollup rows to read for ``[from_, to)``, in chronological order.

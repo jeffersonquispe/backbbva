@@ -166,7 +166,7 @@ def _from_item(item: dict[str, Any]) -> OperationalSettings:
         reasoning_evaluation_sample_rate=float(
             item.get("reasoning_evaluation_sample_rate", 0.05)
         ),
-        maturing_days=int(item.get("maturing_days", 4)),
+        maturing_days=int(item.get("maturing_days", 20)),
         expected_coverage_pct=float(item.get("expected_coverage_pct", 98.0)),
         stable_months=int(item.get("stable_months", 6)),
     )

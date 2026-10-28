@@ -105,7 +105,7 @@ class GetTechnicalMetrics:
             to,
             now,
             self._timezone_name,
-            maturing_days=settings.maturing_days if settings else 4,
+            maturing_days=settings.maturing_days if settings else 20,
             stable_months=settings.stable_months if settings else 6,
         )
         rows = {

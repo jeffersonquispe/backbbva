@@ -76,7 +76,7 @@ class OperationalSettings:
     # (EvaluateAlertReasoning, the /monitor "Alucinaciones" / "Uso correcto
     # de datos" KPIs). 0 disables it. Sampling is deterministic per alert.
     reasoning_evaluation_sample_rate: float = 0.05
-    maturing_days: int = 4
+    maturing_days: int = 20
     expected_coverage_pct: float = 98.0
     stable_months: int = 6
 

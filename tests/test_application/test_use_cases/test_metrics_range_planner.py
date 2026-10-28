@@ -192,7 +192,7 @@ def test_leap_february_outside_window_needs_feb_29_to_be_exact():
 
 
 def test_maturation_thresholds():
-    reads = plan(bog(2026, 9, 26), bog(2026, 9, 29), NOW, BOG)
+    reads = plan(bog(2026, 9, 26), bog(2026, 9, 29), NOW, BOG, maturing_days=4)
     by_period = {r.period: r.maturation for r in reads}
     assert by_period == {
         "2026-09-26": Maturation.MAY_VARY,  # age 5

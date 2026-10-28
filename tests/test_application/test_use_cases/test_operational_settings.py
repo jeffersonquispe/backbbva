@@ -117,7 +117,7 @@ def test_update_maturation_settings_records_each_field_in_history() -> None:
 
     assert repository.history[0].changes == [
         SettingChange("expected_coverage_pct", 98.0, 97.5),
-        SettingChange("maturing_days", 4, 7),
+        SettingChange("maturing_days", 20, 7),
         SettingChange("stable_months", 6, 9),
     ]
 
