@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from src.domain.alerts.transaction_history_selection import (
     parse_event_time,
     select_transaction_history,
+    summarize_transaction_history,
 )
 
 
@@ -66,3 +67,22 @@ def test_parse_event_time_accepts_iso_and_epoch_millis() -> None:
     )
     assert parse_event_time(1790503200000) == datetime(2026, 9, 27, 10, tzinfo=UTC)
     assert parse_event_time("garbage") is None
+
+
+def test_summary_keeps_schema_size_period_and_only_the_most_recent_sample() -> None:
+    summary = summarize_transaction_history(_HISTORY, sample_size=2)
+
+    assert summary["total_rows"] == 4
+    assert summary["columns"] == ["event_id", "event_time", "amount", "channel"]
+    assert [row["event_id"] for row in summary["sample"]] == ["e3", "e2"]
+    assert summary["first_event_time"].startswith("2026-09-01")
+    assert summary["last_event_time"].startswith("2026-09-27")
+    assert "2 transacciones más recientes de 4" in summary["note"]
+
+
+def test_summary_of_an_empty_history_has_no_sample_or_period() -> None:
+    summary = summarize_transaction_history([], sample_size=5)
+
+    assert summary["total_rows"] == 0
+    assert summary["sample"] == []
+    assert summary["first_event_time"] is None

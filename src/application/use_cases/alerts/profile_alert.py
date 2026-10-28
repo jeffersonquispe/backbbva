@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import dataclasses
 import json
 from typing import Any
 from uuid import UUID
@@ -16,6 +15,7 @@ from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
 )
+from src.application.use_cases.alerts.prompt_enrichment import prompt_enrichment
 from src.domain.workflows.entities import (
     WorkflowStepStatus,
 )
@@ -43,14 +43,6 @@ _PROFILE_PROMPTS: dict[str, str] = {
         "transacción actual, con base en estos datos:\n{data}"
     ),
 }
-
-
-def _serializable(value: Any) -> Any:
-    return (
-        dataclasses.asdict(value)
-        if dataclasses.is_dataclass(value) and not isinstance(value, type)
-        else value
-    )
 
 
 _PROFILING_OPERATIONS = ("user_profile", "transaction_profile", "transactional_profile")
@@ -132,9 +124,7 @@ class ProfileAlertUseCase:
         self._input_tokens = 0
         self._output_tokens = 0
         pre_process = input.pre_process
-        enrichment = {
-            key: _serializable(value) for key, value in pre_process.enrichment.items()
-        }
+        enrichment = prompt_enrichment(pre_process.enrichment)
         base_data = {
             "input": pre_process.input,
             "history": pre_process.history,

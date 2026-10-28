@@ -80,3 +80,40 @@ def select_transaction_history(
     if columns:
         selected = [{column: row.get(column) for column in columns} for row in selected]
     return selected
+
+
+def summarize_transaction_history(
+    entries: list[Any], *, sample_size: int
+) -> dict[str, Any]:
+    """Compact view of a transaction history for an LLM prompt.
+
+    Schema (column names), size, covered period and the `sample_size` most
+    recent rows - never the whole list. Exact figures over the full history
+    come from the history analysis, which runs on the data, not in the prompt.
+    """
+    rows = [
+        dataclasses.asdict(entry)
+        if dataclasses.is_dataclass(entry) and not isinstance(entry, type)
+        else dict(entry)
+        for entry in entries
+    ]
+    oldest = datetime.min.replace(tzinfo=UTC)
+    timed = sorted(
+        ((parse_event_time(row.get("event_time")), row) for row in rows),
+        key=lambda item: item[0] or oldest,
+        reverse=True,
+    )
+    times = [time for time, _ in timed if time is not None]
+    sample = [row for _, row in timed[: max(sample_size, 0)]]
+    return {
+        "total_rows": len(rows),
+        "columns": list(dict.fromkeys(key for row in rows for key in row)),
+        "first_event_time": min(times).isoformat() if times else None,
+        "last_event_time": max(times).isoformat() if times else None,
+        "sample": sample,
+        "note": (
+            f"Muestra de las {len(sample)} transacciones más recientes de "
+            f"{len(rows)}. El historial completo no se incluye en el prompt; "
+            "el análisis de historial calcula cifras exactas sobre todos los datos."
+        ),
+    }

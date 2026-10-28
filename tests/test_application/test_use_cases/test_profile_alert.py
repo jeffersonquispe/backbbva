@@ -177,3 +177,28 @@ def test_profile_alert_system_prompt_override_wins_over_extra_instructions() -> 
 
     for uow in llm_factory.created:
         assert uow.received_messages[0].content == override_prompt
+
+
+def test_profile_alert_prompts_carry_a_history_sample_not_the_whole_history() -> None:
+    llm_factory = RecordingLLMUnitOfWorkFactory()
+    use_case = ProfileAlertUseCase(
+        llm_unit_of_work_factory=llm_factory,
+        monitoring=RecordingMonitoringPort(),
+        model="fake-deployment",
+    )
+    pre_process = _pre_process_output()
+    pre_process.enrichment["transaction_history"] = [
+        {"event_time": f"2026-09-{(i % 27) + 1:02d}T10:00:00Z", "amount": i}
+        for i in range(300)
+    ]
+
+    use_case.execute(ProfileAlertInput(alert_id=uuid.uuid4(), pre_process=pre_process))
+
+    transactional = next(
+        uow
+        for uow in llm_factory.created
+        if uow.operation_name == "transactional_profile"
+    )
+    prompt = transactional.received_messages[1].content
+    assert '"total_rows": 300' in prompt
+    assert prompt.count('"amount": ') == 5

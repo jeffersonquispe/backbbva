@@ -22,6 +22,7 @@ from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
     WorkflowStatusUpdate,
 )
+from src.application.use_cases.alerts.prompt_enrichment import prompt_enrichment
 from src.application.use_cases.research.research_tool import BoundedResearchTool
 from src.application.use_cases.watchlists.check_watchlist_membership import (
     WatchlistMatch,
@@ -168,9 +169,7 @@ def _alert_context(input: ClassifyAlertInput) -> dict[str, Any]:
         "input": pre_process.input,
         "history": pre_process.history,
         "roles": pre_process.roles,
-        "enrichment": {
-            key: _serializable(value) for key, value in pre_process.enrichment.items()
-        },
+        "enrichment": prompt_enrichment(pre_process.enrichment),
         "user_profile": input.profile.user_profile,
         "transaction_profile": input.profile.transaction_profile,
         "transactional_profile": input.profile.transactional_profile,
