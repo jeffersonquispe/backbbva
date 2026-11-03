@@ -38,6 +38,9 @@ data:
   LLM_BACKEND: azure
   OPENAI_ENDPOINT: https://genai-lupitaasistente-work-llm-openai.openai.azure.com/
   OPENAI_VERSION: "2024-08-01-preview"
+  # Chat and drafts of the assistant run inside the API (REPORT or EXECUTOR model).
+  EXECUTOR_LLM_MODEL: asistentelupita-llm-work-agent-gpt52
+  REPORT_LLM_MODEL: asistentelupita-llm-work-agent-gpt52
   EMBEDDING_MODEL: agentepqrs-llm-live-emebed-3-large
   EMBEDDING_DIMENSIONS: "3072"
   # Namespace Collector (observability/otel-collector), the only OTLP boundary.
