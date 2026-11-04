@@ -35,6 +35,14 @@ data:
   OPENSEARCH_ENDPOINT: https://opensearch:9200
   OPENSEARCH_AUTH_MODE: basic
   OPENSEARCH_INDEX: fraud_knowledge
+  # Egress to Azure OpenAI goes through the corporate proxy (same as other services in the cluster);
+  # internal services must bypass it via NO_PROXY.
+  HTTP_PROXY: http://172.17.81.140:9480
+  HTTPS_PROXY: http://172.17.81.140:9480
+  http_proxy: http://172.17.81.140:9480
+  https_proxy: http://172.17.81.140:9480
+  NO_PROXY: localhost,127.0.0.1,.svc,.cluster.local,dynamodb,redis,minio,opensearch,otel-collector,mcp,event-api,api,nginx
+  no_proxy: localhost,127.0.0.1,.svc,.cluster.local,dynamodb,redis,minio,opensearch,otel-collector,mcp,event-api,api,nginx
   LLM_BACKEND: azure
   OPENAI_ENDPOINT: https://genai-lupitaasistente-work-llm-openai.openai.azure.com/
   OPENAI_VERSION: "2024-08-01-preview"
