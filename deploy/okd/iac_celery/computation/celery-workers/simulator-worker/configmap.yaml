@@ -23,6 +23,13 @@ data:
   EVENT_SIMULATOR_CELERY_RESULT_BACKEND: redis://redis:6379/3
   EVENT_SIMULATOR_CELERY_QUEUE: event_simulation
   EVENT_SIMULATOR_ARIA_API_BASE_URL: http://api:8000
+  # Scenario generation calls Azure OpenAI; keep cluster services direct.
+  HTTP_PROXY: http://172.17.81.140:9480
+  HTTPS_PROXY: http://172.17.81.140:9480
+  http_proxy: http://172.17.81.140:9480
+  https_proxy: http://172.17.81.140:9480
+  NO_PROXY: localhost,127.0.0.1,.svc,.cluster.local,dynamodb,redis,minio,opensearch,otel-collector,mcp,event-api,api,nginx
+  no_proxy: localhost,127.0.0.1,.svc,.cluster.local,dynamodb,redis,minio,opensearch,otel-collector,mcp,event-api,api,nginx
   # Namespace Collector (observability/otel-collector), the only OTLP boundary.
   OTEL_ENDPOINT: http://otel-collector:4317
   OTEL_CAPTURE_LLM_CONTENT: "false"
