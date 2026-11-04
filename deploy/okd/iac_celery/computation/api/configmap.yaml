@@ -8,6 +8,12 @@ metadata:
     app.kubernetes.io/part-of: aria-main-services
     app.kubernetes.io/managed-by: argocd
 data:
+  AUTH_OIDC_ENABLED: "true"
+  AUTH_OIDC_DISCOVERY_URL: https://preidp.work.global.platform.bbva.com/oidc/.well-known/openid-configuration
+  AUTH_OIDC_REDIRECT_URI: https://nginx-aria-genai-dev.apps.work.ocp.co.igrupobbva/api/v0/auth/oidc/callback
+  AUTH_OIDC_LOG_ENABLED: "true"
+  AUTH_OIDC_INITIAL_ROLE: fraud_analyst
+  AUTH_OIDC_COOKIE_SECURE: "true"
   # Container clock and business buckets (analyst matrix, metric rollups)
   # both follow Bogotá - see docs/OBSERVABILITY_STRATEGY.md.
   TZ: America/Bogota

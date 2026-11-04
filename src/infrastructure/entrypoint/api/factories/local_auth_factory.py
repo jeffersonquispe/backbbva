@@ -18,6 +18,7 @@ from src.infrastructure.persistence.database.dynamodb.repositories.revoked_token
     DynamoRevokedTokenRepository,
 )
 from src.infrastructure.security.local_auth import JwtService, PasswordHasher
+from src.application.ports.local_auth_port import LocalUserRepository
 
 
 @lru_cache
@@ -62,3 +63,8 @@ def get_logout_local_user_use_case() -> LogoutLocalUserUseCase:
 
 def get_jwt_service() -> JwtService:
     return JwtService()
+
+
+@lru_cache
+def get_local_user_repository() -> LocalUserRepository:
+    return DynamoLocalUserRepository()

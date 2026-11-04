@@ -20,6 +20,7 @@ python = ">=3.11.0,<3.12"
 setuptools = "78.1.1"
 
 fastapi = "0.117.1"
+PyJWT = { version = "2.10.1", extras = ["crypto"] }
 python-multipart = "0.0.20"
 uvicorn = "0.37.0"
 pydantic = "2.11.9"

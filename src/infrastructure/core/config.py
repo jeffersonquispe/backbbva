@@ -36,6 +36,17 @@ class Config(BaseSettings):
     # through the API after the initial local users have been created.
     AUTH_BOOTSTRAP_TOKEN: str = ""
 
+    # Optional Nauthilus OIDC login. Credentials are supplied as runtime secrets.
+    AUTH_OIDC_ENABLED: bool = False
+    AUTH_OIDC_DISCOVERY_URL: str = ""
+    AUTH_OIDC_CLIENT_ID: str = ""
+    AUTH_OIDC_CLIENT_SECRET: str = ""
+    AUTH_OIDC_REDIRECT_URI: str = ""
+    AUTH_OIDC_LOG_ENABLED: bool = False
+    AUTH_OIDC_INITIAL_ROLE: str = "fraud_analyst"
+    AUTH_OIDC_COOKIE_SECURE: bool = True
+    AUTH_OIDC_FRONTEND_URL: str = "/login?oidc=success"
+
     # Destructive E2E cleanup is exposed only by a local API instance. The
     # endpoint remains disabled unless explicitly enabled in local config.
     E2E_CLEANUP_ENABLED: bool = False
