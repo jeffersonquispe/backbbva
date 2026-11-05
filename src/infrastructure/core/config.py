@@ -171,6 +171,9 @@ class Config(BaseSettings):
     CELERY_DEFAULT_QUEUE: str = "default"
 
     CELERY_AGENT_QUEUE: str = "agent"
+    # Assistant chat replies: their own queue so a long optimizer candidate on
+    # the agent queue never delays an answer.
+    CELERY_AGENT_CHAT_QUEUE: str = "agent-chat"
     AGENT_STUB_DELAY_SECONDS: float = 0.0
     # Test runs use a dedicated queue and worker so batch CSV work cannot
     # consume production workflow capacity.

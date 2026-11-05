@@ -33,6 +33,7 @@ from src.application.ports.personal_data_masker_port import (
 )
 from src.application.ports.project_graph_port import ProjectGraphRepository
 from src.application.use_cases.agent.chat_with_agent import (
+    AgentChatNotFoundError,
     AgentMessageTooLongError,
     ChatWithAgentInput,
     ChatWithAgentUseCase,
@@ -565,3 +566,87 @@ def test_a_cited_chip_for_the_page_the_user_is_already_on_is_dropped() -> None:
     )
 
     assert turn.assistant_message.references == ()
+
+
+CLIENT_ID = "00000000-0000-0000-0000-000000000009"
+
+
+def test_accept_stores_the_masked_turn_without_calling_the_llm() -> None:
+    use_case, _s, messages, insights, _l, summaries, responder, _c = build_fixture()
+
+    turn = use_case.accept(
+        ChatWithAgentInput("session-1", "owner-1", CLIENT_ID, "Llamó al 3001234567")
+    )
+
+    assert turn.assistant_message is None
+    assert turn.user_message.content == "Llamó al [TEL_1]"
+    assert responder.calls == []
+    assert messages.count_for_session("session-1") == 1
+    assert insights.rows == {}
+    assert summaries.get_latest("session-1") is None
+
+
+def test_answer_completes_an_accepted_turn_from_the_stored_message() -> None:
+    use_case, _s, messages, insights, _l, summaries, responder, _c = build_fixture()
+    use_case.accept(
+        ChatWithAgentInput("session-1", "owner-1", CLIENT_ID, "Llamó al 3001234567")
+    )
+
+    # The worker only knows the ids: the text comes from the stored, masked turn.
+    turn = use_case.answer(ChatWithAgentInput("session-1", "owner-1", CLIENT_ID, ""))
+
+    assert turn.assistant_message is not None
+    assert turn.assistant_message.error_code is None
+    assert responder.calls[0].masked_user_message == "Llamó al [TEL_1]"
+    assert messages.count_for_session("session-1") == 2
+    assert len(insights.rows) == 1
+    assert summaries.get_latest("session-1").version == 1
+
+
+def test_accept_and_answer_are_idempotent_and_call_the_llm_once() -> None:
+    use_case, _s, messages, _i, _l, summaries, responder, _c = build_fixture()
+    request = ChatWithAgentInput("session-1", "owner-1", CLIENT_ID, "Hola")
+    worker_request = ChatWithAgentInput("session-1", "owner-1", CLIENT_ID, "")
+
+    first = use_case.accept(request)
+    answered = use_case.answer(worker_request)
+    again_accept = use_case.accept(request)
+    again_answer = use_case.answer(worker_request)
+
+    assert first.user_message == answered.user_message
+    assert again_accept == answered
+    assert again_answer == answered
+    assert len(responder.calls) == 1
+    assert messages.count_for_session("session-1") == 2
+    assert summaries.get_latest("session-1").version == 1
+
+
+def test_answer_for_an_unknown_turn_or_another_owner_is_not_found() -> None:
+    use_case, *_ = build_fixture()
+
+    with pytest.raises(AgentChatNotFoundError):
+        use_case.answer(ChatWithAgentInput("session-1", "owner-1", CLIENT_ID, ""))
+    use_case.accept(ChatWithAgentInput("session-1", "owner-1", CLIENT_ID, "Hola"))
+    with pytest.raises(AgentChatNotFoundError):
+        use_case.answer(ChatWithAgentInput("session-1", "intruder", CLIENT_ID, ""))
+
+
+def test_fail_closes_the_turn_with_a_safe_code_and_no_summary() -> None:
+    use_case, _s, messages, _i, _l, summaries, responder, _c = build_fixture()
+    request = ChatWithAgentInput("session-1", "owner-1", CLIENT_ID, "Hola")
+    worker_request = ChatWithAgentInput("session-1", "owner-1", CLIENT_ID, "")
+    use_case.accept(request)
+
+    failed = use_case.fail(worker_request, "CHAT_UNAVAILABLE")
+    turn = use_case.accept(request)
+
+    assert failed.error_code == "CHAT_UNAVAILABLE"
+    assert failed.content == ""
+    assert failed.client_message_id == f"{CLIENT_ID}:assistant"
+    assert turn.assistant_message == failed
+    assert responder.calls == []
+    assert summaries.get_latest("session-1") is None
+    # The failed turn is final: answering again does not call the LLM either.
+    assert use_case.answer(worker_request).assistant_message == failed
+    assert responder.calls == []
+    assert messages.count_for_session("session-1") == 2

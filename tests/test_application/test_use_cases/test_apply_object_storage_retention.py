@@ -85,3 +85,28 @@ def test_rule_rejects_empty_prefix_and_zero_age():
         RetentionRule("reports", " ", 30)
     with pytest.raises(ValueError):
         RetentionRule("reports", "alerts/", 0)
+
+
+class StaticProtectedKeys:
+    def __init__(self, keys: set[str]) -> None:
+        self.keys = keys
+
+    def protected_object_keys(self) -> frozenset[str]:
+        return frozenset(self.keys)
+
+
+def test_objects_under_legal_hold_survive_an_expired_sweep():
+    reports = InMemoryObjectStoragePort(
+        {"archive/day-1.gz": 400, "archive/day-2.gz": 400, "archive/day-3.gz": 5}
+    )
+    use_case = ApplyObjectStorageRetentionUseCase(
+        {"reports": reports},
+        FixedClock(),
+        protected=StaticProtectedKeys({"archive/day-2.gz"}),
+    )
+
+    out = use_case.execute([RetentionRule("reports", "archive/", 30)], dry_run=False)
+
+    assert reports.deleted == ["archive/day-1.gz"]
+    assert "archive/day-2.gz" in reports.objects
+    assert (out.results[0].matched, out.results[0].protected) == (1, 1)

@@ -99,6 +99,9 @@ from src.infrastructure.entrypoint.api.routers.e2e_router import (
 from src.infrastructure.entrypoint.api.routers.flag_library_router import (
     router as flag_library_router,
 )
+from src.infrastructure.entrypoint.api.routers.fraud_archive_router import (
+    router as fraud_archive_router,
+)
 from src.infrastructure.entrypoint.api.routers.health_router import (
     router as health_router,
 )
@@ -179,6 +182,7 @@ def create_app() -> FastAPI:
     app.include_router(agent_release_router, prefix=genai_config.API_V0_STR)
     app.include_router(backups_router, prefix=genai_config.API_V0_STR)
     app.include_router(audit_log_router, prefix=genai_config.API_V0_STR)
+    app.include_router(fraud_archive_router, prefix=genai_config.API_V0_STR)
     app.include_router(alert_schema_router, prefix=genai_config.API_V0_STR)
     app.include_router(e2e_router, prefix=genai_config.API_V0_STR)
     app.include_router(

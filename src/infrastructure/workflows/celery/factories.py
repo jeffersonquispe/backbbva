@@ -879,6 +879,33 @@ def get_assistant_optimizer_settings_repository() -> AssistantOptimizerSettingsP
     return DynamoAssistantOptimizerSettingsRepository()
 
 
+def get_chat_with_agent_use_case():
+    """Assistant chat reply, built for the worker (the API only calls ``accept``)."""
+    from src.application.use_cases.agent.chat_with_agent import ChatWithAgentUseCase
+    from src.application.use_cases.agent.retrieve_project_context import (
+        RetrieveProjectContextUseCase,
+    )
+    from src.infrastructure.agents import factories as agents
+
+    return ChatWithAgentUseCase(
+        sessions=agents.get_agent_session_repository(),
+        messages=agents.get_agent_message_repository(),
+        insights=agents.get_agent_insight_repository(),
+        links=agents.get_agent_link_repository(),
+        summaries=agents.get_agent_session_summary_repository(),
+        prompts=agents.get_agent_prompt_repository(),
+        settings=get_assistant_optimizer_settings_repository(),
+        masker=agents.get_personal_data_masker(),
+        responder=agents.get_agent_chat_responder(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+        project_context=RetrieveProjectContextUseCase(
+            graph=agents.get_project_graph_repository(),
+            semantic=agents.get_project_graph_semantic_search(),
+        ),
+    )
+
+
 def get_orchestrate_agent_iteration_use_case(
     settings: AssistantOptimizerSettingsPort | None = None,
     subagent: AgentSubagent | None = None,

@@ -129,6 +129,55 @@ class ChatWithAgentUseCase:
         self._project_context = project_context
 
     def execute(self, request: ChatWithAgentInput) -> AgentChatTurn:
+        """Store the user turn and answer it in the same call."""
+        session, settings = self._check(request, check_content=True)
+        stored = self._stored_turn(request)
+        if stored is not None:
+            return stored
+        user_message = self._store_user_message(request, settings)
+        return self._respond(request, session, settings, user_message)
+
+    def accept(self, request: ChatWithAgentInput) -> AgentChatTurn:
+        """Store the masked user turn only; the answer is produced by ``answer``.
+
+        Idempotent: a retry with the same ``client_message_id`` returns the
+        stored turn (with the assistant message once it exists).
+        """
+        _, settings = self._check(request, check_content=True)
+        stored = self._stored_turn(request)
+        if stored is not None:
+            return stored
+        return AgentChatTurn(self._store_user_message(request, settings), None)
+
+    def answer(self, request: ChatWithAgentInput) -> AgentChatTurn:
+        """Produce the assistant reply for a turn already stored by ``accept``."""
+        session, settings = self._check(request, check_content=False)
+        stored = self._stored_turn(request)
+        if stored is not None:
+            return stored
+        user_message = self._messages.get_by_client_message_id(
+            request.session_id, request.client_message_id
+        )
+        if user_message is None:
+            raise AgentChatNotFoundError("message not found")
+        return self._respond(request, session, settings, user_message)
+
+    def fail(self, request: ChatWithAgentInput, error_code: str) -> AgentMessage:
+        """Close a turn the worker could not answer, so polling clients stop.
+
+        Only a safe code is stored; provider errors can contain request data.
+        """
+        return self._save_message(
+            session_id=request.session_id,
+            client_message_id=f"{request.client_message_id}:assistant",
+            role="agent",
+            content="",
+            author_id="aria",
+            redaction_counts={},
+            error_code=error_code,
+        )
+
+    def _check(self, request: ChatWithAgentInput, *, check_content: bool):
         session = self._sessions.get(request.session_id)
         if session is None or session.owner_id != request.owner_id:
             raise AgentChatNotFoundError("session not found")
@@ -137,7 +186,10 @@ class ChatWithAgentUseCase:
         settings = self._settings.get()
         if session.mode == "assistant" and not settings.assistant_enabled:
             raise AgentChatPolicyError("assistant is disabled")
-        if len(request.content) > settings.assistant_max_message_chars:
+        if (
+            check_content
+            and len(request.content) > settings.assistant_max_message_chars
+        ):
             raise AgentMessageTooLongError("message exceeds configured character limit")
         if not request.client_message_id or len(request.client_message_id) > 128:
             raise AgentChatPolicyError("invalid client_message_id")
@@ -147,52 +199,71 @@ class ChatWithAgentUseCase:
             raise AgentChatPolicyError(
                 "client_message_id must be an opaque UUID"
             ) from error
+        return session, settings
 
+    def _stored_turn(self, request: ChatWithAgentInput) -> AgentChatTurn | None:
         user_message = self._messages.get_by_client_message_id(
             request.session_id, request.client_message_id
         )
-        assistant_key = f"{request.client_message_id}:assistant"
-        if user_message is not None:
-            assistant_message = self._messages.get_by_client_message_id(
-                request.session_id, assistant_key
-            )
-            if assistant_message is not None:
-                proposals = tuple(
-                    insight
-                    for insight_id in assistant_message.extracted_insight_ids
-                    if (insight := self._insights.get(request.session_id, insight_id))
-                    is not None
-                )
-                latest_summary = self._summaries.get_latest(request.session_id)
-                if (
-                    latest_summary is None
-                    or latest_summary.covers_seq_to < assistant_message.seq
-                ):
-                    self._append_summary(
-                        request.session_id,
-                        user_message,
-                        assistant_message,
-                        list(proposals),
-                    )
-                return AgentChatTurn(user_message, assistant_message, proposals)
-            masked_input = self._masker.mask(user_message.content)
-        else:
-            masked_input = self._masker.mask(request.content)
-
         if user_message is None:
+            return None
+        assistant_message = self._messages.get_by_client_message_id(
+            request.session_id, f"{request.client_message_id}:assistant"
+        )
+        if assistant_message is None:
+            return None
+        proposals = tuple(
+            insight
+            for insight_id in assistant_message.extracted_insight_ids
+            if (insight := self._insights.get(request.session_id, insight_id))
+            is not None
+        )
+        if assistant_message.error_code is None:
+            latest_summary = self._summaries.get_latest(request.session_id)
             if (
-                self._messages.count_for_session(request.session_id) + 2
-                > settings.assistant_max_messages_per_session
+                latest_summary is None
+                or latest_summary.covers_seq_to < assistant_message.seq
             ):
-                raise AgentMessageLimitError("session message limit reached")
-            user_message = self._save_message(
-                session_id=request.session_id,
-                client_message_id=request.client_message_id,
-                role="user",
-                content=masked_input.text,
-                author_id=request.owner_id,
-                redaction_counts=masked_input.counts,
-            )
+                self._append_summary(
+                    request.session_id,
+                    user_message,
+                    assistant_message,
+                    list(proposals),
+                )
+        return AgentChatTurn(user_message, assistant_message, proposals)
+
+    def _store_user_message(
+        self, request: ChatWithAgentInput, settings
+    ) -> AgentMessage:
+        existing = self._messages.get_by_client_message_id(
+            request.session_id, request.client_message_id
+        )
+        if existing is not None:
+            return existing
+        masked_input = self._masker.mask(request.content)
+        if (
+            self._messages.count_for_session(request.session_id) + 2
+            > settings.assistant_max_messages_per_session
+        ):
+            raise AgentMessageLimitError("session message limit reached")
+        return self._save_message(
+            session_id=request.session_id,
+            client_message_id=request.client_message_id,
+            role="user",
+            content=masked_input.text,
+            author_id=request.owner_id,
+            redaction_counts=masked_input.counts,
+        )
+
+    def _respond(
+        self,
+        request: ChatWithAgentInput,
+        session,
+        settings,
+        user_message: AgentMessage,
+    ) -> AgentChatTurn:
+        assistant_key = f"{request.client_message_id}:assistant"
+        masked_input = self._masker.mask(user_message.content)
         active_prompt = session.prompt_versions.get(CHAT_PROMPT)
         prompt = None
         if active_prompt:
@@ -365,6 +436,7 @@ class ChatWithAgentUseCase:
         extracted_insight_ids: tuple[str, ...] = (),
         references: tuple[dict[str, str], ...] = (),
         context_used: tuple[dict[str, str], ...] = (),
+        error_code: str | None = None,
     ) -> AgentMessage:
         session = self._sessions.get(session_id)
         if session is None:
@@ -384,6 +456,7 @@ class ChatWithAgentUseCase:
                 extracted_insight_ids=extracted_insight_ids,
                 references=references,
                 context_used=context_used,
+                error_code=error_code,
                 expires_at=self._clock.now()
                 + timedelta(days=self._settings.get().chat_retention_days),
             )

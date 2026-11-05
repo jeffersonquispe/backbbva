@@ -7,9 +7,22 @@ from src.application.dtos.research_dtos import ResearchSource
 from src.application.ports.backup_catalog_port import BackupCatalogRepository
 from src.application.ports.dataset_analysis_port import DatasetSampleRepository
 from src.application.ports.dataset_summary_port import DatasetSummaryRepository
-from src.application.ports.fraud_history_archive_port import FraudHistoryArchivePort
+from src.application.ports.fraud_history_archive_index_port import (
+    ArchiveIndexPort,
+)
+from src.application.ports.fraud_history_archive_port import (
+    FraudHistoryArchivePort,
+)
+from src.application.ports.fraud_history_archive_reader_port import (
+    FraudHistoryArchiveReaderPort,
+)
 from src.application.ports.history_research_planner_port import HistoryResearchPlanner
+from src.application.ports.legal_hold_port import LegalHoldRepository
 from src.application.ports.model_scoring_port import ModelScoringPort
+from src.application.ports.protected_object_keys_port import (
+    ProtectedObjectKeysPort,
+)
+from src.application.use_cases.agent.chat_with_agent import ChatWithAgentUseCase
 from src.application.use_cases.agent.evaluate_global_pipeline import (
     EvaluateGlobalPipeline,
 )
@@ -108,8 +121,18 @@ from src.infrastructure.persistence.database.dynamodb.repositories.dataset_sampl
 from src.infrastructure.persistence.database.dynamodb.repositories.dataset_summary_repository import (
     DynamoDatasetSummaryRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.fraud_history_archive_index_repository import (
+    DynamoFraudHistoryArchiveIndex,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.fraud_history_archive_reader import (
+    DynamoFraudHistoryArchiveReader,
+    LegalHoldProtectedArchiveKeys,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.fraud_history_archive_repository import (
     DynamoFraudHistoryArchiveRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.legal_hold_repository import (
+    DynamoLegalHoldRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.mature_sample_repository import (
     DynamoDatasetSamplerStateRepository,
@@ -152,6 +175,9 @@ from src.infrastructure.workflows.celery.factories import (
     get_workflow_execution_repository,
     get_workflow_step_execution_repository,
     llm_step_models,
+)
+from src.infrastructure.workflows.celery.factories import (
+    get_chat_with_agent_use_case as build_chat_with_agent_use_case,
 )
 from src.infrastructure.workflows.celery.factories import (
     get_orchestrate_agent_iteration_use_case as build_agent_iteration_use_case,
@@ -257,6 +283,10 @@ def get_async_execution_inspector() -> CeleryAsyncExecutionInspector:
     return CeleryAsyncExecutionInspector()
 
 
+def get_chat_with_agent_use_case() -> ChatWithAgentUseCase:
+    return build_chat_with_agent_use_case()
+
+
 def get_agent_iteration_use_case() -> OrchestrateAgentIterationUseCase:
     """Task-level factory wired to the live settings repository."""
     return build_agent_iteration_use_case()
@@ -306,12 +336,41 @@ def get_apply_object_storage_retention_use_case() -> ApplyObjectStorageRetention
             "models": get_model_object_storage(),
         },
         clock=get_clock(),
+        protected=get_legal_hold_protected_archive_keys(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_fraud_history_archive_index() -> ArchiveIndexPort:
+    return DynamoFraudHistoryArchiveIndex()
+
+
+@lru_cache(maxsize=1)
+def get_legal_hold_repository() -> LegalHoldRepository:
+    return DynamoLegalHoldRepository()
+
+
+@lru_cache(maxsize=1)
+def get_legal_hold_protected_archive_keys() -> ProtectedObjectKeysPort:
+    return LegalHoldProtectedArchiveKeys(
+        get_legal_hold_repository(), get_fraud_history_archive_index()
     )
 
 
 @lru_cache(maxsize=1)
 def get_fraud_history_archive_repository() -> FraudHistoryArchivePort:
-    return DynamoFraudHistoryArchiveRepository(get_object_storage())
+    return DynamoFraudHistoryArchiveRepository(
+        get_object_storage(),
+        index=get_fraud_history_archive_index(),
+        holds=get_legal_hold_repository(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_fraud_history_archive_reader() -> FraudHistoryArchiveReaderPort:
+    return DynamoFraudHistoryArchiveReader(
+        get_object_storage(), get_fraud_history_archive_index()
+    )
 
 
 def get_archive_fraud_history_use_case() -> ArchiveFraudHistory:

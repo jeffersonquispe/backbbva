@@ -23,6 +23,9 @@ class AgentMessage:
     # and the project-map nodes the answer was grounded on ({id, kind, label}).
     references: tuple[dict[str, str], ...] = ()
     context_used: tuple[dict[str, str], ...] = ()
+    # Assistant messages only: set when the worker could not produce the answer
+    # (safe code, never provider text); content is then empty.
+    error_code: str | None = None
 
 
 class AgentMessageRepository(Protocol):

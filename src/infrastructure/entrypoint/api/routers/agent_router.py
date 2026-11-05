@@ -60,6 +60,7 @@ from src.infrastructure.agents.factories import (
 )
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.agent_factory import (
+    get_agent_chat_dispatcher,
     get_agent_entity_claim_use_case,
     get_agent_session_overview_use_case,
     get_assistant_optimizer_settings_port,
@@ -599,24 +600,43 @@ def get_package(
     return package
 
 
-@router.post("/sessions/{session_id}/messages", response_model=AgentChatTurnResponse)
+@router.post(
+    "/sessions/{session_id}/messages",
+    response_model=AgentChatTurnResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def send_message(
     session_id: str,
     request: SendAgentMessageRequest,
     user: Annotated[LocalUser, Depends(get_current_user)],
     _: LocalUser = _CONFIGURATION_ACCESS,
 ):
+    """Store the turn and queue the reply; the client polls ``GET .../messages``.
+
+    A retry with the same ``client_message_id`` returns the stored turn, and
+    queues the reply again only if the assistant has not answered yet.
+    """
+    role = str(getattr(user.role, "value", user.role))
     try:
-        return get_chat_with_agent_use_case().execute(
+        turn = get_chat_with_agent_use_case().accept(
             ChatWithAgentInput(
                 session_id=session_id,
                 owner_id=str(user.id),
                 client_message_id=request.client_message_id,
                 content=request.content,
                 page_path=request.page_path,
-                role=str(getattr(user.role, "value", user.role)),
+                role=role,
             )
         )
+        if turn.assistant_message is None:
+            get_agent_chat_dispatcher().dispatch(
+                session_id=session_id,
+                owner_id=str(user.id),
+                client_message_id=request.client_message_id,
+                page_path=request.page_path[:200],
+                role=role,
+            )
+        return turn
     except AgentChatNotFoundError as error:
         raise HTTPException(
             status_code=404, detail={"code": "SESSION_NOT_FOUND"}

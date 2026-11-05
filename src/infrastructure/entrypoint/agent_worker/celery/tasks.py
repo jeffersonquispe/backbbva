@@ -3,6 +3,11 @@ from __future__ import annotations
 import threading
 from datetime import UTC, datetime, timedelta
 
+from src.application.use_cases.agent.chat_with_agent import (
+    AgentChatNotFoundError,
+    AgentChatPolicyError,
+    ChatWithAgentInput,
+)
 from src.infrastructure.agents.factories import (
     get_agent_iteration_repository,
     get_agent_run_repository,
@@ -15,6 +20,7 @@ from src.infrastructure.queues.celery.agent_dispatcher import (
 from src.infrastructure.workflows.celery.task_factories import (
     get_agent_entity_claim_use_case,
     get_agent_iteration_use_case,
+    get_chat_with_agent_use_case,
     get_global_pipeline_evaluation_use_case,
     get_recover_stale_agent_runs_use_case,
     get_worker_retrospective_validation_use_case,
@@ -91,3 +97,47 @@ def recover_stale_agent_runs(limit: int = 100) -> dict[str, int]:
     for session_id in session_ids:
         enqueue_agent_session_tick(session_id)
     return {"recovered_sessions": len(session_ids)}
+
+
+CHAT_REPLY_MAX_RETRIES = 2
+CHAT_REPLY_RETRY_SECONDS = 3
+
+
+@app.task(name="agent.chat_reply", bind=True, acks_late=True)
+def chat_reply(
+    self,
+    session_id: str,
+    owner_id: str,
+    client_message_id: str,
+    page_path: str,
+    role: str,
+) -> dict[str, str]:
+    """Write the assistant reply for a turn the API already stored.
+
+    Safe to repeat: the reply is keyed by ``client_message_id``. After the last
+    retry a safe error marker is stored so the polling client stops waiting.
+    """
+    request = ChatWithAgentInput(
+        session_id=session_id,
+        owner_id=owner_id,
+        client_message_id=client_message_id,
+        content="",
+        page_path=page_path,
+        role=role,
+    )
+    use_case = get_chat_with_agent_use_case()
+    try:
+        use_case.answer(request)
+    except (AgentChatNotFoundError, AgentChatPolicyError):
+        # Nothing a retry can fix (session gone, assistant switched off).
+        try:
+            use_case.fail(request, "CHAT_POLICY")
+        except AgentChatNotFoundError:
+            pass
+        return {"status": "rejected"}
+    except Exception as error:  # noqa: BLE001 - any provider error is retried
+        if self.request.retries < CHAT_REPLY_MAX_RETRIES:
+            raise self.retry(exc=error, countdown=CHAT_REPLY_RETRY_SECONDS)
+        use_case.fail(request, "CHAT_UNAVAILABLE")
+        return {"status": "failed"}
+    return {"status": "answered"}

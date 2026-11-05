@@ -63,9 +63,11 @@ def test_local_login_returns_signed_token_and_fixed_permissions():
         "alert_schema",
         "configuration",
         "dashboard",
+        "fraud_archive",
         "fraud_history",
         "fraud_review",
         "in_progress",
+        "legal_hold",
         "library",
         "monitor",
     ]
@@ -82,9 +84,19 @@ def test_only_fraud_reviewer_and_manager_may_correct_fraud_labels():
         role for role in LocalRole if "fraud_review" in permissions_for(role)
     } == {LocalRole.FRAUD_REVIEWER, LocalRole.MANAGER}
     assert permissions_for(LocalRole.FRAUD_REVIEWER) == [
+        "fraud_archive",
         "fraud_history",
         "fraud_review",
     ]
+
+
+def test_cold_archive_is_read_by_manager_and_reviewer_but_only_manager_holds():
+    assert {
+        role for role in LocalRole if "fraud_archive" in permissions_for(role)
+    } == {LocalRole.FRAUD_REVIEWER, LocalRole.MANAGER}
+    assert {role for role in LocalRole if "legal_hold" in permissions_for(role)} == {
+        LocalRole.MANAGER
+    }
 
 
 class InMemoryRevokedTokens:

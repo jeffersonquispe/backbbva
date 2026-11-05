@@ -191,6 +191,48 @@ FRAUD_LABEL_REVIEWS_TABLE = {
 }
 
 
+# Where each archived alert lives in the cold fraud-history archive (#11c):
+# alert_id -> day object + byte range of its own gzip member. Written by the
+# retention task before it deletes the hot rows; ~100 bytes per alert.
+FRAUD_HISTORY_ARCHIVE_INDEX_TABLE = {
+    "TableName": "fraud_history_archive_index",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "alert_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [
+        {"AttributeName": "alert_id", "AttributeType": "S"},
+        {"AttributeName": "event_id", "AttributeType": "S"},
+        {"AttributeName": "created_day", "AttributeType": "S"},
+    ],
+    # event_id is the identifier that travels between systems; created_day
+    # answers "what was archived on this day" from the index alone.
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "EventIdIdx",
+            "KeySchema": [{"AttributeName": "event_id", "KeyType": "HASH"}],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+        {
+            "IndexName": "CreatedDayIdx",
+            "KeySchema": [
+                {"AttributeName": "created_day", "KeyType": "HASH"},
+                {"AttributeName": "alert_id", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        },
+    ],
+}
+
+# Legal holds (#11c): one row per alert, live or archived. An active hold keeps
+# the alert out of the archive, or keeps its archived day object from being
+# deleted by a retention sweep. Releasing keeps the row (who, when, why).
+LEGAL_HOLDS_TABLE = {
+    "TableName": "legal_holds",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "alert_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [{"AttributeName": "alert_id", "AttributeType": "S"}],
+}
+
+
 # One LLM-judge verdict per alert (D6, EvaluateAlertReasoning). Counts go to
 # metrics_rollups (data_type "evaluation"); this table keeps the verdict and
 # its rationale for audit.

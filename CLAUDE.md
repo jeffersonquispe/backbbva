@@ -346,6 +346,34 @@ workflow, and don't delete generation documents outside
 pending/open work). Optimizer and H12 vector-store pins use the generation
 number as their version.
 
+## Assistant chat is asynchronous — the API never calls the LLM
+
+`POST /agent/sessions/{id}/messages` only runs `ChatWithAgentUseCase.accept`
+(validate, mask, store the user turn) and queues `agent.chat_reply` through
+`AgentChatDispatcher`; it answers `202` with `assistant_message: null`. The
+worker (`aria-agent-chat-worker`, queue `CELERY_AGENT_CHAT_QUEUE`, separate from
+the optimizer's `agent` queue so a long candidate never delays an answer) runs
+`answer` (retrieval, tool loop, LLM) and stores the reply under
+`<client_message_id>:assistant`. Clients poll `GET .../messages?after_seq=`.
+Everything is idempotent by `client_message_id`; after the last retry the worker
+stores a closing message with a safe `error_code` (never provider text), and a
+retry from the UI is a new message id. Do not call the LLM from an API route:
+queue it, as chat does. The API composes the use case with a responder that
+raises; the worker composes the real one in `workflows/celery/factories.py`.
+
+## Cold fraud-history archive — index, lookup and legal hold
+
+`fraud_history.retention` writes one object per creation day, each alert its
+own gzip member, and indexes `alert_id` → object + byte range
+(`fraud_history_archive_index`) before deleting hot rows.
+`GET /fraud-history/archive/{alert_id}` (permission `fraud_archive`) reads one
+alert with a range request and refuses content that fails its SHA-256. Objects
+from before the index are indexed with `make fraud-history-archive-index-backfill`.
+Legal holds (`legal_holds` table, permission `legal_hold`, manager only) keep
+live alerts out of the archive and protect the day object of archived ones from
+retention sweeps. These use cases write their own `AuditPort` entries because
+the HTTP audit only records the route template, not the `alert_id`.
+
 ## Project graph — graph-RAG context for the chat agent
 
 `src/infrastructure/agents/project_graph/project_graph.json` is a generated

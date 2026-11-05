@@ -103,7 +103,9 @@ from src.infrastructure.persistence.database.dynamodb.schemas import (
     DATASET_SNAPSHOTS_TABLE,
     DATASET_SUMMARIES_TABLE,
     FEEDBACK_TABLE,
+    FRAUD_HISTORY_ARCHIVE_INDEX_TABLE,
     FRAUD_LABEL_REVIEWS_TABLE,
+    LEGAL_HOLDS_TABLE,
     LIBRARY_CHANNELS_TABLE,
     LIBRARY_FLAGS_TABLE,
     LIBRARY_MODUS_OPERANDI_REVISIONS_TABLE,
@@ -404,6 +406,8 @@ def ensure_all_tables() -> None:
     enable_ttl(METRICS_ROLLUPS_TABLE, "expires_at")
     create_table(ALERT_REASONING_EVALUATIONS_TABLE)
     create_table(FRAUD_LABEL_REVIEWS_TABLE)
+    create_table(FRAUD_HISTORY_ARCHIVE_INDEX_TABLE)
+    create_table(LEGAL_HOLDS_TABLE)
     create_table(WORKFLOW_EXECUTIONS_TABLE)
     create_table(WORKFLOW_STEP_EXECUTIONS_TABLE)
     create_table(OPERATIONS_CAPACITY_TABLE)

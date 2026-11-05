@@ -17,6 +17,10 @@ class LocalRole(StrEnum):
     FRAUD_REVIEWER = "fraud_reviewer"
 
 
+# fraud_archive: read an alert older than the hot window back from the cold
+# archive (GET /fraud-history/archive/{id}). legal_hold: place/release holds
+# that keep alerts out of (or protect them in) that archive; manager only until
+# a compliance role exists - granting it there is one line below.
 ROLE_PERMISSIONS: dict[LocalRole, frozenset[str]] = {
     # fraud_review: correct an alert's fraud_label (POST /alerts/{id}/fraud-review
     # and the bulk CSV) - the ground truth that trains models and scores the
@@ -29,6 +33,8 @@ ROLE_PERMISSIONS: dict[LocalRole, frozenset[str]] = {
             "in_progress",
             "fraud_history",
             "fraud_review",
+            "fraud_archive",
+            "legal_hold",
             "monitor",
             "configuration",
             "library",
@@ -61,7 +67,9 @@ ROLE_PERMISSIONS: dict[LocalRole, frozenset[str]] = {
     LocalRole.DATA_ANALYST: frozenset({"monitor", "library", "testing", "models"}),
     LocalRole.FRAUD_ANALYST: frozenset({"in_progress"}),
     LocalRole.OPS_ANALYST: frozenset({"dashboard", "in_progress", "monitor"}),
-    LocalRole.FRAUD_REVIEWER: frozenset({"fraud_history", "fraud_review"}),
+    LocalRole.FRAUD_REVIEWER: frozenset(
+        {"fraud_history", "fraud_review", "fraud_archive"}
+    ),
 }
 
 
