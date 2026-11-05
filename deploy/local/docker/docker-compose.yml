@@ -342,6 +342,17 @@ services:
       AGENT_STUB_DELAY_SECONDS: ${AGENT_STUB_DELAY_SECONDS:-0}
       E2E_PRESERVE_DATA: ${E2E_PRESERVE_DATA:-0}
 
+  aria-agent-chat-worker:
+    extends:
+      service: aria-worker-main
+    container_name: aria-agent-chat-worker
+    command: ["celery", "-A", "src.infrastructure.entrypoint.agent_worker.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=${AGENT_CHAT_WORKER_CONCURRENCY:-4}", "-Q", "${CELERY_AGENT_CHAT_QUEUE:-agent-chat}", "-n", "chat@%h"]
+    environment:
+      COMPONENT_NAME: aria-agent-chat-worker
+      COMPONENT_DESCRIPTION: Assistant chat replies, isolated from long optimizer candidates
+      CELERY_AGENT_QUEUE: ${CELERY_AGENT_QUEUE:-agent}
+      CELERY_AGENT_CHAT_QUEUE: ${CELERY_AGENT_CHAT_QUEUE:-agent-chat}
+
   aria-agent-beat:
     extends:
       service: aria-worker-main
