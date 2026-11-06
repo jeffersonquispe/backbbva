@@ -812,8 +812,18 @@
   },
   {
    "relation": "requests",
+   "source": "api:reasoningEvaluation.listReasoningEvaluationCriteria",
+   "target": "endpoint:GET /api/v0/metrics/reasoning-evaluation-criteria"
+  },
+  {
+   "relation": "requests",
    "source": "api:reasoningEvaluation.listReasoningEvaluations",
    "target": "endpoint:GET /api/v0/metrics/reasoning-evaluations"
+  },
+  {
+   "relation": "requests",
+   "source": "api:reasoningEvaluation.requestAlertReasoningEvaluation",
+   "target": "endpoint:POST /api/v0/alerts/{alert_id}/reasoning-evaluation"
   },
   {
    "relation": "requests",
@@ -1389,6 +1399,11 @@
    "relation": "calls",
    "source": "component:alert/ReasoningEvaluationTab",
    "target": "api:reasoningEvaluation.getAlertReasoningEvaluation"
+  },
+  {
+   "relation": "calls",
+   "source": "component:alert/ReasoningEvaluationTab",
+   "target": "api:reasoningEvaluation.requestAlertReasoningEvaluation"
   },
   {
    "relation": "renders",
@@ -5242,6 +5257,16 @@
   },
   {
    "relation": "requires",
+   "source": "endpoint:GET /api/v0/metrics/reasoning-evaluation-criteria",
+   "target": "permission:monitor"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/metrics/reasoning-evaluation-criteria",
+   "target": "resource:reasoning-evaluations"
+  },
+  {
+   "relation": "requires",
    "source": "endpoint:GET /api/v0/metrics/reasoning-evaluations",
    "target": "permission:monitor"
   },
@@ -6069,6 +6094,16 @@
    "relation": "belongs_to",
    "source": "endpoint:POST /api/v0/alerts/{alert_id}/fraud-review",
    "target": "resource:alerts"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:POST /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "target": "resource:reasoning-evaluations"
   },
   {
    "relation": "belongs_to",
@@ -18406,6 +18441,20 @@
    "attrs": {
     "file": "lib/api/reasoningEvaluation.functions.ts",
     "http_method": "GET",
+    "url": "/api/v0/metrics/reasoning-evaluation-criteria"
+   },
+   "description": "GET /api/v0/metrics/reasoning-evaluation-criteria",
+   "id": "api:reasoningEvaluation.listReasoningEvaluationCriteria",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listReasoningEvaluationCriteria"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/reasoningEvaluation.functions.ts",
+    "http_method": "GET",
     "url": "/api/v0/metrics/reasoning-evaluations?${params}"
    },
    "description": "GET /api/v0/metrics/reasoning-evaluations?",
@@ -18415,6 +18464,20 @@
    ],
    "kind": "api_call",
    "name": "listReasoningEvaluations"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/reasoningEvaluation.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/alerts/${encodeURIComponent(alertId)}/reasoning-evaluation"
+   },
+   "description": "POST /api/v0/alerts/{id}/reasoning-evaluation",
+   "id": "api:reasoningEvaluation.requestAlertReasoningEvaluation",
+   "keywords": [
+    "solicitar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "requestAlertReasoningEvaluation"
   },
   {
    "attrs": {
@@ -19315,10 +19378,14 @@
    "id": "component:alert/ReasoningEvaluationTab",
    "keywords": [
     "No se pudo cargar la evaluación de calidad.",
+    "No se pudo pedir la evaluación.",
+    "Evaluación",
     "Veredicto del evaluador",
     "Evaluación inválida",
     "Modelo",
-    "tokens · evaluada el",
+    "tokens · el modelo tardó",
+    "Explicabilidad",
+    "No se pudo decidir",
     "Por paso",
     "Este veredicto es anterior al detalle por paso: solo hay conclusión global."
    ],
@@ -23949,6 +24016,20 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/metrics/reasoning-evaluation-criteria"
+   },
+   "description": "The criteria the judge applies by default, with the question it asks.",
+   "id": "endpoint:GET /api/v0/metrics/reasoning-evaluation-criteria",
+   "keywords": [
+    "list reasoning evaluation criteria",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/metrics/reasoning-evaluation-criteria"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/metrics/reasoning-evaluations"
    },
    "description": "Judged alerts of a period (at most 31 days), newest first, filterable by verdict. Only verdicts stored with an evaluation day are listed.",
@@ -25065,6 +25146,20 @@
    ],
    "kind": "endpoint",
    "name": "POST /api/v0/alerts/{alert_id}/fraud-review"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
+    "route": "/api/v0/alerts/{alert_id}/reasoning-evaluation"
+   },
+   "description": "Evaluate this alert now, whatever the sample rate. It only opens the job and queues it for the evaluator's worker (202): the answer comes later through ``GET``. Asking twice returns the existing job; a failed or invalid ",
+   "id": "endpoint:POST /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "keywords": [
+    "request alert reasoning evaluation",
+    "solicitar crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/alerts/{alert_id}/reasoning-evaluation"
   },
   {
    "attrs": {
