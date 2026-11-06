@@ -807,6 +807,16 @@
   },
   {
    "relation": "requests",
+   "source": "api:reasoningEvaluation.getAlertReasoningEvaluation",
+   "target": "endpoint:GET /api/v0/alerts/fraud-review-imports/{task_id}"
+  },
+  {
+   "relation": "requests",
+   "source": "api:reasoningEvaluation.listReasoningEvaluations",
+   "target": "endpoint:GET /api/v0/metrics/reasoning-evaluations"
+  },
+  {
+   "relation": "requests",
    "source": "api:resolutionMethod.createResolutionMethod",
    "target": "endpoint:POST /api/v0/resolution-method-catalog"
   },
@@ -1374,6 +1384,11 @@
    "relation": "renders",
    "source": "component:alert/AlertSchemaView",
    "target": "component:testing/Hint"
+  },
+  {
+   "relation": "calls",
+   "source": "component:alert/ReasoningEvaluationTab",
+   "target": "api:reasoningEvaluation.getAlertReasoningEvaluation"
   },
   {
    "relation": "renders",
@@ -2849,6 +2864,26 @@
    "relation": "renders",
    "source": "component:metrics/MetricsShared",
    "target": "component:ui/popover"
+  },
+  {
+   "relation": "calls",
+   "source": "component:metrics/ReasoningEvaluationsDrawer",
+   "target": "api:reasoningEvaluation.listReasoningEvaluations"
+  },
+  {
+   "relation": "renders",
+   "source": "component:metrics/ReasoningEvaluationsDrawer",
+   "target": "component:alert/ReasoningEvaluationTab"
+  },
+  {
+   "relation": "renders",
+   "source": "component:metrics/ReasoningEvaluationsDrawer",
+   "target": "component:ui/side-drawer"
+  },
+  {
+   "relation": "navigates_to",
+   "source": "component:metrics/ReasoningEvaluationsDrawer",
+   "target": "view:/alerta/$id"
   },
   {
    "relation": "offers",
@@ -4771,6 +4806,16 @@
    "target": "resource:alerts"
   },
   {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "target": "permission:monitor"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "target": "resource:reasoning-evaluations"
+  },
+  {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/analyst-capacity/imports/{task_id}",
    "target": "resource:analyst-capacity"
@@ -5194,6 +5239,16 @@
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/metrics/overview",
    "target": "resource:metrics"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/metrics/reasoning-evaluations",
+   "target": "permission:monitor"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/metrics/reasoning-evaluations",
+   "target": "resource:reasoning-evaluations"
   },
   {
    "relation": "requires",
@@ -10637,6 +10692,11 @@
    "target": "component:alert/AlertSchemaView"
   },
   {
+   "relation": "renders",
+   "source": "view:/alerta/$id",
+   "target": "component:alert/ReasoningEvaluationTab"
+  },
+  {
    "relation": "navigates_to",
    "source": "view:/alerta/$id",
    "target": "view:/cola"
@@ -11477,6 +11537,11 @@
    "target": "action:exportar-reporte@view-monitor"
   },
   {
+   "relation": "offers",
+   "source": "view:/monitor",
+   "target": "action:ver-alertas-evaluadas@view-monitor"
+  },
+  {
    "relation": "renders",
    "source": "view:/monitor",
    "target": "component:DashboardLayout"
@@ -11495,6 +11560,11 @@
    "relation": "renders",
    "source": "view:/monitor",
    "target": "component:metrics/MetricsShared"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/monitor",
+   "target": "component:metrics/ReasoningEvaluationsDrawer"
   },
   {
    "relation": "renders",
@@ -14607,6 +14677,18 @@
    ],
    "kind": "action",
    "name": "Validar retrospectivamente"
+  },
+  {
+   "attrs": {
+    "owner": "view:/monitor"
+   },
+   "description": "Acción «Ver alertas evaluadas» en /monitor.",
+   "id": "action:ver-alertas-evaluadas@view-monitor",
+   "keywords": [
+    "Ver alertas evaluadas"
+   ],
+   "kind": "action",
+   "name": "Ver alertas evaluadas"
   },
   {
    "attrs": {
@@ -18308,6 +18390,34 @@
   },
   {
    "attrs": {
+    "file": "lib/api/reasoningEvaluation.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/alerts/${encodeURIComponent(alertId)}/reasoning-evaluation"
+   },
+   "description": "GET /api/v0/alerts/{id}/reasoning-evaluation",
+   "id": "api:reasoningEvaluation.getAlertReasoningEvaluation",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getAlertReasoningEvaluation"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/reasoningEvaluation.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/metrics/reasoning-evaluations?${params}"
+   },
+   "description": "GET /api/v0/metrics/reasoning-evaluations?",
+   "id": "api:reasoningEvaluation.listReasoningEvaluations",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listReasoningEvaluations"
+  },
+  {
+   "attrs": {
     "file": "lib/api/resolutionMethod.functions.ts",
     "http_method": "POST",
     "url": "/api/v0/resolution-method-catalog"
@@ -19196,6 +19306,24 @@
    ],
    "kind": "component",
    "name": "AlertSchemaView"
+  },
+  {
+   "attrs": {
+    "file": "components/alert/ReasoningEvaluationTab.tsx"
+   },
+   "description": "Tab que consulta y muestra la evaluación de calidad del razonamiento de una alerta. Presenta el estado/explicación cuando no hay evaluación y, si existe, renderiza el detalle del veredicto global y por pasos (incluyendo insignias y metadatos).",
+   "id": "component:alert/ReasoningEvaluationTab",
+   "keywords": [
+    "No se pudo cargar la evaluación de calidad.",
+    "Veredicto del evaluador",
+    "Evaluación inválida",
+    "Modelo",
+    "tokens · evaluada el",
+    "Por paso",
+    "Este veredicto es anterior al detalle por paso: solo hay conclusión global."
+   ],
+   "kind": "component",
+   "name": "ReasoningEvaluationTab"
   },
   {
    "attrs": {
@@ -20431,6 +20559,28 @@
    ],
    "kind": "component",
    "name": "MetricsShared"
+  },
+  {
+   "attrs": {
+    "file": "components/metrics/ReasoningEvaluationsDrawer.tsx"
+   },
+   "description": "Drawer lateral para listar alertas evaluadas por el LLM-judge en un periodo, con filtros por veredicto y rango de días. Muestra estados de carga/error/vacío y permite abrir cada alerta mediante un enlace, junto con badges de veredicto.",
+   "id": "component:metrics/ReasoningEvaluationsDrawer",
+   "keywords": [
+    "Todas",
+    "Con alucinación",
+    "Uso incorrecto de datos",
+    "Sin hallazgos",
+    "Inválidas",
+    "Alertas evaluadas por el LLM-judge",
+    "Veredicto",
+    "Periodo",
+    "No se pudieron cargar las evaluaciones.",
+    "Ninguna alerta evaluada coincide con el filtro en este periodo.",
+    "Inválida"
+   ],
+   "kind": "component",
+   "name": "ReasoningEvaluationsDrawer"
   },
   {
    "attrs": {
@@ -23197,6 +23347,20 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/alerts/{alert_id}/reasoning-evaluation"
+   },
+   "description": "What the LLM-judge concluded about this alert, or why it has no verdict.",
+   "id": "endpoint:GET /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "keywords": [
+    "get alert reasoning evaluation",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/alerts/{alert_id}/reasoning-evaluation"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/analyst-capacity/imports/{task_id}"
    },
    "description": "",
@@ -23781,6 +23945,20 @@
    ],
    "kind": "endpoint",
    "name": "GET /api/v0/metrics/overview"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/metrics/reasoning-evaluations"
+   },
+   "description": "Judged alerts of a period (at most 31 days), newest first, filterable by verdict. Only verdicts stored with an evaluation day are listed.",
+   "id": "endpoint:GET /api/v0/metrics/reasoning-evaluations",
+   "keywords": [
+    "list reasoning evaluations",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/metrics/reasoning-evaluations"
   },
   {
    "attrs": {
@@ -27150,6 +27328,18 @@
   },
   {
    "attrs": {
+    "file": "src/infrastructure/entrypoint/api/routers/reasoning_evaluations_router.py"
+   },
+   "description": "Recurso de API «reasoning-evaluations».",
+   "id": "resource:reasoning-evaluations",
+   "keywords": [
+    "reasoning evaluations"
+   ],
+   "kind": "resource",
+   "name": "reasoning-evaluations"
+  },
+  {
+   "attrs": {
     "file": "src/infrastructure/entrypoint/api/routers/resolution_method_catalog_router.py"
    },
    "description": "Recurso de API «resolution-method-catalog».",
@@ -29785,6 +29975,7 @@
     "Errores de ejecución",
     "Errores LLM",
     "Disponibilidad",
+    "Ver alertas evaluadas",
     "Alucinaciones",
     "Uso correcto de datos",
     "Decisiones evaluadas donde el agente citó y aplicó correctamente los datos disponibles.",
