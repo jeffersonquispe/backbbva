@@ -85,6 +85,15 @@ EVIDENCE_STEPS: tuple[str, ...] = ("pre_process", "profiling")
 MAX_EVIDENCE_CHARS = 40_000
 MAX_STEP_CHARS = 12_000
 MAX_RATIONALE_CHARS = 600
+MAX_STEP_NOTE_CHARS = 300
+# One extra judge call when the first answer cannot be parsed; more would spend
+# tokens on a prompt/model that is not following the format.
+MAX_JUDGE_ATTEMPTS = 2
+
+# Bump on any change to the judge prompt or criteria: it is stored on every
+# verdict so rates from different versions are never mixed up unnoticed.
+# v1: one verdict per alert. v2: one per reasoning step, alert verdict derived.
+PROMPT_VERSION = "v2"
 
 _SYSTEM_PROMPT = (
     "Eres un auditor de calidad de un agente de revisión de alertas de "
@@ -100,12 +109,28 @@ _SYSTEM_PROMPT = (
     "- data_use_correct = true si los pasos leyeron e interpretaron "
     "correctamente los datos que citan y no ignoraron evidencia decisiva "
     "en contra de su conclusión.\n"
-    "Responde SOLO con un objeto JSON, sin texto adicional: "
-    '{"hallucination": true|false, "data_use_correct": true|false, '
-    '"rationale": "<máximo 2 frases en español>"}'
+    "Emite un veredicto por cada paso listado en PASOS, usando exactamente "
+    "su nombre entre corchetes. Responde SOLO con un objeto JSON, sin texto "
+    "adicional: "
+    '{"steps": {"<nombre del paso>": {"hallucination": true|false, '
+    '"data_use_correct": true|false, "note": "<una frase en español>"}}, '
+    '"rationale": "<máximo 2 frases en español sobre el conjunto>"}'
 )
 
 _USER_PROMPT = "EVIDENCIA:\n{evidence}\n\nPASOS DE RAZONAMIENTO:\n{steps}"
+
+
+def judge_overlaps_reasoning(
+    judge_model: str, reasoning_models: dict[str, str]
+) -> tuple[str, ...]:
+    """Steps whose model is the judge's own. A judge that grades its own model's
+    output is lenient with it, so the rates are only trustworthy when the judge
+    is a different model from the one that reasoned (PENDIENTES evaluator 5.1)."""
+    if not judge_model:
+        return ()
+    return tuple(
+        sorted(step for step, model in reasoning_models.items() if model == judge_model)
+    )
 
 
 def is_sampled_for_evaluation(alert_id: UUID, sample_rate: float) -> bool:
@@ -216,18 +241,32 @@ class EvaluateAlertReasoning:
                 monitoring=self._monitoring,
                 operation_name="evaluate_alert_reasoning",
             )
-            result = uow.invoke(
-                [
-                    LLMMessage(role=LLMMessageRole.SYSTEM, content=_SYSTEM_PROMPT),
-                    LLMMessage(
-                        role=LLMMessageRole.USER,
-                        content=_USER_PROMPT.format(
-                            evidence=evidence_text, steps=steps_text
-                        ),
+            messages = [
+                LLMMessage(role=LLMMessageRole.SYSTEM, content=_SYSTEM_PROMPT),
+                LLMMessage(
+                    role=LLMMessageRole.USER,
+                    content=_USER_PROMPT.format(
+                        evidence=evidence_text, steps=steps_text
                     ),
-                ]
+                ),
+            ]
+            result = uow.invoke(messages)
+            attempts = 1
+            hallucination, data_use_correct, rationale, step_verdicts = _parse_verdict(
+                result.content, expected_steps=tuple(steps)
             )
-            hallucination, data_use_correct, rationale = _parse_verdict(result.content)
+            input_tokens = result.input_tokens or 0
+            output_tokens = result.output_tokens or 0
+            while (
+                hallucination is None or data_use_correct is None
+            ) and attempts < MAX_JUDGE_ATTEMPTS:
+                attempts += 1
+                result = uow.invoke(messages)
+                input_tokens += result.input_tokens or 0
+                output_tokens += result.output_tokens or 0
+                hallucination, data_use_correct, rationale, step_verdicts = (
+                    _parse_verdict(result.content, expected_steps=tuple(steps))
+                )
             status = (
                 ReasoningEvaluationStatus.EVALUATED
                 if hallucination is not None and data_use_correct is not None
@@ -238,6 +277,8 @@ class EvaluateAlertReasoning:
                     "status": status.value,
                     "hallucination": hallucination,
                     "data_use_correct": data_use_correct,
+                    "prompt_version": PROMPT_VERSION,
+                    "attempts": attempts,
                 }
             )
         return AlertReasoningEvaluationRecord(
@@ -249,8 +290,11 @@ class EvaluateAlertReasoning:
             rationale=rationale,
             judge_model=result.model or self._model,
             evaluated_at=self._clock.now(),
-            input_tokens=result.input_tokens or 0,
-            output_tokens=result.output_tokens or 0,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            prompt_version=PROMPT_VERSION,
+            step_verdicts=step_verdicts,
+            attempts=attempts,
         )
 
 
@@ -308,19 +352,71 @@ def _bounded(value: Any, limit: int) -> str:
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 
 
-def _parse_verdict(raw: str) -> tuple[bool | None, bool | None, str]:
+def _parse_verdict(
+    raw: str, expected_steps: tuple[str, ...] = ()
+) -> tuple[bool | None, bool | None, str, dict[str, dict[str, object]]]:
+    """(hallucination, data_use_correct, rationale, per-step verdicts).
+
+    v2 answers carry a verdict per step and the alert-level flags are derived:
+    hallucination if ANY step hallucinated, data_use_correct only if ALL steps
+    used the data correctly. Answers in the v1 shape (flags at the top level,
+    no steps) are still accepted, with no per-step detail."""
+    unreadable: tuple[bool | None, bool | None, str, dict[str, dict[str, object]]] = (
+        None,
+        None,
+        "Respuesta del evaluador no interpretable.",
+        {},
+    )
     match = _JSON_OBJECT.search(raw or "")
     try:
         data = json.loads(match.group(0) if match else raw)
     except (json.JSONDecodeError, TypeError):
-        return None, None, "Respuesta del evaluador no interpretable."
+        return unreadable
     if not isinstance(data, dict):
-        return None, None, "Respuesta del evaluador no interpretable."
+        return unreadable
+    rationale = str(data.get("rationale") or "")[:MAX_RATIONALE_CHARS]
+    step_verdicts = _step_verdicts(data.get("steps"), expected_steps)
+    if step_verdicts:
+        return (
+            any(v["hallucination"] for v in step_verdicts.values()),
+            all(v["data_use_correct"] for v in step_verdicts.values()),
+            rationale,
+            step_verdicts,
+        )
     hallucination = data.get("hallucination")
     data_use_correct = data.get("data_use_correct")
-    rationale = str(data.get("rationale") or "")[:MAX_RATIONALE_CHARS]
     return (
         hallucination if isinstance(hallucination, bool) else None,
         data_use_correct if isinstance(data_use_correct, bool) else None,
         rationale,
+        {},
     )
+
+
+def _step_verdicts(
+    raw: Any, expected_steps: tuple[str, ...]
+) -> dict[str, dict[str, object]]:
+    """Only the steps that were actually judged and have both flags as booleans;
+    an answer that skips a step is not trusted as a per-step verdict."""
+    if not isinstance(raw, dict):
+        return {}
+    verdicts: dict[str, dict[str, object]] = {}
+    for name, value in raw.items():
+        if expected_steps and name not in expected_steps:
+            continue
+        if not isinstance(value, dict):
+            continue
+        hallucination = value.get("hallucination")
+        data_use_correct = value.get("data_use_correct")
+        if not isinstance(hallucination, bool) or not isinstance(
+            data_use_correct, bool
+        ):
+            continue
+        verdicts[name] = {
+            "hallucination": hallucination,
+            "data_use_correct": data_use_correct,
+            "note": str(value.get("note") or "")[:MAX_STEP_NOTE_CHARS],
+        }
+    if expected_steps and set(verdicts) != set(expected_steps):
+        return {}
+    return verdicts

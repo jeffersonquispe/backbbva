@@ -374,6 +374,21 @@ live alerts out of the archive and protect the day object of archived ones from
 retention sweeps. These use cases write their own `AuditPort` entries because
 the HTTP audit only records the route template, not the `alert_id`.
 
+## LLM-judge of the agent's reasoning (D6)
+
+`EvaluateAlertReasoning` judges a sample of finished alerts, one verdict per
+reasoning step (the alert-level flags are derived: hallucination if ANY step
+hallucinates, data use correct only if ALL do), stores the `PROMPT_VERSION` on
+every verdict and retries once if the answer cannot be parsed. Changing the
+prompt or criteria means bumping `PROMPT_VERSION`. Verdicts are read through
+`GET /alerts/{id}/reasoning-evaluation` and `GET /metrics/reasoning-evaluations`
+(permission `monitor`); the per-day listing lives in its own table
+`alert_reasoning_evaluation_days` (not a GSI). `JUDGE_LLM_MODEL` must differ from
+the models that reason (the worker warns). Calibrate with
+`make reasoning-judge-review-export` / `-score`. The local E2E LLM
+(`scripted_e2e`) answers the judge deterministically; keep it in sync with the
+prompt format and with the adversarial `decision` field.
+
 ## Project graph — graph-RAG context for the chat agent
 
 `src/infrastructure/agents/project_graph/project_graph.json` is a generated

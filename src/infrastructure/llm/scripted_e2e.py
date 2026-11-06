@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
 from src.application.ports.llm_unit_of_work_port import (
@@ -53,7 +54,8 @@ class _ScriptedE2ELLMUnitOfWork(LLMUnitOfWork):
             content = (
                 "Thought: La conclusión es coherente con la evidencia y no "
                 "afirma causas no observadas.\n"
-                'Final Answer: {"has_issues":false,"feedback":"",'
+                'Final Answer: {"has_issues":false,'
+                '"decision":"scale_to_analyst","feedback":"",'
                 '"weak_points":[],"reasoning":"La etiqueta transfer_velocity '
                 'es consistente con el evento."}'
             )
@@ -64,6 +66,8 @@ class _ScriptedE2ELLMUnitOfWork(LLMUnitOfWork):
                     "reasoning": "Revisión humana requerida por patrón de velocidad.",
                 }
             )
+        elif operation == "evaluate_alert_reasoning":
+            content = _scripted_judge_verdict(messages)
         elif operation in {
             "user_profile",
             "transaction_profile",
@@ -108,3 +112,26 @@ class _ScriptedE2ELLMUnitOfWork(LLMUnitOfWork):
                 }
             )
             return result
+
+
+def _scripted_judge_verdict(messages: list[LLMMessage]) -> str:
+    """A per-step verdict for the steps the judge prompt lists. The scripted
+    detector claims a transfer pattern the fixture does not fully support, so it
+    is the one flagged: E2E can then see both a flagged and a clean step."""
+    prompt = messages[-1].content if messages else ""
+    steps = re.findall(r"^\[(\w+)\]", prompt, re.MULTILINE)
+    verdicts = {
+        name: {
+            "hallucination": name == "detector",
+            "data_use_correct": name != "detector",
+            "note": (
+                "Afirma un patrón que la evidencia no respalda del todo."
+                if name == "detector"
+                else "Conclusión respaldada por la evidencia."
+            ),
+        }
+        for name in steps
+    }
+    return json.dumps(
+        {"steps": verdicts, "rationale": "Veredicto determinista del evaluador E2E."}
+    )

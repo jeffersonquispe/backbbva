@@ -243,6 +243,24 @@ ALERT_REASONING_EVALUATIONS_TABLE = {
     "AttributeDefinitions": [{"AttributeName": "alert_id", "AttributeType": "S"}],
 }
 
+# "Which alerts did the judge evaluate on this Bogotá day", without scanning the
+# verdicts. A table of its own (not a GSI on the verdicts) so it also exists in
+# environments that already have the verdicts table: DynamoDB Local never
+# activates an index added to an existing table. Sparse: verdicts stored before
+# this table existed are not listed.
+ALERT_REASONING_EVALUATION_DAYS_TABLE = {
+    "TableName": "alert_reasoning_evaluation_days",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+        {"AttributeName": "evaluated_day", "KeyType": "HASH"},
+        {"AttributeName": "alert_id", "KeyType": "RANGE"},
+    ],
+    "AttributeDefinitions": [
+        {"AttributeName": "evaluated_day", "AttributeType": "S"},
+        {"AttributeName": "alert_id", "AttributeType": "S"},
+    ],
+}
+
 
 WORKFLOW_EXECUTIONS_TABLE = {
     "TableName": "workflow_executions",

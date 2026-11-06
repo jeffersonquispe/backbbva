@@ -123,6 +123,9 @@ from src.infrastructure.entrypoint.api.routers.operational_settings_router impor
 from src.infrastructure.entrypoint.api.routers.operations_router import (
     router as operations_router,
 )
+from src.infrastructure.entrypoint.api.routers.reasoning_evaluations_router import (
+    router as reasoning_evaluations_router,
+)
 from src.infrastructure.entrypoint.api.routers.resolution_method_catalog_router import (
     router as resolution_method_catalog_router,
 )
@@ -183,6 +186,7 @@ def create_app() -> FastAPI:
     app.include_router(backups_router, prefix=genai_config.API_V0_STR)
     app.include_router(audit_log_router, prefix=genai_config.API_V0_STR)
     app.include_router(fraud_archive_router, prefix=genai_config.API_V0_STR)
+    app.include_router(reasoning_evaluations_router, prefix=genai_config.API_V0_STR)
     app.include_router(alert_schema_router, prefix=genai_config.API_V0_STR)
     app.include_router(e2e_router, prefix=genai_config.API_V0_STR)
     app.include_router(

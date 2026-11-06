@@ -15,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
+from zoneinfo import ZoneInfo
 
 BASE_URL = os.getenv("E2E_BASE_URL", "http://localhost").rstrip("/")
 API = f"{BASE_URL}/api/v0"
@@ -147,6 +148,58 @@ def wait_for_workflow(api: Api, operation_id: str, alert_id: str) -> dict[str, A
     return detail
 
 
+def wait_for_reasoning_evaluation(
+    api: Api, alert_id: str, timeout_s: int = 90
+) -> dict[str, Any]:
+    """The LLM-judge runs in its own task after the workflow finishes; check its
+    verdict (per step, versioned) through the API the alert detail uses."""
+    deadline = time.monotonic() + timeout_s
+    view: dict[str, Any] = {}
+    while time.monotonic() < deadline:
+        view = api.request("GET", f"/alerts/{alert_id}/reasoning-evaluation")
+        if view.get("state") in {"evaluated", "invalid"}:
+            break
+        time.sleep(2)
+    require(
+        view.get("state") == "evaluated",
+        f"El evaluador no emitió un veredicto válido: {view}",
+    )
+    evaluation = view["evaluation"]
+    require(evaluation["prompt_version"] == "v2", "El veredicto no es del prompt v2")
+    steps = {item["step"]: item for item in evaluation["steps"]}
+    require("detector" in steps, f"Falta el veredicto por paso: {sorted(steps)}")
+    require(
+        steps["detector"]["hallucination"] is True
+        and evaluation["hallucination"] is True
+        and evaluation["data_use_correct"] is False,
+        f"El veredicto global no se deriva de los pasos: {evaluation}",
+    )
+    require(
+        any(not item["hallucination"] for item in steps.values()),
+        "Debe haber al menos un paso sin alucinación",
+    )
+    # Verdict days are Bogotá days, not UTC days.
+    bogota_today = datetime.now(ZoneInfo("America/Bogota")).date()
+    from_day = (bogota_today - timedelta(days=1)).isoformat()
+    to_day = bogota_today.isoformat()
+    listed = api.request(
+        "GET",
+        f"/metrics/reasoning-evaluations?from_day={from_day}&to_day={to_day}"
+        "&hallucination=true&limit=200",
+    )
+    require(
+        alert_id in {str(item["alert_id"]) for item in listed},
+        "La alerta marcada no aparece en el listado filtrado",
+    )
+    return {
+        "state": view["state"],
+        "hallucination": evaluation["hallucination"],
+        "data_use_correct": evaluation["data_use_correct"],
+        "steps": {name: item["hallucination"] for name, item in steps.items()},
+        "prompt_version": evaluation["prompt_version"],
+    }
+
+
 def main() -> None:
     manager_email = os.getenv("E2E_MANAGER_EMAIL")
     manager_password = os.getenv("E2E_MANAGER_PASSWORD")
@@ -169,6 +222,8 @@ def main() -> None:
         settings_for_e2e["agent_enabled"] = True
         settings_for_e2e["analyst_enabled"] = True
         settings_for_e2e["voicebot_enabled"] = False
+        # Judge every finished alert so the LLM-judge verdict can be verified.
+        settings_for_e2e["reasoning_evaluation_sample_rate"] = 1.0
         manager.request(
             "PUT",
             "/operational-settings",
@@ -250,6 +305,8 @@ def main() -> None:
             f"El ejecutor no escaló a analista: {executor_steps}",
         )
 
+        verdict = wait_for_reasoning_evaluation(manager, alert_id)
+
         queue = analyst.request("GET", "/analyst-queue")
         queued = {str(item.get("alert_id")) for item in queue}
         require(alert_id in queued, "La alerta escalada no aparece en la cola")
@@ -311,6 +368,7 @@ def main() -> None:
                 "reservation_status": resolved.get("status"),
                 "final_alert_status": final_detail.get("status"),
                 "present_in_queue_after_resolution": False,
+                "reasoning_evaluation": verdict,
             },
         }
         print("E07 E2E OK\n" + json.dumps(result, ensure_ascii=False, indent=2))

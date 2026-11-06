@@ -241,6 +241,23 @@ fraud-history-archive-index-backfill:  ## Index archived alerts by alert_id (arc
 		OBJECT_STORAGE_SECRET_KEY=$${OBJECT_STORAGE_SECRET_KEY:-dummy123} \
 		python -m src.infrastructure.entrypoint.worker.fraud_history_archive_backfill $(if $(filter 0,$(DRY_RUN)),--apply,)
 
+.PHONY: reasoning-judge-review-export
+reasoning-judge-review-export:  ## Export a random sample of LLM-judge verdicts for human review (judge verdict hidden). Vars: FROM, TO (YYYY-MM-DD, required), SIZE(40), SEED(1), OUT(reasoning-judge-review.csv), DYNAMO_PORT(8002)
+	@if [ -z "$(FROM)" ] || [ -z "$(TO)" ]; then echo "ERROR: usage: make reasoning-judge-review-export FROM=YYYY-MM-DD TO=YYYY-MM-DD"; exit 1; fi
+	GENAI_ENVIRONMENT=$${GENAI_ENVIRONMENT:-local} API_V0_STR=$${API_V0_STR:-/api/v0} \
+		DYNAMO_ENDPOINT=http://localhost:$${DYNAMO_PORT:-8002} DYNAMO_REGION_NAME=us-east-1 \
+		DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
+		python -m src.infrastructure.entrypoint.worker.reasoning_judge_calibration export \
+		--from $(FROM) --to $(TO) --size $(or $(SIZE),40) --seed $(or $(SEED),1) --out $(or $(OUT),reasoning-judge-review.csv)
+
+.PHONY: reasoning-judge-review-score
+reasoning-judge-review-score:  ## Agreement (accuracy, Cohen's kappa, false positives/negatives) between the LLM-judge and the filled review sheet. Var: FILE (required)
+	@if [ -z "$(FILE)" ]; then echo "ERROR: usage: make reasoning-judge-review-score FILE=reasoning-judge-review.csv"; exit 1; fi
+	GENAI_ENVIRONMENT=$${GENAI_ENVIRONMENT:-local} API_V0_STR=$${API_V0_STR:-/api/v0} \
+		DYNAMO_ENDPOINT=http://localhost:$${DYNAMO_PORT:-8002} DYNAMO_REGION_NAME=us-east-1 \
+		DYNAMO_ACCESS_KEY=dummy DYNAMO_SECRET_KEY=dummy \
+		python -m src.infrastructure.entrypoint.worker.reasoning_judge_calibration score --file $(FILE)
+
 .PHONY: test-integration-vector-store-generations
 test-integration-vector-store-generations:  ## Run vector-store generation repository/migration tests on a THROWAWAY DynamoDB Local (started and removed here). Vars: LOADTEST_DYNAMO_PORT(8012)
 	@$(MAKE) metrics-loadtest-up

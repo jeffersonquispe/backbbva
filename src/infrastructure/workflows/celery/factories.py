@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 from typing import cast
 from uuid import UUID
@@ -817,11 +818,38 @@ def get_record_workflow_step_metrics_use_case() -> RecordWorkflowStepMetrics:
     )
 
 
+@lru_cache(maxsize=1)
+def _warn_if_judge_grades_itself(judge_model: str) -> None:
+    from src.application.use_cases.metrics.evaluate_alert_reasoning import (
+        judge_overlaps_reasoning,
+    )
+
+    overlap = judge_overlaps_reasoning(
+        judge_model,
+        {
+            "detector": genai_config.DETECTOR_LLM_MODEL,
+            "detector_adversarial": genai_config.DETECTOR_ADVERSARIAL_LLM_MODEL,
+            "classification": genai_config.CLASSIFICATION_LLM_MODEL,
+            "adversarial": genai_config.ADVERSARIAL_LLM_MODEL,
+            "analyst": genai_config.ANALYST_LLM_MODEL,
+        },
+    )
+    if overlap:
+        logging.getLogger(__name__).warning(
+            "JUDGE_LLM_MODEL %r is also the model of %s: the judge would grade its "
+            "own output; set JUDGE_LLM_MODEL to a different model.",
+            judge_model,
+            ", ".join(overlap),
+        )
+
+
 def get_evaluate_alert_reasoning_use_case() -> EvaluateAlertReasoning:
+    judge_model = genai_config.JUDGE_LLM_MODEL or genai_config.REPORT_LLM_MODEL
+    _warn_if_judge_grades_itself(judge_model)
     return EvaluateAlertReasoning(
         llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
         monitoring=get_monitoring(),
-        model=genai_config.JUDGE_LLM_MODEL or genai_config.REPORT_LLM_MODEL,
+        model=judge_model,
         alert_repository=get_alert_repository(),
         workflow_repository=get_workflow_execution_repository(),
         step_repository=get_workflow_step_execution_repository(),
