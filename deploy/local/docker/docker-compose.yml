@@ -353,6 +353,16 @@ services:
       CELERY_AGENT_QUEUE: ${CELERY_AGENT_QUEUE:-agent}
       CELERY_AGENT_CHAT_QUEUE: ${CELERY_AGENT_CHAT_QUEUE:-agent-chat}
 
+  aria-evaluation-worker:
+    extends:
+      service: aria-worker-main
+    container_name: aria-evaluation-worker
+    command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=${EVALUATION_WORKER_CONCURRENCY:-2}", "-Q", "${CELERY_REASONING_EVALUATION_QUEUE:-reasoning-evaluation}", "-n", "evaluation@%h"]
+    environment:
+      COMPONENT_NAME: aria-evaluation-worker
+      COMPONENT_DESCRIPTION: LLM-judge of the agent's reasoning, silent and independent of alert processing
+      CELERY_REASONING_EVALUATION_QUEUE: ${CELERY_REASONING_EVALUATION_QUEUE:-reasoning-evaluation}
+
   aria-agent-beat:
     extends:
       service: aria-worker-main

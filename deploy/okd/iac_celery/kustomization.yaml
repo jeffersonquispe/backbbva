@@ -16,6 +16,7 @@ resources:
   - computation/celery-workers/scheduler
   - computation/celery-workers/agent-worker
   - computation/celery-workers/agent-chat-worker
+  - computation/celery-workers/evaluation-worker
   - computation/celery-workers/agent-scheduler
   - computation/celery-workers/simulator-worker
   - frontend/app

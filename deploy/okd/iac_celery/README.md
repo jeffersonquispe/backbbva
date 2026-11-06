@@ -62,7 +62,9 @@ the Collector config does not include the `spanmetrics` connector (the ADOT imag
 may not ship it), so the RED panels built on `traces_span_metrics_*` stay empty
 until the Collector image is swapped for `otel/opentelemetry-collector-contrib`.
 
-`aria-agent-worker` (queue `agent`, concurrency 1), `aria-agent-chat-worker` (queue
+`aria-evaluation-worker` (queue `reasoning-evaluation`, concurrency 2) runs the LLM-judge of
+the agent's reasoning, silent and independent of alert processing: a slow or down
+evaluator never delays or blocks an alert. `aria-agent-worker` (queue `agent`, concurrency 1), `aria-agent-chat-worker` (queue
 `agent-chat`, concurrency 4: assistant chat replies, so an optimizer candidate never
 delays an answer) and `aria-agent-beat` reuse the
 `co-backend-aria-worker` image, `aria-worker-main-config` and
@@ -87,7 +89,7 @@ so Argo CD never commits, syncs, or overwrites real values.
 | `aria-worker-simulator` | `aria-worker-simulator-runtime` | `EVENT_SIMULATOR_ARIA_API_TOKEN`, `DYNAMO_ACCESS_KEY`, `DYNAMO_SECRET_KEY`, `OPENAI_KEY` |
 | MinIO | `aria-minio-runtime` | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` |
 | OpenSearch | `aria-opensearch-runtime` | `OPENSEARCH_INITIAL_ADMIN_PASSWORD` |
-| `aria-agent-worker`, `aria-agent-chat-worker`, `aria-agent-beat` | `aria-worker-main-runtime` | same as `aria-worker-main` |
+| `aria-agent-worker`, `aria-agent-chat-worker`, `aria-evaluation-worker`, `aria-agent-beat` | `aria-worker-main-runtime` | same as `aria-worker-main` |
 | Observability MinIO, Tempo, Loki, bucket init | `aria-observability-minio-runtime` | `S3_ACCESS_KEY`, `S3_SECRET_KEY` |
 | Grafana | `aria-grafana-runtime` | `GF_SECURITY_ADMIN_USER`, `GF_SECURITY_ADMIN_PASSWORD` |
 

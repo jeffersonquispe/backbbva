@@ -3,10 +3,386 @@
 Estado: **propuesta, sin implementar.** Este directorio no gestiona recursos
 Knative todavía (no está en `kustomization.yaml`).
 
-Contexto previo: `docs/SCHEDULER_INFRASCRUCTURE.md` ya concluye que Knative
-solo es viable alrededor de workers Celery de larga duración si conserva una
-réplica mínima caliente y drena con gracia, y que Lambda no encaja. Este plan
-desarrolla esa conclusión en pasos concretos.
+## Diseño técnico: ejecución asíncrona con Knative y RabbitMQ
+
+Decisión acordada: **RabbitMQ reemplaza a Redis como broker de tareas** para los
+tipos migrados; DynamoDB conserva el estado durable de las operaciones e
+idempotencia. Knative Serving ejecuta handlers HTTP escalables y se conservan
+los casos de uso y el orden actual de los workflows. Redis puede seguir en uso
+para otros propósitos de la aplicación, pero no transportará las tareas
+migradas. Esta arquitectura está propuesta, no implementada.
+
+### Arquitectura
+
+```mermaid
+flowchart LR
+    API[API / Workflow Runner] --> D[Task Dispatcher]
+    D -->|registra operación| DB[(DynamoDB)]
+    D -->|outbox relay publica| R[(RabbitMQ: exchanges y colas durables)]
+    R --> A[Adaptador RabbitMQ → Knative]
+    A -->|HTTP asíncrono /accept| K[Knative ingress]
+    K -->|aceptación durable| Q[(RabbitMQ: cola de ejecución)]
+    Q --> X[Adaptador de ejecución]
+    X -->|HTTP POST /execute| S[Knative Serving]
+    S -->|estado, resultado e idempotencia| DB
+    S -->|despacho de subtarea vía outbox| D
+    C[CronJob Reconciliador] --> DB
+    C -->|republica operaciones recuperables| R
+```
+
+| Componente | Responsabilidad |
+| --- | --- |
+| Task Dispatcher + outbox relay | Crear la operación y su evento de despacho en DynamoDB mediante transacción; el relay publica el outbox en RabbitMQ y lo marca entregado. Devuelve el `operation_id` sin esperar la ejecución. |
+| RabbitMQ | Transporte durable con exchanges/colas durables, mensajes persistentes, publisher confirms, acknowledgements manuales, DLQ y políticas de TTL/reintento definidas. |
+| Adaptador de admisión | Consumir la cola de despacho y llamar con cliente HTTP asíncrono a Knative `/accept`. Confirma Rabbit solo después del `202` y de que Knative haya persistido la aceptación y el mensaje de ejecución durable. |
+| Knative ingress | Validar y deduplicar la operación, escribir el inbox/outbox de ejecución en DynamoDB y publicarlo a la cola durable de ejecución antes de responder `202 Accepted`. No inicia trabajo en background en memoria. |
+| Adaptador de ejecución | Consumir la cola de ejecución y llamar con HTTP asíncrono a `/execute`. Mantiene el mensaje sin ACK hasta resultado terminal persistido; limita concurrencia y recupera mensajes con timeout. |
+| Knative Serving | Reclamar condicionalmente la operación, ejecutar el caso de uso actual y persistir progreso/resultado en DynamoDB antes de responder. |
+| DynamoDB | Fuente durable para estado, resultado, intentos, lease, idempotencia y recuperación. |
+| Reconciliador | Encontrar outbox sin publicar, mensajes de ejecución no consumidos y leases vencidos; recuperar mediante actualizaciones condicionales y republicación segura. |
+
+### Contrato y máquina de estados
+
+El dispatcher recibe un tipo de tarea, payload y clave de operación:
+
+```python
+dispatcher.dispatch(
+    task="review.execute_action",
+    payload=payload,
+    operation_id=operation_id,
+)
+```
+
+El contrato lógico del registro incluye:
+
+```json
+{
+  "operation_id": "uuid",
+  "task_type": "review.execute_action",
+"status": "QUEUED",
+  "attempt": 1,
+  "max_attempts": 3,
+  "execution_id": "uuid",
+  "dispatch_external_id": "uuid",
+  "lease_expires_at": 1793920000,
+  "updated_at": 1793919900,
+  "result": null,
+  "error": null
+}
+```
+
+Estados previstos: `PENDING → QUEUED → RUNNING → COMPLETED | FAILED`; un fallo
+reintentable puede pasar por `RETRY_PENDING` antes de volver a `QUEUED`. El claim
+de ejecución debe ser condicional por `operation_id`/`execution_id` y lease,
+para que entregas repetidas no ejecuten simultáneamente la misma operación.
+Los efectos de negocio también deben ser idempotentes: el claim por sí solo no
+evita repetir un efecto si el proceso cae después del efecto y antes de guardar
+`COMPLETED`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> QUEUED: publicar
+    QUEUED --> RUNNING: claim condicional
+    RUNNING --> COMPLETED: éxito persistido
+    RUNNING --> FAILED: fallo terminal
+    RUNNING --> RETRY_PENDING: fallo reintentable
+    RETRY_PENDING --> QUEUED: backoff con jitter
+    RUNNING --> RUNNING: lease vigente / heartbeat
+    RUNNING --> RETRY_PENDING: lease vencido y quedan intentos
+    RUNNING --> FAILED: lease vencido, sin intentos
+```
+
+### Aceptación HTTP, ejecución y confirmación
+
+```mermaid
+sequenceDiagram
+    participant API
+    participant Dispatcher
+    participant DynamoDB
+    participant Rabbit as RabbitMQ
+    participant Admit as Adaptador de admisión
+    participant Knative as Knative /accept
+    participant Execute as Adaptador de ejecución
+    participant Handler as Knative /execute
+
+    API->>Dispatcher: dispatch(task, payload, operation_id)
+    Dispatcher->>DynamoDB: crear/validar operación idempotente
+    Dispatcher->>DynamoDB: guardar operación + evento outbox
+    Dispatcher-->>API: operation_id
+    Dispatcher->>Rabbit: relay publica con publisher confirm
+    Rabbit->>Admit: entrega despacho
+    Admit->>Knative: HTTP POST /accept (cliente async)
+    Knative->>DynamoDB: persistir inbox/outbox QUEUED idempotente
+    Knative->>Rabbit: publicar ejecución durable + publisher confirm
+    Knative-->>Admit: 202 Accepted
+    Admit->>Rabbit: ACK despacho
+    Rabbit->>Execute: entrega ejecución
+    Execute->>Handler: HTTP POST /execute (cliente async)
+    Handler->>DynamoDB: claim condicional + lease
+    Handler->>Handler: ejecutar caso de uso
+    Handler->>DynamoDB: persistir COMPLETED o FAILED
+    Handler-->>Execute: 200 terminal tras persistencia
+    Execute->>Rabbit: ACK ejecución
+```
+
+El dispatcher retorna inmediatamente; no hace `AsyncResult.get()`. El cliente
+HTTP asíncrono permite multiplexar I/O, pero no convierte por sí mismo una
+ejecución larga en durable ni libera el mensaje Rabbit. Por eso se separan dos
+fases: `/accept` responde `202` solo después de guardar la aceptación en
+DynamoDB y confirmar la publicación durable en Rabbit; `/execute` responde
+terminalmente y el adaptador mantiene el mensaje sin ACK hasta persistir el
+resultado. No se lanza trabajo detached en memoria después de responder `202`.
+Si se pierde una respuesta, el consumidor reentrega y el endpoint consulta la
+operación idempotente en DynamoDB. Los timeouts HTTP deben cubrir `/accept` y
+ser compatibles con el límite de duración de `/execute`, ingress y proxy.
+
+La escritura DynamoDB/RabbitMQ no es atómica. Se usa outbox transaccional en
+DynamoDB y publisher confirms; si la publicación queda ambigua, el relay puede
+publicar duplicados, que se deduplican con `operation_id`/`dispatch_id`. La
+aceptación Knative escribe un outbox/inbox durable y publica la ejecución con
+confirm antes de devolver `202`. La garantía es entrega **al menos una vez**;
+no se promete ejecución exactamente una vez. Configurar quorum queues (si la
+plataforma lo ofrece), mensajes persistentes, manual ACK, DLQ, límites de
+reentrega y política de redrive. Confirmar versión/operador RabbitMQ y
+topología disponibles en OKD durante la fase de plataforma.
+
+### Workflows, reconciliación y configuración inicial
+
+- Los pasos secuenciales actuales del workflow permanecen en el mismo caso de
+  uso y en una invocación del handler, salvo que una operación ya se despache
+  explícitamente como subtarea. Las subtareas siguen siendo fire-and-forget;
+  encolar una subtarea no equivale a esperar su resultado ni a reanudar el caso
+  de uso padre.
+- La reconciliación pasa de consultar `AsyncResult`/Celery a consultar DynamoDB
+  y reparar operaciones/despachos. Para este diseño no debe requerir estado de
+  resultados Celery.
+- Frecuencia inicial del CronJob reconciliador: 5 segundos, configurable; el
+  lease vencido es una señal de ejecución sospechosa, no prueba de que no hubo
+  efecto. La recuperación usa claims condicionales, `execution_id` nuevo y
+  límites de intentos.
+- Configuración inicial propuesta: `containerConcurrency: 1`, `minScale: 0`,
+  `maxScale` limitado por capacidad y cuota del proveedor LLM, timeout HTTP de
+  hasta 120 segundos, duración objetivo de tareas de 0–50 segundos, 3 intentos
+  configurables y backoff exponencial con jitter. Estos valores requieren
+  validar límites reales del clúster, ingress, proxy y tareas antes de
+  producción.
+- RabbitMQ pasa a ser el broker de las tareas migradas; se eliminan
+  progresivamente Celery workers y `AsyncResult` para esos tipos. La estrategia
+  de convivencia enruta explícitamente por backend y evita que Celery y el
+  adaptador consuman la misma operación.
+
+### Garantías objetivo
+
+- El despacho API es asíncrono y retorna `operation_id` sin esperar la tarea.
+- Knative escala los handlers según solicitudes HTTP; los adaptadores RabbitMQ
+  requieren alta disponibilidad, límites de concurrencia, métricas de lag y
+  dimensionamiento propios.
+- DynamoDB conserva estado, resultado, idempotencia, leases e intentos.
+- La entrega es al menos una vez; escrituras condicionales y efectos
+  idempotentes toleran duplicados.
+- La reconciliación recupera operaciones abandonadas y publicaciones fallidas.
+- RabbitMQ transporta tareas, se elimina `AsyncResult` para los tipos migrados
+  y se reutilizan los casos de uso y workflows actuales.
+
+### Plan de implementación
+
+1. Completar las macro tareas de implementación listadas a continuación.
+2. Migrar progresivamente con feature flags y rollback por tipo de tarea; retirar
+   el consumidor Celery de cada tipo antes de habilitar el nuevo.
+
+### Macro tareas y tareas específicas
+
+Cada macro tarea termina con código, pruebas y criterio de salida verificable.
+No migrar el siguiente grupo hasta que el E2E y la reconciliación del grupo
+actual pasen en el entorno objetivo.
+
+#### MT-0 — Decisiones de plataforma y contrato
+
+- T0.1 Confirmar RabbitMQ administrado/operado en OKD, versión, TLS, credenciales,
+  quorum queues, publisher confirms, DLX/DLQ, límites de tamaño y política de
+  persistencia/backup.
+- T0.2 Acordar exchanges, routing keys y colas: `dispatch`, `execution`,
+  retries por clase de error, DLQ y colas aisladas para `production`, `test`,
+  `simulator` y `agent` donde aplique.
+- T0.3 Fijar contrato de mensaje versionado: `operation_id`, `dispatch_id`,
+  `task_type`, `payload_ref` o payload, `attempt`, `created_at`, `traceparent`.
+  Evitar payloads grandes/base64: usar object storage y referencia.
+- T0.4 Fijar códigos de aceptación: `202` solo con operación durable y
+  publicación confirmada; duplicado ya aceptado también devuelve 202; conflicto
+  de mismo id con payload distinto devuelve 409; error antes de persistir/confirmar
+  devuelve 5xx para permitir reintento.
+- T0.5 Medir duración y tamaño p50/p95/p99 por task; decidir qué tareas exceden
+  timeout de Knative y quedan para Job/worker especializado.
+
+**Salida:** ADR aprobado, topología y contratos publicados, límites y timeouts
+medidos; no se despliega tráfico productivo.
+
+#### MT-1 — Dominio durable de operaciones e idempotencia
+
+- T1.1 Definir entidad/puerto de operación independiente de Celery: estados,
+  transiciones válidas, `attempt`, `max_attempts`, `execution_id`, `lease`,
+  heartbeats, `next_attempt_at`, `dispatch_id`, timestamps, error y resultado.
+- T1.2 Diseñar claves e índices DynamoDB para idempotency key, operaciones
+  activas, outbox pendiente y leases expirados; documentar TTL solo para datos
+  terminales retenidos.
+- T1.3 Implementar creación idempotente y transición condicional a `RUNNING`;
+  rechazar claims concurrentes y detectar idempotency key con payload distinto.
+- T1.4 Implementar renovación de lease/heartbeat, finalización condicional y
+  fencing por `execution_id` para impedir que una ejecución antigua sobrescriba
+  el intento recuperado.
+- T1.5 Implementar outbox transaccional de dispatch en la misma transacción
+  DynamoDB que crea la operación.
+- T1.6 Revisar cada efecto externo de las tareas migrables; añadir clave
+  idempotente al destino o registro de efecto/outcome reconciliable. Definir
+  compensación/manual review cuando el destino no soporte idempotency keys.
+- T1.7 Añadir migraciones/tablas e integración contra DynamoDB Local; cubrir
+  concurrencia, duplicados, payload conflictivo, lease vencido, fencing y caída
+  entre efecto y estado terminal.
+
+**Salida:** las invariantes de operación e idempotencia pasan pruebas de
+concurrencia; no dependen de Celery result backend.
+
+#### MT-2 — RabbitMQ, dispatcher y outbox relay
+
+- T2.1 Implementar factories/configuración de conexión, TLS, credenciales,
+  publisher confirms, reconexión, canales y límites; separar configuración por
+  ambiente/cola.
+- T2.2 Implementar `RabbitMQTaskDispatcher` detrás de los puertos de dispatch
+  existentes, con selección por tipo/origen y retorno inmediato de
+  `operation_id`.
+- T2.3 Implementar relay de outbox con claim condicional/lease, publicación
+  persistente y publisher confirm; marcar enviado después del confirm; reintentar
+  con backoff y tolerar publicación duplicada.
+- T2.4 Declarar topología de exchanges/colas/bindings, DLQ, retry routing,
+  expiración y redrive como manifiestos versionados; documentar quién opera
+  RabbitMQ y su recuperación.
+- T2.5 Añadir métricas/logs de publish confirm, outbox age, queue depth, redelivery,
+  DLQ y correlación por `operation_id`; no registrar payload sensible.
+- T2.6 Probar broker caído, confirm perdido, publicación duplicada, outbox
+  persistente y reinicio del relay.
+
+**Salida:** dispatch durable y observable en un entorno de prueba, sin ejecutar
+todavía handlers Knative.
+
+#### MT-3 — Admisión durable y adaptador RabbitMQ→Knative
+
+- T3.1 Implementar adaptador de admisión como Deployment liviano, con consumo
+  manual ACK, prefetch acotado, consumer groups/competing consumers, graceful
+  shutdown y escalamiento/replicas definido.
+- T3.2 Implementar cliente HTTP async con TLS, auth de servicio, timeouts,
+  circuit breaker y concurrencia limitada; propagar `traceparent` y
+  `operation_id`.
+- T3.3 Crear `/accept`: validar schema/tamaño/tipo permitido; escribir de forma
+  condicional el inbox y el outbox de ejecución en DynamoDB; publicar a la cola
+  `execution` con confirm; responder 202 solo al completar todo lo anterior.
+- T3.4 Hacer que redelivery de la misma operación responda 202 sin crear una
+  nueva ejecución; discrepancia de hash/payload responde 409; errores previos a
+  aceptación responden 5xx.
+- T3.5 ACK del mensaje de `dispatch` solo tras 202; en timeout/5xx no ACK y
+  aplicar retry/DLQ según clasificación. Manejar el caso de 202 perdido como
+  redelivery idempotente.
+- T3.6 Implementar métricas de latencia HTTP, 202/409/5xx, retry, inflight,
+  redelivery y lag; readiness/liveness y límites de recursos.
+- T3.7 Probar caídas entre persistencia de inbox, confirm Rabbit, respuesta 202
+  y ACK del mensaje de entrada.
+
+**Salida:** ninguna aceptación se pierde en los puntos de caída probados; el
+endpoint no hace trabajo detached en memoria.
+
+#### MT-4 — Ejecución Knative HTTP
+
+- T4.1 Extraer cuerpos de tasks Celery a handlers/casos de uso reutilizables,
+  sin introducir imports de infraestructura en `application/`.
+- T4.2 Implementar `/execute` por familias de tarea con autenticación interna,
+  validación versionada, límites de payload, `operation_id` y `execution_id`.
+- T4.3 Implementar claim condicional, lease/heartbeat, contexto de ejecución,
+  registro de progreso y estado terminal antes del 2xx.
+- T4.4 Definir respuesta a duplicados: COMPLETED devuelve resultado ya guardado;
+  RUNNING con lease vigente no inicia otro trabajo; lease expirado requiere claim
+  nuevo y fencing; estados terminales no se reabren salvo política explícita.
+- T4.5 Configurar Knative `containerConcurrency`, `minScale`, `maxScale`, CPU/RAM,
+  timeout, probes, service account, secrets, NetworkPolicy y escalamiento según
+  cuotas LLM/DB.
+- T4.6 Propagar trazas, auditoría y métricas de tarea; revisar privacidad y
+  eliminar señales Celery del camino migrado.
+- T4.7 Probar caída del pod durante ejecución, timeout HTTP con resultado
+  ambiguo, reintento concurrente y finalización después de perder el cliente.
+
+**Salida:** ejecución recuperable e idempotente contra la cola `execution` en
+ambiente de integración.
+
+#### MT-5 — Adaptador de ejecución y recuperación
+
+- T5.1 Implementar consumidor de `execution` con manual ACK y HTTP async a
+  `/execute`; conservar el mensaje sin ACK hasta respuesta terminal persistida.
+- T5.2 Clasificar resultados: ACK para terminal/duplicado confirmado; retry con
+  backoff para fallos transitorios; DLQ para inválidos o intentos agotados.
+- T5.3 Implementar heartbeat/progreso que renueve lease mientras el handler
+  trabaja y evite recuperar una ejecución viva.
+- T5.4 Implementar CronJob reconciliador (intervalo inicial configurable de 5 s)
+  para outbox atrasado, operaciones `QUEUED` sin entrega y leases vencidos;
+  usar conditional update/fencing antes de reencolar.
+- T5.5 Asegurar que el reconciliador no dependa de `AsyncResult`; retirar
+  `CeleryAsyncExecutionInspector` solo cuando ningún tipo migrado lo use.
+- T5.6 Añadir alertas para lag, edad máxima de outbox/cola, operaciones vencidas,
+  DLQ y tasa de reintentos; preparar runbook para replay seguro.
+- T5.7 Probar caída de consumidor, Rabbit redelivery, lease vencido, handler
+  lento con heartbeat, retry agotado y redrive desde DLQ.
+
+**Salida:** recuperación automática demostrada y ninguna operación queda sin
+estado terminal o señal operativa.
+
+#### MT-6 — Migración progresiva por grupos de tareas
+
+- T6.1 Añadir selección de backend por tipo de tarea/origen y feature flag;
+  impedir doble publicación durante cambios de backend.
+- T6.2 Migrar primero tarea corta, idempotente y sin efectos externos complejos
+  (p. ej. limpieza o evaluación acotada); validar cola, estado, métricas y rollback.
+- T6.3 Migrar tareas programadas y sustituir entradas Beat por CronJob; apagar
+  cada entrada Celery al habilitar su CronJob para evitar doble ejecución.
+- T6.4 Migrar imports/datasets y subtareas fire-and-forget una familia a la vez;
+  validar estados y contratos de polling de la API.
+- T6.5 Migrar el workflow de revisión de alertas con canary por origen/porcentaje;
+  comparar latencia, errores, reintentos, tokens y efectos externos contra Celery.
+- T6.6 Mantener training y simulador en Celery/Job hasta resolver imagen,
+  duración, countdown y requisitos de recursos; no incluirlos por defecto en el
+  primer corte.
+- T6.7 Retirar tasks/colas Celery migradas y `AsyncResult` asociado solo después
+  de drenar, verificar métricas y pasar ventana de rollback.
+
+**Salida:** cada grupo cuenta con evidencia E2E real, métricas comparables,
+runbook y rollback ejercitado.
+
+#### MT-7 — Operación, seguridad y cierre
+
+- T7.1 Gestionar RabbitMQ, colas, credenciales y certificados con recursos OKD
+  aprobados por plataforma; definir backup/restore, upgrades y capacidad.
+- T7.2 Aplicar auth service-to-service al ingreso Knative, NetworkPolicies,
+  rotación de secretos y límites de tamaño/rate.
+- T7.3 Definir SLOs y dashboards: aceptación, duración, lag, concurrency,
+  autoscaling, cold start, errores, retries, DLQ y estado de reconciliación.
+- T7.4 Actualizar documentación de despliegue, scheduler, observabilidad,
+  respuesta a incidentes y Make targets de operación local si aplica.
+- T7.5 Retirar Celery worker/scheduler y dependencias solo cuando no queden
+  tareas Celery activas; conservar broker/worker únicamente para familias
+  explícitamente fuera del alcance.
+
+**Salida:** producción operable, recuperable, auditada y con procedimiento de
+rollback/cierre aprobado.
+
+## Contexto y alternativas evaluadas previamente
+
+Las secciones siguientes documentan el inventario y las alternativas que se
+evaluaron antes de acordar RabbitMQ. Para el diseño objetivo, prevalecen las
+decisiones y el plan MT-0…MT-7 anteriores: RabbitMQ más adaptadores HTTP y
+estado/idempotencia en DynamoDB. No implementar en paralelo la antigua opción
+Kafka/Eventing ni conectar dos backends al mismo tipo de tarea.
+
+Contexto: `docs/SCHEDULER_INFRASCRUCTURE.md` evalúa restricciones de Knative
+para procesos largos y drenaje. Sus observaciones operativas siguen siendo
+relevantes; cualquier valor de minScale, timeout y concurrencia debe validarse
+contra la plataforma de destino.
 
 ## 1. Qué significa "reemplazar workers por Knative"
 
@@ -23,11 +399,10 @@ Hay tres caminos, de menor a mayor cambio:
 | B. Knative Eventing + Serving | Cada task pasa a ser un handler HTTP que recibe CloudEvents; el broker reemplaza la cola | Sí | Alto | Medio-alto |
 | C. Híbrido | B solo para tasks cortas y programadas; Celery se queda para workflows largos, training y simulador | Parcial | Medio | Medio |
 
-**Recomendación:** si el objetivo es *autoscaling y scale-to-zero*, la opción A
-lo logra con casi cero cambios de código y debería evaluarse primero (Fase 0).
-Si el objetivo es *estandarizar en Knative* (política de plataforma, eventos
-CloudEvents, Serverless operator ya disponible), la ruta es C: migrar por
-tramos con rollback por feature flag. Este documento detalla B/C.
+Estas opciones describen el análisis histórico previo a la decisión de usar
+RabbitMQ como broker. La recomendación anterior de KEDA/Celery o Kafka/Eventing
+no forma parte del diseño aprobado en esta sección; cualquier reconsideración
+requiere actualizar la decisión y las macro tareas antes de implementar.
 
 ## 2. Inventario de workloads
 
@@ -71,7 +446,7 @@ Los dispatchers viven en `src/infrastructure/queues/celery/*_dispatcher.py` y
 - La conmutación por tipo de task permite correr ambos backends en paralelo y
   revertir con un cambio de configmap.
 
-## 4. Diseño objetivo (opciones B/C)
+## 4. Diseño alternativo anterior (Kafka/Eventing; no es el objetivo acordado)
 
 ```
 API ──CloudEvent──▶ Broker (Kafka) ──Trigger(type=…)──▶ Knative Service (handler HTTP)
