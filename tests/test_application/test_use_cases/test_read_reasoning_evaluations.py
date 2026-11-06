@@ -10,6 +10,10 @@ from src.application.ports.alert_reasoning_evaluation_port import (
     AlertReasoningEvaluationRecord,
     ReasoningEvaluationStatus,
 )
+from src.application.ports.reasoning_evaluation_job_port import (
+    ReasoningEvaluationJob,
+    ReasoningEvaluationJobStatus,
+)
 from src.application.use_cases.metrics.read_reasoning_evaluations import (
     GetAlertReasoningEvaluation,
     ListReasoningEvaluations,
@@ -72,18 +76,28 @@ class InMemoryAlerts:
         )
 
 
-class InMemoryOperationalSettings:
-    def __init__(self, rate: float) -> None:
-        self.rate = rate
+class InMemoryJobs:
+    def __init__(self, *jobs: ReasoningEvaluationJob) -> None:
+        self.jobs = {j.alert_id: j for j in jobs}
 
-    def get(self):
-        return SimpleNamespace(reasoning_evaluation_sample_rate=self.rate)
+    def get(self, alert_id):
+        return self.jobs.get(alert_id)
 
 
-def _get(evaluations, alerts, rate=1.0) -> GetAlertReasoningEvaluation:
-    return GetAlertReasoningEvaluation(
-        evaluations, alerts, InMemoryOperationalSettings(rate)
+def _job(
+    alert_id: UUID, status: ReasoningEvaluationJobStatus
+) -> ReasoningEvaluationJob:
+    return ReasoningEvaluationJob(
+        alert_id=alert_id,
+        workflow_execution_id=uuid4(),
+        status=status,
+        requested_by="workflow",
+        queued_at=NOW,
     )
+
+
+def _get(evaluations, alerts, jobs=None) -> GetAlertReasoningEvaluation:
+    return GetAlertReasoningEvaluation(evaluations, alerts, jobs or InMemoryJobs())
 
 
 def test_a_stored_verdict_is_returned_with_its_state() -> None:
@@ -104,26 +118,52 @@ def test_without_a_verdict_it_says_why() -> None:
             str(optimizer): "optimizer_evaluation",
         }
     )
+    use_case = _get(InMemoryEvaluations(), alerts)
 
-    sampled = _get(InMemoryEvaluations(), alerts, rate=1.0)
-    unsampled = _get(InMemoryEvaluations(), alerts, rate=0.0)
-
-    assert sampled.execute(prod).state == ReasoningEvaluationState.PENDING
-    assert unsampled.execute(prod).state == ReasoningEvaluationState.NOT_SAMPLED
-    # Test runs and optimizer evaluations are never judged, whatever the rate.
-    assert sampled.execute(test_run).state == ReasoningEvaluationState.NOT_APPLICABLE
-    assert sampled.execute(optimizer).state == ReasoningEvaluationState.NOT_APPLICABLE
-    assert sampled.execute(prod).evaluation is None
+    assert use_case.execute(prod).state == ReasoningEvaluationState.NOT_SAMPLED
+    # Test runs and optimizer evaluations are never judged.
+    assert use_case.execute(test_run).state == ReasoningEvaluationState.NOT_APPLICABLE
+    assert use_case.execute(optimizer).state == ReasoningEvaluationState.NOT_APPLICABLE
+    assert use_case.execute(prod).evaluation is None
 
 
-def test_an_alert_without_a_metrics_snapshot_is_treated_as_judgeable() -> None:
+def test_the_evaluators_own_job_state_is_reported_without_touching_the_alert() -> None:
+    queued, running, failed = uuid4(), uuid4(), uuid4()
+    jobs = InMemoryJobs(
+        _job(queued, ReasoningEvaluationJobStatus.QUEUED),
+        _job(running, ReasoningEvaluationJobStatus.RUNNING),
+        _job(failed, ReasoningEvaluationJobStatus.FAILED),
+    )
+    # No alerts at all: the job alone answers, the alert is never consulted.
+    use_case = _get(InMemoryEvaluations(), InMemoryAlerts(), jobs)
+
+    assert use_case.execute(queued).state == ReasoningEvaluationState.QUEUED
+    assert use_case.execute(running).state == ReasoningEvaluationState.RUNNING
+    failed_view = use_case.execute(failed)
+    assert failed_view.state == ReasoningEvaluationState.FAILED
+    assert failed_view.job.status == ReasoningEvaluationJobStatus.FAILED
+
+
+def test_a_verdict_wins_over_a_stale_job_and_carries_its_timings() -> None:
+    record = _record()
+    job = _job(record.alert_id, ReasoningEvaluationJobStatus.RUNNING)
+
+    view = _get(
+        InMemoryEvaluations(record), InMemoryAlerts(), InMemoryJobs(job)
+    ).execute(record.alert_id)
+
+    assert view.state == ReasoningEvaluationState.EVALUATED
+    assert view.job is job
+
+
+def test_an_alert_without_a_metrics_snapshot_is_not_rejected() -> None:
     bare = uuid4()
 
     view = _get(InMemoryEvaluations(), InMemoryAlerts(**{str(bare): None})).execute(
         bare
     )
 
-    assert view.state == ReasoningEvaluationState.PENDING
+    assert view.state == ReasoningEvaluationState.NOT_SAMPLED
 
 
 def test_an_unknown_alert_without_verdict_is_not_found() -> None:

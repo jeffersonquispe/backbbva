@@ -1859,20 +1859,11 @@ def test_step_metrics_rows_and_tokens_match_token_usage(monkeypatch):
     assert rollups.rows == before
 
 
-def test_reasoning_evaluation_dispatched_only_when_sampled(
+def test_reasoning_evaluation_is_announced_without_the_alert_flow_deciding_anything(
     monkeypatch, evaluation_dispatches
 ):
-    monkeypatch.setattr(
-        workflow_module,
-        "get_operational_settings_repository",
-        lambda: InMemoryOperationalSettingsRepository(
-            OperationalSettings(reasoning_evaluation_sample_rate=1.0)
-        ),
-    )
-    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
-    assert evaluation_dispatches.calls == [(run["alert_id"], run["workflow_id"])]
-
-    evaluation_dispatches.calls.clear()
+    # Sampling, origin rules and the job's state belong to the evaluator: even
+    # with the evaluator's sample rate at zero the alert flow just announces.
     monkeypatch.setattr(
         workflow_module,
         "get_operational_settings_repository",
@@ -1880,8 +1871,21 @@ def test_reasoning_evaluation_dispatched_only_when_sampled(
             OperationalSettings(reasoning_evaluation_sample_rate=0.0)
         ),
     )
-    _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
-    assert evaluation_dispatches.calls == []
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+
+    assert evaluation_dispatches.calls == [(run["alert_id"], run["workflow_id"])]
+
+
+def test_an_evaluator_that_is_down_never_fails_the_alert(
+    monkeypatch, evaluation_dispatches
+):
+    def broker_down(alert_id, workflow_id):
+        raise ConnectionError("broker unavailable")
+
+    evaluation_dispatches.dispatch = broker_down
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+
+    assert run["result"]["status"] == "ok"
 
 
 @pytest.mark.parametrize(

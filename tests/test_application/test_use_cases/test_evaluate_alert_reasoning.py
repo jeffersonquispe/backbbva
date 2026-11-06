@@ -538,3 +538,135 @@ def test_a_judge_that_is_also_a_reasoning_model_is_reported() -> None:
     assert judge_overlaps_reasoning("gpt-c", models) == ()
     # No judge configured yet (falls back to the report model elsewhere): nothing to compare.
     assert judge_overlaps_reasoning("", models) == ()
+
+
+class InMemoryJobs:
+    def __init__(self, job) -> None:
+        self.job = job
+
+    def get(self, alert_id):
+        return self.job if self.job and self.job.alert_id == alert_id else None
+
+    def save(self, job) -> None:
+        self.job = job
+
+
+def _with_job(world):
+    from src.application.ports.reasoning_evaluation_job_port import (
+        ReasoningEvaluationJob,
+        ReasoningEvaluationJobStatus,
+    )
+
+    job = ReasoningEvaluationJob(
+        alert_id=world["alert"].id,
+        workflow_execution_id=world["workflow"].id,
+        status=ReasoningEvaluationJobStatus.QUEUED,
+        requested_by="workflow",
+        queued_at=NOW - timedelta(seconds=5),
+    )
+    world["use_case"]._jobs = InMemoryJobs(job)
+    return job
+
+
+def test_the_evaluation_job_goes_from_queued_to_evaluated_with_its_timings() -> None:
+    from src.application.ports.reasoning_evaluation_job_port import (
+        ReasoningEvaluationJobStatus,
+    )
+
+    world = _world()
+    job = _with_job(world)
+
+    out = _run(world)
+
+    saved = world["use_case"]._jobs.job
+    assert saved is job
+    assert saved.status == ReasoningEvaluationJobStatus.EVALUATED
+    assert saved.attempts == 1 and saved.error_code is None
+    assert saved.started_at is not None and saved.finished_at is not None
+    assert saved.run_ms == out.evaluation.duration_ms >= 0
+
+
+def test_an_invalid_verdict_closes_the_job_as_invalid() -> None:
+    from src.application.ports.reasoning_evaluation_job_port import (
+        ReasoningEvaluationJobStatus,
+    )
+
+    world = _world(answer="no sé")
+    _with_job(world)
+
+    _run(world)
+
+    assert world["use_case"]._jobs.job.status == ReasoningEvaluationJobStatus.INVALID
+
+
+def test_a_failure_leaves_the_job_running_for_the_retry_and_fail_closes_it() -> None:
+    from src.application.ports.reasoning_evaluation_job_port import (
+        ReasoningEvaluationJobStatus,
+    )
+
+    world = _world()
+    job = _with_job(world)
+
+    def provider_down(*args, **kwargs):
+        raise ConnectionError("provider down")
+
+    world["llm"].create = provider_down
+    with pytest.raises(ConnectionError):
+        _run(world)
+    assert job.status == ReasoningEvaluationJobStatus.RUNNING and job.attempts == 1
+
+    world["use_case"].fail(world["alert"].id, "EVALUATION_FAILED")
+    assert job.status == ReasoningEvaluationJobStatus.FAILED
+    assert job.error_code == "EVALUATION_FAILED" and job.finished_at is not None
+
+
+def test_per_alert_explainability_criteria_are_kept_and_never_invalidate() -> None:
+    steps = _judged_steps(_with_probe())
+    world = _world()
+    world["llm"].queued.append(
+        json.dumps(
+            {
+                "steps": {
+                    n: {"hallucination": False, "data_use_correct": True, "note": ""}
+                    for n in steps
+                },
+                "criteria": {
+                    "clarity": {"passed": True, "note": "Se entiende."},
+                    "step_consistency": {"passed": False, "note": "Se contradicen."},
+                    "model_alignment": {"passed": None, "note": "Sin modelo."},
+                    "made_up": {"passed": True, "note": "ignorado"},
+                    "evidence_citation": {"passed": "maybe"},
+                },
+                "rationale": "",
+            }
+        )
+    )
+
+    record = _run(world).evaluation
+
+    assert record.status == ReasoningEvaluationStatus.EVALUATED
+    assert record.criteria_verdicts == {
+        "clarity": {"passed": True, "note": "Se entiende."},
+        "step_consistency": {"passed": False, "note": "Se contradicen."},
+        "model_alignment": {"passed": None, "note": "Sin modelo."},
+    }
+    prompt = world["llm"].prompts[0][0].content
+    assert "clarity" in prompt and "model_alignment" in prompt
+
+
+def test_an_answer_without_criteria_is_still_a_valid_verdict() -> None:
+    record = _run(_world()).evaluation  # the default VERDICT has no "criteria"
+
+    assert record.status == ReasoningEvaluationStatus.EVALUATED
+    assert record.criteria_verdicts == {}
+    assert record.prompt_version == PROMPT_VERSION == "v3"
+
+
+def test_judge_only_measures_without_storing_or_counting() -> None:
+    world = _world()
+
+    record = world["use_case"].judge_only(world["alert"].id, world["workflow"].id)
+
+    assert record is not None and record.duration_ms >= 0
+    assert world["evaluations"].records == {}
+    assert world["rollups"].total("count") == 0

@@ -27,6 +27,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from typing import Any
 from uuid import UUID
 
@@ -50,11 +51,16 @@ from src.application.ports.metrics_rollup_port import (
     RollupApplyMarker,
 )
 from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.reasoning_evaluation_job_port import (
+    ReasoningEvaluationJobRepository,
+    ReasoningEvaluationJobStatus,
+)
 from src.application.ports.workflow_port import WorkflowExecutionRepository
 from src.application.ports.workflow_step_execution_port import (
     WorkflowStepExecutionRepository,
 )
 from src.application.runtime_defaults import resolve_clock
+from src.application.use_cases.metrics.reasoning_criteria import ALERT_CRITERIA
 from src.application.use_cases.metrics.technical_rollup_contribution import (
     evaluation_contribution,
     technical_alert_dimensions,
@@ -93,7 +99,8 @@ MAX_JUDGE_ATTEMPTS = 2
 # Bump on any change to the judge prompt or criteria: it is stored on every
 # verdict so rates from different versions are never mixed up unnoticed.
 # v1: one verdict per alert. v2: one per reasoning step, alert verdict derived.
-PROMPT_VERSION = "v2"
+# v3: adds the explainability criteria (reasoning_criteria.ALERT_CRITERIA).
+PROMPT_VERSION = "v3"
 
 _SYSTEM_PROMPT = (
     "Eres un auditor de calidad de un agente de revisión de alertas de "
@@ -110,10 +117,17 @@ _SYSTEM_PROMPT = (
     "correctamente los datos que citan y no ignoraron evidencia decisiva "
     "en contra de su conclusión.\n"
     "Emite un veredicto por cada paso listado en PASOS, usando exactamente "
-    "su nombre entre corchetes. Responde SOLO con un objeto JSON, sin texto "
-    "adicional: "
+    "su nombre entre corchetes.\n"
+    "Además evalúa la EXPLICABILIDAD del conjunto, cada criterio con passed "
+    "true|false y una nota breve:\n"
+    + "\n".join(f"- {c.key}: {c.question}" for c in ALERT_CRITERIA)
+    + "\nSi un criterio no se puede decidir (p. ej. no hubo salida del modelo), "
+    "usa passed null.\n"
+    "Responde SOLO con un objeto JSON, sin texto adicional: "
     '{"steps": {"<nombre del paso>": {"hallucination": true|false, '
     '"data_use_correct": true|false, "note": "<una frase en español>"}}, '
+    '"criteria": {"<criterio>": {"passed": true|false|null, '
+    '"note": "<una frase en español>"}}, '
     '"rationale": "<máximo 2 frases en español sobre el conjunto>"}'
 )
 
@@ -157,7 +171,9 @@ class EvaluateAlertReasoning:
         rollup_repository: MetricsRollupRepository,
         timezone_name: str,
         clock: Clock | None = None,
+        jobs: ReasoningEvaluationJobRepository | None = None,
     ) -> None:
+        self._jobs = jobs
         self._llm_factory = llm_unit_of_work_factory
         self._monitoring = monitoring
         self._model = model
@@ -172,18 +188,75 @@ class EvaluateAlertReasoning:
     def execute(
         self, input: EvaluateAlertReasoningInput
     ) -> EvaluateAlertReasoningOutput:
+        """Judge one alert and keep the evaluation job's state up to date. The
+        job is the evaluator's own record: nothing here writes to the alert or
+        its workflow, so a failure leaves the alert exactly as it was."""
+        self._job_started(input.alert_id)
         alert = self._alerts.get(input.alert_id)
         if alert is None:
+            self._job_finished(input.alert_id, None)
             return EvaluateAlertReasoningOutput(evaluation=None)
         stored = self._evaluations.get(input.alert_id)
         if stored is None:
             judged = self._judge(alert, input.workflow_execution_id)
             if judged is None:
+                self._job_finished(input.alert_id, None)
                 return EvaluateAlertReasoningOutput(evaluation=None)
             stored = self._evaluations.create(judged)
-        return EvaluateAlertReasoningOutput(
+        output = EvaluateAlertReasoningOutput(
             evaluation=stored, counted=self._count(alert, stored)
         )
+        self._job_finished(input.alert_id, stored)
+        return output
+
+    def fail(self, alert_id: UUID, error_code: str) -> None:
+        """Close the job as failed once the task has run out of retries."""
+        job = self._jobs.get(alert_id) if self._jobs else None
+        if job is None or self._jobs is None:
+            return
+        job.status = ReasoningEvaluationJobStatus.FAILED
+        job.error_code = error_code
+        job.finished_at = self._clock.now()
+        self._jobs.save(job)
+
+    def judge_only(
+        self, alert_id: UUID, workflow_execution_id: UUID
+    ) -> AlertReasoningEvaluationRecord | None:
+        """One judge call that stores and counts nothing: for timing and cost
+        measurements against the real model."""
+        alert = self._alerts.get(alert_id)
+        if alert is None:
+            return None
+        return self._judge(alert, workflow_execution_id)
+
+    def _job_started(self, alert_id: UUID) -> None:
+        job = self._jobs.get(alert_id) if self._jobs else None
+        if job is None or self._jobs is None:
+            return
+        job.status = ReasoningEvaluationJobStatus.RUNNING
+        job.started_at = job.started_at or self._clock.now()
+        job.attempts += 1
+        job.error_code = None
+        self._jobs.save(job)
+
+    def _job_finished(
+        self, alert_id: UUID, record: AlertReasoningEvaluationRecord | None
+    ) -> None:
+        job = self._jobs.get(alert_id) if self._jobs else None
+        if job is None or self._jobs is None:
+            return
+        job.finished_at = self._clock.now()
+        if record is None:
+            job.status = ReasoningEvaluationJobStatus.FAILED
+            job.error_code = "NOTHING_TO_JUDGE"
+        else:
+            job.status = (
+                ReasoningEvaluationJobStatus.INVALID
+                if record.status == ReasoningEvaluationStatus.INVALID
+                else ReasoningEvaluationJobStatus.EVALUATED
+            )
+            job.run_ms = record.duration_ms
+        self._jobs.save(job)
 
     def _count(
         self, alert: AlertRecord, record: AlertReasoningEvaluationRecord
@@ -241,6 +314,7 @@ class EvaluateAlertReasoning:
                 monitoring=self._monitoring,
                 operation_name="evaluate_alert_reasoning",
             )
+            started = time.perf_counter()
             messages = [
                 LLMMessage(role=LLMMessageRole.SYSTEM, content=_SYSTEM_PROMPT),
                 LLMMessage(
@@ -255,6 +329,7 @@ class EvaluateAlertReasoning:
             hallucination, data_use_correct, rationale, step_verdicts = _parse_verdict(
                 result.content, expected_steps=tuple(steps)
             )
+            criteria_verdicts = _criteria_verdicts(result.content)
             input_tokens = result.input_tokens or 0
             output_tokens = result.output_tokens or 0
             while (
@@ -267,6 +342,8 @@ class EvaluateAlertReasoning:
                 hallucination, data_use_correct, rationale, step_verdicts = (
                     _parse_verdict(result.content, expected_steps=tuple(steps))
                 )
+                criteria_verdicts = _criteria_verdicts(result.content)
+            duration_ms = int((time.perf_counter() - started) * 1000)
             status = (
                 ReasoningEvaluationStatus.EVALUATED
                 if hallucination is not None and data_use_correct is not None
@@ -279,6 +356,7 @@ class EvaluateAlertReasoning:
                     "data_use_correct": data_use_correct,
                     "prompt_version": PROMPT_VERSION,
                     "attempts": attempts,
+                    "duration_ms": duration_ms,
                 }
             )
         return AlertReasoningEvaluationRecord(
@@ -295,6 +373,8 @@ class EvaluateAlertReasoning:
             prompt_version=PROMPT_VERSION,
             step_verdicts=step_verdicts,
             attempts=attempts,
+            criteria_verdicts=criteria_verdicts,
+            duration_ms=duration_ms,
         )
 
 
@@ -419,4 +499,31 @@ def _step_verdicts(
         }
     if expected_steps and set(verdicts) != set(expected_steps):
         return {}
+    return verdicts
+
+
+def _criteria_verdicts(raw: str) -> dict[str, dict[str, object]]:
+    """The per-alert explainability criteria the judge answered. Unknown keys and
+    malformed entries are dropped; a missing or undecidable criterion is simply
+    absent or ``passed: None`` - it never invalidates the verdict."""
+    match = _JSON_OBJECT.search(raw or "")
+    try:
+        data = json.loads(match.group(0) if match else raw)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    entries = data.get("criteria") if isinstance(data, dict) else None
+    if not isinstance(entries, dict):
+        return {}
+    verdicts: dict[str, dict[str, object]] = {}
+    for criterion in ALERT_CRITERIA:
+        entry = entries.get(criterion.key)
+        if not isinstance(entry, dict) or "passed" not in entry:
+            continue
+        passed = entry.get("passed")
+        if passed is not None and not isinstance(passed, bool):
+            continue
+        verdicts[criterion.key] = {
+            "passed": passed,
+            "note": str(entry.get("note") or "")[:MAX_STEP_NOTE_CHARS],
+        }
     return verdicts

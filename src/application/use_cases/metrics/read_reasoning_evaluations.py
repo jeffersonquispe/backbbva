@@ -15,11 +15,10 @@ from src.application.ports.alert_reasoning_evaluation_port import (
     AlertReasoningEvaluationRepository,
     ReasoningEvaluationStatus,
 )
-from src.application.ports.operational_settings_port import (
-    OperationalSettingsRepository,
-)
-from src.application.use_cases.metrics.evaluate_alert_reasoning import (
-    is_sampled_for_evaluation,
+from src.application.ports.reasoning_evaluation_job_port import (
+    ReasoningEvaluationJob,
+    ReasoningEvaluationJobRepository,
+    ReasoningEvaluationJobStatus,
 )
 from src.domain.alerts.entities import AlertOrigin
 
@@ -34,13 +33,25 @@ UNJUDGED_ORIGINS = frozenset(
 class ReasoningEvaluationState(StrEnum):
     EVALUATED = "evaluated"
     INVALID = "invalid"
-    # Selected by the current sample rate but no verdict yet (still in the
-    # queue, or the alert has not finished).
-    PENDING = "pending"
-    # Not selected: the judge only looks at a random share of alerts.
+    # The evaluator's own job: waiting for its worker, running, or gave up.
+    QUEUED = "queued"
+    RUNNING = "running"
+    FAILED = "failed"
+    # No job: the judge only looks at a random share of alerts (or the alert
+    # predates the evaluator).
     NOT_SAMPLED = "not_sampled"
     # Test runs and optimizer evaluations are never judged.
     NOT_APPLICABLE = "not_applicable"
+
+
+_STATE_OF_JOB = {
+    ReasoningEvaluationJobStatus.QUEUED: ReasoningEvaluationState.QUEUED,
+    ReasoningEvaluationJobStatus.RUNNING: ReasoningEvaluationState.RUNNING,
+    ReasoningEvaluationJobStatus.FAILED: ReasoningEvaluationState.FAILED,
+    # A finished job whose verdict row is missing reads as invalid, not lost.
+    ReasoningEvaluationJobStatus.INVALID: ReasoningEvaluationState.INVALID,
+    ReasoningEvaluationJobStatus.EVALUATED: ReasoningEvaluationState.INVALID,
+}
 
 
 class ReasoningEvaluationAlertNotFoundError(Exception):
@@ -56,6 +67,7 @@ class AlertReasoningEvaluationView:
     alert_id: UUID
     state: ReasoningEvaluationState
     evaluation: AlertReasoningEvaluationRecord | None
+    job: ReasoningEvaluationJob | None = None
 
 
 class GetAlertReasoningEvaluation:
@@ -63,13 +75,14 @@ class GetAlertReasoningEvaluation:
         self,
         evaluations: AlertReasoningEvaluationRepository,
         alerts: AlertRepository,
-        settings: OperationalSettingsRepository,
+        jobs: ReasoningEvaluationJobRepository,
     ) -> None:
         self._evaluations = evaluations
         self._alerts = alerts
-        self._settings = settings
+        self._jobs = jobs
 
     def execute(self, alert_id: UUID) -> AlertReasoningEvaluationView:
+        job = self._jobs.get(alert_id)
         stored = self._evaluations.get(alert_id)
         if stored is not None:
             state = (
@@ -77,7 +90,11 @@ class GetAlertReasoningEvaluation:
                 if stored.status == ReasoningEvaluationStatus.INVALID
                 else ReasoningEvaluationState.EVALUATED
             )
-            return AlertReasoningEvaluationView(alert_id, state, stored)
+            return AlertReasoningEvaluationView(alert_id, state, stored, job)
+        if job is not None:
+            return AlertReasoningEvaluationView(
+                alert_id, _STATE_OF_JOB[job.status], None, job
+            )
         alert = self._alerts.get(alert_id)
         if alert is None:
             raise ReasoningEvaluationAlertNotFoundError(str(alert_id))
@@ -85,10 +102,6 @@ class GetAlertReasoningEvaluation:
         origin = alert.metrics.origin if alert.metrics is not None else None
         if (origin or "") in UNJUDGED_ORIGINS:
             state = ReasoningEvaluationState.NOT_APPLICABLE
-        elif is_sampled_for_evaluation(
-            alert_id, self._settings.get().reasoning_evaluation_sample_rate
-        ):
-            state = ReasoningEvaluationState.PENDING
         else:
             state = ReasoningEvaluationState.NOT_SAMPLED
         return AlertReasoningEvaluationView(alert_id, state, None)

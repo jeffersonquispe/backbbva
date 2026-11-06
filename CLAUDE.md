@@ -374,20 +374,37 @@ live alerts out of the archive and protect the day object of archived ones from
 retention sweeps. These use cases write their own `AuditPort` entries because
 the HTTP audit only records the route template, not the `alert_id`.
 
-## LLM-judge of the agent's reasoning (D6)
+## LLM-judge of the agent's reasoning (D6) — a silent, independent flow
 
-`EvaluateAlertReasoning` judges a sample of finished alerts, one verdict per
-reasoning step (the alert-level flags are derived: hallucination if ANY step
-hallucinates, data use correct only if ALL do), stores the `PROMPT_VERSION` on
-every verdict and retries once if the answer cannot be parsed. Changing the
-prompt or criteria means bumping `PROMPT_VERSION`. Verdicts are read through
-`GET /alerts/{id}/reasoning-evaluation` and `GET /metrics/reasoning-evaluations`
-(permission `monitor`); the per-day listing lives in its own table
-`alert_reasoning_evaluation_days` (not a GSI). `JUDGE_LLM_MODEL` must differ from
-the models that reason (the worker warns). Calibrate with
-`make reasoning-judge-review-export` / `-score`. The local E2E LLM
-(`scripted_e2e`) answers the judge deterministically; keep it in sync with the
-prompt format and with the adversarial `decision` field.
+The evaluator is its own flow: an alert is resolved and visible whether or not
+its evaluation ever runs. The alert flow only *announces* that an alert finished
+(`ReasoningEvaluationDispatcher` -> task `metrics.request_reasoning_evaluation`);
+it does not read the sample rate, wait for, or depend on the evaluator. Everything
+else belongs to the evaluator, on its own queue (`CELERY_REASONING_EVALUATION_QUEUE`)
+and its own worker (`aria-evaluation-worker`): `RequestReasoningEvaluation`
+(sampling, origin rules, opens the job), `EvaluateAlertReasoning` (judges, updates
+the job), `RecoverStaleReasoningEvaluations` (beat every 5 min, re-queues lost
+jobs). Its state lives in `alert_reasoning_evaluation_jobs`
+(queued/running/evaluated/invalid/failed + wait/run/total timings), never on the
+alert or its workflow; nothing in the evaluator writes an alert.
+
+The judge gives one verdict per reasoning step (alert-level flags derived:
+hallucination if ANY step hallucinates, data use correct only if ALL do) plus the
+explainability criteria of `reasoning_criteria.DEFAULT_CRITERIA` (clarity, step
+consistency, evidence citation, model alignment) once per alert; only the first
+two feed the rollups. `PROMPT_VERSION` is stored on every verdict: bump it on any
+prompt/criteria change. Reads: `GET /alerts/{id}/reasoning-evaluation`,
+`GET /metrics/reasoning-evaluations`, `GET /metrics/reasoning-evaluation-criteria`
+(`monitor`); `POST /alerts/{id}/reasoning-evaluation` asks for one now
+(`configuration`, 202, queues only). The per-day listing is its own table, not a GSI
+(DynamoDB Local never activates an index added to an existing table). `JUDGE_LLM_MODEL`
+must differ from the models that reason (the worker warns). Measure with
+`make reasoning-judge-benchmark` (real model, stores nothing, projects utilization and
+queue wait); calibrate with `make reasoning-judge-review-export` / `-score`. The local
+E2E LLM (`scripted_e2e`) answers the judge deterministically; keep it in sync with the
+prompt format and with the adversarial `decision` field. `make e2e-alert-processing`
+(E07) checks the verdict, the timings and, with the evaluator's worker stopped, that
+alerts still process and stay visible.
 
 ## Project graph — graph-RAG context for the chat agent
 

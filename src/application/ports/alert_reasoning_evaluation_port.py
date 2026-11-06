@@ -40,6 +40,11 @@ class AlertReasoningEvaluationRecord:
     step_verdicts: dict[str, dict[str, object]] = field(default_factory=dict)
     # Judge calls made (2 when the first answer could not be parsed).
     attempts: int = 1
+    # Explainability criteria judged once per alert (v3+): key -> {"passed":
+    # bool | None, "note": str}. None = could not be decided (e.g. no model output).
+    criteria_verdicts: dict[str, dict[str, object]] = field(default_factory=dict)
+    # Milliseconds spent waiting for the judge LLM, all attempts together.
+    duration_ms: int = 0
 
 
 class AlertReasoningEvaluationRepository(Protocol):

@@ -137,6 +137,8 @@ def _to_item(record: AlertReasoningEvaluationRecord) -> dict[str, Any]:
         # notes into maps the rest of the code never needs to query.
         "step_verdicts": json.dumps(record.step_verdicts, ensure_ascii=False),
         "attempts": record.attempts,
+        "criteria_verdicts": json.dumps(record.criteria_verdicts, ensure_ascii=False),
+        "duration_ms": record.duration_ms,
         "alert_id": str(record.alert_id),
         "workflow_execution_id": str(record.workflow_execution_id),
         "status": record.status.value,
@@ -167,12 +169,14 @@ def _from_item(item: dict[str, Any]) -> AlertReasoningEvaluationRecord:
         input_tokens=int(item.get("input_tokens") or 0),
         output_tokens=int(item.get("output_tokens") or 0),
         prompt_version=str(item.get("prompt_version") or "v1"),
-        step_verdicts=_step_verdicts(item.get("step_verdicts")),
+        step_verdicts=_json_dict(item.get("step_verdicts")),
         attempts=int(item.get("attempts") or 1),
+        criteria_verdicts=_json_dict(item.get("criteria_verdicts")),
+        duration_ms=int(item.get("duration_ms") or 0),
     )
 
 
-def _step_verdicts(raw: Any) -> dict[str, dict[str, object]]:
+def _json_dict(raw: Any) -> dict[str, dict[str, object]]:
     if not raw:
         return {}
     try:

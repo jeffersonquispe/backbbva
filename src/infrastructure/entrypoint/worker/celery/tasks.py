@@ -41,6 +41,8 @@ from src.infrastructure.workflows.celery.factories import (
     get_model_repository,
     get_model_storage,
     get_operational_settings_repository,
+    get_recover_reasoning_evaluations_use_case,
+    get_request_reasoning_evaluation_use_case,
 )
 from src.infrastructure.workflows.celery.task_factories import (
     get_analyze_dataset_use_case,
@@ -359,29 +361,56 @@ def document_analyst_decision(
     }
 
 
-# D6 LLM-judge for a sampled, finished alert (dispatched by the alert
-# review runner). Safe to autoretry: EvaluateAlertReasoning reuses a stored
-# verdict and counts it at most once (apply_once marker per alert).
-@app.task(
-    bind=True,
-    name="metrics.evaluate_alert_reasoning",
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_kwargs={"max_retries": 3},
-)
-def evaluate_alert_reasoning(self, alert_id: str, workflow_execution_id: str) -> dict:
-    output = get_evaluate_alert_reasoning_use_case().execute(
-        EvaluateAlertReasoningInput(
-            alert_id=UUID(alert_id),
-            workflow_execution_id=UUID(workflow_execution_id),
-        )
+# The evaluator (D6 LLM-judge) is its own flow, on its own queue and worker. The
+# alert flow only announces "this alert finished" (request task); everything
+# else - sampling, origin rules, the job's state, retries - is the evaluator's.
+# Nothing here writes to the alert or its workflow.
+_EVALUATION_QUEUE = genai_config.CELERY_REASONING_EVALUATION_QUEUE
+_EVALUATION_MAX_RETRIES = 3
+
+
+@app.task(name="metrics.request_reasoning_evaluation")
+def request_reasoning_evaluation(alert_id: str, workflow_execution_id: str) -> dict:
+    output = get_request_reasoning_evaluation_use_case().execute(
+        UUID(alert_id), UUID(workflow_execution_id)
     )
+    return {"outcome": output.outcome.value, "alert_id": alert_id}
+
+
+# Safe to autoretry: EvaluateAlertReasoning reuses a stored verdict and counts it
+# at most once (apply_once marker per alert). After the last retry the job is
+# closed as FAILED so it shows as such instead of hanging in "running".
+@app.task(bind=True, name="metrics.evaluate_alert_reasoning")
+def evaluate_alert_reasoning(self, alert_id: str, workflow_execution_id: str) -> dict:
+    use_case = get_evaluate_alert_reasoning_use_case()
+    try:
+        output = use_case.execute(
+            EvaluateAlertReasoningInput(
+                alert_id=UUID(alert_id),
+                workflow_execution_id=UUID(workflow_execution_id),
+            )
+        )
+    except Exception as error:  # noqa: BLE001 - any provider/storage error is retried
+        if self.request.retries >= _EVALUATION_MAX_RETRIES:
+            use_case.fail(UUID(alert_id), "EVALUATION_FAILED")
+            return {"status": "failed", "alert_id": alert_id, "counted": False}
+        raise self.retry(
+            exc=error,
+            countdown=min(2 ** (self.request.retries + 1) * 5, 120),
+            max_retries=_EVALUATION_MAX_RETRIES,
+        ) from error
     evaluation = output.evaluation
     return {
         "status": evaluation.status.value if evaluation is not None else "skipped",
         "alert_id": alert_id,
         "counted": output.counted,
     }
+
+
+@app.task(name="metrics.recover_reasoning_evaluations")
+def recover_reasoning_evaluations() -> dict:
+    output = get_recover_reasoning_evaluations_use_case().execute()
+    return {"requeued": output.requeued, "failed": output.failed}
 
 
 @app.task(

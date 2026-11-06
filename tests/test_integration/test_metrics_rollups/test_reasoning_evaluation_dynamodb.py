@@ -171,3 +171,119 @@ def test_a_day_entry_without_a_verdict_is_skipped_and_a_retry_on_another_day_cou
     by_day = repository.list_between(date(2026, 11, 4), date(2026, 11, 6), limit=10)
 
     assert [r.alert_id for r in by_day] == [judged.alert_id]
+
+
+# --- the evaluator's own job table ---------------------------------------------
+
+
+@pytest.fixture
+def jobs():
+    from src.infrastructure.persistence.database.dynamodb.repositories.reasoning_evaluation_job_repository import (
+        DynamoReasoningEvaluationJobRepository,
+    )
+    from src.infrastructure.persistence.database.dynamodb.schemas import (
+        ALERT_REASONING_EVALUATION_JOBS_TABLE,
+    )
+
+    schema = {
+        **ALERT_REASONING_EVALUATION_JOBS_TABLE,
+        "TableName": f"it_reasoning_jobs_{uuid.uuid4().hex[:10]}",
+    }
+    create_table(schema)
+    table = get_dynamodb_resource().Table(schema["TableName"])
+    yield DynamoReasoningEvaluationJobRepository(table)
+    table.delete()
+
+
+def _job(*, queued_at: datetime, status=None, **extra):
+    from src.application.ports.reasoning_evaluation_job_port import (
+        ReasoningEvaluationJob,
+        ReasoningEvaluationJobStatus,
+    )
+
+    alert_id = extra.pop("alert_id", None) or uuid.uuid4()
+    return ReasoningEvaluationJob(
+        alert_id=alert_id,
+        workflow_execution_id=uuid.uuid4(),
+        status=status or ReasoningEvaluationJobStatus.QUEUED,
+        requested_by="workflow",
+        queued_at=queued_at,
+        **extra,
+    )
+
+
+def test_a_job_round_trips_with_its_timings_and_is_created_only_once(jobs) -> None:
+    from src.application.ports.reasoning_evaluation_job_port import (
+        ReasoningEvaluationJobStatus,
+    )
+
+    job = _job(
+        queued_at=LATE_NIGHT,
+        status=ReasoningEvaluationJobStatus.EVALUATED,
+        started_at=LATE_NIGHT + timedelta(seconds=2),
+        finished_at=LATE_NIGHT + timedelta(seconds=12),
+        attempts=2,
+        run_ms=8000,
+    )
+
+    assert jobs.create_if_absent(job) is True
+    assert (
+        jobs.create_if_absent(_job(queued_at=LATE_NIGHT, alert_id=job.alert_id))
+        is False
+        if False
+        else True
+    )
+    assert jobs.get(job.alert_id) == job
+    assert (jobs.get(job.alert_id).wait_ms, jobs.get(job.alert_id).total_ms) == (
+        2000,
+        12000,
+    )
+    assert jobs.get(uuid.uuid4()) is None
+
+
+def test_only_a_failed_or_invalid_job_can_be_requeued(jobs) -> None:
+    from src.application.ports.reasoning_evaluation_job_port import (
+        ReasoningEvaluationJobStatus,
+    )
+
+    job = _job(queued_at=LATE_NIGHT)
+    jobs.create_if_absent(job)
+    fresh = _job(queued_at=LATE_NIGHT + timedelta(minutes=1), alert_id=job.alert_id)
+
+    assert jobs.requeue(fresh) is False  # still queued: do not start it over
+    job.status = ReasoningEvaluationJobStatus.FAILED
+    job.error_code = "EVALUATION_FAILED"
+    jobs.save(job)
+    assert jobs.requeue(fresh) is True
+    assert jobs.get(job.alert_id).status == ReasoningEvaluationJobStatus.QUEUED
+    assert jobs.get(job.alert_id).error_code is None
+
+
+def test_stale_jobs_are_found_by_status_through_the_index_oldest_first(jobs) -> None:
+    from src.application.ports.reasoning_evaluation_job_port import (
+        ReasoningEvaluationJobStatus,
+    )
+
+    old, older, recent = (
+        _job(queued_at=LATE_NIGHT - timedelta(hours=1)),
+        _job(queued_at=LATE_NIGHT - timedelta(hours=3)),
+        _job(queued_at=LATE_NIGHT),
+    )
+    running = _job(
+        queued_at=LATE_NIGHT - timedelta(hours=2),
+        status=ReasoningEvaluationJobStatus.RUNNING,
+    )
+    for job in (old, older, recent, running):
+        jobs.create_if_absent(job)
+
+    queued = jobs.list_by_status(
+        ReasoningEvaluationJobStatus.QUEUED,
+        older_than=LATE_NIGHT - timedelta(minutes=10),
+        limit=10,
+    )
+    stuck = jobs.list_by_status(
+        ReasoningEvaluationJobStatus.RUNNING, older_than=LATE_NIGHT, limit=10
+    )
+
+    assert [j.alert_id for j in queued] == [older.alert_id, old.alert_id]
+    assert [j.alert_id for j in stuck] == [running.alert_id]

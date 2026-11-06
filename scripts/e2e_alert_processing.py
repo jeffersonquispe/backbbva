@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import time
 import uuid
@@ -148,6 +149,42 @@ def wait_for_workflow(api: Api, operation_id: str, alert_id: str) -> dict[str, A
     return detail
 
 
+def build_event() -> dict[str, Any]:
+    now = datetime.now(UTC)
+    event_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    prior_transactions = [
+        {
+            "event_time": (now - timedelta(minutes=2 * minute)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+            "amount": amount,
+            "channel": "PSE",
+            "beneficiary_id": "90123456789",
+            "status": "approved",
+        }
+        for minute, amount in enumerate((185000, 240000, 315000, 410000), 1)
+    ]
+    event = {
+        "eventid": str(uuid.uuid4()),
+        "eventtype": "transferencia",
+        "customerid": str(1000000000 + uuid.uuid4().int % 8999999999),
+        "channel": "web",
+        "amount_value": 520000,
+        "fecha_transaccion": event_time,
+        "integrationpoint": "PSE",
+        "triggered_rules": "VELOCITY_03: 5 transacciones en los últimos 10 minutos, incluida la actual",
+        "transactionid": str(uuid.uuid4()),
+        "deviceid": str(uuid.uuid4()),
+        "counterpartyentityid_encrypted": "90123456789",
+        "biocatch_isMobileRat": "false",
+        "biocatch_isEmulator": "false",
+        "biocatch_isRat": "false",
+        "biocatch_isBot": "false",
+        "transacciones_json": json.dumps(prior_transactions),
+    }
+    return event
+
+
 def wait_for_reasoning_evaluation(
     api: Api, alert_id: str, timeout_s: int = 90
 ) -> dict[str, Any]:
@@ -165,7 +202,7 @@ def wait_for_reasoning_evaluation(
         f"El evaluador no emitió un veredicto válido: {view}",
     )
     evaluation = view["evaluation"]
-    require(evaluation["prompt_version"] == "v2", "El veredicto no es del prompt v2")
+    require(evaluation["prompt_version"] == "v3", "El veredicto no es del prompt v3")
     steps = {item["step"]: item for item in evaluation["steps"]}
     require("detector" in steps, f"Falta el veredicto por paso: {sorted(steps)}")
     require(
@@ -177,6 +214,36 @@ def wait_for_reasoning_evaluation(
     require(
         any(not item["hallucination"] for item in steps.values()),
         "Debe haber al menos un paso sin alucinación",
+    )
+    criteria = {item["key"]: item for item in evaluation["criteria"]}
+    require(
+        criteria.get("clarity", {}).get("passed") is True
+        and criteria.get("step_consistency", {}).get("passed") is False
+        and "model_alignment" in criteria
+        and criteria["model_alignment"]["passed"] is None,
+        f"Los criterios de explicabilidad no llegaron como se esperaba: {criteria}",
+    )
+    job = view["job"]
+    require(job is not None, "El veredicto no trae el estado del job del evaluador")
+    require(
+        job["status"] == "evaluated" and job["requested_by"] == "workflow",
+        f"Estado del job inesperado: {job}",
+    )
+    # How long the evaluator takes end to end (queue wait + judge) with the scripted
+    # LLM, i.e. the overhead of the flow itself: a regression here means the queue,
+    # the worker or the job bookkeeping got slower, whatever the real model does.
+    budget_ms = int(os.getenv("E2E_JUDGE_MAX_TOTAL_MS", "60000"))
+    require(
+        job["wait_ms"] is not None and job["total_ms"] is not None,
+        f"El job no registró sus tiempos: {job}",
+    )
+    require(
+        job["total_ms"] <= budget_ms,
+        f"El evaluador tardó {job['total_ms']} ms de punta a punta (máx {budget_ms} ms)",
+    )
+    require(
+        evaluation["duration_ms"] >= 0 and job["run_ms"] == evaluation["duration_ms"],
+        "El tiempo del juez del veredicto y del job no coinciden",
     )
     # Verdict days are Bogotá days, not UTC days.
     bogota_today = datetime.now(ZoneInfo("America/Bogota")).date()
@@ -197,6 +264,54 @@ def wait_for_reasoning_evaluation(
         "data_use_correct": evaluation["data_use_correct"],
         "steps": {name: item["hallucination"] for name, item in steps.items()},
         "prompt_version": evaluation["prompt_version"],
+        "criteria": {key: item["passed"] for key, item in criteria.items()},
+        "timings_ms": {
+            "wait": job["wait_ms"],
+            "judge": job["run_ms"],
+            "total": job["total_ms"],
+        },
+    }
+
+
+def check_evaluator_independence(manager: Api, analyst: Api) -> dict[str, Any]:
+    """With the evaluator's worker STOPPED, an alert is still processed, escalated and
+    visible to the analyst; its evaluation just waits, and completes once the worker is
+    back. The alert never depends on the evaluator."""
+    container = os.getenv("E2E_EVALUATION_WORKER_CONTAINER", "aria-evaluation-worker")
+    subprocess.run(["docker", "stop", container], check=True, capture_output=True)
+    try:
+        started = manager.request(
+            "POST", "/alerts/test", {"event": build_event()}, expected=(202,)
+        )
+        alert_id = str(started["alert_id"])
+        detail = wait_for_workflow(
+            manager, str(started["async_operation_id"]), alert_id
+        )
+        require(
+            detail.get("status") == "ESCALATED",
+            "Con el evaluador caído la alerta no escaló",
+        )
+        require(
+            detail.get("workflow_status") == "SUCCEEDED",
+            "El workflow dependió del evaluador",
+        )
+        queue = analyst.request("GET", "/analyst-queue")
+        require(
+            alert_id in {str(item.get("alert_id")) for item in queue},
+            "La alerta no es visible para el analista con el evaluador caído",
+        )
+        waiting = manager.request("GET", f"/alerts/{alert_id}/reasoning-evaluation")
+        require(
+            waiting["state"] not in {"evaluated", "invalid", "running"},
+            f"Algo evaluó la alerta con el worker detenido: {waiting}",
+        )
+    finally:
+        subprocess.run(["docker", "start", container], check=True, capture_output=True)
+    verdict = wait_for_reasoning_evaluation(manager, alert_id, timeout_s=120)
+    return {
+        "alert_status_while_evaluator_down": detail.get("status"),
+        "state_while_evaluator_down": waiting["state"],
+        "state_after_restart": verdict["state"],
     }
 
 
@@ -240,38 +355,7 @@ def main() -> None:
             expected=(403,),
         )
 
-        now = datetime.now(UTC)
-        event_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-        prior_transactions = [
-            {
-                "event_time": (now - timedelta(minutes=2 * minute)).strftime(
-                    "%Y-%m-%dT%H:%M:%SZ"
-                ),
-                "amount": amount,
-                "channel": "PSE",
-                "beneficiary_id": "90123456789",
-                "status": "approved",
-            }
-            for minute, amount in enumerate((185000, 240000, 315000, 410000), 1)
-        ]
-        event = {
-            "eventid": str(uuid.uuid4()),
-            "eventtype": "transferencia",
-            "customerid": str(1000000000 + uuid.uuid4().int % 8999999999),
-            "channel": "web",
-            "amount_value": 520000,
-            "fecha_transaccion": event_time,
-            "integrationpoint": "PSE",
-            "triggered_rules": "VELOCITY_03: 5 transacciones en los últimos 10 minutos, incluida la actual",
-            "transactionid": str(uuid.uuid4()),
-            "deviceid": str(uuid.uuid4()),
-            "counterpartyentityid_encrypted": "90123456789",
-            "biocatch_isMobileRat": "false",
-            "biocatch_isEmulator": "false",
-            "biocatch_isRat": "false",
-            "biocatch_isBot": "false",
-            "transacciones_json": json.dumps(prior_transactions),
-        }
+        event = build_event()
         started = manager.request(
             "POST",
             "/alerts/test",
@@ -343,6 +427,8 @@ def main() -> None:
             alert_id not in {str(item.get("alert_id")) for item in final_queue},
             "La alerta resuelta sigue en la cola",
         )
+        independence = check_evaluator_independence(manager, analyst)
+
         final_detail = analyst.request("GET", f"/analyst-queue/{alert_id}")
         require(final_detail.get("status") == "CLOSED", "La alerta no quedó CLOSED")
         require(
@@ -369,6 +455,7 @@ def main() -> None:
                 "final_alert_status": final_detail.get("status"),
                 "present_in_queue_after_resolution": False,
                 "reasoning_evaluation": verdict,
+                "evaluator_independence": independence,
             },
         }
         print("E07 E2E OK\n" + json.dumps(result, ensure_ascii=False, indent=2))

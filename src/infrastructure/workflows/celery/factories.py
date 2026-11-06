@@ -107,6 +107,12 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
 from src.application.use_cases.metrics.record_workflow_step_metrics import (
     RecordWorkflowStepMetrics,
 )
+from src.application.use_cases.metrics.recover_reasoning_evaluations import (
+    RecoverStaleReasoningEvaluations,
+)
+from src.application.use_cases.metrics.request_reasoning_evaluation import (
+    RequestReasoningEvaluation,
+)
 from src.application.use_cases.operations.live_operations_capacity import (
     LiveOperationsCapacity,
 )
@@ -213,6 +219,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.operational_s
 from src.infrastructure.persistence.database.dynamodb.repositories.operations_capacity_repository import (
     DynamoOperationsCapacityRepository,
 )
+from src.infrastructure.persistence.database.dynamodb.repositories.reasoning_evaluation_job_repository import (
+    DynamoReasoningEvaluationJobRepository,
+)
 from src.infrastructure.persistence.database.dynamodb.repositories.resource_reservation_repository import (
     DynamoResourceReservationRepository,
 )
@@ -256,6 +265,7 @@ from src.infrastructure.queues.celery.analyst_escalation_dispatcher import (
 )
 from src.infrastructure.queues.celery.reasoning_evaluation_dispatcher import (
     CeleryReasoningEvaluationDispatcher,
+    CeleryReasoningEvaluationJobDispatcher,
 )
 
 # --- stateless adapters: one instance per worker process ---
@@ -449,7 +459,9 @@ def get_fraud_knowledge_search_port() -> OpenSearchFraudKnowledgeSearchAdapter:
 @lru_cache
 def get_search_fraud_knowledge_use_case() -> SearchFraudKnowledgeUseCase:
     return SearchFraudKnowledgeUseCase(
-        get_fraud_knowledge_search_port(), get_vector_store_generation_repository(), get_monitoring()
+        get_fraud_knowledge_search_port(),
+        get_vector_store_generation_repository(),
+        get_monitoring(),
     )
 
 
@@ -528,6 +540,16 @@ def get_alert_action_dispatcher() -> CeleryAlertActionDispatcher:
 @lru_cache
 def get_reasoning_evaluation_dispatcher() -> CeleryReasoningEvaluationDispatcher:
     return CeleryReasoningEvaluationDispatcher()
+
+
+@lru_cache
+def get_reasoning_evaluation_job_dispatcher() -> CeleryReasoningEvaluationJobDispatcher:
+    return CeleryReasoningEvaluationJobDispatcher()
+
+
+@lru_cache
+def get_reasoning_evaluation_job_repository() -> DynamoReasoningEvaluationJobRepository:
+    return DynamoReasoningEvaluationJobRepository()
 
 
 @lru_cache
@@ -856,6 +878,25 @@ def get_evaluate_alert_reasoning_use_case() -> EvaluateAlertReasoning:
         evaluation_repository=get_alert_reasoning_evaluation_repository(),
         rollup_repository=get_metrics_rollup_repository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        clock=get_clock(),
+        jobs=get_reasoning_evaluation_job_repository(),
+    )
+
+
+def get_request_reasoning_evaluation_use_case() -> RequestReasoningEvaluation:
+    return RequestReasoningEvaluation(
+        jobs=get_reasoning_evaluation_job_repository(),
+        alerts=get_alert_repository(),
+        settings=get_operational_settings_repository(),
+        dispatcher=get_reasoning_evaluation_job_dispatcher(),
+        clock=get_clock(),
+    )
+
+
+def get_recover_reasoning_evaluations_use_case() -> RecoverStaleReasoningEvaluations:
+    return RecoverStaleReasoningEvaluations(
+        jobs=get_reasoning_evaluation_job_repository(),
+        dispatcher=get_reasoning_evaluation_job_dispatcher(),
         clock=get_clock(),
     )
 

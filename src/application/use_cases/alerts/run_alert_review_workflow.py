@@ -87,9 +87,6 @@ from src.application.use_cases.alerts.alert_review_policy import (
 )
 from src.application.use_cases.alerts.discard_alert import DiscardAlertUseCase
 from src.application.use_cases.alerts.raw_payload import RawAlertPayloadLoader
-from src.application.use_cases.metrics.evaluate_alert_reasoning import (
-    is_sampled_for_evaluation,
-)
 from src.application.use_cases.metrics.record_alert_metrics_event import (
     RecordAlertMetricsEvent,
 )
@@ -553,17 +550,16 @@ class RunAlertReviewWorkflowUseCase:
             logger.exception("Step metrics failed for alert %s", workflow.alert_id)
 
     def _dispatch_reasoning_evaluation(self, workflow: WorkflowExecutionRecord) -> None:
-        # D6: a sampled share of finished alerts goes to the LLM-judge in
-        # its own task, off this run's critical path. Sampling is
-        # deterministic per alert and the judge is idempotent, so a
-        # duplicate dispatch can't double count.
+        # Fire-and-forget announcement that this alert finished. Whether it is
+        # judged (sampling, origin) and how that goes is the evaluator's own
+        # business, on its own queue and with its own state: the alert is already
+        # resolved, and nothing here waits for or depends on the evaluator.
         try:
-            rate = self._operational_settings.get().reasoning_evaluation_sample_rate
-            if is_sampled_for_evaluation(workflow.alert_id, rate):
-                self._reasoning_evaluation.dispatch(workflow.alert_id, workflow.id)
+            self._reasoning_evaluation.dispatch(workflow.alert_id, workflow.id)
         except Exception:
             logger.exception(
-                "Reasoning evaluation dispatch failed for alert %s", workflow.alert_id
+                "Reasoning evaluation announcement failed for alert %s",
+                workflow.alert_id,
             )
 
     def _escalate_to_analyst(

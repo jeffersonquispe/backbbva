@@ -174,6 +174,9 @@ class Config(BaseSettings):
     # Assistant chat replies: their own queue so a long optimizer candidate on
     # the agent queue never delays an answer.
     CELERY_AGENT_CHAT_QUEUE: str = "agent-chat"
+    # The LLM-judge of the agent's reasoning runs here, on its own worker: alerts
+    # are resolved and visible whether or not the evaluator is up or slow.
+    CELERY_REASONING_EVALUATION_QUEUE: str = "reasoning-evaluation"
     AGENT_STUB_DELAY_SECONDS: float = 0.0
     # Test runs use a dedicated queue and worker so batch CSV work cannot
     # consume production workflow capacity.

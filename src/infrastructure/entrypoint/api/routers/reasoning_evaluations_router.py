@@ -10,23 +10,35 @@ from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from src.application.ports.alert_reasoning_evaluation_port import (
     AlertReasoningEvaluationRecord,
     ReasoningEvaluationStatus,
 )
+from src.application.ports.local_auth_port import LocalUser
+from src.application.ports.reasoning_evaluation_job_port import ReasoningEvaluationJob
 from src.application.use_cases.metrics.read_reasoning_evaluations import (
     GetAlertReasoningEvaluation,
     ListReasoningEvaluations,
     ReasoningEvaluationAlertNotFoundError,
     ReasoningEvaluationRangeError,
 )
+from src.application.use_cases.metrics.reasoning_criteria import (
+    ALERT_CRITERIA,
+    DEFAULT_CRITERIA,
+)
+from src.application.use_cases.metrics.request_reasoning_evaluation import (
+    ReasoningEvaluationNotReadyError,
+    RequestOutcome,
+    RequestReasoningEvaluation,
+)
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.reasoning_evaluation_factory import (
     get_get_alert_reasoning_evaluation_use_case,
     get_list_reasoning_evaluations_use_case,
+    get_request_reasoning_evaluation_use_case,
 )
 
 router = APIRouter(tags=["reasoning-evaluations"])
@@ -37,6 +49,38 @@ class StepVerdictResponse(BaseModel):
     hallucination: bool
     data_use_correct: bool
     note: str = ""
+
+
+class CriterionVerdictResponse(BaseModel):
+    key: str
+    label: str
+    # None = the judge could not decide it (e.g. no model output to compare).
+    passed: bool | None
+    note: str = ""
+
+
+class CriterionResponse(BaseModel):
+    key: str
+    label: str
+    question: str
+    scope: str
+    optional: bool
+    counts_in_rollups: bool
+
+
+class JobResponse(BaseModel):
+    status: str
+    requested_by: str
+    queued_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    attempts: int
+    error_code: str | None
+    # How long it waited for the worker, how long the judge took, and the whole
+    # way from queued to verdict (all in milliseconds, None until known).
+    wait_ms: int | None
+    run_ms: int
+    total_ms: int | None
 
 
 class ReasoningEvaluationResponse(BaseModel):
@@ -51,14 +95,34 @@ class ReasoningEvaluationResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     evaluated_at: datetime
+    duration_ms: int
     steps: list[StepVerdictResponse]
+    criteria: list[CriterionVerdictResponse]
 
 
 class AlertReasoningEvaluationResponse(BaseModel):
     alert_id: UUID
-    # evaluated | invalid | pending | not_sampled | not_applicable
+    # evaluated | invalid | queued | running | failed | not_sampled | not_applicable
     state: str
     evaluation: ReasoningEvaluationResponse | None
+    job: JobResponse | None = None
+
+
+def _job(job: ReasoningEvaluationJob | None) -> JobResponse | None:
+    if job is None:
+        return None
+    return JobResponse(
+        status=job.status.value,
+        requested_by=job.requested_by,
+        queued_at=job.queued_at,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+        attempts=job.attempts,
+        error_code=job.error_code,
+        wait_ms=job.wait_ms,
+        run_ms=job.run_ms,
+        total_ms=job.total_ms,
+    )
 
 
 def _evaluation(record: AlertReasoningEvaluationRecord) -> ReasoningEvaluationResponse:
@@ -74,6 +138,17 @@ def _evaluation(record: AlertReasoningEvaluationRecord) -> ReasoningEvaluationRe
         input_tokens=record.input_tokens,
         output_tokens=record.output_tokens,
         evaluated_at=record.evaluated_at,
+        duration_ms=record.duration_ms,
+        criteria=[
+            CriterionVerdictResponse(
+                key=criterion.key,
+                label=criterion.label,
+                passed=record.criteria_verdicts[criterion.key].get("passed"),  # type: ignore[arg-type]
+                note=str(record.criteria_verdicts[criterion.key].get("note") or ""),
+            )
+            for criterion in ALERT_CRITERIA
+            if criterion.key in record.criteria_verdicts
+        ],
         steps=[
             StepVerdictResponse(
                 step=name,
@@ -109,7 +184,73 @@ def get_alert_reasoning_evaluation(
         alert_id=view.alert_id,
         state=view.state.value,
         evaluation=_evaluation(view.evaluation) if view.evaluation else None,
+        job=_job(view.job),
     )
+
+
+@router.post(
+    "/alerts/{alert_id}/reasoning-evaluation",
+    response_model=AlertReasoningEvaluationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def request_alert_reasoning_evaluation(
+    alert_id: UUID,
+    _: Annotated[LocalUser, Depends(require_permission("configuration"))],
+    use_case: Annotated[
+        RequestReasoningEvaluation, Depends(get_request_reasoning_evaluation_use_case)
+    ],
+) -> AlertReasoningEvaluationResponse:
+    """Evaluate this alert now, whatever the sample rate. It only opens the job
+    and queues it for the evaluator's worker (202): the answer comes later through
+    ``GET``. Asking twice returns the existing job; a failed or invalid one is
+    queued again. Costs an LLM call, hence the ``configuration`` permission."""
+    try:
+        output = use_case.execute(alert_id, forced=True)
+    except ReasoningEvaluationAlertNotFoundError as error:
+        raise HTTPException(
+            status_code=404, detail={"code": "ALERT_NOT_FOUND"}
+        ) from error
+    except ReasoningEvaluationNotReadyError as error:
+        raise HTTPException(
+            status_code=409, detail={"code": "ALERT_NOT_FINISHED"}
+        ) from error
+    if output.outcome == RequestOutcome.NOT_APPLICABLE:
+        raise HTTPException(status_code=409, detail={"code": "ALERT_NOT_JUDGEABLE"})
+    job = output.job
+    state = (
+        {
+            "queued": "queued",
+            "running": "running",
+            "failed": "failed",
+            "invalid": "invalid",
+            "evaluated": "evaluated",
+        }[job.status.value]
+        if job
+        else "queued"
+    )
+    return AlertReasoningEvaluationResponse(
+        alert_id=alert_id, state=state, evaluation=None, job=_job(job)
+    )
+
+
+@router.get(
+    "/metrics/reasoning-evaluation-criteria",
+    response_model=list[CriterionResponse],
+    dependencies=[Depends(require_permission("monitor"))],
+)
+def list_reasoning_evaluation_criteria() -> list[CriterionResponse]:
+    """The criteria the judge applies by default, with the question it asks."""
+    return [
+        CriterionResponse(
+            key=c.key,
+            label=c.label,
+            question=c.question,
+            scope=c.scope,
+            optional=c.optional,
+            counts_in_rollups=c.counts_in_rollups,
+        )
+        for c in DEFAULT_CRITERIA
+    ]
 
 
 @router.get(

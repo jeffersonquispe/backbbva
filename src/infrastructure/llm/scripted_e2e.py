@@ -133,5 +133,17 @@ def _scripted_judge_verdict(messages: list[LLMMessage]) -> str:
         for name in steps
     }
     return json.dumps(
-        {"steps": verdicts, "rationale": "Veredicto determinista del evaluador E2E."}
+        {
+            "steps": verdicts,
+            "criteria": {
+                "clarity": {"passed": True, "note": "La explicación se entiende."},
+                "step_consistency": {
+                    "passed": False,
+                    "note": "El detector y su revisión adversarial no coinciden del todo.",
+                },
+                "evidence_citation": {"passed": True, "note": "Cita campos del evento."},
+                "model_alignment": {"passed": None, "note": "No hubo salida del modelo."},
+            },
+            "rationale": "Veredicto determinista del evaluador E2E.",
+        }
     )

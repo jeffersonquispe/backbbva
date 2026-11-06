@@ -250,6 +250,13 @@ reasoning-judge-review-export:  ## Export a random sample of LLM-judge verdicts 
 		python -m src.infrastructure.entrypoint.worker.reasoning_judge_calibration export \
 		--from $(FROM) --to $(TO) --size $(or $(SIZE),40) --seed $(or $(SEED),1) --out $(or $(OUT),reasoning-judge-review.csv)
 
+.PHONY: reasoning-judge-benchmark
+reasoning-judge-benchmark:  ## Time the LLM-judge with the REAL model on already-judged alerts (stores nothing) and project whether the evaluator keeps up. Vars: SAMPLES(5), ALERTS_PER_DAY(1600), WORKERS(1), PEAK_FACTOR(3)
+	$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) \
+		exec -T aria-evaluation-worker python -m src.infrastructure.entrypoint.worker.reasoning_judge_benchmark \
+		--samples $(or $(SAMPLES),5) --alerts-per-day $(or $(ALERTS_PER_DAY),1600) \
+		--workers $(or $(WORKERS),1) --peak-factor $(or $(PEAK_FACTOR),3)
+
 .PHONY: reasoning-judge-review-score
 reasoning-judge-review-score:  ## Agreement (accuracy, Cohen's kappa, false positives/negatives) between the LLM-judge and the filled review sheet. Var: FILE (required)
 	@if [ -z "$(FILE)" ]; then echo "ERROR: usage: make reasoning-judge-review-score FILE=reasoning-judge-review.csv"; exit 1; fi
@@ -542,7 +549,7 @@ local-docker-build:  ## Build local API, worker and MCP images. Vars: LOCAL_DOCK
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-agent-beat aria-worker-training mcp
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat aria-worker-training mcp
 
 .PHONY: local-api-build
 local-api-build:  ## Build only the local API image from the current backend source.
@@ -556,7 +563,7 @@ local-worker-refresh:  ## Recreate local alert/test/training workers and MCP fro
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		up -d --force-recreate aria-worker-main aria-agent-worker aria-agent-chat-worker aria-agent-beat aria-worker-test aria-worker-training mcp
+		up -d --force-recreate aria-worker-main aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat aria-worker-test aria-worker-training mcp
 
 .PHONY: local-test-queue-purge
 local-test-queue-purge:  ## Purge queued test-run tasks after stopping the local test worker.
@@ -574,11 +581,11 @@ local-e2e-logs:  ## Show recent local API and E2E worker logs.
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		logs --tail=120 --no-color api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-agent-beat aria-worker-test
+		logs --tail=120 --no-color api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat aria-worker-test
 
 .PHONY: local-worker-stats
 local-worker-stats:  ## Show a point-in-time CPU/RAM reading for local worker services.
-	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) ps -q aria-worker-main aria-agent-worker aria-agent-chat-worker aria-agent-beat aria-worker-training aria-worker-test aria-worker-scheduler aria-worker-simulator | xargs $(DOCKER) stats --no-stream
+	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) ps -q aria-worker-main aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat aria-worker-training aria-worker-test aria-worker-scheduler aria-worker-simulator | xargs $(DOCKER) stats --no-stream
 
 .PHONY: local-docker-run
 local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, default ../frontend_mockup). Set LOCAL_DOCKER_TEST_WORKERS to scale isolated test workers. Vars: LOCAL_DOCKER_ENV, LOCAL_API_PORT, LOCAL_DYNAMODB_PORT, LOCAL_IMAGE_TAG, LOCAL_DOCKER_TEST_WORKERS
@@ -594,7 +601,7 @@ local-docker-run:  ## Run local Docker API stack + frontend (FRONTEND_DIR, defau
 	@$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		restart api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-agent-beat aria-worker-training mcp
+		restart api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat aria-worker-training mcp
 	@if [ -d "$(FRONTEND_DIR)" ]; then \
 		$(MAKE) -C $(FRONTEND_DIR) run; \
 	else \
@@ -768,7 +775,7 @@ e2e-observability:  ## (E2E_SKIP_BUILD=1 reuses built images) Rebuild API/worker
 	@$(if $(E2E_SKIP_BUILD),echo "E2E_SKIP_BUILD=1: reusing existing backend images",$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-agent-beat)
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat)
 	@$(if $(E2E_SKIP_BUILD),:,$(MAKE) -C ../frontend_mockup build)
 	@$(MAKE) local-docker-run
 	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
@@ -864,7 +871,7 @@ e2e-agent-local:  ## Run real assistant/optimizer API and Celery lifecycle E2E t
 	@$(if $(E2E_SKIP_BUILD),echo "E2E_SKIP_BUILD=1: reusing existing backend images",$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-agent-beat)
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat)
 	@$(MAKE) local-docker-run
 	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 		LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
@@ -882,7 +889,7 @@ e2e-agent-h9-local:  ## Run the H9 optimizer Playwright flow through nginx local
 	$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-agent-worker aria-agent-chat-worker aria-agent-beat; \
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat; \
 	LOCAL_DOCKER_TEST_WORKERS=$(E2E_AGENT_TEST_WORKERS) $(MAKE) local-docker-run; \
 	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
@@ -906,7 +913,7 @@ e2e-agent-h11-local:  ## Seed a real mature final sample, then evaluate the four
 	$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api mcp aria-agent-worker aria-agent-chat-worker aria-agent-beat; \
+		build $(LOCAL_DOCKER_BUILD_ARGS) api mcp aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat; \
 	LOCAL_DOCKER_TEST_WORKERS=$(E2E_AGENT_TEST_WORKERS) $(MAKE) local-docker-run; \
 	E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 	LOCAL_DOCKER_PROJECT=$(LOCAL_DOCKER_PROJECT) \
@@ -1030,7 +1037,7 @@ e2e-all-local:  ## (E2E_SKIP_BUILD=1 reuses built images) Rebuild the local stac
 	@$(if $(E2E_SKIP_BUILD),echo "E2E_SKIP_BUILD=1: reusing existing backend images",$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose \
 		-p $(LOCAL_DOCKER_PROJECT) \
 		-f $(LOCAL_DOCKER_COMPOSE_FILE) \
-		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-agent-beat)
+		build $(LOCAL_DOCKER_BUILD_ARGS) api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat)
 	@$(if $(E2E_SKIP_BUILD),:,$(MAKE) -C ../frontend_mockup build)
 	@CELERY_STUCK_TASK_TIMEOUT_SECONDS=120 $(MAKE) local-docker-run
 	@CELERY_STUCK_TASK_TIMEOUT_SECONDS=120 E2E_FULL_SUITE=1 E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
@@ -1051,7 +1058,7 @@ e2e-real:  ## Run real E2E from zero (default) or resume at a numbered E2E_FROM 
 	@$(MAKE) -C ../frontend_mockup run
 	@if test -z "$(E2E_FROM)" -o "$(E2E_FROM)" = "0"; then \
 		E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) $(PYTHON) scripts/e2e_api_clean.py --yes && \
-		$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) restart api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-agent-beat && \
+		$(LOCAL_DOCKER_ENV_FLAGS) $(DOCKER) compose -p $(LOCAL_DOCKER_PROJECT) -f $(LOCAL_DOCKER_COMPOSE_FILE) restart api aria-worker-main aria-agent-worker aria-agent-chat-worker aria-evaluation-worker aria-agent-beat && \
 		$(MAKE) -C ../frontend_mockup down && $(MAKE) -C ../frontend_mockup run && \
 		$(MAKE) e2e-seed E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
 			E2E_MANAGER_EMAIL=$(E2E_MANAGER_EMAIL) E2E_MANAGER_PASSWORD=$(E2E_MANAGER_PASSWORD) \

@@ -20,6 +20,16 @@ def periodic_schedule(
     self-rescheduling so each running scenario keeps its own cadence.
     """
     return {
+        # The evaluator's silent safety net: re-queues evaluation jobs whose
+        # message was lost or whose worker died. It never reads alerts.
+        "recover-reasoning-evaluations": {
+            "task": "metrics.recover_reasoning_evaluations",
+            "schedule": 300.0,
+            "options": {
+                "queue": genai_config.CELERY_REASONING_EVALUATION_QUEUE,
+                "expires": 300,
+            },
+        },
         "reconcile-async-operations": {
             "task": "async_operations.reconcile",
             "schedule": reconcile_interval_seconds,

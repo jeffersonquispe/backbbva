@@ -243,6 +243,30 @@ ALERT_REASONING_EVALUATIONS_TABLE = {
     "AttributeDefinitions": [{"AttributeName": "alert_id", "AttributeType": "S"}],
 }
 
+# The evaluator's own job state, one row per alert it was asked to judge (#3
+# evaluator independence): queued/running/evaluated/invalid/failed with timings.
+# Created with its index (a new table), never altered afterwards.
+ALERT_REASONING_EVALUATION_JOBS_TABLE = {
+    "TableName": "alert_reasoning_evaluation_jobs",
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [{"AttributeName": "alert_id", "KeyType": "HASH"}],
+    "AttributeDefinitions": [
+        {"AttributeName": "alert_id", "AttributeType": "S"},
+        {"AttributeName": "status", "AttributeType": "S"},
+        {"AttributeName": "queued_at", "AttributeType": "S"},
+    ],
+    "GlobalSecondaryIndexes": [
+        {
+            "IndexName": "StatusIdx",
+            "KeySchema": [
+                {"AttributeName": "status", "KeyType": "HASH"},
+                {"AttributeName": "queued_at", "KeyType": "RANGE"},
+            ],
+            "Projection": {"ProjectionType": "ALL"},
+        }
+    ],
+}
+
 # "Which alerts did the judge evaluate on this Bogotá day", without scanning the
 # verdicts. A table of its own (not a GSI on the verdicts) so it also exists in
 # environments that already have the verdicts table: DynamoDB Local never
