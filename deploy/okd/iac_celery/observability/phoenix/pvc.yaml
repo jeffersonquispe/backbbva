@@ -1,0 +1,16 @@
+# Persistent data of Phoenix's PostgreSQL (traces). Retention
+# (PHOENIX_RETENTION_DAYS) bounds growth; size it with platform and back it up
+# separately: retention is not a backup.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: phoenix-db-data
+  labels:
+    app.kubernetes.io/name: phoenix-db
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: aria-observability
+    app.kubernetes.io/managed-by: argocd
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ceph-rbd
+  resources: {requests: {storage: 20Gi}}

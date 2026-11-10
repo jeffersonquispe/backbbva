@@ -13,10 +13,14 @@ spec:
     spec:
       enableServiceLinks: false
       serviceAccountName: aria-phoenix
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: artifactory-auth
       containers:
         - name: phoenix
-          # Pin the version (decision with platform before production).
-          image: docker.io/arizephoenix/phoenix:version-19.21.0
+          # Docker Hub image through BBVA Artifactory (hub.docker.com-remote, the
+          # remote Jenkins already uses). Pin the version with platform before production.
+          image: artifactory.globaldevtools.bbva.com:443/hub.docker.com-remote/arizephoenix/phoenix:version-19.21.0
           ports: [{name: http, containerPort: 6006}]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 200m, memory: 1Gi}, limits: {cpu: "2", memory: 2Gi}}

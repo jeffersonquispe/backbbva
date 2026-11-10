@@ -61,13 +61,17 @@ dashes), step spans carry `aria.workflow.step_id`, LLM/embedding/tool spans
 `aria.run_id`. Retention is `PHOENIX_RETENTION_DAYS` (days, default 30, `0` =
 forever) in `aria-phoenix-config`; it is not a backup, so back up the
 `phoenix-db` PVC with the platform. Before the first sync create the secret
-(`oc create secret generic aria-phoenix-runtime ...`). Open points for platform:
-the images (`docker.io/arizephoenix/phoenix:version-19.21.0` and
-`quay.io/sclorg/postgresql-16-c9s`, which must be reachable or mirrored in
-Artifactory; the latter runs under OKD's arbitrary UID), whether the ADOT
-Collector image ships the `otlphttp` exporter (it does in current builds; check
-with `otelcol validate`), TLS/authentication for `/phoenix/` and restricting the
-Route. Phoenix's UI also calls `static.scarf.sh` and `sessions.bugsnag.com` from
+(`oc create secret generic aria-phoenix-runtime ...`; `artifactory-auth` must
+already exist). Images, both through Artifactory's Docker Hub remote:
+`artifactory.globaldevtools.bbva.com:443/hub.docker.com-remote/arizephoenix/phoenix:version-19.21.0`
+and `.../hub.docker.com-remote/library/postgres:16`. Postgres runs as fixed UID
+999 with an `anyuid` RoleBinding on `phoenix-db-sa` (same pattern as OpenSearch)
+and the PVC `phoenix-db-data` (20Gi, `ceph-rbd`). Verified: the Collector config
+with `otlphttp/phoenix` starts on both the ADOT image used here
+(`aws-otel-collector:v0.43.2`) and `otel/opentelemetry-collector-contrib:0.116.1`
+(local). Open points for platform: that those two Artifactory paths exist and
+are pullable (not reachable from outside the VPN, so not checked), TLS and
+authentication for `/phoenix/`, and restricting the Route. Phoenix's UI also calls `static.scarf.sh` and `sessions.bugsnag.com` from
 the browser; block them at the network level if required.
 
 `observability-minio` is separate from the application `minio`. Grafana
