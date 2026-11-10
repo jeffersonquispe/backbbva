@@ -264,6 +264,16 @@ the sole boundary. Local stack: `deploy/local/docker/observability/`,
 content is opt-in via `OTEL_CAPTURE_LLM_CONTENT` (default `false`) — never
 flip that default.
 
+Arize Phoenix (trace UI, PostgreSQL-backed, never SQLite) is one more
+Collector destination (`otlphttp/phoenix`); the app never imports or
+configures it. Trace identity: `trace_id` = `workflow_execution_id`
+(`MonitoringPort.start_workflow`, derived deterministically so retries and
+processes share the trace without W3C headers in Celery messages); each step
+span carries `aria.workflow.step_id`; each LLM/embedding/tool span carries a
+fresh `aria.run_id`. `aria.run_id`/`aria.workflow.*` ids are for trace search
+only - never metric dimensions. Retention: `PHOENIX_RETENTION_DAYS` (days,
+default 30, `0` = forever), read by the Phoenix container, not by the app.
+
 Span dimension attributes use the `ATTR_*` constants /
 `span_dimension_attributes(snapshot)` in `application/ports/monitoring_port.py`
 (names mirror `AlertMetricsSnapshot`). **Never put `customer_id` or the exact

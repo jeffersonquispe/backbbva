@@ -286,3 +286,11 @@ cambios en producción comparten `audit_correlation_id` con el audit log. Los
 spans `agent.session/iteration/specialist/tool` siguen siendo el contrato de
 trazas. Alertas sugeridas: `aria_optimizer_recoveries_total` > 0 sostenido (workers
 inestables) y `aria_optimizer_blocks_total{reason="COST_ANOMALY"}`.
+
+## Arize Phoenix (trazas jerárquicas)
+
+- UI local: `http://localhost/phoenix/` por el nginx del frontend (el proxy quita el prefijo; Phoenix usa `PHOENIX_HOST_ROOT_PATH=/phoenix`; también `http://localhost:6006` directo) (`make observability-up` levanta `phoenix` y `phoenix-db`). Solo el Collector exporta a Phoenix (`otlphttp/phoenix`, endpoint en `PHOENIX_OTLP_ENDPOINT`); si Phoenix cae, Tempo y métricas siguen.
+- Buscar una ejecución: el `trace_id` es el `workflow_execution_id` sin guiones. Cada etapa tiene `aria.workflow.step_id`; cada llamada LLM/embedding/herramienta tiene `aria.run_id`.
+- Retención: variable `PHOENIX_RETENTION_DAYS` (días; defecto 30; `0` = sin límite). En OKD, `aria-phoenix-config`. La retención no es backup: respalde el PVC de `phoenix-db`.
+- Versión: `PHOENIX_VERSION` (local) / imagen fijada en `observability/phoenix/deployment.yaml`. Secretos de PostgreSQL: `aria-phoenix-runtime` (plantilla `secret.example.yaml`).
+- Pendiente con plataforma: TLS/autenticación y exposición de la UI, backups.
