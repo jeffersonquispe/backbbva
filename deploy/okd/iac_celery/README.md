@@ -49,10 +49,26 @@ Applications still only know `OTEL_ENDPOINT`; the Collector fans out:
 otel-collector -> tempo (traces, OTLP gRPC)
                -> loki (logs, OTLP/HTTP)
                -> prometheus (metrics, OTLP/HTTP, --web.enable-otlp-receiver)
+               -> phoenix (traces, OTLP/HTTP; own queue, an outage never blocks the others)
                -> otlp/upstream (still the BBVA placeholder)
 tempo, loki -> observability-minio (buckets created by the observability-minio-init Argo Sync hook)
 grafana     -> prometheus, tempo, loki   (exposed by nginx at /grafana/, no anonymous access)
+phoenix     -> phoenix-db (PostgreSQL StatefulSet, 20Gi ceph-rbd PVC)   (exposed by nginx at /phoenix/, NO login yet)
 ```
+
+**Phoenix (trace UI).** Trace identity: `trace_id` = workflow execution UUID (no
+dashes), step spans carry `aria.workflow.step_id`, LLM/embedding/tool spans
+`aria.run_id`. Retention is `PHOENIX_RETENTION_DAYS` (days, default 30, `0` =
+forever) in `aria-phoenix-config`; it is not a backup, so back up the
+`phoenix-db` PVC with the platform. Before the first sync create the secret
+(`oc create secret generic aria-phoenix-runtime ...`). Open points for platform:
+the images (`docker.io/arizephoenix/phoenix:version-19.21.0` and
+`quay.io/sclorg/postgresql-16-c9s`, which must be reachable or mirrored in
+Artifactory; the latter runs under OKD's arbitrary UID), whether the ADOT
+Collector image ships the `otlphttp` exporter (it does in current builds; check
+with `otelcol validate`), TLS/authentication for `/phoenix/` and restricting the
+Route. Phoenix's UI also calls `static.scarf.sh` and `sessions.bugsnag.com` from
+the browser; block them at the network level if required.
 
 `observability-minio` is separate from the application `minio`. Grafana
 provisioning and dashboards under `observability/grafana/` are copies of
@@ -91,6 +107,7 @@ so Argo CD never commits, syncs, or overwrites real values.
 | OpenSearch | `aria-opensearch-runtime` | `OPENSEARCH_INITIAL_ADMIN_PASSWORD` |
 | `aria-agent-worker`, `aria-agent-chat-worker`, `aria-evaluation-worker`, `aria-agent-beat` | `aria-worker-main-runtime` | same as `aria-worker-main` |
 | Observability MinIO, Tempo, Loki, bucket init | `aria-observability-minio-runtime` | `S3_ACCESS_KEY`, `S3_SECRET_KEY` |
+| Phoenix, phoenix-db | `aria-phoenix-runtime` | `PHOENIX_DB_USER`, `PHOENIX_DB_PASSWORD`, `PHOENIX_DB_NAME` (template: `observability/phoenix/secret.example.yaml`) |
 | Grafana | `aria-grafana-runtime` | `GF_SECURITY_ADMIN_USER`, `GF_SECURITY_ADMIN_PASSWORD` |
 
 Redis and DynamoDB are configured without credentials and need no Secret.

@@ -1,0 +1,49 @@
+# PostgreSQL for Phoenix (never SQLite). Data lives on a persistent volume.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: phoenix-db
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
+  labels: {app.kubernetes.io/name: phoenix-db, app.kubernetes.io/part-of: aria-observability, app.kubernetes.io/managed-by: argocd}
+spec:
+  serviceName: phoenix-db
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: phoenix-db}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: phoenix-db, app.kubernetes.io/part-of: aria-observability}}
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: aria-phoenix
+      containers:
+        - name: postgres
+          image: quay.io/sclorg/postgresql-16-c9s:latest
+          ports: [{name: pg, containerPort: 5432}]
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
+          resources: {requests: {cpu: 100m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
+          env:
+            - name: POSTGRESQL_USER
+              valueFrom: {secretKeyRef: {name: aria-phoenix-runtime, key: PHOENIX_DB_USER}}
+            - name: POSTGRESQL_PASSWORD
+              valueFrom: {secretKeyRef: {name: aria-phoenix-runtime, key: PHOENIX_DB_PASSWORD}}
+            - name: POSTGRESQL_DATABASE
+              valueFrom: {secretKeyRef: {name: aria-phoenix-runtime, key: PHOENIX_DB_NAME}}
+          volumeMounts: [{name: data, mountPath: /var/lib/pgsql/data}]
+          startupProbe: {tcpSocket: {port: pg}, periodSeconds: 5, failureThreshold: 36}
+          readinessProbe: {exec: {command: [/usr/libexec/check-container]}, periodSeconds: 10}
+          livenessProbe: {exec: {command: [/usr/libexec/check-container, --live]}, periodSeconds: 20}
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: ceph-rbd
+        resources: {requests: {storage: 20Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: phoenix-db
+  labels: {app.kubernetes.io/name: phoenix-db, app.kubernetes.io/part-of: aria-observability, app.kubernetes.io/managed-by: argocd}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: phoenix-db}
+  ports: [{name: pg, port: 5432, targetPort: pg}]

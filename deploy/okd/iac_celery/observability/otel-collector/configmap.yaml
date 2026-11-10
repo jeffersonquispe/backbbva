@@ -64,6 +64,18 @@ data:
         endpoint: http://loki:3100/otlp
         tls:
           insecure: true
+      # Arize Phoenix (traces only). Own queue/retry: a Phoenix outage never
+      # blocks the other exporters. Endpoint: PHOENIX_OTLP_ENDPOINT env.
+      otlphttp/phoenix:
+        endpoint: ${env:PHOENIX_OTLP_ENDPOINT}
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 2000
+        retry_on_failure:
+          enabled: true
+          max_elapsed_time: 60s
       # Prometheus native OTLP receiver (--web.enable-otlp-receiver).
       otlphttp/prometheus:
         endpoint: http://prometheus:9090/api/v1/otlp
@@ -79,7 +91,7 @@ data:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [debug, otlp/upstream, otlp/tempo]
+          exporters: [debug, otlp/upstream, otlp/tempo, otlphttp/phoenix]
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, batch]

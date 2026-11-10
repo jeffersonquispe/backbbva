@@ -54,6 +54,11 @@ data:
   EXECUTOR_LLM_MODEL: asistentelupita-llm-work-agent-gpt52
   REPORT_LLM_MODEL: asistentelupita-llm-work-agent-gpt52
   JUDGE_LLM_MODEL: ""
+  # Catalog of Azure deployments an element may select in Configuración/Pruebas:
+  # JSON list, e.g. '[{"nombre":"principal","deployment":"<azure-deployment>"}]'.
+  # Empty = no catalog; every element keeps its *_LLM_MODEL above. Invalid JSON
+  # stops the process at start-up. Keep the same value in API and workers.
+  LLM_CATALOG: ""
   EMBEDDING_MODEL: agentepqrs-llm-live-emebed-3-large
   EMBEDDING_DIMENSIONS: "3072"
   OTEL_ENDPOINT: http://otel-collector:4317

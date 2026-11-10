@@ -1,0 +1,30 @@
+# Phoenix accepts traces only from the Collector; Postgres only from Phoenix.
+# UI exposure (Route, TLS, authentication) is decided with platform.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: phoenix-ingress
+  labels: {app.kubernetes.io/name: phoenix, app.kubernetes.io/part-of: aria-observability, app.kubernetes.io/managed-by: argocd}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: phoenix}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [otel-collector]}]}
+      ports: [{protocol: TCP, port: 6006}]
+    - from:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [nginx]}]}
+      ports: [{protocol: TCP, port: 6006}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: phoenix-db-ingress
+  labels: {app.kubernetes.io/name: phoenix-db, app.kubernetes.io/part-of: aria-observability, app.kubernetes.io/managed-by: argocd}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: phoenix-db}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchExpressions: [{key: app.kubernetes.io/name, operator: In, values: [phoenix]}]}
+      ports: [{protocol: TCP, port: 5432}]
