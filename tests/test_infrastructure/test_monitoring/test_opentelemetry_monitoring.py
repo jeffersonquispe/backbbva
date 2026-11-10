@@ -87,3 +87,43 @@ def test_record_dependency_adds_event():
     event = next(e for e in finished.events if e.name == "dependency.call")
     assert event.attributes["dependency.name"] == "workflow_repository"
     assert event.attributes["dependency.kind"] == "dynamodb"
+
+
+def test_start_workflow_uses_workflow_uuid_as_trace_id_across_attempts():
+    from uuid import uuid4
+
+    monitoring, exporter = _build_monitoring()
+    workflow_id = uuid4()
+
+    for _ in range(2):  # a retry is a second root span in the same trace
+        with monitoring.start_workflow("wf", workflow_id):
+            with monitoring.start("wf.step", "workflow.step"):
+                pass
+
+    spans = exporter.get_finished_spans()
+    assert {s.context.trace_id for s in spans} == {workflow_id.int}
+    assert len({s.context.span_id for s in spans}) == 4
+    roots = [s for s in spans if s.name == "wf"]
+    assert all(s.attributes["aria.workflow.id"] == str(workflow_id) for s in roots)
+    step = next(s for s in spans if s.name == "wf.step")
+    assert step.parent is not None
+    assert step.parent.span_id in {r.context.span_id for r in roots}
+
+
+def test_llm_and_tool_spans_get_unique_run_ids_but_steps_do_not():
+    monitoring, exporter = _build_monitoring()
+
+    with monitoring.start("a", "llm"):
+        pass
+    with monitoring.start("b", "tool"):
+        pass
+    with monitoring.start("c", "workflow.step"):
+        pass
+
+    a, b, c = exporter.get_finished_spans()
+    assert a.attributes["aria.run_id"] != b.attributes["aria.run_id"]
+    assert a.attributes["aria.operation.type"] == "llm"
+    assert "aria.run_id" not in c.attributes
+    for span in (a, b, c):
+        assert "customer_id" not in span.attributes
+        assert "amount" not in span.attributes

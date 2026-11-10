@@ -49,6 +49,7 @@ from src.application.ports.monitoring_port import (
     ATTR_WORKFLOW_EXECUTION_ID,
     ATTR_WORKFLOW_OUTCOME,
     ATTR_WORKFLOW_STEP,
+    ATTR_WORKFLOW_STEP_ID,
     WORKFLOW_TOTAL_STEP,
     MonitoringPort,
     span_dimension_attributes,
@@ -189,9 +190,9 @@ class RunAlertReviewWorkflowUseCase:
         self._dimensions = span_dimension_attributes(
             alert.metrics if alert is not None else None
         )
-        span = self._monitoring.start(
+        span = self._monitoring.start_workflow(
             "alert_review_workflow",
-            "workflow",
+            workflow.id,
             metadata={
                 ATTR_ALERT_ID: str(workflow.alert_id),
                 ATTR_WORKFLOW_EXECUTION_ID: str(workflow.id),
@@ -627,6 +628,7 @@ class RunAlertReviewWorkflowUseCase:
             metadata={
                 ATTR_ALERT_ID: str(workflow.alert_id),
                 ATTR_WORKFLOW_STEP: step_name,
+                ATTR_WORKFLOW_STEP_ID: str(step.id),
                 ATTR_WORKFLOW_ATTEMPT: attempt,
                 **self._dimensions,
             },
