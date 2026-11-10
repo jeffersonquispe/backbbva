@@ -36,6 +36,19 @@ exporters:
     endpoint: tempo:4317
     tls:
       insecure: true
+  # Arize Phoenix over OTLP HTTP. Own sending queue + bounded retries: if
+  # Phoenix is down only this exporter drops data; Tempo and the span
+  # metrics keep flowing. Endpoint comes from the Collector's environment.
+  otlphttp/phoenix:
+    endpoint: ${env:PHOENIX_OTLP_ENDPOINT}
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      queue_size: 2000
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 60s
   prometheus:
     endpoint: 0.0.0.0:8889
   # Loki 3.x native OTLP ingestion: resource attributes become labels
@@ -54,7 +67,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [otlp/tempo, spanmetrics]
+      exporters: [otlp/tempo, otlphttp/phoenix, spanmetrics]
     metrics:
       receivers: [otlp, spanmetrics]
       processors: [memory_limiter, batch]

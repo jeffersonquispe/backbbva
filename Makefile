@@ -633,7 +633,7 @@ local-docker-down:  ## Remove local Docker API stack + frontend containers and n
 	fi
 
 # ─── Local observability services in the general local stack ──
-OBSERVABILITY_SERVICES := observability-minio observability-minio-init otel-collector tempo loki prometheus grafana
+OBSERVABILITY_SERVICES := observability-minio observability-minio-init otel-collector tempo loki prometheus grafana phoenix-db phoenix
 
 .PHONY: observability-up
 observability-up:  ## Start the local observability stack (Grafana at :3000).
