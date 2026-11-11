@@ -1,12 +1,12 @@
 import base64
+import contextlib
 import importlib.util
 import json
+import os
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
-
 
 SCRIPT = Path(__file__).parents[2] / "deploy/okd/automation/deploy.py"
 SPEC = importlib.util.spec_from_file_location("okd_deploy", SCRIPT)
@@ -15,19 +15,61 @@ deploy = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(deploy)
 
 
+@contextlib.contextmanager
+def replaced(target, **attributes):
+    """Temporarily replace attributes of ``target`` (hand-written, no unittest.mock)."""
+    missing = object()
+    saved = {name: getattr(target, name, missing) for name in attributes}
+    for name, value in attributes.items():
+        setattr(target, name, value)
+    try:
+        yield
+    finally:
+        for name, value in saved.items():
+            if value is missing:
+                delattr(target, name)
+            else:
+                setattr(target, name, value)
+
+
+@contextlib.contextmanager
+def environment(values, remove=()):
+    saved = dict(os.environ)
+    os.environ.update(values)
+    for name in remove:
+        os.environ.pop(name, None)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
+
+
+class Recorder:
+    """Callable that records its calls and returns a fixed value."""
+
+    def __init__(self, result=None):
+        self.result = result
+        self.calls = []
+
+    def __call__(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
+        return self.result
+
+
 class OkdDeployAutomationTests(unittest.TestCase):
     def test_local_repository_checkout_accepts_only_clean_expected_branch(self):
         with tempfile.TemporaryDirectory() as directory:
             checkout = Path(directory) / "frontend"
             checkout.mkdir()
             subprocess.run(["git", "init", "-b", "feature/test"], cwd=checkout,
-                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                           check=True, capture_output=True)
             subprocess.run(["git", "config", "user.name", "Test"], cwd=checkout, check=True)
             subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=checkout, check=True)
             (checkout / "README.md").write_text("committed\n")
             subprocess.run(["git", "add", "README.md"], cwd=checkout, check=True)
             subprocess.run(["git", "commit", "-m", "test"], cwd=checkout, check=True,
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                           capture_output=True)
             config = {"repositories": {"frontend": {"local_checkout": str(checkout)}}}
             self.assertEqual(checkout.resolve(),
                              deploy.local_repository_checkout("frontend", config, "feature/test"))
@@ -69,10 +111,9 @@ class OkdDeployAutomationTests(unittest.TestCase):
             args=["podman", "login"], returncode=1, stdout="",
             stderr="login failed for test-user with password test-token",
         )
-        with patch.dict(deploy.os.environ, {
-            "ARTIFACTORY_USER": "test-user", "ARTIFACTORY_PASSWORD": "test-token"
-        }), patch.object(deploy, "existing_registry_credentials", return_value=None), \
-                patch.object(deploy, "run", return_value=failed):
+        with environment({"ARTIFACTORY_USER": "test-user", "ARTIFACTORY_PASSWORD": "test-token"}), \
+                replaced(deploy, existing_registry_credentials=lambda *a, **k: None,
+                         run=lambda *a, **k: failed):
             with self.assertRaises(RuntimeError) as raised:
                 deploy.build_auth("podman")
         message = str(raised.exception)
@@ -81,14 +122,15 @@ class OkdDeployAutomationTests(unittest.TestCase):
         self.assertNotIn("test-token", message)
 
     def test_skip_auth_reuses_podman_auth_without_performing_login(self):
-        with patch.object(deploy, "existing_registry_credentials", return_value=("test-user", "test-token")), \
-                patch.object(deploy, "run") as run_command:
+        run_command = Recorder()
+        with replaced(deploy, existing_registry_credentials=lambda *a, **k: ("test-user", "test-token"),
+                      run=run_command):
             temp, auth_path = deploy.build_auth("podman", skip_login=True)
             try:
                 self.assertEqual(Path.home() / ".config/containers/auth.json", auth_path)
                 self.assertEqual("test-user", (Path(temp.name) / "artifactory_user").read_text())
                 self.assertEqual("test-token", (Path(temp.name) / "artifactory_password").read_text())
-                run_command.assert_not_called()
+                self.assertEqual([], run_command.calls)
             finally:
                 temp.cleanup()
 
@@ -252,30 +294,38 @@ class OkdDeployAutomationTests(unittest.TestCase):
     def test_publisher_uses_podman_fallback_when_skopeo_is_missing(self):
         item = {"service": "api", "status": "pending", "platform": "linux/amd64",
                 "_artifact_path": Path("image.oci.tar"), "target": "example/image:tag"}
-        which = lambda name: None if name == "skopeo" else "/usr/bin/podman"
-        with patch.object(deploy.shutil, "which", side_effect=which), \
-                patch.object(deploy, "oci_archive_details", return_value=(b"manifest", "linux/amd64", "localhost/api:test")), \
-                patch.object(deploy, "publish_one_with_podman", return_value=item) as fallback:
+        def which(name):
+            return None if name == "skopeo" else "/usr/bin/podman"
+
+        fallback = Recorder(item)
+        with replaced(deploy.shutil, which=which), \
+                replaced(deploy, oci_archive_details=lambda *a, **k: (b"manifest", "linux/amd64", "localhost/api:test"),
+                         publish_one_with_podman=fallback):
             self.assertIs(item, deploy.publish_one(item, None, 3, "linux/amd64"))
-            fallback.assert_called_once_with(item, None, 3, "linux/amd64", b"manifest", "localhost/api:test")
+            self.assertEqual([((item, None, 3, "linux/amd64", b"manifest", "localhost/api:test"), {})],
+                             fallback.calls)
 
     def test_registry_tls_uses_explicit_corporate_ca_bundle_without_disabling_verification(self):
         with tempfile.TemporaryDirectory() as directory:
             bundle = Path(directory) / "corporate-ca.pem"
             bundle.write_text("test CA bundle")
-            context = MagicMock()
-            with patch.dict(deploy.os.environ, {"ARTIFACTORY_CA_BUNDLE": str(bundle)}), \
-                    patch.object(deploy.ssl, "create_default_context", return_value=context) as create_context, \
-                    patch.object(context, "load_verify_locations") as load_locations:
+            load_locations = Recorder()
+
+            class RecordingSslContext:
+                load_verify_locations = load_locations
+
+            context = RecordingSslContext()
+            create_context = Recorder(context)
+            with environment({"ARTIFACTORY_CA_BUNDLE": str(bundle)}), \
+                    replaced(deploy.ssl, create_default_context=create_context):
                 self.assertIs(context, deploy.registry_ssl_context())
-            create_context.assert_called_once_with()
-            load_locations.assert_called_once_with(cafile=str(bundle))
+            self.assertEqual([((), {})], create_context.calls)
+            self.assertEqual([((), {"cafile": str(bundle)})], load_locations.calls)
 
     def test_registry_tls_verification_is_enabled_by_default_and_can_be_disabled_explicitly(self):
-        with patch.dict(deploy.os.environ, {}, clear=False):
-            deploy.os.environ.pop("ARTIFACTORY_TLS_VERIFY", None)
+        with environment({}, remove=("ARTIFACTORY_TLS_VERIFY",)):
             self.assertTrue(deploy.registry_tls_verify_enabled())
-        with patch.dict(deploy.os.environ, {"ARTIFACTORY_TLS_VERIFY": "false"}):
+        with environment({"ARTIFACTORY_TLS_VERIFY": "false"}):
             context = deploy.registry_ssl_context()
             self.assertFalse(context.check_hostname)
             self.assertEqual(deploy.ssl.CERT_NONE, context.verify_mode)
