@@ -375,7 +375,7 @@ preparación del stack.
 
 **Correcciones y retest:** `list_latest()` ahora pagina el scan de DynamoDB y usa los owner items de resumen, sin hidratar todas las versiones históricas; esto evita perder configuraciones más allá de 1 MiB y reduce el costo de cargar el selector. La spec del grafo ahora cierra el selector después de cada selección. El test de side drawer limita el locator de “Modus operandi” a la pestaña, ya que la tabla también tiene un botón con ese nombre. Regresión backend: `GENAI_ENVIRONMENT=test pytest tests/test_infrastructure/test_persistence/test_configuration_repository.py -q` — 22/22 pasaron. Retest por nginx con `make e2e-selected-real` para `side-drawer-real`, `configuration-graph-real` y `configuration-deploy-real`: **13/13 pasaron en 46,3 s** (deploy 8,6 s, grafo 1,8 s). Los tres fallos anteriores quedaron resueltos en esta corrida.
 
-## 12. Selección de deployment LLM por elemento — implementada 2026-11-09 (sin commit); falta el E2E real y el despliegue en OKD
+## 12. Selección de deployment LLM por elemento — implementada 2026-11-09; E2E real ✅ 2026-11-11 (sin commit); falta el despliegue en OKD
 
 **Objetivo.** Cada componente que llama a un LLM elige un deployment de un catálogo o usa el de por defecto. **Alcance confirmado 2026-11-09: todos los componentes con LLM, no solo las 7 etapas** — 13 elementos en `domain/llm/catalog.py`: `profiling`, `detector`, `detector_adversarial`, `classification`, `adversarial`, `analyst`, `executor` (pasos del workflow) y `report`, `judge`, `history_research`, `assistant_chat`, `optimizer`, `agent_drafts` (el resto). Quedan fuera el generador de eventos del simulador (su modelo es dato de cada escenario) y el script `project-graph` (herramienta de desarrollo).
 
@@ -392,13 +392,14 @@ preparación del stack.
 - Despliegue: `LLM_CATALOG` en los 4 ConfigMaps de OKD (vacío: hay que definir los nombres) y en `config/local/config.cfg`.
 
 **Pendiente**
-- [ ] Ejecutar `e2e/llm-selection-real.spec.ts` contra el stack local reconstruido (`make e2e-selected-real E2E_TEST_FILES=e2e/llm-selection-real.spec.ts`). Escrito, no ejecutado.
-- [ ] `make project-graph` (hay componentes y un endpoint nuevos; necesita el LLM para describir los componentes nuevos).
+- [x] **E2E real ✅ 2026-11-11.** `e2e/llm-selection-real.spec.ts` pasó por nginx (`make e2e-selected-real`, 1/1, 22 s, stack reconstruido): catálogo, rechazo 422 de un nombre fuera del catálogo, selección en Configuración › General (diálogo «Confirmar cambios» con los dos cambios), persistencia al recargar, «Nueva prueba» con override de `profiling`, `output.llm` por paso (override / configuración / por defecto) y badges en el detalle de la alerta. El spec nunca se había ejecutado y tenía cuatro errores propios (rol equivocado para la pestaña General y para Testing —el `manager` no ve Testing—, falta de confirmación `CONFIRMAR`, pestaña «Razonamiento del agente», y asumir un paso `classification` que no corre); el producto no cambió.
+- [x] `make project-graph` — sin diferencias: el grafo ya estaba regenerado (142 descripciones en caché).
 - [ ] OKD: definir `LLM_CATALOG` con los deployments reales y el mismo valor en API y workers.
-- [ ] Probar un fallo real del proveedor (deployment inexistente) y ver el log.
+- [x] Fallo real del proveedor ✅ 2026-11-11: invocando `judge` con un deployment inexistente en el worker, Azure responde 404 y el log es `LLM call failed element=judge name=None deployment=deployment-que-no-existe error_code=NotFoundError` (sin texto del proveedor); la ejecución falla, sin fallback.
+- [ ] **Observación:** con `PROFILING_BACKEND=deterministic` (valor local y de `config/*`) el paso `profiling` no llama a ningún LLM, pero registra `output.llm` con el override elegido; el badge puede sugerir un modelo que no se usó. Decidir si se oculta cuando el backend no es `llm`.
 - [ ] Decisión de producto: una alerta en vuelo conserva lo resuelto al arrancar; los componentes fuera del workflow siguen la configuración activa con hasta 30 s de retraso.
 
-## 13. Arize Phoenix con PostgreSQL y trazas jerárquicas — en curso (implementado 2026-11-09; falta E2E real y revisión con plataforma)
+## 13. Arize Phoenix con PostgreSQL y trazas jerárquicas — implementado 2026-11-09; E2E real ✅ 2026-11-11 (sin commit); faltan retry Celery, `aria.workflow.id` posterior y revisión con plataforma
 
 **Objetivo.** Incorporar Phoenix como interfaz de trazas de ARIA con persistencia PostgreSQL (sin SQLite), reutilizando OpenTelemetry y encaminando desde el Collector. Identificar cada ejecución con `trace_id = workflow_execution_id`; cada etapa/operación con un span OpenTelemetry cuyo `span_id` identifica la operación e incluye `aria.workflow.step_id`; y cada llamada concreta a LLM o herramienta con `aria.run_id`. La especificación completa está en `docs/ARIZE_PHOENIX_TRACING_SPEC.md`.
 
@@ -407,15 +408,19 @@ preparación del stack.
 - [x] Instrumentar todas las llamadas LLM, embeddings y herramientas con spans únicos, `run_id`, duración, resultado y errores, evitando duplicar spans existentes de LangChain.
 - [x] Configurar OTLP HTTP desde Collector hacia Phoenix y conservar las salidas existentes a Tempo y demás backends.
 - [x] Desplegar Phoenix + PostgreSQL con volúmenes persistentes en local; añadir configuración OKD con PVC y secretos externalizados.
-- [ ] Preservar privacidad y seguridad: captura de contenido desactivada por defecto; excluir IDs de cliente, montos exactos, credenciales y datos sensibles.
-- [ ] Actualizar `CLAUDE.md`, runbook, stack local y observabilidad OKD; definir retención, backups, TLS y acceso con plataforma.
-- [ ] Añadir pruebas unitarias/contratos y E2E real a través del stack local para una llamada LLM, una herramienta, retry y persistencia después de reinicio.
+- [x] Preservar privacidad y seguridad ✅ 2026-11-11: `make e2e-phoenix` comprueba que ni el customer id, transaction/device id, contraparte ni el monto exacto aparecen en los atributos de los spans, y que no se exporta contenido (`input.value`, mensajes, prompts); `output.value` solo lleva el nombre del modelo.
+- [x] `CLAUDE.md` y runbook actualizados 2026-11-11 (`make e2e-phoenix`).
+- [ ] Observabilidad OKD: definir retención, backups, TLS y acceso con plataforma.
+- [x] **E2E real ✅ 2026-11-11: `make e2e-phoenix`** (`scripts/e2e_phoenix.py`, sobre el runner del E07 con LLM guionizado). Pasó: `trace_id` = `workflow_execution_id`; 7 pasos persistidos = 7 spans con su `aria.workflow.step_id`/`step`/`attempt`, todos hijos del raíz; llamadas LLM únicas (`aria.run_id`) bajo su paso; la misma traza en Tempo; 10 spans intactos tras reiniciar PostgreSQL y Phoenix; con Phoenix detenido el workflow termina y Tempo recibe su traza. El span raíz cuelga de un padre sintético ausente y Phoenix lo lista como raíz (comprobado por GraphQL).
+- [x] Pruebas unitarias nuevas: `classify_alert` y `adversarial_review_alert` emiten exactamente un span `tool.<nombre>` por llamada, sin contenido, y ninguno para una herramienta desconocida (no existían).
+- [ ] **Herramienta de punta a punta:** el LLM guionizado siempre responde `scale_to_analyst` y no llega a `classification`, por lo que el E2E no verifica un span `tool.*` (la aserción se aplica solo si el workflow clasifica). Está cubierto por las pruebas unitarias y hay trazas reales con `tool.vector_store` (ruta del agente), pero falta una corrida de alerta que clasifique y use una herramienta.
+- [ ] **Retry de Celery entre procesos:** solo con pruebas unitarias; falta forzar un reintento real y comprobar la misma traza y la relación padre-hijo.
 
 **Criterio de cierre:** consulta en Phoenix de una traza real cuyo `trace_id` sea el UUID del workflow, spans de etapas y llamadas con `aria.run_id`; persistencia demostrada tras reinicio de PostgreSQL; los demás backends OTLP y workflows siguen funcionando si Phoenix no responde. Completar los gates de lint, arquitectura, tests y E2E definidos en `AGENTS.md`.
 
 **Decisiones pendientes:** validar compatibilidad exacta de TraceId UUID y propagación W3C con las tasks Celery existentes; escoger versión de Phoenix y política de retención/capacidad con plataforma antes del despliegue productivo.
 
-**Implementado (2026-11-09).** `start_workflow` (trace_id = workflow id), `aria.workflow.step_id`, `aria.run_id` en LLM/embedding/tool, spans de herramientas en classify/adversarial, exporter `otlphttp/phoenix` (local y OKD), Phoenix + PostgreSQL en compose y manifiestos OKD (`observability/phoenix`). Retención por `PHOENIX_RETENTION_DAYS` (días, defecto 30). Pendiente: E2E real, `aria.workflow.id` en trazas posteriores al workflow, runbook de backup/TLS con plataforma. `make lint`/`test-architecture` fallan por `tests/test_scripts/test_okd_deploy_automation.py` (preexistente, no relacionado).
+**Implementado (2026-11-09).** `start_workflow` (trace_id = workflow id), `aria.workflow.step_id`, `aria.run_id` en LLM/embedding/tool, spans de herramientas en classify/adversarial, exporter `otlphttp/phoenix` (local y OKD), Phoenix + PostgreSQL en compose y manifiestos OKD (`observability/phoenix`). Retención por `PHOENIX_RETENTION_DAYS` (días, defecto 30). Pendiente: `aria.workflow.id` en trazas posteriores al workflow, runbook de backup/TLS con plataforma. 2026-11-11: `make lint` y `make test-architecture` vuelven a pasar (se reescribió `tests/test_scripts/test_okd_deploy_automation.py` sin `unittest.mock`, que era lo que fallaba).
 
 ## 14. Descripciones del esquema disponibles para el agente — pendiente (planteada 2026-11-05)
 
