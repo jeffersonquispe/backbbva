@@ -29,7 +29,7 @@ from src.application.ports.modus_operandi_port import (
     ModusOperandiPort,
     SimilarModusOperandi,
 )
-from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_port import ATTR_TOOL_NAME, MonitoringPort
 from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.alerts.adversarial_review_alert import (
     AdversarialReviewAlertUseCase,
@@ -104,6 +104,29 @@ class NullSpan(MonitoringSpan):
 class NullMonitoringPort(MonitoringPort):
     def start(self, operation_name, operation_type, metadata=None) -> MonitoringSpan:
         return NullSpan()
+
+
+class RecordingToolSpan(NullSpan):
+    """Records what is written to the span (tool spans must carry no content)."""
+
+    def __init__(self) -> None:
+        self.writes: list[str] = []
+
+    def write_input(self, data) -> None:
+        self.writes.append("input")
+
+    def write_result(self, data) -> None:
+        self.writes.append("result")
+
+
+class RecordingMonitoringPort(MonitoringPort):
+    def __init__(self) -> None:
+        self.started: list[tuple[str, str, dict | None, RecordingToolSpan]] = []
+
+    def start(self, operation_name, operation_type, metadata=None) -> MonitoringSpan:
+        span = RecordingToolSpan()
+        self.started.append((operation_name, operation_type, metadata, span))
+        return span
 
 
 class RecordingSimilarFraudCasePort(SimilarFraudCasePort):
@@ -447,3 +470,29 @@ def test_adversarial_review_max_iterations_overrides_default() -> None:
 
     assert output.requires_classification_feedback is True
     assert len(llm_factory.created[0].received_messages) == 2
+
+
+def test_adversarial_review_tool_call_emits_one_tool_span_without_content() -> None:
+    monitoring = RecordingMonitoringPort()
+    use_case = AdversarialReviewAlertUseCase(
+        llm_unit_of_work_factory=ScriptedLLMUnitOfWorkFactory(
+            [
+                "Thought: verify\nAction: get_similar_frauds\nAction Input: device change",
+                "Thought: holds\n"
+                'Final Answer: {"has_issues": false, "feedback": "", '
+                '"weak_points": [], "reasoning": "ok"}',
+            ]
+        ),
+        monitoring=monitoring,
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+    )
+
+    use_case.execute(_input())
+
+    tool_spans = [s for s in monitoring.started if s[1] == "tool"]
+    assert [name for name, *_ in tool_spans] == ["tool.get_similar_frauds"]
+    assert tool_spans[0][2] == {ATTR_TOOL_NAME: "get_similar_frauds"}
+    assert tool_spans[0][3].writes == []

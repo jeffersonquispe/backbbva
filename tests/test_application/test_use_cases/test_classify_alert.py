@@ -24,7 +24,7 @@ from src.application.ports.modus_operandi_port import (
     ModusOperandiPort,
     SimilarModusOperandi,
 )
-from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_port import ATTR_TOOL_NAME, MonitoringPort
 from src.application.ports.monitoring_span_port import MonitoringSpan
 from src.application.use_cases.alerts.classify_alert import (
     ClassifyAlertUseCase,
@@ -99,6 +99,32 @@ class NullSpan(MonitoringSpan):
 class NullMonitoringPort(MonitoringPort):
     def start(self, operation_name, operation_type, metadata=None) -> MonitoringSpan:
         return NullSpan()
+
+
+class RecordingSpan(NullSpan):
+    """Records what is written to the span (tool spans must carry no content)."""
+
+    def __init__(self) -> None:
+        self.writes: list[str] = []
+
+    def write_input(self, data) -> None:
+        self.writes.append("input")
+
+    def write_result(self, data) -> None:
+        self.writes.append("result")
+
+
+class RecordingMonitoringPort(MonitoringPort):
+    def __init__(self) -> None:
+        self.started: list[tuple[str, str, dict | None, RecordingSpan]] = []
+
+    def start(self, operation_name, operation_type, metadata=None) -> MonitoringSpan:
+        span = RecordingSpan()
+        self.started.append((operation_name, operation_type, metadata, span))
+        return span
+
+    def tool_spans(self):
+        return [s for s in self.started if s[1] == "tool"]
 
 
 class RecordingSimilarFraudCasePort(SimilarFraudCasePort):
@@ -678,3 +704,52 @@ def test_classify_alert_consults_vector_store_research_and_logs_interactions() -
         "transferencia a beneficiario nuevo tras llamada"
     )
     assert output.vector_store_interactions[0]["status"] == "executed"
+
+
+def _calculator_use_case(responses: list[str], monitoring: MonitoringPort):
+    return ClassifyAlertUseCase(
+        llm_unit_of_work_factory=ScriptedLLMUnitOfWorkFactory(responses),
+        monitoring=monitoring,
+        model="fake-deployment",
+        similar_fraud_case_port=RecordingSimilarFraudCasePort(),
+        fraud_taxonomy_port=RecordingFraudTaxonomyPort(),
+        modus_operandi_port=RecordingModusOperandiPort(),
+    )
+
+
+_FINAL = (
+    'Thought: done\nFinal Answer: {"is_fraud": "fraud", '
+    '"fraud_classification": "unknown", "reasoning": "ok"}'
+)
+
+
+def test_classify_alert_each_tool_call_emits_one_tool_span_without_content() -> None:
+    monitoring = RecordingMonitoringPort()
+    use_case = _calculator_use_case(
+        [
+            "Thought: a\nAction: calculator\nAction Input: 1500000 / 3",
+            "Thought: b\nAction: calculator\nAction Input: 2 + 2",
+            _FINAL,
+        ],
+        monitoring,
+    )
+
+    use_case.execute(_input())
+
+    tool_spans = monitoring.tool_spans()
+    assert [name for name, *_ in tool_spans] == ["tool.calculator", "tool.calculator"]
+    assert all(meta == {ATTR_TOOL_NAME: "calculator"} for _, _, meta, _ in tool_spans)
+    # Arguments and results (alert data) are never recorded on the tool span.
+    assert all(span.writes == [] for *_, span in tool_spans)
+
+
+def test_classify_alert_unknown_tool_does_not_emit_a_tool_span() -> None:
+    monitoring = RecordingMonitoringPort()
+    use_case = _calculator_use_case(
+        ["Thought: a\nAction: does_not_exist\nAction Input: x", _FINAL], monitoring
+    )
+
+    output = use_case.execute(_input())
+
+    assert output.is_fraud == "fraud"
+    assert monitoring.tool_spans() == []
