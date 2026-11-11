@@ -3,7 +3,7 @@ import os
 
 import boto3
 from botocore.exceptions import ClientError
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
@@ -106,6 +106,19 @@ class Config(BaseSettings):
     # Sampled reasoning LLM-judge (EvaluateAlertReasoning, D6). Empty falls
     # back to REPORT_LLM_MODEL (see workflows/celery/factories.py).
     JUDGE_LLM_MODEL: str = ""
+
+    # Catalog of Azure deployments an element may select (ConfigMap only):
+    # JSON list of {"nombre": ..., "deployment": ...}. Empty = no catalog, every
+    # element keeps its *_LLM_MODEL default. Invalid JSON stops the process.
+    LLM_CATALOG: str = ""
+
+    @field_validator("LLM_CATALOG")
+    @classmethod
+    def _validate_llm_catalog(cls, value: str) -> str:
+        from src.domain.llm.catalog import parse_llm_catalog
+
+        parse_llm_catalog(value)
+        return value
 
     # MCP model-serving service
     MCP_PORT: int = 8100

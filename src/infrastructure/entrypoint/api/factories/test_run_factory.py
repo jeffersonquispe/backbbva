@@ -26,6 +26,7 @@ from src.infrastructure.entrypoint.api.factories.async_operation_factory import 
 from src.infrastructure.entrypoint.api.factories.dataset_factory import (
     get_dataset_repository,
 )
+from src.infrastructure.llm.catalog.element_llm import get_llm_catalog
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_schema_repository import (
     DynamoAlertSchemaRepository,
 )
@@ -73,6 +74,7 @@ def get_start_test_run_use_case() -> StartTestRunUseCase:
         clock=get_clock(),
         id_generator=get_id_generator(),
         vector_store_pins=get_pin_configuration_vector_stores_use_case(),
+        llm_catalog=get_llm_catalog(),
     )
 
 

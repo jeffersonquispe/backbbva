@@ -25,6 +25,7 @@ from src.domain.configurations.entities import (
     SegmentSettings,
     TestSettings,
 )
+from src.infrastructure.core.config import genai_config
 
 
 def _config_with_segment(segment: SegmentSettings) -> ConfigurationRecord:
@@ -342,7 +343,7 @@ def test_history_analysis_analyzes_only_the_selected_slice() -> None:
 
 def test_heuristic_planner_setting_pins_the_fixed_plan(monkeypatch) -> None:
     monkeypatch.setattr(
-        history_research_module.genai_config, "REPORT_LLM_MODEL", "cheap-model"
+        genai_config, "REPORT_LLM_MODEL", "cheap-model"
     )
     monkeypatch.setattr(
         history_research_module,

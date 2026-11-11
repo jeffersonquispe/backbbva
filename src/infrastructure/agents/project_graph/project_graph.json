@@ -697,6 +697,11 @@
   },
   {
    "relation": "requests",
+   "source": "api:llmCatalog.getLlmCatalog",
+   "target": "endpoint:GET /api/v0/llm-catalog"
+  },
+  {
+   "relation": "requests",
    "source": "api:marcacion.createMarcacionCategory",
    "target": "endpoint:POST /api/v0/marcacion-catalog"
   },
@@ -2856,6 +2861,11 @@
    "target": "component:ui/dialog"
   },
   {
+   "relation": "calls",
+   "source": "component:llm/LlmSelectionTable",
+   "target": "api:llmCatalog.getLlmCatalog"
+  },
+  {
    "relation": "offers",
    "source": "component:metrics/MetricsShared",
    "target": "action:aplicar@component-metrics-metricsshared"
@@ -3558,6 +3568,11 @@
   {
    "relation": "renders",
    "source": "component:testing/CaseStepDetail",
+   "target": "component:llm/StepLlmBadge"
+  },
+  {
+   "relation": "renders",
+   "source": "component:testing/CaseStepDetail",
    "target": "component:testing/AlertFullData"
   },
   {
@@ -3659,6 +3674,11 @@
    "relation": "calls",
    "source": "component:testing/DatasetTestForm",
    "target": "api:testing.startTestRun"
+  },
+  {
+   "relation": "renders",
+   "source": "component:testing/DatasetTestForm",
+   "target": "component:llm/LlmSelectionTable"
   },
   {
    "relation": "renders",
@@ -5214,6 +5234,16 @@
    "relation": "handled_by",
    "source": "endpoint:GET /api/v0/library/taxonomies",
    "target": "use_case:ListTaxonomyLibraryEntriesUseCase"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/llm-catalog",
+   "target": "resource:llm-catalog"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:GET /api/v0/llm-catalog",
+   "target": "use_case:GetLLMCatalogUseCase"
   },
   {
    "relation": "belongs_to",
@@ -7122,6 +7152,16 @@
   },
   {
    "relation": "implemented_by",
+   "source": "port:LLMCatalogPort",
+   "target": "adapter:ConfigLLMCatalog"
+  },
+  {
+   "relation": "implemented_by",
+   "source": "port:LLMUnitOfWorkFactory",
+   "target": "adapter:ElementLLMUnitOfWorkFactory"
+  },
+  {
+   "relation": "implemented_by",
    "source": "port:LLMUnitOfWorkFactory",
    "target": "adapter:LangchainAzureLLMUnitOfWorkFactory"
   },
@@ -8728,6 +8768,11 @@
   },
   {
    "relation": "uses_port",
+   "source": "use_case:CreateConfigurationUseCase",
+   "target": "port:LLMCatalogPort"
+  },
+  {
+   "relation": "uses_port",
    "source": "use_case:CreateEmptyDatasetUseCase",
    "target": "port:Clock"
   },
@@ -9648,6 +9693,11 @@
   },
   {
    "relation": "uses_port",
+   "source": "use_case:GetLLMCatalogUseCase",
+   "target": "port:LLMCatalogPort"
+  },
+  {
+   "relation": "uses_port",
    "source": "use_case:GetMatureSamplerSchemaConfigurationUseCase",
    "target": "port:AlertSchemaRepository"
   },
@@ -10324,6 +10374,11 @@
   {
    "relation": "uses_port",
    "source": "use_case:StartTestRunUseCase",
+   "target": "port:LLMCatalogPort"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:StartTestRunUseCase",
    "target": "port:ObjectStoragePort"
   },
   {
@@ -10730,6 +10785,11 @@
    "relation": "renders",
    "source": "view:/alerta/$id",
    "target": "component:alert/ReasoningEvaluationTab"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/alerta/$id",
+   "target": "component:llm/StepLlmBadge"
   },
   {
    "relation": "navigates_to",
@@ -11305,6 +11365,11 @@
    "relation": "renders",
    "source": "view:/configuracion",
    "target": "component:configuracion/shared/FormControls"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/configuracion",
+   "target": "component:llm/LlmSelectionTable"
   },
   {
    "relation": "renders",
@@ -15147,6 +15212,18 @@
   },
   {
    "attrs": {
+    "file": "src/infrastructure/llm/catalog/config_llm_catalog.py"
+   },
+   "description": "Catalog read from the ``LLM_CATALOG`` ConfigMap value (no API, no UI).",
+   "id": "adapter:ConfigLLMCatalog",
+   "keywords": [
+    "Config LLMCatalog"
+   ],
+   "kind": "adapter",
+   "name": "ConfigLLMCatalog"
+  },
+  {
+   "attrs": {
     "file": "src/infrastructure/agents/content_redacting_monitoring.py"
    },
    "description": "",
@@ -15864,6 +15941,18 @@
    ],
    "kind": "adapter",
    "name": "DynamoWorkflowStepExecutionRepository"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/llm/catalog/element_llm.py"
+   },
+   "description": "Factory for one element: failure logging, and optionally the active configuration's selection applied on every ``create``.",
+   "id": "adapter:ElementLLMUnitOfWorkFactory",
+   "keywords": [
+    "Element LLMUnit Of Work Factory"
+   ],
+   "kind": "adapter",
+   "name": "ElementLLMUnitOfWorkFactory"
   },
   {
    "attrs": {
@@ -18117,6 +18206,20 @@
   },
   {
    "attrs": {
+    "file": "lib/api/llmCatalog.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/llm-catalog"
+   },
+   "description": "GET /api/v0/llm-catalog",
+   "id": "api:llmCatalog.getLlmCatalog",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getLlmCatalog"
+  },
+  {
+   "attrs": {
     "file": "lib/api/marcacion.functions.ts",
     "http_method": "POST",
     "url": "/api/v0/marcacion-catalog"
@@ -18936,6 +19039,18 @@
    ],
    "kind": "asset",
    "name": "AGENT_EXPERIMENTATION_BACKLOG.md"
+  },
+  {
+   "attrs": {
+    "subtype": "doc"
+   },
+   "description": "Documento backend: Especificación: Arize Phoenix y trazabilidad jerárquica",
+   "id": "asset:docs/backend/ARIZE_PHOENIX_TRACING_SPEC.md",
+   "keywords": [
+    "Especificación: Arize Phoenix y trazabilidad jerárquica"
+   ],
+   "kind": "asset",
+   "name": "ARIZE_PHOENIX_TRACING_SPEC.md"
   },
   {
    "attrs": {
@@ -20610,6 +20725,31 @@
    ],
    "kind": "component",
    "name": "FraudReview"
+  },
+  {
+   "attrs": {
+    "file": "components/llm/LlmSelectionTable.tsx"
+   },
+   "description": "Muestra una tabla de filas (una por elemento LLM) con un selector para elegir un modelo desde el catálogo cargado. Su responsabilidad es consultar el catálogo, filtrar filas por grupo opcional y propagar cambios en la selección, mostrando estados de carga/error y la opción de usar el valor \"Por defecto\".",
+   "id": "component:llm/LlmSelectionTable",
+   "keywords": [
+    "Cargando catálogo de modelos…",
+    "No se pudo cargar el catálogo de modelos LLM."
+   ],
+   "kind": "component",
+   "name": "LlmSelectionTable"
+  },
+  {
+   "attrs": {
+    "file": "components/llm/StepLlmBadge.tsx"
+   },
+   "description": "The deployment a workflow step actually ran with. The backend stores it as `llm` beside the step output ({element, name, deployment, source}).",
+   "id": "component:llm/StepLlmBadge",
+   "keywords": [
+    "Modelo"
+   ],
+   "kind": "component",
+   "name": "StepLlmBadge"
   },
   {
    "attrs": {
@@ -23960,6 +24100,20 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/llm-catalog"
+   },
+   "description": "Read-only: the catalog comes from the ConfigMap (``LLM_CATALOG``).",
+   "id": "endpoint:GET /api/v0/llm-catalog",
+   "keywords": [
+    "get llm catalog",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/llm-catalog"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/marcacion-catalog"
    },
    "description": "",
@@ -26761,6 +26915,16 @@
   },
   {
    "attrs": {},
+   "description": "Read-only source of the LLM deployments an element may select.",
+   "id": "port:LLMCatalogPort",
+   "keywords": [
+    "LLMCatalog Port"
+   ],
+   "kind": "port",
+   "name": "LLMCatalogPort"
+  },
+  {
+   "attrs": {},
    "description": "",
    "id": "port:LLMUnitOfWorkFactory",
    "keywords": [
@@ -27360,6 +27524,18 @@
    ],
    "kind": "resource",
    "name": "knowledge-library"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/entrypoint/api/routers/llm_catalog_router.py"
+   },
+   "description": "Recurso de API «llm-catalog».",
+   "id": "resource:llm-catalog",
+   "keywords": [
+    "llm catalog"
+   ],
+   "kind": "resource",
+   "name": "llm-catalog"
   },
   {
    "attrs": {
@@ -28727,6 +28903,17 @@
    ],
    "kind": "use_case",
    "name": "GetDatasetTemplateUseCase"
+  },
+  {
+   "attrs": {},
+   "description": "What the selectors need: the catalog and each element's default.",
+   "id": "use_case:GetLLMCatalogUseCase",
+   "keywords": [
+    "Get LLMCatalog",
+    "obtener consultar ver"
+   ],
+   "kind": "use_case",
+   "name": "GetLLMCatalogUseCase"
   },
   {
    "attrs": {},

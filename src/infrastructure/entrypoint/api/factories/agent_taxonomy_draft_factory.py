@@ -26,7 +26,7 @@ from src.infrastructure.entrypoint.api.factories.taxonomy_library_factory import
     get_taxonomy_library_repository,
     get_update_taxonomy_library_entry_use_case,
 )
-from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
+from src.infrastructure.llm.catalog.element_llm import get_element_llm_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.audit_factory import (
     get_audit_repository,
@@ -35,7 +35,7 @@ from src.infrastructure.persistence.database.dynamodb.audit_factory import (
 
 def _generator() -> LLMStructuredAgentGenerator:
     return LLMStructuredAgentGenerator(
-        llm_factory=get_llm_unit_of_work_factory(),
+        llm_factory=get_element_llm_factory("agent_drafts"),
         monitoring=get_monitoring(),
         model=genai_config.REPORT_LLM_MODEL or genai_config.EXECUTOR_LLM_MODEL,
     )

@@ -168,6 +168,10 @@ def _general_from_item(item: dict[str, Any]) -> GeneralSettings:
         migration_window_datetime=str(
             item.get("migration_window_datetime", "2000-01-01T02:00")
         ),
+        llm_selection={
+            str(element): (str(name) if name else None)
+            for element, name in (item.get("llm_selection") or {}).items()
+        },
     )
 
 

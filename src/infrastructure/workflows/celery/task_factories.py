@@ -104,7 +104,7 @@ from src.infrastructure.alert_actions.mock.alert_channel_action_adapter import (
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.core.runtime.system_clock import get_clock
 from src.infrastructure.core.runtime.uuid_generator import get_id_generator
-from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
+from src.infrastructure.llm.catalog.element_llm import get_element_llm_factory
 from src.infrastructure.model_serving.mcp_scoring_client import (
     MCPModelScoringClient,
 )
@@ -242,7 +242,9 @@ def get_dataset_sampler_state_repository() -> DynamoDatasetSamplerStateRepositor
 
 
 @lru_cache
-def get_mature_sampler_schema_mapping_repository() -> DynamoMatureSamplerSchemaMappingRepository:
+def get_mature_sampler_schema_mapping_repository() -> (
+    DynamoMatureSamplerSchemaMappingRepository
+):
     return DynamoMatureSamplerSchemaMappingRepository()
 
 
@@ -469,7 +471,7 @@ def get_escalate_alert_to_analyst_use_case() -> EscalateAlertToAnalystUseCase:
 
 def get_document_analyst_decision_use_case() -> DocumentAnalystDecisionUseCase:
     return DocumentAnalystDecisionUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory("report"),
         monitoring=get_monitoring(),
         model=genai_config.REPORT_LLM_MODEL,
         object_storage_port=get_alert_object_storage(),
@@ -602,6 +604,7 @@ def get_run_alert_review_workflow_use_case() -> RunAlertReviewWorkflowUseCase:
     from src.infrastructure.workflows.celery.review_step_executor import (
         CeleryWorkerStepExecutor,
     )
+
     workflows = get_workflow_execution_repository()
     steps = get_workflow_step_execution_repository()
     return RunAlertReviewWorkflowUseCase(

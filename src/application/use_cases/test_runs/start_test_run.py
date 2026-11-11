@@ -16,6 +16,7 @@ from src.application.ports.configuration_port import (
 )
 from src.application.ports.dataset_port import DatasetRepository
 from src.application.ports.id_generator_port import IdGenerator
+from src.application.ports.llm_catalog_port import LLMCatalogPort
 from src.application.ports.object_storage_port import ObjectStoragePort
 from src.application.ports.test_run_port import (
     TestRunRepository,
@@ -42,6 +43,7 @@ from src.domain.alerts.entities import (
 from src.domain.configurations.entities import (
     ConfigurationRef,
 )
+from src.domain.llm.catalog import validate_llm_selection
 from src.domain.test_runs.entities import TestRunRecord, TestRunStatus
 
 
@@ -61,7 +63,9 @@ class StartTestRunUseCase:
         clock: Clock | None = None,
         id_generator: IdGenerator | None = None,
         vector_store_pins: PinConfigurationVectorStoresUseCase | None = None,
+        llm_catalog: LLMCatalogPort | None = None,
     ) -> None:
+        self._llm_catalog = llm_catalog
         self._configurations = configuration_repository
         # A test must search the generation its version pins; one that is no
         # longer READY fails here instead of running silently without RAG.
@@ -85,6 +89,7 @@ class StartTestRunUseCase:
         self._id_generator = id_generator or DEFAULT_ID_GENERATOR
 
     def execute(self, input: StartTestRunInput) -> StartTestRunOutput:
+        self._validate_model_overrides(input.config.model_overrides)
         if input.rows_override is not None and (
             input.sample_size is not None or input.sample_distribution is not None
         ):
@@ -187,3 +192,12 @@ class StartTestRunUseCase:
             test_run_id=test_run.id,
             dispatched_count=len(rows),
         )
+
+    def _validate_model_overrides(self, overrides: dict[str, str]) -> None:
+        # Overrides pick catalog names. Without a catalog (legacy setups) they
+        # stay raw deployment names, so there is nothing to check them against.
+        if self._llm_catalog is None or not overrides:
+            return
+        catalog = self._llm_catalog.get()
+        if catalog.entries:
+            validate_llm_selection(overrides, catalog)

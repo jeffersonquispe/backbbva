@@ -13,8 +13,10 @@ from src.domain.alerts.transaction_history_selection import (
 from src.domain.configurations.entities import (
     AgentToolsConfig,
 )
-from src.infrastructure.core.config import genai_config
-from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
+from src.infrastructure.llm.catalog.element_llm import (
+    effective_model,
+    get_element_llm_factory,
+)
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.workflows.celery.research_adapters import (
     HeuristicHistoryResearchPlanner,
@@ -42,10 +44,11 @@ def _history_research(
     )
     from src.infrastructure.workflows.celery import task_factories
 
-    if settings.planner == "llm" and genai_config.REPORT_LLM_MODEL:
+    model = effective_model("history_research")
+    if settings.planner == "llm" and model:
         planner = LLMHistoryResearchPlanner(
-            get_llm_unit_of_work_factory(),
-            model=genai_config.REPORT_LLM_MODEL,
+            get_element_llm_factory("history_research"),
+            model=model,
             monitoring=get_monitoring(),
             columns=settings.allowed_columns
             or (list(selected[0].keys()) if selected else []),

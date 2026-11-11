@@ -175,7 +175,10 @@ from src.infrastructure.host_services.mock.personal_data_changes_adapter import 
 from src.infrastructure.host_services.mock.transaction_history_adapter import (
     MockHostServiceTransactionHistoryAdapter,
 )
-from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
+from src.infrastructure.llm.catalog.element_llm import (
+    effective_model,
+    get_element_llm_factory,
+)
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_lifecycle_reader import (
     DynamoAlertLifecycleReader,
@@ -599,7 +602,9 @@ def get_profile_alert_use_case(
         )
     if backend == "llm":
         return ProfileAlertUseCase(
-            llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+            llm_unit_of_work_factory=get_element_llm_factory(
+                "profiling", follow_selection=False
+            ),
             monitoring=get_monitoring(),
             model=model or genai_config.PROFILING_LLM_MODEL,
             system_prompt=system_prompt,
@@ -646,7 +651,9 @@ def get_classify_alert_use_case(
         else genai_config.CLASSIFICATION_LLM_MODEL
     )
     return ClassifyAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory(
+            step_name, follow_selection=False
+        ),
         monitoring=get_monitoring(),
         model=model or default_model,
         similar_fraud_case_port=get_similar_fraud_case_port(vector_store_instance_id),
@@ -690,7 +697,9 @@ def get_adversarial_review_alert_use_case(
         else genai_config.ADVERSARIAL_LLM_MODEL
     )
     return AdversarialReviewAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory(
+            step_name, follow_selection=False
+        ),
         monitoring=get_monitoring(),
         model=model or default_model,
         similar_fraud_case_port=get_similar_fraud_case_port(vector_store_instance_id),
@@ -724,7 +733,9 @@ def get_analyst_review_alert_use_case(
     vector_store_generation: int | None = None,
 ) -> AnalystReviewAlertUseCase:
     return AnalystReviewAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory(
+            "analyst", follow_selection=False
+        ),
         monitoring=get_monitoring(),
         model=model or genai_config.ANALYST_LLM_MODEL,
         operations_capacity_port=get_live_operations_capacity(),
@@ -803,7 +814,9 @@ def get_generate_agent_text_use_case(
     model: str | None = None,
 ) -> GenerateAgentTextUseCase:
     return GenerateAgentTextUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory(
+            "executor", follow_selection=False
+        ),
         monitoring=get_monitoring(),
         model=model or genai_config.EXECUTOR_LLM_MODEL,
         system_prompt=system_prompt,
@@ -840,22 +853,15 @@ def get_record_workflow_step_metrics_use_case() -> RecordWorkflowStepMetrics:
     )
 
 
-@lru_cache(maxsize=1)
-def _warn_if_judge_grades_itself(judge_model: str) -> None:
+@lru_cache(maxsize=8)
+def _warn_if_judge_grades_itself(
+    judge_model: str, reasoning_models: tuple[tuple[str, str], ...]
+) -> None:
     from src.application.use_cases.metrics.evaluate_alert_reasoning import (
         judge_overlaps_reasoning,
     )
 
-    overlap = judge_overlaps_reasoning(
-        judge_model,
-        {
-            "detector": genai_config.DETECTOR_LLM_MODEL,
-            "detector_adversarial": genai_config.DETECTOR_ADVERSARIAL_LLM_MODEL,
-            "classification": genai_config.CLASSIFICATION_LLM_MODEL,
-            "adversarial": genai_config.ADVERSARIAL_LLM_MODEL,
-            "analyst": genai_config.ANALYST_LLM_MODEL,
-        },
-    )
+    overlap = judge_overlaps_reasoning(judge_model, dict(reasoning_models))
     if overlap:
         logging.getLogger(__name__).warning(
             "JUDGE_LLM_MODEL %r is also the model of %s: the judge would grade its "
@@ -866,10 +872,24 @@ def _warn_if_judge_grades_itself(judge_model: str) -> None:
 
 
 def get_evaluate_alert_reasoning_use_case() -> EvaluateAlertReasoning:
-    judge_model = genai_config.JUDGE_LLM_MODEL or genai_config.REPORT_LLM_MODEL
-    _warn_if_judge_grades_itself(judge_model)
+    # The rule "the judge differs from the models that reason" is checked on
+    # the deployments resolved right now (active selection or defaults).
+    judge_model = effective_model("judge")
+    _warn_if_judge_grades_itself(
+        judge_model,
+        tuple(
+            (element, effective_model(element))
+            for element in (
+                "detector",
+                "detector_adversarial",
+                "classification",
+                "adversarial",
+                "analyst",
+            )
+        ),
+    )
     return EvaluateAlertReasoning(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory("judge"),
         monitoring=get_monitoring(),
         model=judge_model,
         alert_repository=get_alert_repository(),

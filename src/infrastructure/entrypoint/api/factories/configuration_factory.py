@@ -32,6 +32,7 @@ from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.entrypoint.api.factories.test_run_factory import (
     get_test_run_repository,
 )
+from src.infrastructure.llm.catalog.element_llm import get_llm_catalog
 from src.infrastructure.persistence.database.dynamodb.repositories.configuration_repository import (
     DynamoConfigurationRepository,
 )
@@ -56,6 +57,7 @@ def get_create_configuration_use_case() -> CreateConfigurationUseCase:
         id_generator=get_id_generator(),
         schema_repository=get_alert_schema_repository(),
         vector_store_pins=get_pin_configuration_vector_stores_use_case(),
+        llm_catalog=get_llm_catalog(),
     )
 
 

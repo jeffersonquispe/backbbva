@@ -89,7 +89,8 @@ class RecordWorkflowStepMetrics:
                 step,
                 dimensions,
                 is_reexecution=is_reexecution,
-                model=input.step_models.get(step.step_name),
+                model=_recorded_model(step.output)
+                or input.step_models.get(step.step_name),
             )
             deltas = technical_deltas(
                 parts, alert.created_at, self._clock.now(), self._timezone_name
@@ -102,3 +103,11 @@ class RecordWorkflowStepMetrics:
             else:
                 result.already_recorded += 1
         return result
+
+
+def _recorded_model(output: dict | None) -> str | None:
+    """The logical name (else deployment) the step recorded as its LLM."""
+    llm = (output or {}).get("llm")
+    if not isinstance(llm, dict):
+        return None
+    return llm.get("name") or llm.get("deployment") or None

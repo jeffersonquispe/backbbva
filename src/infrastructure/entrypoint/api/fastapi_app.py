@@ -105,6 +105,9 @@ from src.infrastructure.entrypoint.api.routers.fraud_archive_router import (
 from src.infrastructure.entrypoint.api.routers.health_router import (
     router as health_router,
 )
+from src.infrastructure.entrypoint.api.routers.llm_catalog_router import (
+    router as llm_catalog_router,
+)
 from src.infrastructure.entrypoint.api.routers.marcacion_catalog_router import (
     router as marcacion_catalog_router,
 )
@@ -175,7 +178,9 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_draft_actions_router, prefix=genai_config.API_V0_STR)
-    app.include_router(agent_modus_operandi_draft_router, prefix=genai_config.API_V0_STR)
+    app.include_router(
+        agent_modus_operandi_draft_router, prefix=genai_config.API_V0_STR
+    )
     app.include_router(agent_taxonomy_draft_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_similar_case_draft_router, prefix=genai_config.API_V0_STR)
     app.include_router(agent_watchlist_draft_router, prefix=genai_config.API_V0_STR)
@@ -239,6 +244,10 @@ def create_app() -> FastAPI:
     )
     app.include_router(
         marcacion_catalog_router,
+        prefix=genai_config.API_V0_STR,
+    )
+    app.include_router(
+        llm_catalog_router,
         prefix=genai_config.API_V0_STR,
     )
     app.include_router(

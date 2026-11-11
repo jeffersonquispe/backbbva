@@ -637,13 +637,21 @@ class RunAlertReviewWorkflowUseCase:
             output = self._executor.execute(step_name, context)
             db_output = output_as_dict(output)
             finished_at = self._clock.now()
+            # The deployment the step actually ran with (set by the worker's
+            # step overrides) is stored beside the output for the UI/metrics.
+            llm = (context.get("llm_resolutions") or {}).get(step_name)
+            stored_output = (
+                {**db_output, "llm": llm}
+                if llm is not None and isinstance(db_output, dict)
+                else db_output
+            )
             self._status.report(
                 WorkflowStatusUpdate(
                     workflow_execution_id=workflow.id,
                     step_name=step_name,
                     step_id=step.id,
                     status=WorkflowStepStatus.SUCCEEDED,
-                    detail={"output": db_output, "finished_at": finished_at},
+                    detail={"output": stored_output, "finished_at": finished_at},
                 )
             )
             # Step names are runtime values from LINEAR_STEPS; their outputs
