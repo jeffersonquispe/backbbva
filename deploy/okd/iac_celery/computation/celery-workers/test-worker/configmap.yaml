@@ -56,10 +56,10 @@ data:
   # LLM-judge (reasoning evaluation); empty = falls back to REPORT_LLM_MODEL.
   JUDGE_LLM_MODEL: ""
   # Catalog of Azure deployments an element may select in Configuración/Pruebas:
-  # JSON list, e.g. '[{"nombre":"principal","deployment":"<azure-deployment>"}]'.
+  # JSON list, e.g. '[{"nombre":"GPT-5.2","deployment":"<azure-deployment>"}]'.
   # Empty = no catalog; every element keeps its *_LLM_MODEL above. Invalid JSON
   # stops the process at start-up. Keep the same value in API and workers.
-  LLM_CATALOG: ""
+  LLM_CATALOG: '[{"nombre":"GPT-5.2","deployment":"asistentelupita-llm-work-agent-gpt52"},{"nombre":"GPT-5 mini","deployment":"asistentelupita-llm-work-agent-gpt5mini"},{"nombre":"GPT-5 nano","deployment":"asistentelupita-llm-work-agent-gpt5nano"}]'
   EMBEDDING_MODEL: agentepqrs-llm-live-emebed-3-large
   EMBEDDING_DIMENSIONS: "3072"
   # Namespace Collector (observability/otel-collector), the only OTLP boundary.
