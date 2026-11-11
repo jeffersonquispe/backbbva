@@ -30,6 +30,8 @@ spec:
             - {name: otlp-http, containerPort: 4318}
             - {name: health, containerPort: 13133}
           env:
+            - name: PHOENIX_OTLP_ENDPOINT
+              value: http://phoenix:6006
             - name: OTLP_UPSTREAM_ENDPOINT
               valueFrom: {configMapKeyRef: {name: aria-otel-collector-config, key: OTLP_UPSTREAM_ENDPOINT}}
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}

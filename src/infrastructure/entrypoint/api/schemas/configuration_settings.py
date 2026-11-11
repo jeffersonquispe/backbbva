@@ -55,6 +55,7 @@ class ShortageBehaviorSchema(BaseModel):
 class GeneralSettingsSchema(BaseModel):
     migration_window_enabled: bool = False
     migration_window_datetime: str = "2000-01-01T02:00"
+    llm_selection: dict[str, str | None] = Field(default_factory=dict)
 
 
 class InfraSettingsSchema(BaseModel):

@@ -161,6 +161,7 @@ class AgentMessageResponse(BaseModel):
     extracted_insight_ids: tuple[str, ...] = ()
     references: list[AgentMessageReferenceResponse] = Field(default_factory=list)
     context_used: list[AgentMessageReferenceResponse] = Field(default_factory=list)
+    error_code: str | None = None
 
 
 class AgentChatTurnResponse(BaseModel):

@@ -557,3 +557,47 @@ def test_start_freezes_and_records_resolved_configuration(explicit: bool) -> Non
     assert runs.get(output.test_run_id).config.configuration_ref == ConfigurationRef(
         "cfg", 3
     )
+
+
+class InMemoryLLMCatalog:
+    def __init__(self, *entries: tuple[str, str]) -> None:
+        from src.domain.llm.catalog import LLMCatalog, LLMCatalogEntry
+
+        self._catalog = LLMCatalog(tuple(LLMCatalogEntry(n, d) for n, d in entries))
+
+    def get(self):
+        return self._catalog
+
+
+def _run_with_overrides(overrides: dict[str, str], catalog) -> None:
+    use_case = StartTestRunUseCase(
+        dataset_repository=InMemoryDatasetRepository({"sample": [{"eventId": "e-1"}]}),
+        test_run_repository=InMemoryTestRunRepository(),
+        alert_repository=InMemoryAlertRepository(),
+        async_operation_repository=InMemoryAsyncOperationRepository(),
+        workflow_repository=InMemoryWorkflowExecutionRepository(),
+        workflow_executor=RecordingWorkflowExecutor(),
+        llm_catalog=catalog,
+    )
+    use_case.execute(
+        StartTestRunInput(
+            name="run",
+            dataset_name="sample",
+            config=TestRunConfig(model_overrides=overrides),
+        )
+    )
+
+
+def test_model_overrides_must_be_catalog_names() -> None:
+    from src.domain.llm.catalog import LLMSelectionError
+
+    catalog = InMemoryLLMCatalog(("preciso", "gpt-big"))
+    _run_with_overrides({"analyst": "preciso"}, catalog)
+    with pytest.raises(LLMSelectionError):
+        _run_with_overrides({"analyst": "gpt-big"}, catalog)
+    with pytest.raises(LLMSelectionError):
+        _run_with_overrides({"nope": "preciso"}, catalog)
+
+
+def test_model_overrides_stay_raw_deployments_without_a_catalog() -> None:
+    _run_with_overrides({"analyst": "legacy-deployment"}, InMemoryLLMCatalog())

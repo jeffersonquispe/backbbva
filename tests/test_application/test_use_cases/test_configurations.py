@@ -909,3 +909,53 @@ def test_activation_rejects_a_retired_generation_pin() -> None:
     with pytest.raises(ConfigurationVectorStoreUnavailableError, match="retired"):
         activate.execute(v1.configuration_id, 1, approved_deploy_request=True)
     assert repo.get_active() is None
+
+
+class InMemoryLLMCatalog:
+    def __init__(self, *entries: tuple[str, str]) -> None:
+        from src.domain.llm.catalog import LLMCatalog, LLMCatalogEntry
+
+        self._catalog = LLMCatalog(tuple(LLMCatalogEntry(n, d) for n, d in entries))
+
+    def get(self):
+        return self._catalog
+
+
+def test_create_configuration_keeps_a_valid_llm_selection_and_cleans_blanks() -> None:
+    repo = InMemoryConfigurationRepository()
+    use_case = CreateConfigurationUseCase(
+        repo, llm_catalog=InMemoryLLMCatalog(("preciso", "gpt-big"))
+    )
+
+    record = use_case.execute(
+        CreateConfigurationInput(
+            name="Con LLM",
+            general=GeneralSettings(llm_selection={"judge": "preciso", "analyst": ""}),
+        )
+    )
+
+    assert record.general.llm_selection == {"judge": "preciso", "analyst": None}
+
+
+def test_create_configuration_rejects_a_name_outside_the_catalog() -> None:
+    from src.domain.llm.catalog import UNKNOWN_NAME_CODE, LLMSelectionError
+
+    repo = InMemoryConfigurationRepository()
+    use_case = CreateConfigurationUseCase(
+        repo, llm_catalog=InMemoryLLMCatalog(("preciso", "gpt-big"))
+    )
+
+    with pytest.raises(LLMSelectionError) as error:
+        use_case.execute(
+            CreateConfigurationInput(
+                name="Mala",
+                general=GeneralSettings(llm_selection={"judge": "inexistente"}),
+            )
+        )
+
+    assert error.value.error_code == UNKNOWN_NAME_CODE
+    assert repo.items == {}
+
+
+def test_old_configurations_without_llm_selection_default_to_empty() -> None:
+    assert GeneralSettings().llm_selection == {}

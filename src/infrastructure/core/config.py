@@ -3,7 +3,7 @@ import os
 
 import boto3
 from botocore.exceptions import ClientError
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
@@ -118,6 +118,19 @@ class Config(BaseSettings):
     # back to REPORT_LLM_MODEL (see workflows/celery/factories.py).
     JUDGE_LLM_MODEL: str = ""
 
+    # Catalog of Azure deployments an element may select (ConfigMap only):
+    # JSON list of {"nombre": ..., "deployment": ...}. Empty = no catalog, every
+    # element keeps its *_LLM_MODEL default. Invalid JSON stops the process.
+    LLM_CATALOG: str = ""
+
+    @field_validator("LLM_CATALOG")
+    @classmethod
+    def _validate_llm_catalog(cls, value: str) -> str:
+        from src.domain.llm.catalog import parse_llm_catalog
+
+        parse_llm_catalog(value)
+        return value
+
     # MCP model-serving service
     MCP_PORT: int = 8100
     MCP_BASE_URL: str = "http://mcp:8100"
@@ -182,6 +195,12 @@ class Config(BaseSettings):
     CELERY_DEFAULT_QUEUE: str = "default"
 
     CELERY_AGENT_QUEUE: str = "agent"
+    # Assistant chat replies: their own queue so a long optimizer candidate on
+    # the agent queue never delays an answer.
+    CELERY_AGENT_CHAT_QUEUE: str = "agent-chat"
+    # The LLM-judge of the agent's reasoning runs here, on its own worker: alerts
+    # are resolved and visible whether or not the evaluator is up or slow.
+    CELERY_REASONING_EVALUATION_QUEUE: str = "reasoning-evaluation"
     AGENT_STUB_DELAY_SECONDS: float = 0.0
     # Test runs use a dedicated queue and worker so batch CSV work cannot
     # consume production workflow capacity.

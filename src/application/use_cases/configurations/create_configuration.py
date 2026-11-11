@@ -11,6 +11,7 @@ from src.application.ports.configuration_port import (
     ConfigurationRepository,
 )
 from src.application.ports.id_generator_port import IdGenerator
+from src.application.ports.llm_catalog_port import LLMCatalogPort
 from src.application.runtime_defaults import (
     DEFAULT_ID_GENERATOR,
     resolve_clock,
@@ -22,6 +23,7 @@ from src.domain.configurations.entities import (
     ConfigurationRecord,
     ConfigurationRef,
 )
+from src.domain.llm.catalog import validate_llm_selection
 
 
 class ConfigurationVersionConflictError(ConflictError):
@@ -143,7 +145,9 @@ class CreateConfigurationUseCase:
         id_generator: IdGenerator | None = None,
         schema_repository: AlertSchemaRepository | None = None,
         vector_store_pins: PinConfigurationVectorStoresUseCase | None = None,
+        llm_catalog: LLMCatalogPort | None = None,
     ) -> None:
+        self._llm_catalog = llm_catalog
         self._configurations = configuration_repository
         self._clock = resolve_clock(clock)
         self._id_generator = id_generator or DEFAULT_ID_GENERATOR
@@ -152,6 +156,16 @@ class CreateConfigurationUseCase:
 
     def execute(self, input: CreateConfigurationInput) -> ConfigurationRecord:
         now = self._clock.now()
+        if self._llm_catalog is not None:
+            input = replace(
+                input,
+                general=replace(
+                    input.general,
+                    llm_selection=validate_llm_selection(
+                        input.general.llm_selection, self._llm_catalog.get()
+                    ),
+                ),
+            )
         if input.configuration_id is not None:
             configuration_id = input.configuration_id
             input, latest = merge_stale_configuration(input, self._configurations)

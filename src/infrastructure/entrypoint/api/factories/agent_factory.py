@@ -1,3 +1,11 @@
+from functools import lru_cache
+
+from src.application.ports.agent_chat_dispatcher_port import AgentChatDispatcher
+from src.application.ports.agent_chat_responder_port import (
+    AgentChatInput,
+    AgentChatOutput,
+    AgentChatResponder,
+)
 from src.application.ports.assistant_optimizer_settings_port import (
     AssistantOptimizerSettingsPort,
 )
@@ -27,13 +35,9 @@ from src.application.use_cases.agent.renew_agent_budget import RenewAgentBudgetU
 from src.application.use_cases.agent.resolve_agent_block import (
     ResolveAgentBlockUseCase,
 )
-from src.application.use_cases.agent.retrieve_project_context import (
-    RetrieveProjectContextUseCase,
-)
 from src.infrastructure.agents.factories import (
     get_agent_audit_repository,
     get_agent_budget_ledger_repository,
-    get_agent_chat_responder,
     get_agent_entity_claim_repository,
     get_agent_event_repository,
     get_agent_experiment_component_resolver,
@@ -50,8 +54,6 @@ from src.infrastructure.agents.factories import (
     get_agent_session_summary_repository,
     get_agent_timeline,
     get_personal_data_masker,
-    get_project_graph_repository,
-    get_project_graph_semantic_search,
 )
 from src.infrastructure.core.runtime.system_clock import get_clock
 from src.infrastructure.core.runtime.uuid_generator import get_id_generator
@@ -91,6 +93,11 @@ def get_manage_agent_session_use_case(
 
 
 def get_chat_with_agent_use_case() -> ChatWithAgentUseCase:
+    """API side of the chat: ``accept`` only stores the turn; a worker answers.
+
+    The worker composes the full use case (LLM, project graph) in
+    ``infrastructure/workflows/celery/factories.py``.
+    """
     return ChatWithAgentUseCase(
         sessions=get_agent_session_repository(),
         messages=get_agent_message_repository(),
@@ -100,14 +107,26 @@ def get_chat_with_agent_use_case() -> ChatWithAgentUseCase:
         prompts=get_agent_prompt_repository(),
         settings=get_assistant_optimizer_settings_repository(),
         masker=get_personal_data_masker(),
-        responder=get_agent_chat_responder(),
+        responder=_NoLLMResponder(),
         clock=get_clock(),
         id_generator=get_id_generator(),
-        project_context=RetrieveProjectContextUseCase(
-            graph=get_project_graph_repository(),
-            semantic=get_project_graph_semantic_search(),
-        ),
     )
+
+
+class _NoLLMResponder(AgentChatResponder):
+    """The API never calls the LLM for chat; replies are produced by the worker."""
+
+    def respond(self, request: AgentChatInput) -> AgentChatOutput:
+        raise RuntimeError("chat replies are produced by the agent chat worker")
+
+
+@lru_cache
+def get_agent_chat_dispatcher() -> AgentChatDispatcher:
+    from src.infrastructure.queues.celery.agent_dispatcher import (
+        CeleryAgentChatDispatcher,
+    )
+
+    return CeleryAgentChatDispatcher()
 
 
 def get_manage_agent_insight_use_case() -> ManageAgentInsightUseCase:

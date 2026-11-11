@@ -95,12 +95,18 @@ def _run_analyst(context: dict[str, Any]) -> AnalystReviewAlertOutput:
 
 
 def _generate_agent_text(
-    prompt: str, pool: dict[str, Any], system_prompt: str, operation_name: str
+    prompt: str,
+    pool: dict[str, Any],
+    system_prompt: str,
+    operation_name: str,
+    context: dict[str, Any],
 ) -> str:
     if not prompt:
         return ""
     use_case = get_generate_agent_text_use_case(
-        system_prompt=system_prompt, operation_name=operation_name
+        system_prompt=system_prompt,
+        operation_name=operation_name,
+        model=_step_overrides(context, "executor")["model"],
     )
     output = use_case.execute(
         GenerateAgentTextInput(prompt=substitute_variables(prompt, pool))
@@ -200,6 +206,7 @@ def _run_executor(context: dict[str, Any]) -> dict[str, Any]:
                         pool,
                         _ARIC_MARKING_SYSTEM_PROMPT,
                         "aric_marking",
+                        context,
                     )
                     or None
                 )
@@ -232,6 +239,7 @@ def _run_post_process(context: dict[str, Any]) -> PostProcessAlertOutput:
                 pool,
                 _DOCUMENTADOR_SYSTEM_PROMPT,
                 "documentador",
+                context,
             )
     use_case = get_post_process_alert_use_case()
     return use_case.execute(

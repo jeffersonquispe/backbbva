@@ -16,7 +16,7 @@ from src.application.ports.fraud_taxonomy_port import FraudTaxonomyPort
 from src.application.ports.llm_unit_of_work_factory_port import LLMUnitOfWorkFactory
 from src.application.ports.llm_unit_of_work_port import LLMMessage, LLMMessageRole
 from src.application.ports.modus_operandi_port import ModusOperandiPort
-from src.application.ports.monitoring_port import MonitoringPort
+from src.application.ports.monitoring_port import ATTR_TOOL_NAME, MonitoringPort
 from src.application.ports.watchlist_port import WatchlistRepository
 from src.application.ports.workflow_status_port import (
     WorkflowStatusReporter,
@@ -351,7 +351,12 @@ class ClassifyAlertUseCase:
         tool = self._tools.get(name)
         if tool is None:
             return f"Unknown tool '{name}'. Available tools: {', '.join(self._tools)}"
-        result = tool(query)
+        # One span per real tool call (unique aria.run_id, parented under
+        # the active step span). Arguments/results are not recorded here.
+        with self._monitoring.start(
+            f"tool.{name}", "tool", metadata={ATTR_TOOL_NAME: name}
+        ):
+            result = tool(query)
         if isinstance(result, str):
             return result
         return json.dumps([_serializable(r) for r in result], default=str)

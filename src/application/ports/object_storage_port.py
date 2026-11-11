@@ -49,6 +49,12 @@ class ObjectStoragePort(ABC):
     def get_bytes(self, key: str) -> bytes:
         raise NotImplementedError
 
+    def get_range(self, key: str, offset: int, length: int) -> bytes:
+        """``length`` bytes of the object starting at ``offset`` (one range
+        request on S3-compatible stores). Adapters without ranges may read the
+        whole object."""
+        return self.get_bytes(key)[offset : offset + length]
+
     def get_stream(self, key: str) -> BinaryIO:
         """Return a readable object stream. The caller closes it."""
         raise NotImplementedError

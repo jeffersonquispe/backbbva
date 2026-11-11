@@ -1,0 +1,9 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: aria-evaluation-worker-ingress
+  labels: {app.kubernetes.io/name: aria-evaluation-worker, app.kubernetes.io/part-of: aria-workers, app.kubernetes.io/managed-by: argocd}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: aria-evaluation-worker}}
+  policyTypes: [Ingress]
+  ingress: []

@@ -166,6 +166,9 @@ class GeneralSettings:
     # ISO datetime string ("YYYY-MM-DDTHH:MM"), same format the frontend's
     # <input type="datetime-local"> produces - stored as-is, no parsing.
     migration_window_datetime: str = "2000-01-01T02:00"
+    # element -> LLM catalog name (see domain/llm/catalog.py); an absent or
+    # None element runs on its default deployment. Names, never deployments.
+    llm_selection: dict[str, str | None] = field(default_factory=dict)
 
 
 @dataclass

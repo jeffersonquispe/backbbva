@@ -46,6 +46,10 @@ services:
     image: otel/opentelemetry-collector-contrib:0.116.1
     container_name: aria-otel-collector
     command: ["--config=/etc/otel-collector/collector.yaml"]
+    environment:
+      # Phoenix runs in the main local stack; here it is just unreachable
+      # (its exporter queues/drops without affecting the others).
+      PHOENIX_OTLP_ENDPOINT: ${PHOENIX_OTLP_ENDPOINT:-http://phoenix:6006}
     volumes:
       - ./otel-collector/collector.yaml:/etc/otel-collector/collector.yaml:ro
     ports:

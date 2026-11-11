@@ -2,6 +2,7 @@
 #   otel-collector -> tempo (traces) | loki (logs) | prometheus (metrics)
 #   tempo/loki persist to observability-minio (buckets via observability-minio-init)
 #   grafana reads all three.
+#   otel-collector -> phoenix (trace UI, PostgreSQL-backed) over OTLP HTTP.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -10,5 +11,6 @@ resources:
   - tempo
   - loki
   - prometheus
+  - phoenix
   - otel-collector
   - grafana

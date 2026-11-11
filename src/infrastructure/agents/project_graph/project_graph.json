@@ -602,6 +602,36 @@
   },
   {
    "relation": "requests",
+   "source": "api:fraudArchive.getArchivedAlert",
+   "target": "endpoint:GET /api/v0/fraud-history/archive/{alert_id}"
+  },
+  {
+   "relation": "requests",
+   "source": "api:fraudArchive.getLegalHold",
+   "target": "endpoint:GET /api/v0/fraud-history/legal-holds/{alert_id}"
+  },
+  {
+   "relation": "requests",
+   "source": "api:fraudArchive.listLegalHolds",
+   "target": "endpoint:GET /api/v0/fraud-history/legal-holds"
+  },
+  {
+   "relation": "requests",
+   "source": "api:fraudArchive.placeLegalHold",
+   "target": "endpoint:PUT /api/v0/fraud-history/legal-holds/{alert_id}"
+  },
+  {
+   "relation": "requests",
+   "source": "api:fraudArchive.releaseLegalHold",
+   "target": "endpoint:POST /api/v0/fraud-history/legal-holds/{alert_id}/release"
+  },
+  {
+   "relation": "requests",
+   "source": "api:fraudArchive.searchArchivedAlerts",
+   "target": "endpoint:GET /api/v0/fraud-history/archive"
+  },
+  {
+   "relation": "requests",
    "source": "api:knowledgeLibrary.createModusOperandiLibraryEntry",
    "target": "endpoint:POST /api/v0/library/modus-operandi"
   },
@@ -664,6 +694,11 @@
    "relation": "requests",
    "source": "api:knowledgeLibrary.updateTaxonomyLibraryEntry",
    "target": "endpoint:PATCH /api/v0/library/taxonomies/{entry_id}"
+  },
+  {
+   "relation": "requests",
+   "source": "api:llmCatalog.getLlmCatalog",
+   "target": "endpoint:GET /api/v0/llm-catalog"
   },
   {
    "relation": "requests",
@@ -774,6 +809,26 @@
    "relation": "requests",
    "source": "api:operations.updateOperationalSettings",
    "target": "endpoint:PUT /api/v0/operational-settings"
+  },
+  {
+   "relation": "requests",
+   "source": "api:reasoningEvaluation.getAlertReasoningEvaluation",
+   "target": "endpoint:GET /api/v0/alerts/fraud-review-imports/{task_id}"
+  },
+  {
+   "relation": "requests",
+   "source": "api:reasoningEvaluation.listReasoningEvaluationCriteria",
+   "target": "endpoint:GET /api/v0/metrics/reasoning-evaluation-criteria"
+  },
+  {
+   "relation": "requests",
+   "source": "api:reasoningEvaluation.listReasoningEvaluations",
+   "target": "endpoint:GET /api/v0/metrics/reasoning-evaluations"
+  },
+  {
+   "relation": "requests",
+   "source": "api:reasoningEvaluation.requestAlertReasoningEvaluation",
+   "target": "endpoint:POST /api/v0/alerts/{alert_id}/reasoning-evaluation"
   },
   {
    "relation": "requests",
@@ -1344,6 +1399,16 @@
    "relation": "renders",
    "source": "component:alert/AlertSchemaView",
    "target": "component:testing/Hint"
+  },
+  {
+   "relation": "calls",
+   "source": "component:alert/ReasoningEvaluationTab",
+   "target": "api:reasoningEvaluation.getAlertReasoningEvaluation"
+  },
+  {
+   "relation": "calls",
+   "source": "component:alert/ReasoningEvaluationTab",
+   "target": "api:reasoningEvaluation.requestAlertReasoningEvaluation"
   },
   {
    "relation": "renders",
@@ -2697,6 +2762,81 @@
   },
   {
    "relation": "offers",
+   "source": "component:fraude/FraudArchive",
+   "target": "action:abrir@component-fraude-fraudarchive"
+  },
+  {
+   "relation": "offers",
+   "source": "component:fraude/FraudArchive",
+   "target": "action:buscar@component-fraude-fraudarchive"
+  },
+  {
+   "relation": "offers",
+   "source": "component:fraude/FraudArchive",
+   "target": "action:exportar-json@component-fraude-fraudarchive"
+  },
+  {
+   "relation": "offers",
+   "source": "component:fraude/FraudArchive",
+   "target": "action:levantar-retencion@component-fraude-fraudarchive"
+  },
+  {
+   "relation": "offers",
+   "source": "component:fraude/FraudArchive",
+   "target": "action:levantar@component-fraude-fraudarchive"
+  },
+  {
+   "relation": "offers",
+   "source": "component:fraude/FraudArchive",
+   "target": "action:retener@component-fraude-fraudarchive"
+  },
+  {
+   "relation": "offers",
+   "source": "component:fraude/FraudArchive",
+   "target": "action:volver-a-los-resultados@component-fraude-fraudarchive"
+  },
+  {
+   "relation": "calls",
+   "source": "component:fraude/FraudArchive",
+   "target": "api:fraudArchive.getArchivedAlert"
+  },
+  {
+   "relation": "calls",
+   "source": "component:fraude/FraudArchive",
+   "target": "api:fraudArchive.getLegalHold"
+  },
+  {
+   "relation": "calls",
+   "source": "component:fraude/FraudArchive",
+   "target": "api:fraudArchive.listLegalHolds"
+  },
+  {
+   "relation": "calls",
+   "source": "component:fraude/FraudArchive",
+   "target": "api:fraudArchive.placeLegalHold"
+  },
+  {
+   "relation": "calls",
+   "source": "component:fraude/FraudArchive",
+   "target": "api:fraudArchive.releaseLegalHold"
+  },
+  {
+   "relation": "calls",
+   "source": "component:fraude/FraudArchive",
+   "target": "api:fraudArchive.searchArchivedAlerts"
+  },
+  {
+   "relation": "renders",
+   "source": "component:fraude/FraudArchive",
+   "target": "component:ui/DataTable"
+  },
+  {
+   "relation": "renders",
+   "source": "component:fraude/FraudArchive",
+   "target": "component:ui/side-drawer"
+  },
+  {
+   "relation": "offers",
    "source": "component:fraude/FraudReview",
    "target": "action:continuar@component-fraude-fraudreview"
   },
@@ -2719,6 +2859,11 @@
    "relation": "renders",
    "source": "component:fraude/FraudReview",
    "target": "component:ui/dialog"
+  },
+  {
+   "relation": "calls",
+   "source": "component:llm/LlmSelectionTable",
+   "target": "api:llmCatalog.getLlmCatalog"
   },
   {
    "relation": "offers",
@@ -2744,6 +2889,26 @@
    "relation": "renders",
    "source": "component:metrics/MetricsShared",
    "target": "component:ui/popover"
+  },
+  {
+   "relation": "calls",
+   "source": "component:metrics/ReasoningEvaluationsDrawer",
+   "target": "api:reasoningEvaluation.listReasoningEvaluations"
+  },
+  {
+   "relation": "renders",
+   "source": "component:metrics/ReasoningEvaluationsDrawer",
+   "target": "component:alert/ReasoningEvaluationTab"
+  },
+  {
+   "relation": "renders",
+   "source": "component:metrics/ReasoningEvaluationsDrawer",
+   "target": "component:ui/side-drawer"
+  },
+  {
+   "relation": "navigates_to",
+   "source": "component:metrics/ReasoningEvaluationsDrawer",
+   "target": "view:/alerta/$id"
   },
   {
    "relation": "offers",
@@ -3403,6 +3568,11 @@
   {
    "relation": "renders",
    "source": "component:testing/CaseStepDetail",
+   "target": "component:llm/StepLlmBadge"
+  },
+  {
+   "relation": "renders",
+   "source": "component:testing/CaseStepDetail",
    "target": "component:testing/AlertFullData"
   },
   {
@@ -3504,6 +3674,11 @@
    "relation": "calls",
    "source": "component:testing/DatasetTestForm",
    "target": "api:testing.startTestRun"
+  },
+  {
+   "relation": "renders",
+   "source": "component:testing/DatasetTestForm",
+   "target": "component:llm/LlmSelectionTable"
   },
   {
    "relation": "renders",
@@ -4666,6 +4841,16 @@
    "target": "resource:alerts"
   },
   {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "target": "permission:monitor"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "target": "resource:reasoning-evaluations"
+  },
+  {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/analyst-capacity/imports/{task_id}",
    "target": "resource:analyst-capacity"
@@ -4936,6 +5121,46 @@
    "target": "resource:e2e"
   },
   {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/fraud-history/archive",
+   "target": "permission:fraud_archive"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/fraud-history/archive",
+   "target": "resource:fraud-history"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/fraud-history/archive/{alert_id}",
+   "target": "permission:fraud_archive"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/fraud-history/archive/{alert_id}",
+   "target": "resource:fraud-history"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/fraud-history/legal-holds",
+   "target": "permission:legal_hold"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/fraud-history/legal-holds",
+   "target": "resource:fraud-history"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/fraud-history/legal-holds/{alert_id}",
+   "target": "permission:fraud_archive"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/fraud-history/legal-holds/{alert_id}",
+   "target": "resource:fraud-history"
+  },
+  {
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/health",
    "target": "resource:health"
@@ -5012,6 +5237,16 @@
   },
   {
    "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/llm-catalog",
+   "target": "resource:llm-catalog"
+  },
+  {
+   "relation": "handled_by",
+   "source": "endpoint:GET /api/v0/llm-catalog",
+   "target": "use_case:GetLLMCatalogUseCase"
+  },
+  {
+   "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/marcacion-catalog",
    "target": "resource:marcacion-catalog"
   },
@@ -5049,6 +5284,26 @@
    "relation": "belongs_to",
    "source": "endpoint:GET /api/v0/metrics/overview",
    "target": "resource:metrics"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/metrics/reasoning-evaluation-criteria",
+   "target": "permission:monitor"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/metrics/reasoning-evaluation-criteria",
+   "target": "resource:reasoning-evaluations"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:GET /api/v0/metrics/reasoning-evaluations",
+   "target": "permission:monitor"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:GET /api/v0/metrics/reasoning-evaluations",
+   "target": "resource:reasoning-evaluations"
   },
   {
    "relation": "requires",
@@ -5871,6 +6126,16 @@
    "target": "resource:alerts"
   },
   {
+   "relation": "requires",
+   "source": "endpoint:POST /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "target": "permission:configuration"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "target": "resource:reasoning-evaluations"
+  },
+  {
    "relation": "belongs_to",
    "source": "endpoint:POST /api/v0/analyst-capacity/imports",
    "target": "resource:analyst-capacity"
@@ -6124,6 +6389,26 @@
    "relation": "handled_by",
    "source": "endpoint:POST /api/v0/e2e/clean",
    "target": "use_case:CleanE2EStateUseCase"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:POST /api/v0/e2e/fraud-history/archived-alert",
+   "target": "permission:alert_schema"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/e2e/fraud-history/archived-alert",
+   "target": "resource:e2e"
+  },
+  {
+   "relation": "requires",
+   "source": "endpoint:POST /api/v0/fraud-history/legal-holds/{alert_id}/release",
+   "target": "permission:legal_hold"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:POST /api/v0/fraud-history/legal-holds/{alert_id}/release",
+   "target": "resource:fraud-history"
   },
   {
    "relation": "belongs_to",
@@ -6526,6 +6811,16 @@
    "target": "use_case:SaveAlertFieldMappingUseCase"
   },
   {
+   "relation": "requires",
+   "source": "endpoint:PUT /api/v0/fraud-history/legal-holds/{alert_id}",
+   "target": "permission:legal_hold"
+  },
+  {
+   "relation": "belongs_to",
+   "source": "endpoint:PUT /api/v0/fraud-history/legal-holds/{alert_id}",
+   "target": "resource:fraud-history"
+  },
+  {
    "relation": "belongs_to",
    "source": "endpoint:PUT /api/v0/operational-settings",
    "target": "resource:operational-settings"
@@ -6559,6 +6854,11 @@
    "relation": "implemented_by",
    "source": "port:AgentChatResponder",
    "target": "adapter:LLMChatResponder"
+  },
+  {
+   "relation": "implemented_by",
+   "source": "port:AgentChatResponder",
+   "target": "adapter:_NoLLMResponder"
   },
   {
    "relation": "implemented_by",
@@ -6849,6 +7149,16 @@
    "relation": "implemented_by",
    "source": "port:IdGenerator",
    "target": "adapter:Uuid4Generator"
+  },
+  {
+   "relation": "implemented_by",
+   "source": "port:LLMCatalogPort",
+   "target": "adapter:ConfigLLMCatalog"
+  },
+  {
+   "relation": "implemented_by",
+   "source": "port:LLMUnitOfWorkFactory",
+   "target": "adapter:ElementLLMUnitOfWorkFactory"
   },
   {
    "relation": "implemented_by",
@@ -7158,6 +7468,11 @@
   {
    "relation": "grants",
    "source": "role:fraud_reviewer",
+   "target": "permission:fraud_archive"
+  },
+  {
+   "relation": "grants",
+   "source": "role:fraud_reviewer",
    "target": "permission:fraud_history"
   },
   {
@@ -7188,6 +7503,11 @@
   {
    "relation": "grants",
    "source": "role:manager",
+   "target": "permission:fraud_archive"
+  },
+  {
+   "relation": "grants",
+   "source": "role:manager",
    "target": "permission:fraud_history"
   },
   {
@@ -7199,6 +7519,11 @@
    "relation": "grants",
    "source": "role:manager",
    "target": "permission:in_progress"
+  },
+  {
+   "relation": "grants",
+   "source": "role:manager",
+   "target": "permission:legal_hold"
   },
   {
    "relation": "grants",
@@ -8443,6 +8768,11 @@
   },
   {
    "relation": "uses_port",
+   "source": "use_case:CreateConfigurationUseCase",
+   "target": "port:LLMCatalogPort"
+  },
+  {
+   "relation": "uses_port",
    "source": "use_case:CreateEmptyDatasetUseCase",
    "target": "port:Clock"
   },
@@ -9363,6 +9693,11 @@
   },
   {
    "relation": "uses_port",
+   "source": "use_case:GetLLMCatalogUseCase",
+   "target": "port:LLMCatalogPort"
+  },
+  {
+   "relation": "uses_port",
    "source": "use_case:GetMatureSamplerSchemaConfigurationUseCase",
    "target": "port:AlertSchemaRepository"
   },
@@ -10039,6 +10374,11 @@
   {
    "relation": "uses_port",
    "source": "use_case:StartTestRunUseCase",
+   "target": "port:LLMCatalogPort"
+  },
+  {
+   "relation": "uses_port",
+   "source": "use_case:StartTestRunUseCase",
    "target": "port:ObjectStoragePort"
   },
   {
@@ -10440,6 +10780,16 @@
    "relation": "renders",
    "source": "view:/alerta/$id",
    "target": "component:alert/AlertSchemaView"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/alerta/$id",
+   "target": "component:alert/ReasoningEvaluationTab"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/alerta/$id",
+   "target": "component:llm/StepLlmBadge"
   },
   {
    "relation": "navigates_to",
@@ -11019,6 +11369,11 @@
   {
    "relation": "renders",
    "source": "view:/configuracion",
+   "target": "component:llm/LlmSelectionTable"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/configuracion",
    "target": "component:optimizer/OptimizerCenter"
   },
   {
@@ -11109,6 +11464,11 @@
   {
    "relation": "offers",
    "source": "view:/historico-fraude",
+   "target": "action:archivo@view-historico-fraude"
+  },
+  {
+   "relation": "offers",
+   "source": "view:/historico-fraude",
    "target": "action:auditoria@view-historico-fraude"
   },
   {
@@ -11145,6 +11505,11 @@
    "relation": "renders",
    "source": "view:/historico-fraude",
    "target": "component:PageHeader"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/historico-fraude",
+   "target": "component:fraude/FraudArchive"
   },
   {
    "relation": "renders",
@@ -11272,6 +11637,11 @@
    "target": "action:exportar-reporte@view-monitor"
   },
   {
+   "relation": "offers",
+   "source": "view:/monitor",
+   "target": "action:ver-alertas-evaluadas@view-monitor"
+  },
+  {
    "relation": "renders",
    "source": "view:/monitor",
    "target": "component:DashboardLayout"
@@ -11290,6 +11660,11 @@
    "relation": "renders",
    "source": "view:/monitor",
    "target": "component:metrics/MetricsShared"
+  },
+  {
+   "relation": "renders",
+   "source": "view:/monitor",
+   "target": "component:metrics/ReasoningEvaluationsDrawer"
   },
   {
    "relation": "renders",
@@ -11546,6 +11921,18 @@
    ],
    "kind": "action",
    "name": "Abrir propuesta de"
+  },
+  {
+   "attrs": {
+    "owner": "component:fraude/FraudArchive"
+   },
+   "description": "Acción «Abrir» en FraudArchive.",
+   "id": "action:abrir@component-fraude-fraudarchive",
+   "keywords": [
+    "Abrir"
+   ],
+   "kind": "action",
+   "name": "Abrir"
   },
   {
    "attrs": {
@@ -12053,6 +12440,18 @@
   },
   {
    "attrs": {
+    "owner": "view:/historico-fraude"
+   },
+   "description": "Acción «Archivo» en /historico-fraude.",
+   "id": "action:archivo@view-historico-fraude",
+   "keywords": [
+    "Archivo"
+   ],
+   "kind": "action",
+   "name": "Archivo"
+  },
+  {
+   "attrs": {
     "owner": "component:agent/AgentPanel"
    },
    "description": "Acción «Asistente ARIA» en AgentPanel.",
@@ -12177,6 +12576,18 @@
    },
    "description": "Acción «Buscar» en VectorStoreSearchPanel.",
    "id": "action:buscar@component-biblioteca-vectorstoresearchpanel",
+   "keywords": [
+    "Buscar"
+   ],
+   "kind": "action",
+   "name": "Buscar"
+  },
+  {
+   "attrs": {
+    "owner": "component:fraude/FraudArchive"
+   },
+   "description": "Acción «Buscar» en FraudArchive.",
+   "id": "action:buscar@component-fraude-fraudarchive",
    "keywords": [
     "Buscar"
    ],
@@ -13109,6 +13520,18 @@
   },
   {
    "attrs": {
+    "owner": "component:fraude/FraudArchive"
+   },
+   "description": "Acción «Exportar JSON» en FraudArchive.",
+   "id": "action:exportar-json@component-fraude-fraudarchive",
+   "keywords": [
+    "Exportar JSON"
+   ],
+   "kind": "action",
+   "name": "Exportar JSON"
+  },
+  {
+   "attrs": {
     "owner": "view:/dashboard"
    },
    "description": "Acción «Exportar reporte» en /dashboard.",
@@ -13418,6 +13841,30 @@
    ],
    "kind": "action",
    "name": "Lanzar optimizador"
+  },
+  {
+   "attrs": {
+    "owner": "component:fraude/FraudArchive"
+   },
+   "description": "Acción «Levantar retención» en FraudArchive.",
+   "id": "action:levantar-retencion@component-fraude-fraudarchive",
+   "keywords": [
+    "Levantar retención"
+   ],
+   "kind": "action",
+   "name": "Levantar retención"
+  },
+  {
+   "attrs": {
+    "owner": "component:fraude/FraudArchive"
+   },
+   "description": "Acción «Levantar» en FraudArchive.",
+   "id": "action:levantar@component-fraude-fraudarchive",
+   "keywords": [
+    "Levantar"
+   ],
+   "kind": "action",
+   "name": "Levantar"
   },
   {
    "attrs": {
@@ -14081,6 +14528,18 @@
   },
   {
    "attrs": {
+    "owner": "component:fraude/FraudArchive"
+   },
+   "description": "Acción «Retener» en FraudArchive.",
+   "id": "action:retener@component-fraude-fraudarchive",
+   "keywords": [
+    "Retener"
+   ],
+   "kind": "action",
+   "name": "Retener"
+  },
+  {
+   "attrs": {
     "owner": "view:/historico-fraude"
    },
    "description": "Acción «Revisar fraude» en /historico-fraude.",
@@ -14321,6 +14780,18 @@
   },
   {
    "attrs": {
+    "owner": "view:/monitor"
+   },
+   "description": "Acción «Ver alertas evaluadas» en /monitor.",
+   "id": "action:ver-alertas-evaluadas@view-monitor",
+   "keywords": [
+    "Ver alertas evaluadas"
+   ],
+   "kind": "action",
+   "name": "Ver alertas evaluadas"
+  },
+  {
+   "attrs": {
     "owner": "view:/configuracion"
    },
    "description": "Acción «Ver borrador» en /configuracion.",
@@ -14525,6 +14996,18 @@
   },
   {
    "attrs": {
+    "owner": "component:fraude/FraudArchive"
+   },
+   "description": "Acción «Volver a los resultados» en FraudArchive.",
+   "id": "action:volver-a-los-resultados@component-fraude-fraudarchive",
+   "keywords": [
+    "Volver a los resultados"
+   ],
+   "kind": "action",
+   "name": "Volver a los resultados"
+  },
+  {
+   "attrs": {
     "owner": "component:modelos/ModelTrainingWizard"
    },
    "description": "Acción «Volver a modelos» en ModelTrainingWizard.",
@@ -14726,6 +15209,18 @@
    ],
    "kind": "adapter",
    "name": "CeleryWorkflowExecutor"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/llm/catalog/config_llm_catalog.py"
+   },
+   "description": "Catalog read from the ``LLM_CATALOG`` ConfigMap value (no API, no UI).",
+   "id": "adapter:ConfigLLMCatalog",
+   "keywords": [
+    "Config LLMCatalog"
+   ],
+   "kind": "adapter",
+   "name": "ConfigLLMCatalog"
   },
   {
    "attrs": {
@@ -15449,6 +15944,18 @@
   },
   {
    "attrs": {
+    "file": "src/infrastructure/llm/catalog/element_llm.py"
+   },
+   "description": "Factory for one element: failure logging, and optionally the active configuration's selection applied on every ``create``.",
+   "id": "adapter:ElementLLMUnitOfWorkFactory",
+   "keywords": [
+    "Element LLMUnit Of Work Factory"
+   ],
+   "kind": "adapter",
+   "name": "ElementLLMUnitOfWorkFactory"
+  },
+  {
+   "attrs": {
     "file": "src/infrastructure/agents/release_component_promoter.py"
    },
    "description": "Configuration -> deploy request (approved by manager/release manager); library -> manual review in Biblioteca, because library entries are not versioned for automatic activation. A vector-store generation is never publis",
@@ -15710,6 +16217,18 @@
    ],
    "kind": "adapter",
    "name": "Uuid4Generator"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/entrypoint/api/factories/agent_factory.py"
+   },
+   "description": "The API never calls the LLM for chat; replies are produced by the worker.",
+   "id": "adapter:_NoLLMResponder",
+   "keywords": [
+    "No LLMResponder"
+   ],
+   "kind": "adapter",
+   "name": "_NoLLMResponder"
   },
   {
    "attrs": {
@@ -17407,6 +17926,90 @@
   },
   {
    "attrs": {
+    "file": "lib/api/fraudArchive.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/fraud-history/archive/${encodeURIComponent(alertId)}"
+   },
+   "description": "GET /api/v0/fraud-history/archive/{id}",
+   "id": "api:fraudArchive.getArchivedAlert",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getArchivedAlert"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/fraudArchive.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/fraud-history/legal-holds/${encodeURIComponent(alertId)}"
+   },
+   "description": "GET /api/v0/fraud-history/legal-holds/{id}",
+   "id": "api:fraudArchive.getLegalHold",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getLegalHold"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/fraudArchive.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/fraud-history/legal-holds?limit=200"
+   },
+   "description": "GET /api/v0/fraud-history/legal-holds?limit=200",
+   "id": "api:fraudArchive.listLegalHolds",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listLegalHolds"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/fraudArchive.functions.ts",
+    "http_method": "PUT",
+    "url": "/api/v0/fraud-history/legal-holds/${encodeURIComponent(data.alertId)}"
+   },
+   "description": "PUT /api/v0/fraud-history/legal-holds/{id}",
+   "id": "api:fraudArchive.placeLegalHold",
+   "keywords": [
+    "actualizar reemplazar"
+   ],
+   "kind": "api_call",
+   "name": "placeLegalHold"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/fraudArchive.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/fraud-history/legal-holds/${encodeURIComponent(data.alertId)}/release"
+   },
+   "description": "POST /api/v0/fraud-history/legal-holds/{id}/release",
+   "id": "api:fraudArchive.releaseLegalHold",
+   "keywords": [
+    "liberar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "releaseLegalHold"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/fraudArchive.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/fraud-history/archive?${params}"
+   },
+   "description": "GET /api/v0/fraud-history/archive?",
+   "id": "api:fraudArchive.searchArchivedAlerts",
+   "keywords": [
+    "buscar consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "searchArchivedAlerts"
+  },
+  {
+   "attrs": {
     "file": "lib/api/health.functions.ts",
     "http_method": "GET",
     "url": "/health"
@@ -17600,6 +18203,20 @@
    ],
    "kind": "api_call",
    "name": "updateTaxonomyLibraryEntry"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/llmCatalog.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/llm-catalog"
+   },
+   "description": "GET /api/v0/llm-catalog",
+   "id": "api:llmCatalog.getLlmCatalog",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getLlmCatalog"
   },
   {
    "attrs": {
@@ -17908,6 +18525,62 @@
    ],
    "kind": "api_call",
    "name": "updateOperationalSettings"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/reasoningEvaluation.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/alerts/${encodeURIComponent(alertId)}/reasoning-evaluation"
+   },
+   "description": "GET /api/v0/alerts/{id}/reasoning-evaluation",
+   "id": "api:reasoningEvaluation.getAlertReasoningEvaluation",
+   "keywords": [
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "getAlertReasoningEvaluation"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/reasoningEvaluation.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/metrics/reasoning-evaluation-criteria"
+   },
+   "description": "GET /api/v0/metrics/reasoning-evaluation-criteria",
+   "id": "api:reasoningEvaluation.listReasoningEvaluationCriteria",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listReasoningEvaluationCriteria"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/reasoningEvaluation.functions.ts",
+    "http_method": "GET",
+    "url": "/api/v0/metrics/reasoning-evaluations?${params}"
+   },
+   "description": "GET /api/v0/metrics/reasoning-evaluations?",
+   "id": "api:reasoningEvaluation.listReasoningEvaluations",
+   "keywords": [
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "api_call",
+   "name": "listReasoningEvaluations"
+  },
+  {
+   "attrs": {
+    "file": "lib/api/reasoningEvaluation.functions.ts",
+    "http_method": "POST",
+    "url": "/api/v0/alerts/${encodeURIComponent(alertId)}/reasoning-evaluation"
+   },
+   "description": "POST /api/v0/alerts/{id}/reasoning-evaluation",
+   "id": "api:reasoningEvaluation.requestAlertReasoningEvaluation",
+   "keywords": [
+    "solicitar crear crea agregar enviar"
+   ],
+   "kind": "api_call",
+   "name": "requestAlertReasoningEvaluation"
   },
   {
    "attrs": {
@@ -18371,6 +19044,18 @@
    "attrs": {
     "subtype": "doc"
    },
+   "description": "Documento backend: Especificación: Arize Phoenix y trazabilidad jerárquica",
+   "id": "asset:docs/backend/ARIZE_PHOENIX_TRACING_SPEC.md",
+   "keywords": [
+    "Especificación: Arize Phoenix y trazabilidad jerárquica"
+   ],
+   "kind": "asset",
+   "name": "ARIZE_PHOENIX_TRACING_SPEC.md"
+  },
+  {
+   "attrs": {
+    "subtype": "doc"
+   },
    "description": "Documento backend: Event API",
    "id": "asset:docs/backend/EVENT_API.md",
    "keywords": [
@@ -18692,7 +19377,9 @@
     "No se pudieron cargar los mensajes. Recarga el panel para reintentarlo.",
     "Envío no confirmado.",
     "Reintentar",
+    "El asistente no está disponible ahora.",
     "Abrir propuesta de",
+    "ARIA está escribiendo…",
     "Enviando…",
     "Operación del borrador",
     "Crear",
@@ -18713,9 +19400,7 @@
     "Lugares sugeridos",
     "Confirmar insight",
     "Editar en chat",
-    "Rechazar insight",
-    "Rechazar",
-    "Borrador de"
+    "Rechazar insight"
    ],
    "kind": "component",
    "name": "AgentPanel"
@@ -18799,6 +19484,28 @@
    ],
    "kind": "component",
    "name": "AlertSchemaView"
+  },
+  {
+   "attrs": {
+    "file": "components/alert/ReasoningEvaluationTab.tsx"
+   },
+   "description": "Tab que consulta y muestra la evaluación de calidad del razonamiento de una alerta. Presenta el estado/explicación cuando no hay evaluación y, si existe, renderiza el detalle del veredicto global y por pasos (incluyendo insignias y metadatos).",
+   "id": "component:alert/ReasoningEvaluationTab",
+   "keywords": [
+    "No se pudo cargar la evaluación de calidad.",
+    "No se pudo pedir la evaluación.",
+    "Evaluación",
+    "Veredicto del evaluador",
+    "Evaluación inválida",
+    "Modelo",
+    "tokens · el modelo tardó",
+    "Explicabilidad",
+    "No se pudo decidir",
+    "Por paso",
+    "Este veredicto es anterior al detalle por paso: solo hay conclusión global."
+   ],
+   "kind": "component",
+   "name": "ReasoningEvaluationTab"
   },
   {
    "attrs": {
@@ -19946,6 +20653,51 @@
   },
   {
    "attrs": {
+    "file": "components/fraude/FraudArchive.tsx"
+   },
+   "description": "Panel en un SideDrawer para consultar el archivo histórico de alertas de fraude y, opcionalmente, gestionar la pestaña de retenciones. Su responsabilidad es ofrecer pestañas de navegación y enlazar la búsqueda con la vista de detalle de una alerta archivada.",
+   "id": "component:fraude/FraudArchive",
+   "keywords": [
+    "ID de alerta",
+    "UUID de la alerta",
+    "ID de evento",
+    "ID del evento en el sistema origen",
+    "Día de llegada",
+    "AAAA-MM-DD",
+    "Archivo de alertas",
+    "Alertas con más de un año, guardadas en frío. Cada consulta queda registrada.",
+    "Buscar",
+    "Retenciones",
+    "Buscar por",
+    "Valor a buscar en el archivo",
+    "No hay alertas archivadas con ese criterio. Si es reciente, sigue en el histórico.",
+    "Evento",
+    "Abrir",
+    "Retenida",
+    "Volver a los resultados",
+    "Archivada · llegó el",
+    "Exportar JSON",
+    "Alerta",
+    "Sin revisiones.",
+    "Retención legal",
+    "Sin retención activa.",
+    "Motivo",
+    "Caso",
+    "ID de la alerta a retener",
+    "Motivo de la retención",
+    "Referencia del caso",
+    "Retener",
+    "Motivo para levantar la retención",
+    "Levantar retención",
+    "Retener una alerta",
+    "No hay alertas retenidas.",
+    "Levantar"
+   ],
+   "kind": "component",
+   "name": "FraudArchive"
+  },
+  {
+   "attrs": {
     "file": "components/fraude/FraudReview.tsx"
    },
    "description": "Flujo para revisar y corregir la marca real de fraude de una alerta, con resultado real, nota obligatoria y confirmación; queda auditado.",
@@ -19976,6 +20728,31 @@
   },
   {
    "attrs": {
+    "file": "components/llm/LlmSelectionTable.tsx"
+   },
+   "description": "Muestra una tabla de filas (una por elemento LLM) con un selector para elegir un modelo desde el catálogo cargado. Su responsabilidad es consultar el catálogo, filtrar filas por grupo opcional y propagar cambios en la selección, mostrando estados de carga/error y la opción de usar el valor \"Por defecto\".",
+   "id": "component:llm/LlmSelectionTable",
+   "keywords": [
+    "Cargando catálogo de modelos…",
+    "No se pudo cargar el catálogo de modelos LLM."
+   ],
+   "kind": "component",
+   "name": "LlmSelectionTable"
+  },
+  {
+   "attrs": {
+    "file": "components/llm/StepLlmBadge.tsx"
+   },
+   "description": "The deployment a workflow step actually ran with. The backend stores it as `llm` beside the step output ({element, name, deployment, source}).",
+   "id": "component:llm/StepLlmBadge",
+   "keywords": [
+    "Modelo"
+   ],
+   "kind": "component",
+   "name": "StepLlmBadge"
+  },
+  {
+   "attrs": {
     "file": "components/metrics/MetricsShared.tsx"
    },
    "description": "Conjunto de componentes reutilizables para pantallas de métricas: control de rango (presets y calendario) y badges/avisos informativos. Su responsabilidad es gestionar la selección de periodo y presentar advertencias/resumenes con detalle bajo demanda.",
@@ -19989,6 +20766,28 @@
    ],
    "kind": "component",
    "name": "MetricsShared"
+  },
+  {
+   "attrs": {
+    "file": "components/metrics/ReasoningEvaluationsDrawer.tsx"
+   },
+   "description": "Drawer lateral para listar alertas evaluadas por el LLM-judge en un periodo, con filtros por veredicto y rango de días. Muestra estados de carga/error/vacío y permite abrir cada alerta mediante un enlace, junto con badges de veredicto.",
+   "id": "component:metrics/ReasoningEvaluationsDrawer",
+   "keywords": [
+    "Todas",
+    "Con alucinación",
+    "Uso incorrecto de datos",
+    "Sin hallazgos",
+    "Inválidas",
+    "Alertas evaluadas por el LLM-judge",
+    "Veredicto",
+    "Periodo",
+    "No se pudieron cargar las evaluaciones.",
+    "Ninguna alerta evaluada coincide con el filtro en este periodo.",
+    "Inválida"
+   ],
+   "kind": "component",
+   "name": "ReasoningEvaluationsDrawer"
   },
   {
    "attrs": {
@@ -22755,6 +23554,20 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/alerts/{alert_id}/reasoning-evaluation"
+   },
+   "description": "What the LLM-judge concluded about this alert, or why it has no verdict.",
+   "id": "endpoint:GET /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "keywords": [
+    "get alert reasoning evaluation",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/alerts/{alert_id}/reasoning-evaluation"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/analyst-capacity/imports/{task_id}"
    },
    "description": "",
@@ -23147,6 +23960,62 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/fraud-history/archive"
+   },
+   "description": "Archived alerts by alert id, event id or creation day (exactly one).",
+   "id": "endpoint:GET /api/v0/fraud-history/archive",
+   "keywords": [
+    "search archived alerts",
+    "buscar consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/fraud-history/archive"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/fraud-history/archive/{alert_id}"
+   },
+   "description": "An alert older than the hot window, read back from cold storage.",
+   "id": "endpoint:GET /api/v0/fraud-history/archive/{alert_id}",
+   "keywords": [
+    "get archived alert",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/fraud-history/archive/{alert_id}"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/fraud-history/legal-holds"
+   },
+   "description": "Alerts currently under legal hold, newest first.",
+   "id": "endpoint:GET /api/v0/fraud-history/legal-holds",
+   "keywords": [
+    "list legal holds",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/fraud-history/legal-holds"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/fraud-history/legal-holds/{alert_id}"
+   },
+   "description": "The hold of one alert (active or released), for its detail view.",
+   "id": "endpoint:GET /api/v0/fraud-history/legal-holds/{alert_id}",
+   "keywords": [
+    "get legal hold",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/fraud-history/legal-holds/{alert_id}"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/health"
    },
    "description": "",
@@ -23231,6 +24100,20 @@
   {
    "attrs": {
     "http_method": "GET",
+    "route": "/api/v0/llm-catalog"
+   },
+   "description": "Read-only: the catalog comes from the ConfigMap (``LLM_CATALOG``).",
+   "id": "endpoint:GET /api/v0/llm-catalog",
+   "keywords": [
+    "get llm catalog",
+    "obtener consultar ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/llm-catalog"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
     "route": "/api/v0/marcacion-catalog"
    },
    "description": "",
@@ -23283,6 +24166,34 @@
    ],
    "kind": "endpoint",
    "name": "GET /api/v0/metrics/overview"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/metrics/reasoning-evaluation-criteria"
+   },
+   "description": "The criteria the judge applies by default, with the question it asks.",
+   "id": "endpoint:GET /api/v0/metrics/reasoning-evaluation-criteria",
+   "keywords": [
+    "list reasoning evaluation criteria",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/metrics/reasoning-evaluation-criteria"
+  },
+  {
+   "attrs": {
+    "http_method": "GET",
+    "route": "/api/v0/metrics/reasoning-evaluations"
+   },
+   "description": "Judged alerts of a period (at most 31 days), newest first, filterable by verdict. Only verdicts stored with an evaluation day are listed.",
+   "id": "endpoint:GET /api/v0/metrics/reasoning-evaluations",
+   "keywords": [
+    "list reasoning evaluations",
+    "listar lista ver consultar listar obtener ver"
+   ],
+   "kind": "endpoint",
+   "name": "GET /api/v0/metrics/reasoning-evaluations"
   },
   {
    "attrs": {
@@ -24073,7 +24984,7 @@
     "http_method": "POST",
     "route": "/api/v0/agent/sessions/{session_id}/messages"
    },
-   "description": "",
+   "description": "Store the turn and queue the reply; the client polls ``GET .../messages``.",
    "id": "endpoint:POST /api/v0/agent/sessions/{session_id}/messages",
    "keywords": [
     "send message",
@@ -24389,6 +25300,20 @@
    ],
    "kind": "endpoint",
    "name": "POST /api/v0/alerts/{alert_id}/fraud-review"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
+    "route": "/api/v0/alerts/{alert_id}/reasoning-evaluation"
+   },
+   "description": "Evaluate this alert now, whatever the sample rate. It only opens the job and queues it for the evaluator's worker (202): the answer comes later through ``GET``. Asking twice returns the existing job; a failed or invalid ",
+   "id": "endpoint:POST /api/v0/alerts/{alert_id}/reasoning-evaluation",
+   "keywords": [
+    "request alert reasoning evaluation",
+    "solicitar crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/alerts/{alert_id}/reasoning-evaluation"
   },
   {
    "attrs": {
@@ -24739,6 +25664,34 @@
    ],
    "kind": "endpoint",
    "name": "POST /api/v0/e2e/clean"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
+    "route": "/api/v0/e2e/fraud-history/archived-alert"
+   },
+   "description": "Archive one synthetic, backdated alert for the archive-lookup E2E.",
+   "id": "endpoint:POST /api/v0/e2e/fraud-history/archived-alert",
+   "keywords": [
+    "seed archived alert",
+    "crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/e2e/fraud-history/archived-alert"
+  },
+  {
+   "attrs": {
+    "http_method": "POST",
+    "route": "/api/v0/fraud-history/legal-holds/{alert_id}/release"
+   },
+   "description": "",
+   "id": "endpoint:POST /api/v0/fraud-history/legal-holds/{alert_id}/release",
+   "keywords": [
+    "release legal hold",
+    "liberar crear crea agregar enviar"
+   ],
+   "kind": "endpoint",
+   "name": "POST /api/v0/fraud-history/legal-holds/{alert_id}/release"
   },
   {
    "attrs": {
@@ -25247,6 +26200,20 @@
   {
    "attrs": {
     "http_method": "PUT",
+    "route": "/api/v0/fraud-history/legal-holds/{alert_id}"
+   },
+   "description": "",
+   "id": "endpoint:PUT /api/v0/fraud-history/legal-holds/{alert_id}",
+   "keywords": [
+    "place legal hold",
+    "actualizar reemplazar"
+   ],
+   "kind": "endpoint",
+   "name": "PUT /api/v0/fraud-history/legal-holds/{alert_id}"
+  },
+  {
+   "attrs": {
+    "http_method": "PUT",
     "route": "/api/v0/operational-settings"
    },
    "description": "",
@@ -25298,6 +26265,14 @@
   },
   {
    "attrs": {},
+   "description": "Permiso «fraud_archive».",
+   "id": "permission:fraud_archive",
+   "keywords": [],
+   "kind": "permission",
+   "name": "fraud_archive"
+  },
+  {
+   "attrs": {},
    "description": "Permiso «fraud_history».",
    "id": "permission:fraud_history",
    "keywords": [],
@@ -25319,6 +26294,14 @@
    "keywords": [],
    "kind": "permission",
    "name": "in_progress"
+  },
+  {
+   "attrs": {},
+   "description": "Permiso «legal_hold».",
+   "id": "permission:legal_hold",
+   "keywords": [],
+   "kind": "permission",
+   "name": "legal_hold"
   },
   {
    "attrs": {},
@@ -25932,6 +26915,16 @@
   },
   {
    "attrs": {},
+   "description": "Read-only source of the LLM deployments an element may select.",
+   "id": "port:LLMCatalogPort",
+   "keywords": [
+    "LLMCatalog Port"
+   ],
+   "kind": "port",
+   "name": "LLMCatalogPort"
+  },
+  {
+   "attrs": {},
    "description": "",
    "id": "port:LLMUnitOfWorkFactory",
    "keywords": [
@@ -26498,6 +27491,18 @@
   },
   {
    "attrs": {
+    "file": "src/infrastructure/entrypoint/api/routers/fraud_archive_router.py"
+   },
+   "description": "Recurso de API «fraud-history».",
+   "id": "resource:fraud-history",
+   "keywords": [
+    "fraud history"
+   ],
+   "kind": "resource",
+   "name": "fraud-history"
+  },
+  {
+   "attrs": {
     "file": "src/infrastructure/entrypoint/api/routers/health_router.py"
    },
    "description": "Recurso de API «health».",
@@ -26519,6 +27524,18 @@
    ],
    "kind": "resource",
    "name": "knowledge-library"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/entrypoint/api/routers/llm_catalog_router.py"
+   },
+   "description": "Recurso de API «llm-catalog».",
+   "id": "resource:llm-catalog",
+   "keywords": [
+    "llm catalog"
+   ],
+   "kind": "resource",
+   "name": "llm-catalog"
   },
   {
    "attrs": {
@@ -26579,6 +27596,18 @@
    ],
    "kind": "resource",
    "name": "operations"
+  },
+  {
+   "attrs": {
+    "file": "src/infrastructure/entrypoint/api/routers/reasoning_evaluations_router.py"
+   },
+   "description": "Recurso de API «reasoning-evaluations».",
+   "id": "resource:reasoning-evaluations",
+   "keywords": [
+    "reasoning evaluations"
+   ],
+   "kind": "resource",
+   "name": "reasoning-evaluations"
   },
   {
    "attrs": {
@@ -27877,6 +28906,17 @@
   },
   {
    "attrs": {},
+   "description": "What the selectors need: the catalog and each element's default.",
+   "id": "use_case:GetLLMCatalogUseCase",
+   "keywords": [
+    "Get LLMCatalog",
+    "obtener consultar ver"
+   ],
+   "kind": "use_case",
+   "name": "GetLLMCatalogUseCase"
+  },
+  {
+   "attrs": {},
    "description": "",
    "id": "use_case:GetMatureSamplerSchemaConfigurationUseCase",
    "keywords": [
@@ -29111,10 +30151,10 @@
     "Revisiones",
     "Sin revisar",
     "Tiempo resolución",
+    "Archivo",
     "alerta",
     "Buscar en lo cargado por alerta, evento o cliente…",
     "No hay alertas en el rango con esos filtros.",
-    "Ninguna alerta cargada coincide con la búsqueda.",
     "Alertas del rango",
     "Revisar fraude",
     "Revisar",
@@ -29217,6 +30257,7 @@
     "Errores de ejecución",
     "Errores LLM",
     "Disponibilidad",
+    "Ver alertas evaluadas",
     "Alucinaciones",
     "Uso correcto de datos",
     "Decisiones evaluadas donde el agente citó y aplicó correctamente los datos disponibles.",

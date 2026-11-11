@@ -10,9 +10,16 @@ from typing import Any
 
 import pytest
 
+from src.application.ports.fraud_history_archive_index_port import (
+    ArchiveIndexPort,
+)
+from src.application.ports.fraud_history_archive_port import (
+    ArchiveIndexEntry,
+    ArchiveVerificationError,
+)
+from src.application.ports.legal_hold_port import LegalHold
 from src.application.ports.object_storage_port import ObjectStorageRef
 from src.infrastructure.persistence.database.dynamodb.repositories.fraud_history_archive_repository import (
-    ArchiveVerificationError,
     DynamoFraudHistoryArchiveRepository,
 )
 
@@ -32,6 +39,38 @@ class InMemoryStorage:
 
     def get_bytes(self, key: str) -> bytes:
         return self.objects[key] + (b"!" if self.corrupt_reads else b"")
+
+
+class InMemoryArchiveIndex(ArchiveIndexPort):
+    def __init__(self, *, fail: bool = False) -> None:
+        self.entries: dict[str, ArchiveIndexEntry] = {}
+        self.fail = fail
+
+    def put_many(self, entries: list[ArchiveIndexEntry]) -> None:
+        if self.fail:
+            raise ConnectionError("index unavailable")
+        self.entries.update({entry.alert_id: entry for entry in entries})
+
+    def get(self, alert_id: str) -> ArchiveIndexEntry | None:
+        return self.entries.get(alert_id)
+
+
+class InMemoryLegalHolds:
+    def __init__(self, active: set[str] | None = None) -> None:
+        self.active = set(active or ())
+        # Holds that appear after the first lookup, like a hold placed mid-run.
+        self.appear_later: set[str] = set()
+        self.lookups = 0
+
+    def active_ids(self, alert_ids) -> set[str]:
+        self.lookups += 1
+        if self.lookups > 1:
+            self.active |= self.appear_later
+        return self.active & set(alert_ids)
+
+    def place(self, hold: LegalHold) -> bool:
+        self.active.add(hold.alert_id)
+        return True
 
 
 class InMemoryTable:
@@ -75,6 +114,7 @@ def _alert(alert_id: str, **extra: Any) -> dict[str, Any]:
     return {
         "partition": "alert",
         "alert_id": alert_id,
+        "event_id": f"EV-{alert_id}",
         "created_day": DAY.isoformat(),
         "created_at": f"{DAY.isoformat()}T12:00:00+00:00",
         "amount": Decimal("2400.50"),
@@ -94,12 +134,18 @@ def _repository(
     alerts: list[dict[str, Any]],
     reviews: list[dict[str, Any]],
     storage: InMemoryStorage | None = None,
+    index: InMemoryArchiveIndex | None = None,
+    holds: InMemoryLegalHolds | None = None,
 ):
     alerts_table = InMemoryTable(alerts, ("partition", "alert_id"))
     reviews_table = InMemoryTable(reviews, ("alert_id", "review_key"))
     storage = storage or InMemoryStorage()
     repository = DynamoFraudHistoryArchiveRepository(
-        storage, alerts_table=alerts_table, reviews_table=reviews_table
+        storage,
+        index=index or InMemoryArchiveIndex(),
+        holds=holds or InMemoryLegalHolds(),
+        alerts_table=alerts_table,
+        reviews_table=reviews_table,
     )
     return repository, alerts_table, reviews_table, storage
 
@@ -118,9 +164,11 @@ def test_archives_alerts_with_their_reviews_then_deletes_them() -> None:
     result = repository.archive_day(DAY, dry_run=False)
 
     assert (result.alerts, result.reviews, result.deleted, result.held) == (3, 3, 3, 0)
-    (key, content), = storage.objects.items()
+    ((key, content),) = storage.objects.items()
     assert key == result.object_key
-    assert key == f"fraud-history-archive/created_day=2025-10-26/{result.sha256}.jsonl.gz"
+    assert (
+        key == f"fraud-history-archive/created_day=2025-10-26/{result.sha256}.jsonl.gz"
+    )
     assert hashlib.sha256(content).hexdigest() == result.sha256
     lines = _lines(content)
     assert [line["alert"]["alert_id"] for line in lines] == ["a0", "a1", "a2"]
@@ -138,9 +186,9 @@ def test_legal_hold_keeps_the_alert_and_its_reviews_hot() -> None:
     result = repository.archive_day(DAY, dry_run=False)
 
     assert (result.alerts, result.held, result.deleted) == (1, 1, 1)
-    assert [line["alert"]["alert_id"] for line in _lines(*storage.objects.values())] == [
-        "a0"
-    ]
+    assert [
+        line["alert"]["alert_id"] for line in _lines(*storage.objects.values())
+    ] == ["a0"]
     assert [row["alert_id"] for row in alerts_table.rows] == ["held"]
     assert reviews_table.rows == [_review("held", 1)]
 
@@ -184,3 +232,87 @@ def test_identical_content_maps_to_the_same_object_name() -> None:
         == second.archive_day(DAY, dry_run=False).object_key
     )
     assert first_storage.objects == second_storage.objects
+
+
+def test_every_archived_alert_is_indexed_with_a_readable_byte_range() -> None:
+    index = InMemoryArchiveIndex()
+    repository, _, _, storage = _repository(
+        [_alert(f"a{i}") for i in range(3)], [_review("a1", 1)], index=index
+    )
+
+    result = repository.archive_day(DAY, dry_run=False)
+
+    (content,) = storage.objects.values()
+    assert sorted(index.entries) == ["a0", "a1", "a2"]
+    for alert_id, entry in index.entries.items():
+        assert entry.object_key == result.object_key and entry.created_day == DAY
+        member = content[entry.offset : entry.offset + entry.length]
+        assert hashlib.sha256(member).hexdigest() == entry.record_sha256
+        record = json.loads(gzip.decompress(member))
+        assert record["alert"]["alert_id"] == alert_id
+    assert [
+        r["note"]
+        for r in json.loads(
+            gzip.decompress(
+                content[
+                    index.entries["a1"].offset : index.entries["a1"].offset
+                    + index.entries["a1"].length
+                ]
+            )
+        )["fraud_label_reviews"]
+    ] == ["nota 1"]
+    # The members are contiguous: together they are the whole object.
+    assert sum(entry.length for entry in index.entries.values()) == len(content)
+
+
+def test_a_failed_index_write_deletes_nothing() -> None:
+    repository, alerts_table, reviews_table, _ = _repository(
+        [_alert("a0")], [_review("a0", 1)], index=InMemoryArchiveIndex(fail=True)
+    )
+
+    with pytest.raises(ConnectionError):
+        repository.archive_day(DAY, dry_run=False)
+    assert alerts_table.deleted == [] and reviews_table.deleted == []
+
+
+def test_an_active_legal_hold_keeps_the_alert_hot_and_unindexed() -> None:
+    index = InMemoryArchiveIndex()
+    repository, alerts_table, reviews_table, _ = _repository(
+        [_alert("a0"), _alert("held")],
+        [_review("held", 1)],
+        index=index,
+        holds=InMemoryLegalHolds({"held"}),
+    )
+
+    result = repository.archive_day(DAY, dry_run=False)
+
+    assert (result.alerts, result.held, result.deleted) == (1, 1, 1)
+    assert list(index.entries) == ["a0"]
+    assert [row["alert_id"] for row in alerts_table.rows] == ["held"]
+    assert reviews_table.rows == [_review("held", 1)]
+
+
+def test_a_hold_placed_while_archiving_still_keeps_the_rows() -> None:
+    holds = InMemoryLegalHolds()
+    holds.appear_later = {"late"}
+    repository, alerts_table, reviews_table, _ = _repository(
+        [_alert("a0"), _alert("late")], [_review("late", 1)], holds=holds
+    )
+
+    result = repository.archive_day(DAY, dry_run=False)
+
+    assert (result.held, result.deleted) == (1, 1)
+    assert [row["alert_id"] for row in alerts_table.rows] == ["late"]
+    assert reviews_table.rows == [_review("late", 1)]
+
+
+def test_index_entries_carry_the_event_id_that_travels_between_systems() -> None:
+    index = InMemoryArchiveIndex()
+    repository, *_ = _repository([_alert("a0"), _alert("a1")], [], index=index)
+
+    repository.archive_day(DAY, dry_run=False)
+
+    assert {k: v.event_id for k, v in index.entries.items()} == {
+        "a0": "EV-a0",
+        "a1": "EV-a1",
+    }

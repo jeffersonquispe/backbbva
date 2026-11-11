@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from src.application.ports.monitoring_span_port import MonitoringSpan
 
@@ -36,6 +37,15 @@ ATTR_FRAUD_REVIEW_COUNT = "aria.fraud_review.count"
 ATTR_WORKFLOW_STEP = "aria.workflow.step"
 ATTR_WORKFLOW_ATTEMPT = "aria.workflow.attempt"
 ATTR_WORKFLOW_OUTCOME = "aria.workflow.outcome"
+# Trace correlation (Phoenix/Tempo search). High-cardinality on purpose: they
+# identify one execution/call and must NEVER become metric dimensions.
+ATTR_WORKFLOW_ID = "aria.workflow.id"
+ATTR_WORKFLOW_STEP_ID = "aria.workflow.step_id"
+ATTR_RUN_ID = "aria.run_id"
+ATTR_OPERATION_TYPE = "aria.operation.type"
+ATTR_TOOL_NAME = "aria.tool.name"
+# Operation types that get a unique `aria.run_id` (one per concrete call).
+RUN_ID_OPERATION_TYPES = frozenset({"llm", "embedding", "tool"})
 
 # AlertMetricsSnapshot field -> span attribute. Deliberately excludes
 # `amount` (exact value) and every timestamp/counter field.
@@ -109,6 +119,23 @@ class MonitoringPort(ABC):
         operation_type: str,
         metadata: dict[str, Any] | None = None,
     ) -> MonitoringSpan: ...
+
+    def start_workflow(
+        self,
+        operation_name: str,
+        workflow_execution_id: UUID,
+        operation_type: str = "workflow",
+        metadata: dict[str, Any] | None = None,
+    ) -> MonitoringSpan:
+        """Root span of a workflow run whose trace id IS
+        `workflow_execution_id` (so the trace is found by the workflow's own
+        UUID and every attempt/retry lands in the same trace). Default:
+        an ordinary span, for adapters without trace-id control."""
+        return self.start(
+            operation_name,
+            operation_type,
+            {**(metadata or {}), ATTR_WORKFLOW_ID: str(workflow_execution_id)},
+        )
 
     # Explicit metrics. Concrete no-ops (not abstract) on purpose: existing
     # adapters and test fakes keep working without overriding them. Every

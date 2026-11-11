@@ -12,9 +12,10 @@ class ReasoningEvaluationDispatchRef:
 
 
 class ReasoningEvaluationDispatcher(ABC):
-    """Fire-and-forget: hands a finished, sampled alert to the LLM-judge
-    (EvaluateAlertReasoning) so it runs off the alert review's critical
-    path. The judge re-reads the persisted run, so only ids travel."""
+    """Fire-and-forget announcement that an alert finished its review. The
+    evaluator (not the alert flow) decides whether to judge it - sampling,
+    origin, its own job state - so the alert flow never reads the evaluator's
+    settings and never waits for it. Only ids travel."""
 
     def dispatch(
         self, alert_id: UUID, workflow_execution_id: UUID

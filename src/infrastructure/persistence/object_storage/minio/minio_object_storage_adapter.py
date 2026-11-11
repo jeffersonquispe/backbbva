@@ -90,6 +90,16 @@ class MinioObjectStorageAdapter(ObjectStoragePort):
         response = self._client.get_object(Bucket=self._bucket, Key=key)
         return response["Body"].read()
 
+    def get_range(self, key: str, offset: int, length: int) -> bytes:
+        if length < 1:
+            return b""
+        response = self._client.get_object(
+            Bucket=self._bucket,
+            Key=key,
+            Range=f"bytes={offset}-{offset + length - 1}",
+        )
+        return response["Body"].read()
+
     def get_stream(self, key: str) -> BinaryIO:
         response = self._client.get_object(Bucket=self._bucket, Key=key)
         return response["Body"]

@@ -17,6 +17,11 @@ def test_periodic_schedule_reconciles_async_operations() -> None:
         test_run_cleanup_interval_seconds=3600,
     )
 
+    # The evaluator's safety net lives on its own queue, apart from alert work.
+    recover = schedule.pop("recover-reasoning-evaluations")
+    assert recover["task"] == "metrics.recover_reasoning_evaluations"
+    assert recover["schedule"] == 300.0
+    assert recover["options"]["queue"] == "reasoning-evaluation"
     reconcile_rollups = schedule.pop("reconcile-alert-rollups")
     schedule.pop("record-operational-state")
     vector_cleanup = schedule.pop("cleanup-vector-store-generations")

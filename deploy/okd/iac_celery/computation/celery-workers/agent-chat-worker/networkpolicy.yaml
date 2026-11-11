@@ -1,0 +1,9 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: aria-agent-chat-worker-ingress
+  labels: {app.kubernetes.io/name: aria-agent-chat-worker, app.kubernetes.io/part-of: aria-workers, app.kubernetes.io/managed-by: argocd}
+spec:
+  podSelector: {matchLabels: {app.kubernetes.io/name: aria-agent-chat-worker}}
+  policyTypes: [Ingress]
+  ingress: []

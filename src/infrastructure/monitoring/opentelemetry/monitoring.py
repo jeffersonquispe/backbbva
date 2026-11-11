@@ -2,13 +2,26 @@ from __future__ import annotations
 
 import json
 import time
+import uuid
 from typing import Any
 
 from opentelemetry import context as otel_context
 from opentelemetry import metrics, trace
-from opentelemetry.trace import Span, Status, StatusCode, Tracer
+from opentelemetry.trace import (
+    NonRecordingSpan,
+    Span,
+    SpanContext,
+    Status,
+    StatusCode,
+    TraceFlags,
+    Tracer,
+)
 
 from src.application.ports.monitoring_port import (
+    ATTR_OPERATION_TYPE,
+    ATTR_RUN_ID,
+    ATTR_WORKFLOW_ID,
+    RUN_ID_OPERATION_TYPES,
     MonitoringPort,
     OperationalStateSnapshot,
     ResearchCallOutcome,
@@ -160,13 +173,57 @@ class OpenTelemetryMonitoring(MonitoringPort):
         operation_type: str,
         metadata: dict[str, Any] | None = None,
     ) -> MonitoringSpan:
-        span = self._tracer.start_span(operation_name)
+        return self._start(operation_name, operation_type, metadata)
+
+    def start_workflow(
+        self,
+        operation_name: str,
+        workflow_execution_id: uuid.UUID,
+        operation_type: str = "workflow",
+        metadata: dict[str, Any] | None = None,
+    ) -> MonitoringSpan:
+        # trace_id = the workflow's UUID (128 bits). Derived, not propagated:
+        # every attempt/retry/process computes the same id, so no W3C header
+        # has to travel in Celery messages. The synthetic remote parent only
+        # fixes the trace id; the span itself is the root we export.
+        trace_id = workflow_execution_id.int
+        if trace_id == 0:
+            return self._start(operation_name, operation_type, metadata)
+        parent = NonRecordingSpan(
+            SpanContext(
+                trace_id=trace_id,
+                span_id=uuid.uuid4().int & ((1 << 64) - 1) or 1,
+                is_remote=True,
+                trace_flags=TraceFlags(TraceFlags.SAMPLED),
+            )
+        )
+        return self._start(
+            operation_name,
+            operation_type,
+            {**(metadata or {}), ATTR_WORKFLOW_ID: str(workflow_execution_id)},
+            parent_context=trace.set_span_in_context(parent),
+        )
+
+    def _start(
+        self,
+        operation_name: str,
+        operation_type: str,
+        metadata: dict[str, Any] | None,
+        parent_context: otel_context.Context | None = None,
+    ) -> MonitoringSpan:
+        span = self._tracer.start_span(operation_name, context=parent_context)
         # Activate as the current span so any nested monitoring.start() call
         # (a dependency, a follow-up LLM call, ...) is parented under it and
         # lands in the same trace as the request that triggered it.
         token = otel_context.attach(trace.set_span_in_context(span))
         wrapped = OpenTelemetrySpan(span, token, operation_type, self._instruments)
-        wrapped.write_operation_metas({"operation.type": operation_type})
+        wrapped.write_operation_metas(
+            {"operation.type": operation_type, ATTR_OPERATION_TYPE: operation_type}
+        )
+        if operation_type in RUN_ID_OPERATION_TYPES:
+            # One id per concrete call; retries of the same logical call
+            # inside one span (provider retry loop) share it.
+            wrapped.write_operation_metas({ATTR_RUN_ID: str(uuid.uuid4())})
         if metadata:
             wrapped.write_operation_metas(metadata)
         return wrapped

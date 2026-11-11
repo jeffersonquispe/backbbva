@@ -8,6 +8,7 @@ from src.application.dtos.pre_process_dtos import PreProcessAlertOutput
 from src.domain.configurations.entities import (
     SegmentSettings,
 )
+from src.infrastructure.llm.catalog.element_llm import get_resolve_element_llm
 from src.infrastructure.workflows.celery.factories import (
     get_enrich_profiling_fields_use_case,
 )
@@ -38,11 +39,23 @@ def _step_overrides(context: dict[str, Any], step_name: str) -> dict[str, str | 
     # input["config_overrides"] - {} for a normal (non-test) alert, so
     # these always resolve to "use the config-driven default".
     config_overrides = (context.get("input") or {}).get("config_overrides") or {}
+    # Which deployment the step runs with: the test's override, else the
+    # selection of the configuration this run resolved at its start (pinned
+    # for tests), else None = the step's own default. The effective choice is
+    # kept in the context so the workflow can record it with the step output.
+    configuration = context.get("active_configuration")
+    selection = getattr(getattr(configuration, "general", None), "llm_selection", None)
+    resolved = get_resolve_element_llm().execute(
+        step_name,
+        override=(config_overrides.get("model_overrides") or {}).get(step_name),
+        selection=selection,
+    )
+    context.setdefault("llm_resolutions", {})[step_name] = resolved.as_dict()
     return {
         "system_prompt": (config_overrides.get("prompt_overrides") or {}).get(
             step_name
         ),
-        "model": (config_overrides.get("model_overrides") or {}).get(step_name),
+        "model": resolved.deployment if resolved.source != "default" else None,
     }
 
 

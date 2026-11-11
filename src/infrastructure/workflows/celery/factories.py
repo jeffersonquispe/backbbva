@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 from typing import cast
 from uuid import UUID
@@ -106,6 +107,12 @@ from src.application.use_cases.metrics.record_alert_metrics_event import (
 from src.application.use_cases.metrics.record_workflow_step_metrics import (
     RecordWorkflowStepMetrics,
 )
+from src.application.use_cases.metrics.recover_reasoning_evaluations import (
+    RecoverStaleReasoningEvaluations,
+)
+from src.application.use_cases.metrics.request_reasoning_evaluation import (
+    RequestReasoningEvaluation,
+)
 from src.application.use_cases.operations.live_operations_capacity import (
     LiveOperationsCapacity,
 )
@@ -168,7 +175,10 @@ from src.infrastructure.host_services.mock.personal_data_changes_adapter import 
 from src.infrastructure.host_services.mock.transaction_history_adapter import (
     MockHostServiceTransactionHistoryAdapter,
 )
-from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
+from src.infrastructure.llm.catalog.element_llm import (
+    effective_model,
+    get_element_llm_factory,
+)
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.repositories.alert_lifecycle_reader import (
     DynamoAlertLifecycleReader,
@@ -211,6 +221,9 @@ from src.infrastructure.persistence.database.dynamodb.repositories.operational_s
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.operations_capacity_repository import (
     DynamoOperationsCapacityRepository,
+)
+from src.infrastructure.persistence.database.dynamodb.repositories.reasoning_evaluation_job_repository import (
+    DynamoReasoningEvaluationJobRepository,
 )
 from src.infrastructure.persistence.database.dynamodb.repositories.resource_reservation_repository import (
     DynamoResourceReservationRepository,
@@ -255,6 +268,7 @@ from src.infrastructure.queues.celery.analyst_escalation_dispatcher import (
 )
 from src.infrastructure.queues.celery.reasoning_evaluation_dispatcher import (
     CeleryReasoningEvaluationDispatcher,
+    CeleryReasoningEvaluationJobDispatcher,
 )
 
 # --- stateless adapters: one instance per worker process ---
@@ -448,7 +462,9 @@ def get_fraud_knowledge_search_port() -> OpenSearchFraudKnowledgeSearchAdapter:
 @lru_cache
 def get_search_fraud_knowledge_use_case() -> SearchFraudKnowledgeUseCase:
     return SearchFraudKnowledgeUseCase(
-        get_fraud_knowledge_search_port(), get_vector_store_generation_repository(), get_monitoring()
+        get_fraud_knowledge_search_port(),
+        get_vector_store_generation_repository(),
+        get_monitoring(),
     )
 
 
@@ -530,6 +546,16 @@ def get_reasoning_evaluation_dispatcher() -> CeleryReasoningEvaluationDispatcher
 
 
 @lru_cache
+def get_reasoning_evaluation_job_dispatcher() -> CeleryReasoningEvaluationJobDispatcher:
+    return CeleryReasoningEvaluationJobDispatcher()
+
+
+@lru_cache
+def get_reasoning_evaluation_job_repository() -> DynamoReasoningEvaluationJobRepository:
+    return DynamoReasoningEvaluationJobRepository()
+
+
+@lru_cache
 def get_alert_reasoning_evaluation_repository() -> (
     DynamoAlertReasoningEvaluationRepository
 ):
@@ -576,7 +602,9 @@ def get_profile_alert_use_case(
         )
     if backend == "llm":
         return ProfileAlertUseCase(
-            llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+            llm_unit_of_work_factory=get_element_llm_factory(
+                "profiling", follow_selection=False
+            ),
             monitoring=get_monitoring(),
             model=model or genai_config.PROFILING_LLM_MODEL,
             system_prompt=system_prompt,
@@ -623,7 +651,9 @@ def get_classify_alert_use_case(
         else genai_config.CLASSIFICATION_LLM_MODEL
     )
     return ClassifyAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory(
+            step_name, follow_selection=False
+        ),
         monitoring=get_monitoring(),
         model=model or default_model,
         similar_fraud_case_port=get_similar_fraud_case_port(vector_store_instance_id),
@@ -667,7 +697,9 @@ def get_adversarial_review_alert_use_case(
         else genai_config.ADVERSARIAL_LLM_MODEL
     )
     return AdversarialReviewAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory(
+            step_name, follow_selection=False
+        ),
         monitoring=get_monitoring(),
         model=model or default_model,
         similar_fraud_case_port=get_similar_fraud_case_port(vector_store_instance_id),
@@ -701,7 +733,9 @@ def get_analyst_review_alert_use_case(
     vector_store_generation: int | None = None,
 ) -> AnalystReviewAlertUseCase:
     return AnalystReviewAlertUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory(
+            "analyst", follow_selection=False
+        ),
         monitoring=get_monitoring(),
         model=model or genai_config.ANALYST_LLM_MODEL,
         operations_capacity_port=get_live_operations_capacity(),
@@ -780,7 +814,9 @@ def get_generate_agent_text_use_case(
     model: str | None = None,
 ) -> GenerateAgentTextUseCase:
     return GenerateAgentTextUseCase(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory(
+            "executor", follow_selection=False
+        ),
         monitoring=get_monitoring(),
         model=model or genai_config.EXECUTOR_LLM_MODEL,
         system_prompt=system_prompt,
@@ -817,17 +853,70 @@ def get_record_workflow_step_metrics_use_case() -> RecordWorkflowStepMetrics:
     )
 
 
+@lru_cache(maxsize=8)
+def _warn_if_judge_grades_itself(
+    judge_model: str, reasoning_models: tuple[tuple[str, str], ...]
+) -> None:
+    from src.application.use_cases.metrics.evaluate_alert_reasoning import (
+        judge_overlaps_reasoning,
+    )
+
+    overlap = judge_overlaps_reasoning(judge_model, dict(reasoning_models))
+    if overlap:
+        logging.getLogger(__name__).warning(
+            "JUDGE_LLM_MODEL %r is also the model of %s: the judge would grade its "
+            "own output; set JUDGE_LLM_MODEL to a different model.",
+            judge_model,
+            ", ".join(overlap),
+        )
+
+
 def get_evaluate_alert_reasoning_use_case() -> EvaluateAlertReasoning:
+    # The rule "the judge differs from the models that reason" is checked on
+    # the deployments resolved right now (active selection or defaults).
+    judge_model = effective_model("judge")
+    _warn_if_judge_grades_itself(
+        judge_model,
+        tuple(
+            (element, effective_model(element))
+            for element in (
+                "detector",
+                "detector_adversarial",
+                "classification",
+                "adversarial",
+                "analyst",
+            )
+        ),
+    )
     return EvaluateAlertReasoning(
-        llm_unit_of_work_factory=get_llm_unit_of_work_factory(),
+        llm_unit_of_work_factory=get_element_llm_factory("judge"),
         monitoring=get_monitoring(),
-        model=genai_config.JUDGE_LLM_MODEL or genai_config.REPORT_LLM_MODEL,
+        model=judge_model,
         alert_repository=get_alert_repository(),
         workflow_repository=get_workflow_execution_repository(),
         step_repository=get_workflow_step_execution_repository(),
         evaluation_repository=get_alert_reasoning_evaluation_repository(),
         rollup_repository=get_metrics_rollup_repository(),
         timezone_name=genai_config.OPERATIONS_TIMEZONE,
+        clock=get_clock(),
+        jobs=get_reasoning_evaluation_job_repository(),
+    )
+
+
+def get_request_reasoning_evaluation_use_case() -> RequestReasoningEvaluation:
+    return RequestReasoningEvaluation(
+        jobs=get_reasoning_evaluation_job_repository(),
+        alerts=get_alert_repository(),
+        settings=get_operational_settings_repository(),
+        dispatcher=get_reasoning_evaluation_job_dispatcher(),
+        clock=get_clock(),
+    )
+
+
+def get_recover_reasoning_evaluations_use_case() -> RecoverStaleReasoningEvaluations:
+    return RecoverStaleReasoningEvaluations(
+        jobs=get_reasoning_evaluation_job_repository(),
+        dispatcher=get_reasoning_evaluation_job_dispatcher(),
         clock=get_clock(),
     )
 
@@ -877,6 +966,33 @@ def get_record_operational_state_use_case():
 def get_assistant_optimizer_settings_repository() -> AssistantOptimizerSettingsPort:
     """Shared live settings adapter for agent API and worker composition."""
     return DynamoAssistantOptimizerSettingsRepository()
+
+
+def get_chat_with_agent_use_case():
+    """Assistant chat reply, built for the worker (the API only calls ``accept``)."""
+    from src.application.use_cases.agent.chat_with_agent import ChatWithAgentUseCase
+    from src.application.use_cases.agent.retrieve_project_context import (
+        RetrieveProjectContextUseCase,
+    )
+    from src.infrastructure.agents import factories as agents
+
+    return ChatWithAgentUseCase(
+        sessions=agents.get_agent_session_repository(),
+        messages=agents.get_agent_message_repository(),
+        insights=agents.get_agent_insight_repository(),
+        links=agents.get_agent_link_repository(),
+        summaries=agents.get_agent_session_summary_repository(),
+        prompts=agents.get_agent_prompt_repository(),
+        settings=get_assistant_optimizer_settings_repository(),
+        masker=agents.get_personal_data_masker(),
+        responder=agents.get_agent_chat_responder(),
+        clock=get_clock(),
+        id_generator=get_id_generator(),
+        project_context=RetrieveProjectContextUseCase(
+            graph=agents.get_project_graph_repository(),
+            semantic=agents.get_project_graph_semantic_search(),
+        ),
+    )
 
 
 def get_orchestrate_agent_iteration_use_case(

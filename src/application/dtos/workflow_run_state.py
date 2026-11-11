@@ -24,6 +24,8 @@ class WorkflowRunState(TypedDict, total=False):
     raw_payload: dict[str, Any]
     current_step_id: str
     active_configuration: Any
+    # step name -> the LLM it ran with (element/name/deployment/source)
+    llm_resolutions: dict[str, dict[str, Any]]
     segment_code: str
     schema_comparison: Any
     agent_outputs: dict[str, Any]

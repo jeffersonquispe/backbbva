@@ -14,6 +14,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
+import src.infrastructure.llm.catalog.element_llm as element_llm_module
 import src.infrastructure.workflows.celery.factories as factories_module
 import src.infrastructure.workflows.celery.review_action_steps as action_steps_module
 import src.infrastructure.workflows.celery.review_agent_steps as agent_steps_module
@@ -890,7 +891,7 @@ def _run_full_pipeline(
         lambda: documenter_dispatcher,
     )
     monkeypatch.setattr(
-        factories_module, "get_llm_unit_of_work_factory", lambda: llm_factory
+        element_llm_module, "get_llm_unit_of_work_factory", lambda: llm_factory
     )
     monkeypatch.setattr(factories_module, "get_monitoring", lambda: monitoring)
     monkeypatch.setattr(workflow_module, "get_monitoring", lambda: monitoring)
@@ -1045,6 +1046,11 @@ def test_alert_review_workflow_runs_full_pipeline_on_synthetic_alert(monkeypatch
     )
     assert recorded_steps["analyst"].output["decision"] == "bidi"
     assert recorded_steps["analyst"].output["modus_operandi_id"] == "mo-ato"
+    # Each LLM step stores the deployment it actually ran with.
+    for llm_step in ("detector", "classification", "adversarial", "analyst"):
+        assert recorded_steps[llm_step].output["llm"]["element"] == llm_step
+        assert recorded_steps[llm_step].output["llm"]["source"] == "default"
+    assert "llm" not in recorded_steps["pre_process"].output
 
     # No active configuration/segment in this synthetic run, so there's no
     # executor.aric_marking prompt to generate a comment from - content
@@ -1309,7 +1315,7 @@ def test_alert_review_workflow_discards_alert_on_deterministic_rule_match(
         lambda: documenter_dispatcher,
     )
     monkeypatch.setattr(
-        factories_module, "get_llm_unit_of_work_factory", lambda: llm_factory
+        element_llm_module, "get_llm_unit_of_work_factory", lambda: llm_factory
     )
     monkeypatch.setattr(factories_module, "get_monitoring", lambda: monitoring)
     monkeypatch.setattr(workflow_module, "get_monitoring", lambda: monitoring)
@@ -1517,7 +1523,7 @@ def test_alert_review_workflow_skips_to_pass_when_detector_finds_no_fraud(monkey
         lambda: documenter_dispatcher,
     )
     monkeypatch.setattr(
-        factories_module, "get_llm_unit_of_work_factory", lambda: llm_factory
+        element_llm_module, "get_llm_unit_of_work_factory", lambda: llm_factory
     )
     monkeypatch.setattr(factories_module, "get_monitoring", lambda: monitoring)
     monkeypatch.setattr(workflow_module, "get_monitoring", lambda: monitoring)
@@ -1859,20 +1865,11 @@ def test_step_metrics_rows_and_tokens_match_token_usage(monkeypatch):
     assert rollups.rows == before
 
 
-def test_reasoning_evaluation_dispatched_only_when_sampled(
+def test_reasoning_evaluation_is_announced_without_the_alert_flow_deciding_anything(
     monkeypatch, evaluation_dispatches
 ):
-    monkeypatch.setattr(
-        workflow_module,
-        "get_operational_settings_repository",
-        lambda: InMemoryOperationalSettingsRepository(
-            OperationalSettings(reasoning_evaluation_sample_rate=1.0)
-        ),
-    )
-    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
-    assert evaluation_dispatches.calls == [(run["alert_id"], run["workflow_id"])]
-
-    evaluation_dispatches.calls.clear()
+    # Sampling, origin rules and the job's state belong to the evaluator: even
+    # with the evaluator's sample rate at zero the alert flow just announces.
     monkeypatch.setattr(
         workflow_module,
         "get_operational_settings_repository",
@@ -1880,8 +1877,21 @@ def test_reasoning_evaluation_dispatched_only_when_sampled(
             OperationalSettings(reasoning_evaluation_sample_rate=0.0)
         ),
     )
-    _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
-    assert evaluation_dispatches.calls == []
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+
+    assert evaluation_dispatches.calls == [(run["alert_id"], run["workflow_id"])]
+
+
+def test_an_evaluator_that_is_down_never_fails_the_alert(
+    monkeypatch, evaluation_dispatches
+):
+    def broker_down(alert_id, workflow_id):
+        raise ConnectionError("broker unavailable")
+
+    evaluation_dispatches.dispatch = broker_down
+    run = _run_full_pipeline(monkeypatch, _ARIA_PLAYBOOK)
+
+    assert run["result"]["status"] == "ok"
 
 
 @pytest.mark.parametrize(

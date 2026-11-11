@@ -16,6 +16,11 @@ pendientes están en `PENDIENTES.md`.
 - La retención del historial (`fraud_history.retention`) es el único proceso
   que borra filas de `alerts` y `fraud_label_reviews`, y solo después de
   releer el archivo frío y verificar su SHA-256.
+- Leer el archivo frío (`fraud_archive`: `manager` y `fraud_reviewer`) y operar
+  `legal_hold` (solo `manager`) deja una entrada de auditoría propia con el
+  actor y el `alert_id`, porque la auditoría HTTP solo guarda la plantilla de
+  ruta. En OKD, las tablas `fraud_history_archive_index` y `legal_holds` solo
+  necesitan Get/Put/BatchWrite y Get/Put/Update/Scan/BatchGet respectivamente.
 - Tratar la nota libre de revisión como dato de negocio sensible. No copiarla
   a logs genéricos ni registrar cuerpos, tokens, query strings o atributos de
   los ítems en la auditoría.

@@ -6,6 +6,9 @@ from datetime import timedelta
 
 from src.application.ports.clock_port import Clock
 from src.application.ports.object_storage_port import ObjectStoragePort
+from src.application.ports.protected_object_keys_port import (
+    ProtectedObjectKeysPort,
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,8 @@ class RetentionRuleResult:
     deleted: int
     bytes_matched: int
     failed: int = 0
+    # Expired objects kept because a legal hold still needs them.
+    protected: int = 0
 
 
 @dataclass(frozen=True)
@@ -46,15 +51,24 @@ class ApplyRetentionOutput:
 class ApplyObjectStorageRetentionUseCase:
     """Apply age-based retention rules across the configured object stores."""
 
-    def __init__(self, stores: Mapping[str, ObjectStoragePort], clock: Clock) -> None:
+    def __init__(
+        self,
+        stores: Mapping[str, ObjectStoragePort],
+        clock: Clock,
+        protected: ProtectedObjectKeysPort | None = None,
+    ) -> None:
         self._stores = stores
         self._clock = clock
+        self._protected = protected
 
     def execute(
         self, rules: Sequence[RetentionRule], dry_run: bool = True
     ) -> ApplyRetentionOutput:
         now = self._clock.now()
         results: list[RetentionRuleResult] = []
+        protected = (
+            self._protected.protected_object_keys() if self._protected else frozenset()
+        )
         for rule in rules:
             store = self._stores.get(rule.store)
             if store is None:
@@ -62,11 +76,12 @@ class ApplyObjectStorageRetentionUseCase:
                     f"Unknown object store in retention rule: {rule.store}"
                 )
             cutoff = now - timedelta(days=rule.max_age_days)
-            expired = [
+            old = [
                 obj
                 for obj in store.list_objects(rule.prefix)
                 if obj.last_modified < cutoff
             ]
+            expired = [obj for obj in old if obj.key not in protected]
             deleted = failed = 0
             if not dry_run:
                 for obj in expired:
@@ -83,6 +98,7 @@ class ApplyObjectStorageRetentionUseCase:
                     deleted=deleted,
                     bytes_matched=sum(obj.size for obj in expired),
                     failed=failed,
+                    protected=len(old) - len(expired),
                 )
             )
         return ApplyRetentionOutput(dry_run=dry_run, results=results)

@@ -342,6 +342,27 @@ services:
       AGENT_STUB_DELAY_SECONDS: ${AGENT_STUB_DELAY_SECONDS:-0}
       E2E_PRESERVE_DATA: ${E2E_PRESERVE_DATA:-0}
 
+  aria-agent-chat-worker:
+    extends:
+      service: aria-worker-main
+    container_name: aria-agent-chat-worker
+    command: ["celery", "-A", "src.infrastructure.entrypoint.agent_worker.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=${AGENT_CHAT_WORKER_CONCURRENCY:-4}", "-Q", "${CELERY_AGENT_CHAT_QUEUE:-agent-chat}", "-n", "chat@%h"]
+    environment:
+      COMPONENT_NAME: aria-agent-chat-worker
+      COMPONENT_DESCRIPTION: Assistant chat replies, isolated from long optimizer candidates
+      CELERY_AGENT_QUEUE: ${CELERY_AGENT_QUEUE:-agent}
+      CELERY_AGENT_CHAT_QUEUE: ${CELERY_AGENT_CHAT_QUEUE:-agent-chat}
+
+  aria-evaluation-worker:
+    extends:
+      service: aria-worker-main
+    container_name: aria-evaluation-worker
+    command: ["celery", "-A", "src.infrastructure.entrypoint.worker.celery.celery_app:app", "worker", "--loglevel=INFO", "--concurrency=${EVALUATION_WORKER_CONCURRENCY:-2}", "-Q", "${CELERY_REASONING_EVALUATION_QUEUE:-reasoning-evaluation}", "-n", "evaluation@%h"]
+    environment:
+      COMPONENT_NAME: aria-evaluation-worker
+      COMPONENT_DESCRIPTION: LLM-judge of the agent's reasoning, silent and independent of alert processing
+      CELERY_REASONING_EVALUATION_QUEUE: ${CELERY_REASONING_EVALUATION_QUEUE:-reasoning-evaluation}
+
   aria-agent-beat:
     extends:
       service: aria-worker-main
@@ -654,10 +675,55 @@ services:
     networks:
       - aria-net
 
+  # Arize Phoenix (trace UI) backed by PostgreSQL - never SQLite. The app does
+  # not know Phoenix: only the Collector exports to it over OTLP HTTP.
+  phoenix-db:
+    image: postgres:16-alpine
+    container_name: aria-phoenix-db
+    environment:
+      POSTGRES_USER: ${PHOENIX_DB_USER:-phoenix}
+      POSTGRES_PASSWORD: ${PHOENIX_DB_PASSWORD:-phoenix}
+      POSTGRES_DB: ${PHOENIX_DB_NAME:-phoenix}
+    volumes:
+      - phoenix-db-data:/var/lib/postgresql/data
+    networks:
+      - aria-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  phoenix:
+    image: arizephoenix/phoenix:${PHOENIX_VERSION:-version-19.21.0}
+    container_name: aria-phoenix
+    environment:
+      PHOENIX_SQL_DATABASE_URL: postgresql://${PHOENIX_DB_USER:-phoenix}:${PHOENIX_DB_PASSWORD:-phoenix}@phoenix-db:5432/${PHOENIX_DB_NAME:-phoenix}
+      # Trace retention, in days (default one month). 0 = keep forever.
+      # Served by the frontend nginx at /phoenix/.
+      PHOENIX_HOST_ROOT_PATH: /phoenix
+      PHOENIX_TELEMETRY_ENABLED: "false"
+      PHOENIX_DEFAULT_RETENTION_POLICY_DAYS: ${PHOENIX_RETENTION_DAYS:-30}
+    ports:
+      - "${LOCAL_PHOENIX_PORT:-6006}:6006"
+    depends_on:
+      phoenix-db:
+        condition: service_healthy
+    networks:
+      - aria-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:6006/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.116.1
     container_name: aria-otel-collector
     command: ["--config=/etc/otel-collector/collector.yaml"]
+    environment:
+      PHOENIX_OTLP_ENDPOINT: ${PHOENIX_OTLP_ENDPOINT:-http://phoenix:6006}
     volumes:
       - ./observability/otel-collector/collector.yaml:/etc/otel-collector/collector.yaml:ro
     ports:
@@ -744,3 +810,4 @@ volumes:
   minio-data:
   opensearch-data:
   observability-minio-data:
+  phoenix-db-data:

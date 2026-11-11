@@ -137,6 +137,11 @@ like `libgomp1`, CMD, ports) must be mirrored in the other.
   dashboard and monitor pages, their metrics API reads, HTTP audit recording,
   and expired metrics-rollup cleanup against the local DynamoDB-compatible
   service. Extend this scenario when those contracts change.
+- Phoenix tracing E2E: `make e2e-phoenix` (needs `make observability-up`). It
+  checks trace identity (`trace_id` = workflow id), step spans with their
+  `step_id`, unique `aria.run_id` LLM spans, no sensitive data in spans, Tempo
+  fan-out, persistence after restarting PostgreSQL/Phoenix, and a workflow with
+  Phoenix stopped. Extend it when the tracing contract changes.
 - Full real API browser suite: `make e2e-all-local`.
 
 ### Local environment reuse and E2E history
@@ -264,6 +269,16 @@ the sole boundary. Local stack: `deploy/local/docker/observability/`,
 content is opt-in via `OTEL_CAPTURE_LLM_CONTENT` (default `false`) — never
 flip that default.
 
+Arize Phoenix (trace UI, PostgreSQL-backed, never SQLite) is one more
+Collector destination (`otlphttp/phoenix`); the app never imports or
+configures it. Trace identity: `trace_id` = `workflow_execution_id`
+(`MonitoringPort.start_workflow`, derived deterministically so retries and
+processes share the trace without W3C headers in Celery messages); each step
+span carries `aria.workflow.step_id`; each LLM/embedding/tool span carries a
+fresh `aria.run_id`. `aria.run_id`/`aria.workflow.*` ids are for trace search
+only - never metric dimensions. Retention: `PHOENIX_RETENTION_DAYS` (days,
+default 30, `0` = forever), read by the Phoenix container, not by the app.
+
 Span dimension attributes use the `ATTR_*` constants /
 `span_dimension_attributes(snapshot)` in `application/ports/monitoring_port.py`
 (names mirror `AlertMetricsSnapshot`). **Never put `customer_id` or the exact
@@ -345,6 +360,66 @@ workflow, and don't delete generation documents outside
 `CleanupVectorStoreGenerationsUseCase` (nightly, protects active/rollback/
 pending/open work). Optimizer and H12 vector-store pins use the generation
 number as their version.
+
+## Assistant chat is asynchronous — the API never calls the LLM
+
+`POST /agent/sessions/{id}/messages` only runs `ChatWithAgentUseCase.accept`
+(validate, mask, store the user turn) and queues `agent.chat_reply` through
+`AgentChatDispatcher`; it answers `202` with `assistant_message: null`. The
+worker (`aria-agent-chat-worker`, queue `CELERY_AGENT_CHAT_QUEUE`, separate from
+the optimizer's `agent` queue so a long candidate never delays an answer) runs
+`answer` (retrieval, tool loop, LLM) and stores the reply under
+`<client_message_id>:assistant`. Clients poll `GET .../messages?after_seq=`.
+Everything is idempotent by `client_message_id`; after the last retry the worker
+stores a closing message with a safe `error_code` (never provider text), and a
+retry from the UI is a new message id. Do not call the LLM from an API route:
+queue it, as chat does. The API composes the use case with a responder that
+raises; the worker composes the real one in `workflows/celery/factories.py`.
+
+## Cold fraud-history archive — index, lookup and legal hold
+
+`fraud_history.retention` writes one object per creation day, each alert its
+own gzip member, and indexes `alert_id` → object + byte range
+(`fraud_history_archive_index`) before deleting hot rows.
+`GET /fraud-history/archive/{alert_id}` (permission `fraud_archive`) reads one
+alert with a range request and refuses content that fails its SHA-256. Objects
+from before the index are indexed with `make fraud-history-archive-index-backfill`.
+Legal holds (`legal_holds` table, permission `legal_hold`, manager only) keep
+live alerts out of the archive and protect the day object of archived ones from
+retention sweeps. These use cases write their own `AuditPort` entries because
+the HTTP audit only records the route template, not the `alert_id`.
+
+## LLM-judge of the agent's reasoning (D6) — a silent, independent flow
+
+The evaluator is its own flow: an alert is resolved and visible whether or not
+its evaluation ever runs. The alert flow only *announces* that an alert finished
+(`ReasoningEvaluationDispatcher` -> task `metrics.request_reasoning_evaluation`);
+it does not read the sample rate, wait for, or depend on the evaluator. Everything
+else belongs to the evaluator, on its own queue (`CELERY_REASONING_EVALUATION_QUEUE`)
+and its own worker (`aria-evaluation-worker`): `RequestReasoningEvaluation`
+(sampling, origin rules, opens the job), `EvaluateAlertReasoning` (judges, updates
+the job), `RecoverStaleReasoningEvaluations` (beat every 5 min, re-queues lost
+jobs). Its state lives in `alert_reasoning_evaluation_jobs`
+(queued/running/evaluated/invalid/failed + wait/run/total timings), never on the
+alert or its workflow; nothing in the evaluator writes an alert.
+
+The judge gives one verdict per reasoning step (alert-level flags derived:
+hallucination if ANY step hallucinates, data use correct only if ALL do) plus the
+explainability criteria of `reasoning_criteria.DEFAULT_CRITERIA` (clarity, step
+consistency, evidence citation, model alignment) once per alert; only the first
+two feed the rollups. `PROMPT_VERSION` is stored on every verdict: bump it on any
+prompt/criteria change. Reads: `GET /alerts/{id}/reasoning-evaluation`,
+`GET /metrics/reasoning-evaluations`, `GET /metrics/reasoning-evaluation-criteria`
+(`monitor`); `POST /alerts/{id}/reasoning-evaluation` asks for one now
+(`configuration`, 202, queues only). The per-day listing is its own table, not a GSI
+(DynamoDB Local never activates an index added to an existing table). `JUDGE_LLM_MODEL`
+must differ from the models that reason (the worker warns). Measure with
+`make reasoning-judge-benchmark` (real model, stores nothing, projects utilization and
+queue wait); calibrate with `make reasoning-judge-review-export` / `-score`. The local
+E2E LLM (`scripted_e2e`) answers the judge deterministically; keep it in sync with the
+prompt format and with the adversarial `decision` field. `make e2e-alert-processing`
+(E07) checks the verdict, the timings and, with the evaluator's worker stopped, that
+alerts still process and stay visible.
 
 ## Project graph — graph-RAG context for the chat agent
 

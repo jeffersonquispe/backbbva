@@ -1,0 +1,78 @@
+# PostgreSQL for Phoenix (never SQLite). Official image through BBVA
+# Artifactory's Docker Hub remote (same remote Jenkins uses). The official
+# image needs a fixed UID, so it follows the OpenSearch precedent
+# (storage/db/opensearch): fixed runAsUser/fsGroup + anyuid RoleBinding.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: phoenix-db-sa
+  labels: {app.kubernetes.io/name: phoenix-db, app.kubernetes.io/part-of: aria-observability, app.kubernetes.io/managed-by: argocd}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: phoenix-db-sa-anyuid
+  labels: {app.kubernetes.io/name: phoenix-db, app.kubernetes.io/part-of: aria-observability, app.kubernetes.io/managed-by: argocd}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: phoenix-db-sa
+    namespace: aria-genai-dev
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: phoenix-db
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
+  labels: {app.kubernetes.io/name: phoenix-db, app.kubernetes.io/component: database, app.kubernetes.io/part-of: aria-observability, app.kubernetes.io/managed-by: argocd}
+spec:
+  serviceName: phoenix-db
+  replicas: 1
+  selector: {matchLabels: {app.kubernetes.io/name: phoenix-db}}
+  template:
+    metadata: {labels: {app.kubernetes.io/name: phoenix-db, app.kubernetes.io/component: database, app.kubernetes.io/part-of: aria-observability}}
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: phoenix-db-sa
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: artifactory-auth
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: postgres
+          image: artifactory.globaldevtools.bbva.com:443/hub.docker.com-remote/library/postgres:16
+          ports: [{name: pg, containerPort: 5432}]
+          securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
+          resources: {requests: {cpu: 100m, memory: 512Mi}, limits: {cpu: "1", memory: 1Gi}}
+          env:
+            # Data dir below the mount point: the volume root holds lost+found.
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+            - name: POSTGRES_USER
+              valueFrom: {secretKeyRef: {name: aria-phoenix-runtime, key: PHOENIX_DB_USER}}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: aria-phoenix-runtime, key: PHOENIX_DB_PASSWORD}}
+            - name: POSTGRES_DB
+              valueFrom: {secretKeyRef: {name: aria-phoenix-runtime, key: PHOENIX_DB_NAME}}
+          volumeMounts: [{name: data, mountPath: /var/lib/postgresql/data}]
+          startupProbe: {tcpSocket: {port: pg}, periodSeconds: 5, failureThreshold: 36}
+          readinessProbe: {exec: {command: [sh, -c, "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]}, periodSeconds: 10}
+          livenessProbe: {tcpSocket: {port: pg}, periodSeconds: 20, failureThreshold: 6}
+      volumes:
+        - {name: data, persistentVolumeClaim: {claimName: phoenix-db-data}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: phoenix-db
+  labels: {app.kubernetes.io/name: phoenix-db, app.kubernetes.io/part-of: aria-observability, app.kubernetes.io/managed-by: argocd}
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: phoenix-db}
+  ports: [{name: pg, port: 5432, targetPort: pg}]

@@ -11,8 +11,10 @@ from src.application.use_cases.e2e.clean_e2e_state import CleanE2EStateUseCase
 from src.infrastructure.core.config import genai_config
 from src.infrastructure.entrypoint.api.authorization import require_permission
 from src.infrastructure.entrypoint.api.factories.e2e_factory import (
+    SeedArchivedAlert,
     get_clean_e2e_state_use_case,
     get_e2e_object_storage,
+    get_seed_archived_alert,
 )
 
 router = APIRouter(prefix="/e2e", tags=["e2e"])
@@ -68,3 +70,17 @@ def get_raw_access_audit(
         if item.get("alert_id") == str(alert_id):
             result.append(item)
     return result
+
+
+@router.post("/fraud-history/archived-alert")
+def seed_archived_alert(
+    _: Annotated[LocalUser, Depends(require_permission("alert_schema"))],
+    seed: Annotated[SeedArchivedAlert, Depends(get_seed_archived_alert)],
+) -> dict[str, str]:
+    """Archive one synthetic, backdated alert for the archive-lookup E2E."""
+    if (
+        genai_config.GENAI_ENVIRONMENT != "local"
+        or not genai_config.E2E_CLEANUP_ENABLED
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return seed.execute()

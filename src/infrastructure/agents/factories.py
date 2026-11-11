@@ -72,7 +72,7 @@ from src.infrastructure.core.runtime.uuid_generator import get_id_generator
 from src.infrastructure.embedding.langchain import (
     get_embedding_unit_of_work_factory,
 )
-from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory
+from src.infrastructure.llm.catalog.element_llm import get_element_llm_factory
 from src.infrastructure.monitoring.opentelemetry import get_monitoring
 from src.infrastructure.persistence.database.dynamodb.audit_factory import (
     get_audit_repository,
@@ -268,7 +268,7 @@ def get_project_graph_semantic_search() -> ProjectGraphSemanticSearch | None:
 def get_agent_chat_responder() -> AgentChatResponder:
     model = genai_config.REPORT_LLM_MODEL or genai_config.EXECUTOR_LLM_MODEL
     return LLMChatResponder(
-        llm_factory=get_llm_unit_of_work_factory(),
+        llm_factory=get_element_llm_factory("assistant_chat"),
         monitoring=get_monitoring(),
         model=model,
     )
@@ -278,7 +278,7 @@ def get_agent_chat_responder() -> AgentChatResponder:
 def get_modus_operandi_generator_subagent() -> ModusOperandiGeneratorSubagent:
     model = genai_config.REPORT_LLM_MODEL or genai_config.EXECUTOR_LLM_MODEL
     generator = LLMStructuredAgentGenerator(
-        llm_factory=get_llm_unit_of_work_factory(),
+        llm_factory=get_element_llm_factory("agent_drafts"),
         monitoring=get_monitoring(),
         model=model,
     )
@@ -293,7 +293,7 @@ def get_optimizer_agent_specialists() -> dict[str, OptimizerSpecialistSubagent]:
 
     model = genai_config.REPORT_LLM_MODEL or genai_config.EXECUTOR_LLM_MODEL
     generator = LLMStructuredAgentGenerator(
-        llm_factory=get_llm_unit_of_work_factory(),
+        llm_factory=get_element_llm_factory("optimizer"),
         monitoring=get_monitoring(),
         model=model,
     )

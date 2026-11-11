@@ -1,0 +1,6 @@
+# Arize Phoenix (trace UI) + its PostgreSQL. Reached ONLY by the OTel
+# Collector over OTLP HTTP; the application never knows Phoenix.
+# secret.example.yaml is a template and is not listed here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: [serviceaccount.yaml, configmap.yaml, pvc.yaml, phoenix-db.yaml, deployment.yaml, service.yaml, networkpolicy.yaml]

@@ -12,6 +12,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "config/local/config.cfg"
 WORKER = os.getenv("E2E_WORKER_CONTAINER", "aria-worker-main")
+# The LLM-judge runs in its own worker: it needs the scripted backend too.
+EVALUATION_WORKER = os.getenv(
+    "E2E_EVALUATION_WORKER_CONTAINER", "aria-evaluation-worker"
+)
+WORKERS = (WORKER, EVALUATION_WORKER)
+# Script that runs once the scripted LLM backend is loaded (E07 by default;
+# E13 Phoenix tracing reuses this runner through `make e2e-phoenix`).
+TARGET_SCRIPT = os.getenv("E2E_ALERT_SCRIPT", "scripts/e2e_alert_processing.py")
 
 
 def _run(
@@ -57,7 +65,7 @@ def _select_scripted_backend(original: bytes) -> None:
     CONFIG.write_text(text)
 
 
-def _wait_for_worker_backend() -> None:
+def _wait_for_worker_backend(container: str) -> None:
     probe = (
         "from src.infrastructure.core.config import genai_config; "
         "from src.infrastructure.llm.langchain import get_llm_unit_of_work_factory; "
@@ -66,7 +74,7 @@ def _wait_for_worker_backend() -> None:
     deadline = time.monotonic() + 90
     while time.monotonic() < deadline:
         result = subprocess.run(
-            ["docker", "exec", WORKER, "python", "-c", probe],
+            ["docker", "exec", container, "python", "-c", probe],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -78,7 +86,9 @@ def _wait_for_worker_backend() -> None:
         ):
             return
         time.sleep(2)
-    raise RuntimeError("Worker did not load the scripted_e2e backend within 90 seconds")
+    raise RuntimeError(
+        f"{container} did not load the scripted_e2e backend within 90 seconds"
+    )
 
 
 def main() -> int:
@@ -86,28 +96,21 @@ def main() -> int:
     _require_local_api()
     try:
         _select_scripted_backend(original)
-        _run(
-            [
-                "docker",
-                "cp",
-                str(ROOT / "src/infrastructure/llm/scripted_e2e.py"),
-                f"{WORKER}:/code/src/infrastructure/llm/scripted_e2e.py",
-            ]
-        )
-        _run(
-            [
-                "docker",
-                "cp",
-                str(ROOT / "src/infrastructure/llm/langchain/__init__.py"),
-                f"{WORKER}:/code/src/infrastructure/llm/langchain/__init__.py",
-            ]
-        )
-        _run(["docker", "restart", WORKER])
-        _wait_for_worker_backend()
+        for container in WORKERS:
+            for source in (
+                "src/infrastructure/llm/scripted_e2e.py",
+                "src/infrastructure/llm/langchain/__init__.py",
+            ):
+                _run(
+                    ["docker", "cp", str(ROOT / source), f"{container}:/code/{source}"]
+                )
+            _run(["docker", "restart", container])
+        for container in WORKERS:
+            _wait_for_worker_backend(container)
         env = os.environ.copy()
         env["E2E_BASE_URL"] = env.get("E2E_BASE_URL", "http://localhost")
         result = subprocess.run(
-            [sys.executable, str(ROOT / "scripts/e2e_alert_processing.py")],
+            [sys.executable, str(ROOT / TARGET_SCRIPT)],
             cwd=ROOT,
             env=env,
             check=False,
@@ -115,7 +118,8 @@ def main() -> int:
         return result.returncode
     finally:
         CONFIG.write_bytes(original)
-        _run(["docker", "restart", WORKER])
+        for container in WORKERS:
+            _run(["docker", "restart", container])
 
 
 if __name__ == "__main__":
