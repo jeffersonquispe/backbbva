@@ -375,6 +375,65 @@ preparación del stack.
 
 **Correcciones y retest:** `list_latest()` ahora pagina el scan de DynamoDB y usa los owner items de resumen, sin hidratar todas las versiones históricas; esto evita perder configuraciones más allá de 1 MiB y reduce el costo de cargar el selector. La spec del grafo ahora cierra el selector después de cada selección. El test de side drawer limita el locator de “Modus operandi” a la pestaña, ya que la tabla también tiene un botón con ese nombre. Regresión backend: `GENAI_ENVIRONMENT=test pytest tests/test_infrastructure/test_persistence/test_configuration_repository.py -q` — 22/22 pasaron. Retest por nginx con `make e2e-selected-real` para `side-drawer-real`, `configuration-graph-real` y `configuration-deploy-real`: **13/13 pasaron en 46,3 s** (deploy 8,6 s, grafo 1,8 s). Los tres fallos anteriores quedaron resueltos en esta corrida.
 
+## 12. Selección de deployment LLM por elemento — implementada 2026-11-09 (sin commit); falta el E2E real y el despliegue en OKD
+
+**Objetivo.** Cada componente que llama a un LLM elige un deployment de un catálogo o usa el de por defecto. **Alcance confirmado 2026-11-09: todos los componentes con LLM, no solo las 7 etapas** — 13 elementos en `domain/llm/catalog.py`: `profiling`, `detector`, `detector_adversarial`, `classification`, `adversarial`, `analyst`, `executor` (pasos del workflow) y `report`, `judge`, `history_research`, `assistant_chat`, `optimizer`, `agent_drafts` (el resto). Quedan fuera el generador de eventos del simulador (su modelo es dato de cada escenario) y el script `project-graph` (herramienta de desarrollo).
+
+**Decisiones cerradas:** selección por elemento; catálogo solo Azure por ConfigMap (`LLM_CATALOG`, JSON `[{"nombre","deployment"}]`, sin API ni UI de carga; JSON inválido impide el arranque); credenciales globales; si un deployment falla, falla la ejecución (sin fallback); logs solo ante fallo.
+
+**Cómo quedó**
+- Catálogo: `LLMCatalog` (dominio), puerto `LLMCatalogPort`, adaptador `ConfigLLMCatalog`, `GET /llm-catalog` (catálogo + default de cada elemento).
+- Selección: `GeneralSettings.llm_selection` (`elemento -> nombre`; viaja con la versión de la configuración, su merge, su solicitud de deploy y su persistencia). Se valida al guardar (422 con `LLM_CATALOG_NAME_UNKNOWN` / `LLM_ELEMENT_UNKNOWN`).
+- Resolver `ResolveElementLLM`: override de la prueba → selección de la configuración → default (`*_LLM_MODEL`). Pasos del workflow: la resuelve `_step_overrides` con la configuración de la propia corrida (fijada al arrancar; en pruebas, la fijada). Resto de componentes: `get_element_llm_factory(elemento)` aplica la selección de la configuración **activa** en cada llamada (caché de 30 s; si no puede leerla, usa los defaults y avisa).
+- Registro: cada paso guarda `output.llm = {element, name, deployment, source}`; la métrica `model` usa el nombre lógico. El juez vs. los modelos que razonan se comprueba sobre los deployments resueltos.
+- Pruebas: `model_overrides` ahora son nombres del catálogo (se validan al iniciar; sin catálogo siguen siendo deployments crudos, compatibilidad).
+- Logs (T7): solo ante fallo, con elemento, nombre, deployment y la clase de la excepción; nunca texto del proveedor.
+- Frontend: sección «Modelo de lenguaje por elemento» en Configuración › General; selector por etapa en «Nueva prueba»; «Modelo» en cada paso del detalle de la alerta y del caso de prueba.
+- Despliegue: `LLM_CATALOG` en los 4 ConfigMaps de OKD (vacío: hay que definir los nombres) y en `config/local/config.cfg`.
+
+**Pendiente**
+- [ ] Ejecutar `e2e/llm-selection-real.spec.ts` contra el stack local reconstruido (`make e2e-selected-real E2E_TEST_FILES=e2e/llm-selection-real.spec.ts`). Escrito, no ejecutado.
+- [ ] `make project-graph` (hay componentes y un endpoint nuevos; necesita el LLM para describir los componentes nuevos).
+- [ ] OKD: definir `LLM_CATALOG` con los deployments reales y el mismo valor en API y workers.
+- [ ] Probar un fallo real del proveedor (deployment inexistente) y ver el log.
+- [ ] Decisión de producto: una alerta en vuelo conserva lo resuelto al arrancar; los componentes fuera del workflow siguen la configuración activa con hasta 30 s de retraso.
+
+## 13. Arize Phoenix con PostgreSQL y trazas jerárquicas — en curso (implementado 2026-11-09; falta E2E real y revisión con plataforma)
+
+**Objetivo.** Incorporar Phoenix como interfaz de trazas de ARIA con persistencia PostgreSQL (sin SQLite), reutilizando OpenTelemetry y encaminando desde el Collector. Identificar cada ejecución con `trace_id = workflow_execution_id`; cada etapa/operación con un span OpenTelemetry cuyo `span_id` identifica la operación e incluye `aria.workflow.step_id`; y cada llamada concreta a LLM o herramienta con `aria.run_id`. La especificación completa está en `docs/ARIZE_PHOENIX_TRACING_SPEC.md`.
+
+**Alcance macro**
+- [x] Instrumentar raíz de workflow y etapas; propagar W3C Trace Context entre API, Celery, retries y procesos worker.
+- [x] Instrumentar todas las llamadas LLM, embeddings y herramientas con spans únicos, `run_id`, duración, resultado y errores, evitando duplicar spans existentes de LangChain.
+- [x] Configurar OTLP HTTP desde Collector hacia Phoenix y conservar las salidas existentes a Tempo y demás backends.
+- [x] Desplegar Phoenix + PostgreSQL con volúmenes persistentes en local; añadir configuración OKD con PVC y secretos externalizados.
+- [ ] Preservar privacidad y seguridad: captura de contenido desactivada por defecto; excluir IDs de cliente, montos exactos, credenciales y datos sensibles.
+- [ ] Actualizar `CLAUDE.md`, runbook, stack local y observabilidad OKD; definir retención, backups, TLS y acceso con plataforma.
+- [ ] Añadir pruebas unitarias/contratos y E2E real a través del stack local para una llamada LLM, una herramienta, retry y persistencia después de reinicio.
+
+**Criterio de cierre:** consulta en Phoenix de una traza real cuyo `trace_id` sea el UUID del workflow, spans de etapas y llamadas con `aria.run_id`; persistencia demostrada tras reinicio de PostgreSQL; los demás backends OTLP y workflows siguen funcionando si Phoenix no responde. Completar los gates de lint, arquitectura, tests y E2E definidos en `AGENTS.md`.
+
+**Decisiones pendientes:** validar compatibilidad exacta de TraceId UUID y propagación W3C con las tasks Celery existentes; escoger versión de Phoenix y política de retención/capacidad con plataforma antes del despliegue productivo.
+
+**Implementado (2026-11-09).** `start_workflow` (trace_id = workflow id), `aria.workflow.step_id`, `aria.run_id` en LLM/embedding/tool, spans de herramientas en classify/adversarial, exporter `otlphttp/phoenix` (local y OKD), Phoenix + PostgreSQL en compose y manifiestos OKD (`observability/phoenix`). Retención por `PHOENIX_RETENTION_DAYS` (días, defecto 30). Pendiente: E2E real, `aria.workflow.id` en trazas posteriores al workflow, runbook de backup/TLS con plataforma. `make lint`/`test-architecture` fallan por `tests/test_scripts/test_okd_deploy_automation.py` (preexistente, no relacionado).
+
+## 14. Descripciones del esquema disponibles para el agente — pendiente (planteada 2026-11-05)
+
+**Hallazgo.** El esquema sí contempla `description` por campo (`AlertSchemaField.description`, con valor predeterminado vacío), y el DTO/API de esquema lo exponen. Sin embargo, los datos que se preparan para las etapas del agente (`_variables_pool` en `infrastructure/workflows/celery/step_context.py`) contienen los valores del evento y enriquecimientos, pero no el significado/descripción de los campos. Por tanto, cuando la descripción está cargada, no se propaga hoy al contexto compartido del agente. También hay que verificar que la UI de gobierno del esquema permita consultarla y editarla de forma práctica.
+
+**Objetivo.** Permitir documentar qué representa cada campo del esquema de alerta y entregar esas descripciones, junto con los nombres canónicos, a las etapas del agente que reciben el payload. Esto evita que el LLM tenga que inferir el significado de nombres ambiguos y ayuda a interpretar correctamente el dato.
+
+**Alcance**
+- [ ] Revisar el editor/API de esquemas para asegurar que la descripción por campo se pueda consultar, editar y persistir sin perderse al crear una nueva versión.
+- [ ] Construir contexto de metadatos del esquema activo/versionado para el workflow y propagarlo a las etapas pertinentes (incluido el replay del optimizador cuando fija una versión de esquema); no mezclar metadatos con los valores del evento ni con etiquetas de evaluación.
+- [ ] Incluir descripciones no vacías y nombres legibles/canónicos en los prompts o contexto estructurado; definir comportamiento estable para descripciones ausentes y evitar duplicar contenido innecesariamente en cada etapa.
+- [ ] Añadir pruebas de persistencia/API y de propagación hasta el contexto recibido por el agente, más cobertura Playwright real del editor si se modifica su comportamiento.
+- [ ] Documentar el contrato de contexto y completar los gates de lint, arquitectura, pruebas y E2E establecidos en `AGENTS.md`.
+
+**Criterio de cierre.** Dada una versión de esquema con descripciones guardadas, cada etapa prevista recibe la descripción correspondiente al mismo campo y versión junto a su valor; una actualización de esquema no altera las descripciones de versiones históricas, y los campos sin descripción siguen funcionando sin texto inventado.
+
+**Decisiones por resolver al implementar:** definir qué etapas consumen metadatos (todas las que reciben `input` o solo las que razonan sobre campos), formato del contexto y política de longitud/token para esquemas grandes.
+
 ---
 
 **Dependencias:** #10 es base de #11 y #19. #7, #8 y #9 comparten el patrón "estado on/off" → diseñarlos juntos. #12 y #13 comparten el patrón "reserva con expiración".
