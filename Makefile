@@ -743,6 +743,14 @@ e2e-alert-processing:  ## Run E07 alert intake, real workflow, escalation and an
 		E2E_WORKFLOW_TIMEOUT=$(if $(E2E_WORKFLOW_TIMEOUT),$(E2E_WORKFLOW_TIMEOUT),600) \
 		$(PYTHON) scripts/e2e_alert_processing_local.py
 
+.PHONY: e2e-phoenix
+e2e-phoenix:  ## E13: real workflow trace in Arize Phoenix (identity, steps, LLM/tool spans, privacy), Tempo fan-out, restart persistence and Phoenix-down resilience. Needs the local stack and `make observability-up`.
+	@E2E_BASE_URL=$(if $(E2E_BASE_URL),$(E2E_BASE_URL),http://localhost) \
+		E2E_ALERT_SCRIPT=scripts/e2e_phoenix.py \
+		LOCAL_DYNAMODB_PORT=$(LOCAL_DYNAMODB_PORT) \
+		E2E_WORKFLOW_TIMEOUT=$(if $(E2E_WORKFLOW_TIMEOUT),$(E2E_WORKFLOW_TIMEOUT),600) \
+		$(PYTHON) scripts/e2e_alert_processing_local.py
+
 .PHONY: e2e-event-api-local
 e2e-event-api-local:  ## Run the Event API OIDC, idempotency, payload-limit and queue-failure E2E checks.
 	@set -euo pipefail; \

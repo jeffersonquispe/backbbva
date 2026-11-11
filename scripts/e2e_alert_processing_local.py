@@ -17,6 +17,9 @@ EVALUATION_WORKER = os.getenv(
     "E2E_EVALUATION_WORKER_CONTAINER", "aria-evaluation-worker"
 )
 WORKERS = (WORKER, EVALUATION_WORKER)
+# Script that runs once the scripted LLM backend is loaded (E07 by default;
+# E13 Phoenix tracing reuses this runner through `make e2e-phoenix`).
+TARGET_SCRIPT = os.getenv("E2E_ALERT_SCRIPT", "scripts/e2e_alert_processing.py")
 
 
 def _run(
@@ -107,7 +110,7 @@ def main() -> int:
         env = os.environ.copy()
         env["E2E_BASE_URL"] = env.get("E2E_BASE_URL", "http://localhost")
         result = subprocess.run(
-            [sys.executable, str(ROOT / "scripts/e2e_alert_processing.py")],
+            [sys.executable, str(ROOT / TARGET_SCRIPT)],
             cwd=ROOT,
             env=env,
             check=False,

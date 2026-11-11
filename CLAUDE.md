@@ -137,6 +137,11 @@ like `libgomp1`, CMD, ports) must be mirrored in the other.
   dashboard and monitor pages, their metrics API reads, HTTP audit recording,
   and expired metrics-rollup cleanup against the local DynamoDB-compatible
   service. Extend this scenario when those contracts change.
+- Phoenix tracing E2E: `make e2e-phoenix` (needs `make observability-up`). It
+  checks trace identity (`trace_id` = workflow id), step spans with their
+  `step_id`, unique `aria.run_id` LLM spans, no sensitive data in spans, Tempo
+  fan-out, persistence after restarting PostgreSQL/Phoenix, and a workflow with
+  Phoenix stopped. Extend it when the tracing contract changes.
 - Full real API browser suite: `make e2e-all-local`.
 
 ### Local environment reuse and E2E history

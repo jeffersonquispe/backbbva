@@ -1,7 +1,7 @@
 # Especificación: Arize Phoenix y trazabilidad jerárquica
 
 Fecha: 2026-11-05  
-Estado: implementado (2026-11-09), pendiente E2E real; retención por `PHOENIX_RETENTION_DAYS` (días, defecto 30)  
+Estado: implementado (2026-11-09), E2E real `make e2e-phoenix` pasó el 2026-11-11 (faltan retry Celery entre procesos, `aria.workflow.id` posterior al workflow y revisión con plataforma); retención por `PHOENIX_RETENTION_DAYS` (días, defecto 30)  
 Macro tarea: `PENDIENTES.md` §13
 
 ## Objetivo
