@@ -19,7 +19,7 @@ spec:
         - name: artifactory-auth
       containers:
         - name: frontend
-          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-frontend-app-aria-frontend:65198505d88bff4430b66d3a55a7521405760cdb
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-frontend-app-aria-frontend:b8986a7d81abf83fc9fcdc96c5a79a8fc1a1b0e5
           ports: [{name: http, containerPort: 8080}]
           envFrom: [{configMapRef: {name: aria-frontend-config}}]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}

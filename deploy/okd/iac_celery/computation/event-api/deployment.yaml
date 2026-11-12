@@ -16,7 +16,7 @@ spec:
         - name: artifactory-auth
       containers:
         - name: event-api
-          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-event-api:5571f9f5641747ac86223d8723c8b14923a3d4c5
+          image: artifactory.globaldevtools.bbva.com:443/co-genai-public-cloud-docker-local/aria-genai/co-backend-aria-event-api:553566c7a750646026af4cee11f2a8fe52b7e5a8
           ports: [{name: http, containerPort: 8080}]
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, seccompProfile: {type: RuntimeDefault}}
           resources: {requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}
