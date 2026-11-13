@@ -34,6 +34,10 @@ spec:
             - name: PHOENIX_SQL_DATABASE_URL
               value: postgresql://$(PHOENIX_DB_USER):$(PHOENIX_DB_PASSWORD)@phoenix-db:5432/$(PHOENIX_DB_NAME)
             - {name: PHOENIX_HOST_ROOT_PATH, value: /phoenix}
+            # OpenShift assigns an arbitrary UID with no writable home dir.
+            # Phoenix otherwise defaults to /.phoenix; traces are persisted in
+            # PostgreSQL, so keep its auxiliary working files under writable /tmp.
+            - {name: PHOENIX_WORKING_DIR, value: /tmp/phoenix}
             # No outbound usage telemetry from the trace backend.
             - {name: PHOENIX_TELEMETRY_ENABLED, value: "false"}
             - name: PHOENIX_DEFAULT_RETENTION_POLICY_DAYS

@@ -72,7 +72,9 @@ service account with no `anyuid` grant. Its persistent data is in
 `phoenix-db-data` (20Gi,
 `ceph-rbd`); the existing `aria-phoenix-runtime` Secret supplies
 `POSTGRESQL_USER`, `POSTGRESQL_PASSWORD`, and `POSTGRESQL_DATABASE`. Verified:
-the Collector config
+Phoenix's auxiliary `PHOENIX_WORKING_DIR` is `/tmp/phoenix` to support the
+arbitrary OpenShift UID; auxiliary local files are ephemeral, while trace data
+is persisted in PostgreSQL. The Collector config
 with `otlphttp/phoenix` starts on both the ADOT image used here
 (`aws-otel-collector:v0.43.2`) and `otel/opentelemetry-collector-contrib:0.116.1`
 (local). Open points for platform: that those two Artifactory paths exist and
