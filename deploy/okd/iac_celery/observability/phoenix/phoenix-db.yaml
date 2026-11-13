@@ -14,6 +14,9 @@ spec:
     metadata: {labels: {app.kubernetes.io/name: phoenix-db, app.kubernetes.io/component: database, app.kubernetes.io/part-of: aria-observability}}
     spec:
       enableServiceLinks: false
+      # Use the namespace's default account so restricted-v2, not a lingering
+      # phoenix-db-sa/anyuid grant, supplies the pod identity and fsGroup.
+      serviceAccountName: default
       automountServiceAccountToken: false
       containers:
         - name: postgres

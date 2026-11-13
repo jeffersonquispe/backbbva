@@ -67,8 +67,9 @@ Artifactory Docker Hub remote image
 PostgreSQL uses the OpenShift-oriented SCLorg PostgreSQL 16 C9S image pinned by
 digest in `observability/phoenix/phoenix-db.yaml`; its pull from Quay or an
 approved internal mirror must be available to cluster nodes. It uses the
-namespace-assigned UID under `restricted-v2`, with no dedicated service account
-or `anyuid` grant. Its persistent data is in `phoenix-db-data` (20Gi,
+namespace-assigned UID under `restricted-v2`, using the namespace's `default`
+service account with no `anyuid` grant. Its persistent data is in
+`phoenix-db-data` (20Gi,
 `ceph-rbd`); the existing `aria-phoenix-runtime` Secret supplies
 `POSTGRESQL_USER`, `POSTGRESQL_PASSWORD`, and `POSTGRESQL_DATABASE`. Verified:
 the Collector config
